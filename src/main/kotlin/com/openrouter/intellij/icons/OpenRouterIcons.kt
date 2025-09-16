@@ -9,14 +9,14 @@ import javax.swing.Icon
 object OpenRouterIcons {
     
     @JvmField
-    val TOOL_WINDOW: Icon = IconLoader.getIcon("/icons/openrouter-16.svg", OpenRouterIcons::class.java)
+    val TOOL_WINDOW: Icon = IconLoader.getIcon("/icons/openrouter-16.png", OpenRouterIcons::class.java)
 
     @JvmField
-    val STATUS_BAR: Icon = IconLoader.getIcon("/icons/openrouter-16.svg", OpenRouterIcons::class.java)
+    val STATUS_BAR: Icon = IconLoader.getIcon("/icons/openrouter-13.png", OpenRouterIcons::class.java)
 
     @JvmField
-    val REFRESH: Icon = IconLoader.getIcon("/icons/refresh-16.svg", OpenRouterIcons::class.java)
+    val REFRESH: Icon = IconLoader.getIcon("/icons/openrouter-16.png", OpenRouterIcons::class.java)
 
     @JvmField
-    val SETTINGS: Icon = IconLoader.getIcon("/icons/settings-16.svg", OpenRouterIcons::class.java)
+    val SETTINGS: Icon = IconLoader.getIcon("/icons/openrouter-16.png", OpenRouterIcons::class.java)
 }
