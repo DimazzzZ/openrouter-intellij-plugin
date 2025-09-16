@@ -64,21 +64,28 @@
     <actions>
         <group id="OpenRouter.ActionGroup" text="OpenRouter" description="OpenRouter actions">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
-            
-            <action id="OpenRouter.ShowUsage" 
-                    class="com.openrouter.intellij.actions.ShowUsageAction" 
-                    text="Show Usage Statistics" 
+
+            <action id="OpenRouter.ShowUsage"
+                    class="com.openrouter.intellij.actions.ShowUsageAction"
+                    text="Show Usage Statistics"
                     description="Display OpenRouter API usage statistics"/>
-            
-            <action id="OpenRouter.RefreshQuota" 
-                    class="com.openrouter.intellij.actions.RefreshQuotaAction" 
-                    text="Refresh Quota" 
+
+            <action id="OpenRouter.RefreshQuota"
+                    class="com.openrouter.intellij.actions.RefreshQuotaAction"
+                    text="Refresh Quota"
                     description="Refresh OpenRouter API quota information"/>
-            
-            <action id="OpenRouter.OpenSettings" 
-                    class="com.openrouter.intellij.actions.OpenSettingsAction" 
-                    text="Settings..." 
+
+            <action id="OpenRouter.OpenSettings"
+                    class="com.openrouter.intellij.actions.OpenSettingsAction"
+                    text="Settings..."
                     description="Open OpenRouter settings"/>
+
+            <action id="OpenRouter.OpenChat"
+                    class="com.openrouter.intellij.actions.OpenChatAction"
+                    text="Open Chat"
+                    description="Open OpenRouter chat window">
+                <keyboard-shortcut keymap="$default" first-keystroke="shift ctrl C"/>
+            </action>
         </group>
     </actions>
 </idea-plugin>
