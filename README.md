@@ -34,7 +34,7 @@ Access detailed usage statistics and model information via the OpenRouter tool w
 ### Manual Installation (Development)
 1. Clone this repository:
    ```bash
-   git clone https://github.com/d-zhavoronkov/openrouter-intellij-plugin.git
+   git clone https://github.com/DimazzzZ/openrouter-intellij-plugin.git
    cd openrouter-intellij-plugin
    ```
 
@@ -105,7 +105,7 @@ Access OpenRouter features via `Tools > OpenRouter`:
 ### Building from Source
 ```bash
 # Clone the repository
-git clone https://github.com/d-zhavoronkov/openrouter-intellij-plugin.git
+git clone https://github.com/DimazzzZ/openrouter-intellij-plugin.git
 cd openrouter-intellij-plugin
 
 # Build the plugin
@@ -197,8 +197,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/d-zhavoronkov/openrouter-intellij-plugin/issues)
-- **Documentation**: [Plugin Documentation](https://github.com/d-zhavoronkov/openrouter-intellij-plugin/wiki)
+- **Issues**: [GitHub Issues](https://github.com/DimazzzZ/openrouter-intellij-plugin/issues)
+- **Documentation**: [Plugin Documentation](https://github.com/DimazzzZ/openrouter-intellij-plugin/wiki)
 - **OpenRouter Support**: [OpenRouter Documentation](https://openrouter.ai/docs)
 
 ---

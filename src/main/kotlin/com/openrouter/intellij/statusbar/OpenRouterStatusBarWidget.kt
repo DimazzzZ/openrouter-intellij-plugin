@@ -2,6 +2,7 @@ package com.openrouter.intellij.statusbar
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.wm.StatusBar
 import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.impl.status.EditorBasedWidget
@@ -9,8 +10,11 @@ import com.intellij.util.Consumer
 import com.openrouter.intellij.icons.OpenRouterIcons
 import com.openrouter.intellij.services.OpenRouterService
 import com.openrouter.intellij.services.OpenRouterSettingsService
+import com.openrouter.intellij.ui.OpenRouterStatsPopup
 import java.awt.event.MouseEvent
 import javax.swing.Icon
+import javax.swing.JMenuItem
+import javax.swing.JPopupMenu
 
 /**
  * Status bar widget that displays OpenRouter quota and usage information
@@ -41,8 +45,8 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
                     showContextMenu(event)
                 }
                 else -> {
-                    // Left click - open settings
-                    openSettings()
+                    // Left click - show statistics popup
+                    showStatsPopup(event)
                 }
             }
         }
@@ -50,8 +54,27 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
     
     override fun getIcon(): Icon = OpenRouterIcons.STATUS_BAR
     
+    private fun showStatsPopup(event: MouseEvent) {
+        val statsPopup = OpenRouterStatsPopup(project)
+        statsPopup.show(event.component)
+    }
+
     private fun showContextMenu(event: MouseEvent) {
-        // TODO: Implement context menu with refresh, settings, etc.
+        val popupMenu = JPopupMenu()
+
+        val refreshItem = JMenuItem("Refresh").apply {
+            addActionListener { updateQuotaInfo() }
+        }
+
+        val settingsItem = JMenuItem("Settings").apply {
+            addActionListener { openSettings() }
+        }
+
+        popupMenu.add(refreshItem)
+        popupMenu.addSeparator()
+        popupMenu.add(settingsItem)
+
+        popupMenu.show(event.component, event.x, event.y)
     }
     
     private fun openSettings() {
@@ -72,33 +95,41 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
             updateStatusBar()
             return
         }
-        
-        openRouterService.getQuotaInfo().thenAccept { quotaInfo ->
+
+        openRouterService.getKeyInfo().thenAccept { keyInfo ->
             ApplicationManager.getApplication().invokeLater {
-                if (quotaInfo != null) {
-                    val used = quotaInfo.used ?: 0.0
-                    val total = quotaInfo.total ?: 0.0
-                    val remaining = quotaInfo.remaining ?: 0.0
-                    
-                    currentText = if (settingsService.shouldShowCosts()) {
-                        "OpenRouter: $${String.format("%.2f", used)}/$${String.format("%.2f", total)}"
+                if (keyInfo != null) {
+                    val data = keyInfo.data
+                    val used = data.usage
+                    val limit = data.limit
+                    val remaining = if (limit != null) limit - used else Double.MAX_VALUE
+
+                    currentText = if (limit != null) {
+                        if (settingsService.shouldShowCosts()) {
+                            "OpenRouter: $${String.format("%.4f", used)}/$${String.format("%.2f", limit)}"
+                        } else {
+                            val percentage = (used / limit) * 100
+                            "OpenRouter: ${String.format("%.1f", percentage)}% used"
+                        }
                     } else {
-                        "OpenRouter: ${String.format("%.1f", (used/total)*100)}% used"
+                        "OpenRouter: $${String.format("%.4f", used)} (unlimited)"
                     }
-                    
+
                     currentTooltip = buildString {
                         append("OpenRouter API Usage\n")
-                        append("Used: $${String.format("%.2f", used)}\n")
-                        append("Total: $${String.format("%.2f", total)}\n")
-                        append("Remaining: $${String.format("%.2f", remaining)}\n")
-                        quotaInfo.resetDate?.let { 
-                            append("Resets: $it\n")
+                        append("Used: $${String.format("%.4f", used)}\n")
+                        if (limit != null) {
+                            append("Limit: $${String.format("%.2f", limit)}\n")
+                            append("Remaining: $${String.format("%.4f", remaining)}\n")
+                        } else {
+                            append("Limit: Unlimited\n")
                         }
-                        append("\nClick to open settings")
+                        append("Tier: ${if (data.isFreeTier) "Free" else "Paid"}\n")
+                        append("\nClick to view detailed statistics")
                     }
                 } else {
                     currentText = "OpenRouter: Error"
-                    currentTooltip = "OpenRouter - Failed to load quota info. Click to open settings."
+                    currentTooltip = "OpenRouter - Failed to load usage info. Click to view details."
                 }
                 updateStatusBar()
             }

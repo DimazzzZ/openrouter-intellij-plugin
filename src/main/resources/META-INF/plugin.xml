@@ -36,6 +36,7 @@
         <!-- Application-level services -->
         <applicationService serviceImplementation="com.openrouter.intellij.services.OpenRouterService"/>
         <applicationService serviceImplementation="com.openrouter.intellij.services.OpenRouterSettingsService"/>
+        <applicationService serviceImplementation="com.openrouter.intellij.services.OpenRouterGenerationTrackingService"/>
         
         <!-- Settings -->
         <applicationConfigurable 

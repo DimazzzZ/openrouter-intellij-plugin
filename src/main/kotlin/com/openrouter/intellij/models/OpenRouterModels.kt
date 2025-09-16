@@ -38,6 +38,20 @@ data class QuotaInfo(
     val resetDate: String? = null
 )
 
+/**
+ * Response from /api/v1/key endpoint
+ */
+data class KeyInfoResponse(
+    val data: KeyData
+)
+
+data class KeyData(
+    val label: String,
+    val usage: Double, // Number of credits used
+    val limit: Double?, // Credit limit for the key, or null if unlimited
+    @SerializedName("is_free_tier") val isFreeTier: Boolean // Whether the user has paid for credits before
+)
+
 data class ModelInfo(
     val id: String,
     val name: String,
@@ -51,6 +65,19 @@ data class ModelPricing(
 )
 
 /**
+ * Generation tracking data
+ */
+data class GenerationTrackingInfo(
+    val generationId: String,
+    val model: String,
+    val timestamp: Long,
+    val promptTokens: Int? = null,
+    val completionTokens: Int? = null,
+    val totalTokens: Int? = null,
+    val totalCost: Double? = null
+)
+
+/**
  * Settings data class
  */
 data class OpenRouterSettings(
@@ -58,5 +85,7 @@ data class OpenRouterSettings(
     var defaultModel: String = "openai/gpt-4o",
     var autoRefresh: Boolean = true,
     var refreshInterval: Int = 300, // seconds
-    var showCosts: Boolean = true
+    var showCosts: Boolean = true,
+    var trackGenerations: Boolean = true,
+    var maxTrackedGenerations: Int = 100
 )

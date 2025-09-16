@@ -25,7 +25,8 @@ class OpenRouterService {
         private const val BASE_URL = "https://openrouter.ai/api/v1"
         private const val CHAT_COMPLETIONS_ENDPOINT = "$BASE_URL/chat/completions"
         private const val GENERATION_ENDPOINT = "$BASE_URL/generation"
-        
+        private const val KEY_INFO_ENDPOINT = "$BASE_URL/key"
+
         fun getInstance(): OpenRouterService {
             return ApplicationManager.getApplication().getService(OpenRouterService::class.java)
         }
@@ -97,19 +98,56 @@ class OpenRouterService {
     }
     
     /**
-     * Get current quota information (mock implementation)
-     * Note: OpenRouter doesn't have a direct quota endpoint, so this is a placeholder
+     * Get API key information including usage and limits
+     */
+    fun getKeyInfo(): CompletableFuture<KeyInfoResponse?> {
+        return CompletableFuture.supplyAsync {
+            try {
+                val request = Request.Builder()
+                    .url(KEY_INFO_ENDPOINT)
+                    .addHeader("Authorization", "Bearer ${settingsService.getApiKey()}")
+                    .addHeader("Content-Type", "application/json")
+                    .build()
+
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        response.body?.string()?.let { responseBody ->
+                            try {
+                                gson.fromJson(responseBody, KeyInfoResponse::class.java)
+                            } catch (e: JsonSyntaxException) {
+                                logger.warn("Failed to parse key info response", e)
+                                null
+                            }
+                        }
+                    } else {
+                        logger.warn("Failed to get key info: ${response.code} ${response.message}")
+                        null
+                    }
+                }
+            } catch (e: IOException) {
+                logger.warn("Network error getting key info", e)
+                null
+            }
+        }
+    }
+
+    /**
+     * Get current quota information based on key info
      */
     fun getQuotaInfo(): CompletableFuture<QuotaInfo?> {
-        return CompletableFuture.supplyAsync {
-            // This is a mock implementation since OpenRouter doesn't provide quota info directly
-            // In a real implementation, you might track usage locally or use billing API if available
-            QuotaInfo(
-                remaining = 100.0,
-                total = 1000.0,
-                used = 900.0,
-                resetDate = "2024-10-01"
-            )
+        return getKeyInfo().thenApply { keyInfo ->
+            keyInfo?.let {
+                val used = it.data.usage
+                val total = it.data.limit ?: Double.MAX_VALUE
+                val remaining = if (it.data.limit != null) it.data.limit - used else Double.MAX_VALUE
+
+                QuotaInfo(
+                    remaining = remaining,
+                    total = total,
+                    used = used,
+                    resetDate = null // OpenRouter doesn't provide reset date in this endpoint
+                )
+            }
         }
     }
     

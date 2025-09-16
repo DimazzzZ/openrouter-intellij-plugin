@@ -12,7 +12,7 @@ This guide covers how to set up the development environment and contribute to th
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/d-zhavoronkov/openrouter-intellij-plugin.git
+git clone https://github.com/DimazzzZ/openrouter-intellij-plugin.git
 cd openrouter-intellij-plugin
 ```
 

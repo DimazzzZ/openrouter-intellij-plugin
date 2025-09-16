@@ -64,4 +64,16 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
     fun isConfigured(): Boolean {
         return settings.apiKey.isNotBlank()
     }
+
+    fun isTrackingEnabled(): Boolean = settings.trackGenerations
+
+    fun setTrackingEnabled(enabled: Boolean) {
+        settings.trackGenerations = enabled
+    }
+
+    fun getMaxTrackedGenerations(): Int = settings.maxTrackedGenerations
+
+    fun setMaxTrackedGenerations(max: Int) {
+        settings.maxTrackedGenerations = max
+    }
 }
