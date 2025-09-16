@@ -1,0 +1,67 @@
+package com.openrouter.intellij.services
+
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.components.PersistentStateComponent
+import com.intellij.openapi.components.State
+import com.intellij.openapi.components.Storage
+import com.openrouter.intellij.models.OpenRouterSettings
+
+/**
+ * Service for managing OpenRouter plugin settings
+ */
+@State(
+    name = "OpenRouterSettings",
+    storages = [Storage("openrouter.xml")]
+)
+class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
+    
+    private var settings = OpenRouterSettings()
+    
+    companion object {
+        fun getInstance(): OpenRouterSettingsService {
+            return ApplicationManager.getApplication().getService(OpenRouterSettingsService::class.java)
+        }
+    }
+    
+    override fun getState(): OpenRouterSettings {
+        return settings
+    }
+    
+    override fun loadState(state: OpenRouterSettings) {
+        this.settings = state
+    }
+    
+    fun getApiKey(): String = settings.apiKey
+    
+    fun setApiKey(apiKey: String) {
+        settings.apiKey = apiKey
+    }
+    
+    fun getDefaultModel(): String = settings.defaultModel
+    
+    fun setDefaultModel(model: String) {
+        settings.defaultModel = model
+    }
+    
+    fun isAutoRefreshEnabled(): Boolean = settings.autoRefresh
+    
+    fun setAutoRefresh(enabled: Boolean) {
+        settings.autoRefresh = enabled
+    }
+    
+    fun getRefreshInterval(): Int = settings.refreshInterval
+    
+    fun setRefreshInterval(interval: Int) {
+        settings.refreshInterval = interval
+    }
+    
+    fun shouldShowCosts(): Boolean = settings.showCosts
+    
+    fun setShowCosts(show: Boolean) {
+        settings.showCosts = show
+    }
+    
+    fun isConfigured(): Boolean {
+        return settings.apiKey.isNotBlank()
+    }
+}
