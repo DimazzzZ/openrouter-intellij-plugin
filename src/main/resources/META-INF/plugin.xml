@@ -79,13 +79,6 @@
                     class="com.openrouter.intellij.actions.OpenSettingsAction"
                     text="Settings..."
                     description="Open OpenRouter settings"/>
-
-            <action id="OpenRouter.OpenChat"
-                    class="com.openrouter.intellij.actions.OpenChatAction"
-                    text="Open Chat"
-                    description="Open OpenRouter chat window">
-                <keyboard-shortcut keymap="$default" first-keystroke="shift ctrl C"/>
-            </action>
         </group>
     </actions>
 </idea-plugin>

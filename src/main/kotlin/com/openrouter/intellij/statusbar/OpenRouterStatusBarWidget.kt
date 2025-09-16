@@ -13,6 +13,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.ui.popup.ListPopup
+import com.intellij.openapi.ui.popup.ListSeparator
 import com.intellij.openapi.ui.popup.PopupStep
 import com.intellij.openapi.ui.popup.util.BaseListPopupStep
 import com.intellij.openapi.wm.StatusBar
@@ -24,7 +25,7 @@ import com.openrouter.intellij.icons.OpenRouterIcons
 import com.openrouter.intellij.models.ConnectionStatus
 import com.openrouter.intellij.services.OpenRouterService
 import com.openrouter.intellij.services.OpenRouterSettingsService
-import com.openrouter.intellij.ui.OpenRouterChatWindow
+
 import com.openrouter.intellij.ui.OpenRouterStatsPopup
 import java.awt.event.MouseEvent
 import javax.swing.Icon
@@ -75,7 +76,16 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
         override fun hasSubstep(selectedValue: PopupMenuItem): Boolean = selectedValue.hasSubmenu
 
+        override fun getSeparatorAbove(value: PopupMenuItem): ListSeparator? =
+            if (value == PopupMenuItem.SEPARATOR) ListSeparator() else null
+
+        override fun isSelectable(value: PopupMenuItem): Boolean = value != PopupMenuItem.SEPARATOR
+
         override fun onChosen(selectedValue: PopupMenuItem, finalChoice: Boolean): PopupStep<*>? {
+            if (selectedValue == PopupMenuItem.SEPARATOR) {
+                return FINAL_CHOICE
+            }
+
             if (selectedValue.hasSubmenu) {
                 return selectedValue.createSubmenu()
             } else {
@@ -88,92 +98,72 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
     }
     
     private fun createMenuItems(): List<PopupMenuItem> {
-        return listOf(
-            // Status Display
-            PopupMenuItem(
-                text = "Status: ${connectionStatus.displayName}",
-                icon = connectionStatus.icon,
-                action = null // Status display only
-            ),
-            PopupMenuItem.SEPARATOR,
+        val items = mutableListOf<PopupMenuItem>()
 
-            // Quota / Usage
-            PopupMenuItem(
-                text = "View Quota Usage",
-                icon = AllIcons.General.Information,
-                action = { showQuotaUsage() }
-            ),
+        // Status Display
+        items.add(PopupMenuItem(
+            text = "Status: ${connectionStatus.displayName}",
+            icon = connectionStatus.icon,
+            action = null // Status display only
+        ))
 
-            // Authentication
-            if (settingsService.isConfigured()) {
-                PopupMenuItem(
-                    text = "Logout from OpenRouter.ai",
-                    icon = AllIcons.Actions.Exit,
-                    action = { logout() }
-                )
-            } else {
-                PopupMenuItem(
-                    text = "Login to OpenRouter.ai",
-                    icon = AllIcons.Actions.Execute,
-                    action = { openSettings() }
-                )
-            },
+        items.add(PopupMenuItem.SEPARATOR)
 
-            PopupMenuItem.SEPARATOR,
+        // Quota / Usage
+        items.add(PopupMenuItem(
+            text = "View Quota Usage",
+            icon = AllIcons.General.Information,
+            action = { showQuotaUsage() }
+        ))
 
-            // Chat / Console
-            PopupMenuItem(
-                text = "Open Chat",
-                icon = AllIcons.Toolwindows.ToolWindowMessages,
-                action = { openChat() },
-                shortcut = "⇧⌃C"
-            ),
+        // Authentication
+        if (settingsService.isConfigured()) {
+            items.add(PopupMenuItem(
+                text = "Logout from OpenRouter.ai",
+                icon = AllIcons.Actions.Exit,
+                action = { logout() }
+            ))
+        } else {
+            items.add(PopupMenuItem(
+                text = "Login to OpenRouter.ai",
+                icon = AllIcons.Actions.Execute,
+                action = { openSettings() }
+            ))
+        }
 
-            PopupMenuItem.SEPARATOR,
+        items.add(PopupMenuItem.SEPARATOR)
 
-            // Settings submenu
-            PopupMenuItem(
-                text = "Settings",
-                icon = AllIcons.General.Settings,
-                hasSubmenu = true,
-                submenuItems = listOf(
-                    PopupMenuItem(
-                        text = "Edit Settings...",
-                        icon = AllIcons.General.Settings,
-                        action = { openSettings() }
-                    ),
-                    PopupMenuItem(
-                        text = "Show Keymap Settings...",
-                        icon = AllIcons.General.Settings,
-                        action = { openKeymapSettings() }
-                    )
-                )
-            ),
+        // Settings (direct action, no submenu)
+        items.add(PopupMenuItem(
+            text = "Settings",
+            icon = AllIcons.General.Settings,
+            action = { openSettings() }
+        ))
 
-            PopupMenuItem.SEPARATOR,
+        items.add(PopupMenuItem.SEPARATOR)
 
-            // Documentation
-            PopupMenuItem(
-                text = "View OpenRouter Documentation...",
-                icon = AllIcons.Actions.Help,
-                action = { openDocumentation() }
-            ),
+        // Documentation
+        items.add(PopupMenuItem(
+            text = "View OpenRouter Documentation...",
+            icon = AllIcons.Actions.Help,
+            action = { openDocumentation() }
+        ))
 
-            // Feedback
-            PopupMenuItem(
-                text = "View Feedback Repository...",
-                icon = AllIcons.Vcs.Vendors.Github,
-                action = { openFeedbackRepository() }
-            )
-        )
+        // Feedback
+        items.add(PopupMenuItem(
+            text = "View Feedback Repository...",
+            icon = AllIcons.Vcs.Vendors.Github,
+            action = { openFeedbackRepository() }
+        ))
+
+        return items
     }
     
     // Action methods
     private fun showQuotaUsage() {
-        // Open the tool window instead of popup
-        val toolWindowManager = ToolWindowManager.getInstance(project)
-        val toolWindow = toolWindowManager.getToolWindow("OpenRouter")
-        toolWindow?.show()
+        // Show quota usage in a modal dialog
+        val statsPopup = OpenRouterStatsPopup(project)
+        statsPopup.showCenteredInCurrentWindow(myStatusBar?.component)
     }
 
     private fun logout() {
@@ -191,20 +181,9 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         }
     }
 
-    private fun openChat() {
-        val chatWindow = OpenRouterChatWindow(project)
-        chatWindow.show()
-    }
-
     private fun openSettings() {
         ApplicationManager.getApplication().invokeLater {
             ShowSettingsUtil.getInstance().showSettingsDialog(project, "OpenRouter")
-        }
-    }
-
-    private fun openKeymapSettings() {
-        ApplicationManager.getApplication().invokeLater {
-            ShowSettingsUtil.getInstance().showSettingsDialog(project, "Keymap")
         }
     }
 
@@ -213,7 +192,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
     }
 
     private fun openFeedbackRepository() {
-        BrowserUtil.browse("https://github.com/OpenRouterTeam/openrouter/issues")
+        BrowserUtil.browse("https://github.com/DimazzzZ/openrouter-intellij-plugin/issues")
     }
 
     /**
@@ -234,27 +213,27 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
                 if (keyInfo != null) {
                     connectionStatus = ConnectionStatus.READY
                     val data = keyInfo.data
-                    val used = data.usage
-                    val limit = data.limit
+                    val used = data.usage  // Credits used (e.g., $0.792)
+                    val limit = data.limit // Credit limit (e.g., $10.002)
                     val remaining = if (limit != null) limit - used else Double.MAX_VALUE
 
                     currentText = if (limit != null) {
                         if (settingsService.shouldShowCosts()) {
-                            "Status: Ready - $${String.format("%.4f", used)}/$${String.format("%.2f", limit)}"
+                            "Status: Ready - $${String.format("%.3f", used)}/$${String.format("%.2f", limit)}"
                         } else {
                             val percentage = (used / limit) * 100
                             "Status: Ready - ${String.format("%.1f", percentage)}% used"
                         }
                     } else {
-                        "Status: Ready - $${String.format("%.4f", used)} (unlimited)"
+                        "Status: Ready - $${String.format("%.3f", used)} (unlimited)"
                     }
 
                     currentTooltip = buildString {
                         append("OpenRouter API Status: ${connectionStatus.displayName}\n")
-                        append("Used: $${String.format("%.4f", used)}\n")
+                        append("Used: $${String.format("%.3f", used)}\n")
                         if (limit != null) {
                             append("Limit: $${String.format("%.2f", limit)}\n")
-                            append("Remaining: $${String.format("%.4f", remaining)}\n")
+                            append("Remaining: $${String.format("%.2f", remaining)}\n")
                         } else {
                             append("Limit: Unlimited\n")
                         }

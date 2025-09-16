@@ -113,9 +113,12 @@ class OpenRouterService {
                     if (response.isSuccessful) {
                         response.body?.string()?.let { responseBody ->
                             try {
-                                gson.fromJson(responseBody, KeyInfoResponse::class.java)
+                                logger.info("OpenRouter API response: $responseBody")
+                                val keyInfo = gson.fromJson(responseBody, KeyInfoResponse::class.java)
+                                logger.info("Parsed key info - usage: ${keyInfo.data.usage}, limit: ${keyInfo.data.limit}, isFreeTier: ${keyInfo.data.isFreeTier}")
+                                keyInfo
                             } catch (e: JsonSyntaxException) {
-                                logger.warn("Failed to parse key info response", e)
+                                logger.warn("Failed to parse key info response: $responseBody", e)
                                 null
                             }
                         }

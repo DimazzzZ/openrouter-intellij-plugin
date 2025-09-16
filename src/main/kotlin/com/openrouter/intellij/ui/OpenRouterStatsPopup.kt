@@ -37,9 +37,19 @@ class OpenRouterStatsPopup(private val project: Project) {
     private lateinit var refreshButton: JButton
     private lateinit var settingsButton: JButton
     
-    fun show(component: Component) {
+    fun show(component: Component?) {
         val popup = createPopup()
-        popup.showUnderneathOf(component)
+        if (component != null) {
+            popup.showUnderneathOf(component)
+        } else {
+            popup.showCenteredInCurrentWindow(project)
+        }
+        loadData()
+    }
+
+    fun showCenteredInCurrentWindow(component: Component?) {
+        val popup = createPopup()
+        popup.showCenteredInCurrentWindow(project)
         loadData()
     }
     
@@ -204,23 +214,32 @@ class OpenRouterStatsPopup(private val project: Project) {
         val data = keyInfo.data
         val usage = data.usage
         val limit = data.limit
-        val remaining = if (limit != null) limit - usage else Double.MAX_VALUE
 
-        usageLabel.text = "Usage: $${String.format("%.6f", usage)}"
+        // Log the actual values for debugging
+        println("DEBUG: OpenRouter API Response:")
+        println("  - usage: $usage")
+        println("  - limit: $limit")
+        println("  - isFreeTier: ${data.isFreeTier}")
+        println("  - label: ${data.label}")
 
-        if (limit != null) {
+        // Format usage with appropriate precision
+        usageLabel.text = "Usage: $${String.format("%.3f", usage)}"
+
+        if (limit != null && limit > 0) {
+            val remaining = limit - usage
             limitLabel.text = "Limit: $${String.format("%.2f", limit)}"
-            remainingLabel.text = "Remaining: $${String.format("%.6f", remaining)}"
+            remainingLabel.text = "Remaining: $${String.format("%.2f", remaining)}"
 
             val percentage = ((usage / limit) * 100).toInt()
             progressBar.value = percentage
             progressBar.string = "$percentage% used"
             progressBar.isIndeterminate = false
         } else {
+            // Handle unlimited or zero limit case
             limitLabel.text = "Limit: Unlimited"
             remainingLabel.text = "Remaining: Unlimited"
             progressBar.value = 0
-            progressBar.string = "Unlimited (${String.format("%.6f", usage)} used)"
+            progressBar.string = "Unlimited (${String.format("%.3f", usage)} used)"
             progressBar.isIndeterminate = false
         }
 

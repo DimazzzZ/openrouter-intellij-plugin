@@ -6,10 +6,9 @@ A comprehensive IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https:
 
 🚀 **Enhanced Status Bar Widget** - Interactive status indicator with comprehensive popup menu
 ⚙️ **Settings Panel** - Easy API key configuration and preferences
-📊 **Usage Monitoring** - Track token consumption and costs
+📊 **Usage Monitoring** - Track token consumption and costs with accurate calculations
 🔄 **Auto-refresh** - Automatic quota updates
 🛠️ **Tool Window** - Detailed usage statistics and model information
-💬 **Integrated Chat** - Built-in chat window for OpenRouter models (⇧⌃C)
 🎯 **Quick Actions** - Fast access to OpenRouter features via Tools menu
 🎨 **Official Branding** - Features the official OpenRouter logo throughout the interface
 🔐 **Authentication Management** - Easy login/logout functionality
@@ -19,18 +18,15 @@ A comprehensive IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https:
 
 ### Interactive Status Bar Widget
 - **Real-time Status**: Color-coded connection indicators (🟢 Ready, 🟡 Connecting, 🔴 Error)
-- **Comprehensive Menu**: Authentication, chat access, settings, and documentation
-- **Usage Monitoring**: Quick access to quota and usage statistics
-
-### Integrated Chat Interface
-- **Built-in Chat**: Direct OpenRouter model interaction within IDE
-- **Keyboard Shortcut**: `⇧⌃C` (Shift + Control + C)
-- **Multiple Access Points**: Status bar, Tools menu, or shortcut
+- **Comprehensive Menu**: Authentication, settings, documentation, and quota access
+- **Accurate Usage Display**: Precise quota calculations and percentage tracking
+- **Modal Quota View**: Centered popup window for detailed usage statistics
 
 ### Configuration & Monitoring
 - **Easy Setup**: Simple API key configuration in Settings
-- **Usage Tracking**: Detailed statistics and cost monitoring
+- **Usage Tracking**: Detailed statistics and cost monitoring with correct calculations
 - **Tool Window**: Comprehensive usage analytics
+- **Direct Settings Access**: One-click access to plugin configuration
 
 ## Installation
 
@@ -60,17 +56,13 @@ A comprehensive IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https:
 ### Status Bar Widget
 - **Click**: Open comprehensive popup menu with all features
 - **Status Indicators**: 🟢 Ready, 🟡 Connecting, 🔴 Error, ⚪ Not configured
-### Keyboard Shortcuts
-- **⇧⌃C**: Open chat window
-- Customize in `Settings` → `Keymap` → `OpenRouter`
-
 ### Popup Menu Features
-- **Status Display**: Real-time connection status
-- **View Quota Usage**: Open detailed statistics
-- **Login/Logout**: Authentication management
-- **Open Chat**: Launch integrated chat (⇧⌃C)
-- **Settings**: Plugin configuration and keymap
-- **Documentation**: Quick links to docs and feedback
+- **Status Display**: Real-time connection status with color indicators
+- **View Quota Usage**: Centered modal with detailed statistics
+- **Login/Logout**: Authentication management with confirmation
+- **Settings**: Direct access to plugin configuration
+- **Documentation**: Quick links to OpenRouter docs
+- **Feedback**: Direct link to GitHub issues for bug reports
 
 ## Compatibility
 
