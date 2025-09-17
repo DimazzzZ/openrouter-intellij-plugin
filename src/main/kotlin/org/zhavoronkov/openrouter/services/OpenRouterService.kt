@@ -191,14 +191,14 @@ class OpenRouterService {
     /**
      * Create a new API key
      */
-    fun createApiKey(label: String, limit: Double? = null): CompletableFuture<CreateApiKeyResponse?> {
+    fun createApiKey(name: String, limit: Double? = null): CompletableFuture<CreateApiKeyResponse?> {
         return CompletableFuture.supplyAsync {
             try {
                 val provisioningKey = settingsService.getProvisioningKey()
-                val requestBody = CreateApiKeyRequest(label = label, limit = limit)
+                val requestBody = CreateApiKeyRequest(name = name, limit = limit)
                 val json = gson.toJson(requestBody)
 
-                logger.info("Creating API key with label: $label using provisioning key: ${provisioningKey.take(10)}...")
+                logger.info("Creating API key with name: $name using provisioning key: ${provisioningKey.take(10)}...")
                 logger.info("Making POST request to: $API_KEYS_CREATE_ENDPOINT")
                 logger.info("Request body: $json")
 

@@ -23,7 +23,7 @@ import javax.swing.table.AbstractTableModel
  * Table model for API keys
  */
 class ApiKeyTableModel : AbstractTableModel() {
-    private val columnNames = arrayOf("Label", "Name", "Limit", "Status")
+    private val columnNames = arrayOf("Label", "Name", "Usage", "Limit", "Status")
     private val apiKeys = mutableListOf<ApiKeyInfo>()
 
     override fun getRowCount(): Int = apiKeys.size
@@ -35,8 +35,9 @@ class ApiKeyTableModel : AbstractTableModel() {
         return when (columnIndex) {
             0 -> key.label
             1 -> key.name
-            2 -> key.limit?.let { String.format("$%.2f", it) } ?: "Unlimited"
-            3 -> if (key.disabled) "Disabled" else "Enabled"
+            2 -> String.format("$%.6f", key.usage)
+            3 -> key.limit?.let { String.format("$%.2f", it) } ?: "Unlimited"
+            4 -> if (key.disabled) "Disabled" else "Enabled"
             else -> ""
         }
     }
@@ -270,7 +271,7 @@ class OpenRouterSettingsPanel {
                     apiKeyTableModel.setApiKeys(apiKeys)
 
                     // Check if IntelliJ IDEA Plugin API key exists
-                    val intellijApiKey = apiKeys.find { it.label == INTELLIJ_API_KEY_NAME }
+                    val intellijApiKey = apiKeys.find { it.name == INTELLIJ_API_KEY_NAME }
                     if (intellijApiKey != null) {
                         // API key exists, we're good to go
                         // Note: We use provisioning key for quota monitoring, not the API key

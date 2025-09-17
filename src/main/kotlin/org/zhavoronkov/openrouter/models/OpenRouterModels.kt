@@ -61,15 +61,16 @@ data class ApiKeyInfo(
     val name: String,
     val label: String,
     val limit: Double?,
+    val usage: Double,
     val disabled: Boolean,
     @SerializedName("created_at") val createdAt: String,
-    @SerializedName("updated_at") val updatedAt: String,
+    @SerializedName("updated_at") val updatedAt: String?,
     val hash: String
 )
 
 // API Key creation request and response
 data class CreateApiKeyRequest(
-    val label: String,
+    val name: String,
     val limit: Double? = null
 )
 
@@ -81,9 +82,10 @@ data class CreatedApiKeyInfo(
     val name: String,
     val label: String,
     val limit: Double?,
+    val usage: Double,
     val disabled: Boolean,
     @SerializedName("created_at") val createdAt: String,
-    @SerializedName("updated_at") val updatedAt: String,
+    @SerializedName("updated_at") val updatedAt: String?,
     val hash: String,
     val key: String // The actual API key value (only returned on creation)
 )
