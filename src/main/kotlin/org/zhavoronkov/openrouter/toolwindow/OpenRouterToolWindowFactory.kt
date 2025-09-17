@@ -1,4 +1,4 @@
-package com.openrouter.intellij.toolwindow
+package org.zhavoronkov.openrouter.toolwindow
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow

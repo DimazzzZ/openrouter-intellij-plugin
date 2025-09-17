@@ -1,4 +1,4 @@
-package com.openrouter.intellij.icons
+package org.zhavoronkov.openrouter.icons
 
 import com.intellij.openapi.util.IconLoader
 import javax.swing.Icon

@@ -1,11 +1,11 @@
-package com.openrouter.intellij.toolwindow
+package org.zhavoronkov.openrouter.toolwindow
 
 import com.intellij.openapi.project.Project
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.ui.JBUI
-import com.openrouter.intellij.services.OpenRouterService
-import com.openrouter.intellij.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.services.OpenRouterService
+import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import java.awt.BorderLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout

@@ -1,12 +1,12 @@
-package com.openrouter.intellij.actions
+package org.zhavoronkov.openrouter.actions
 
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.StatusBar
 import com.intellij.openapi.wm.WindowManager
-import com.openrouter.intellij.icons.OpenRouterIcons
-import com.openrouter.intellij.statusbar.OpenRouterStatusBarWidget
+import org.zhavoronkov.openrouter.icons.OpenRouterIcons
+import org.zhavoronkov.openrouter.statusbar.OpenRouterStatusBarWidget
 
 /**
  * Action to refresh OpenRouter quota information

@@ -1,7 +1,7 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
     <!-- Unique identifier of the plugin. It should be FQN. It cannot be changed between the plugin versions. -->
-    <id>com.openrouter.intellij-plugin</id>
+    <id>org.zhavoronkov.openrouter</id>
 
     <!-- Public plugin name should be written in Title Case.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-name -->
@@ -34,20 +34,20 @@
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
         <!-- Application-level services -->
-        <applicationService serviceImplementation="com.openrouter.intellij.services.OpenRouterService"/>
-        <applicationService serviceImplementation="com.openrouter.intellij.services.OpenRouterSettingsService"/>
-        <applicationService serviceImplementation="com.openrouter.intellij.services.OpenRouterGenerationTrackingService"/>
+        <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterService"/>
+        <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterSettingsService"/>
+        <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService"/>
         
         <!-- Settings -->
         <applicationConfigurable 
             parentId="tools" 
-            instance="com.openrouter.intellij.settings.OpenRouterConfigurable"
-            id="com.openrouter.intellij.settings.OpenRouterConfigurable"
+            instance="org.zhavoronkov.openrouter.settings.OpenRouterConfigurable"
+            id="org.zhavoronkov.openrouter.settings.OpenRouterConfigurable"
             displayName="OpenRouter"/>
         
         <!-- Status bar widget -->
         <statusBarWidgetFactory 
-            implementation="com.openrouter.intellij.statusbar.OpenRouterStatusBarWidgetFactory"
+            implementation="org.zhavoronkov.openrouter.statusbar.OpenRouterStatusBarWidgetFactory"
             id="OpenRouterStatusBar"
             order="after Encoding"/>
         
@@ -55,9 +55,9 @@
         <toolWindow 
             id="OpenRouter" 
             secondary="true" 
-            icon="com.openrouter.intellij.icons.OpenRouterIcons.TOOL_WINDOW"
+            icon="org.zhavoronkov.openrouter.icons.OpenRouterIcons.TOOL_WINDOW"
             anchor="right"
-            factoryClass="com.openrouter.intellij.toolwindow.OpenRouterToolWindowFactory"/>
+            factoryClass="org.zhavoronkov.openrouter.toolwindow.OpenRouterToolWindowFactory"/>
     </extensions>
 
     <!-- Actions -->
@@ -66,17 +66,17 @@
             <add-to-group group-id="ToolsMenu" anchor="last"/>
 
             <action id="OpenRouter.ShowUsage"
-                    class="com.openrouter.intellij.actions.ShowUsageAction"
+                    class="org.zhavoronkov.openrouter.actions.ShowUsageAction"
                     text="Show Usage Statistics"
                     description="Display OpenRouter API usage statistics"/>
 
             <action id="OpenRouter.RefreshQuota"
-                    class="com.openrouter.intellij.actions.RefreshQuotaAction"
+                    class="org.zhavoronkov.openrouter.actions.RefreshQuotaAction"
                     text="Refresh Quota"
                     description="Refresh OpenRouter API quota information"/>
 
             <action id="OpenRouter.OpenSettings"
-                    class="com.openrouter.intellij.actions.OpenSettingsAction"
+                    class="org.zhavoronkov.openrouter.actions.OpenSettingsAction"
                     text="Settings..."
                     description="Open OpenRouter settings"/>
         </group>

@@ -42,7 +42,7 @@ tasks {
         untilBuild.set(project.findProperty("pluginUntilBuild") as String? ?: "252.*")
 
         // Plugin metadata from gradle.properties
-        pluginId.set(project.findProperty("pluginId") as String? ?: "com.openrouter.intellij-plugin")
+        pluginId.set(project.findProperty("pluginId") as String? ?: "org.zhavoronkov.openrouter")
         pluginDescription.set(project.findProperty("pluginDescription") as String? ?: "OpenRouter plugin for IntelliJ IDEA")
     }
 

@@ -1,4 +1,4 @@
-package com.openrouter.intellij.statusbar
+package org.zhavoronkov.openrouter.statusbar
 
 import com.intellij.icons.AllIcons
 import com.intellij.ide.BrowserUtil
@@ -21,12 +21,12 @@ import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.openapi.wm.impl.status.EditorBasedWidget
 import com.intellij.util.Consumer
-import com.openrouter.intellij.icons.OpenRouterIcons
-import com.openrouter.intellij.models.ConnectionStatus
-import com.openrouter.intellij.services.OpenRouterService
-import com.openrouter.intellij.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.icons.OpenRouterIcons
+import org.zhavoronkov.openrouter.models.ConnectionStatus
+import org.zhavoronkov.openrouter.services.OpenRouterService
+import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 
-import com.openrouter.intellij.ui.OpenRouterStatsPopup
+import org.zhavoronkov.openrouter.ui.OpenRouterStatsPopup
 import java.awt.event.MouseEvent
 import javax.swing.Icon
 

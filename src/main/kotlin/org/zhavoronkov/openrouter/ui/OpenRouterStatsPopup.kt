@@ -1,4 +1,4 @@
-package com.openrouter.intellij.ui
+package org.zhavoronkov.openrouter.ui
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
@@ -7,13 +7,13 @@ import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.util.ui.JBUI
-import com.openrouter.intellij.icons.OpenRouterIcons
-import com.openrouter.intellij.models.KeyInfoResponse
-import com.openrouter.intellij.models.ApiKeysListResponse
-import com.openrouter.intellij.models.ApiKeyInfo
-import com.openrouter.intellij.services.OpenRouterService
-import com.openrouter.intellij.services.OpenRouterSettingsService
-import com.openrouter.intellij.services.OpenRouterGenerationTrackingService
+import org.zhavoronkov.openrouter.icons.OpenRouterIcons
+import org.zhavoronkov.openrouter.models.KeyInfoResponse
+import org.zhavoronkov.openrouter.models.ApiKeysListResponse
+import org.zhavoronkov.openrouter.models.ApiKeyInfo
+import org.zhavoronkov.openrouter.services.OpenRouterService
+import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService
 import java.awt.*
 import java.awt.event.ActionEvent
 import java.awt.event.ActionListener

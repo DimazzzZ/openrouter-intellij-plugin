@@ -1,10 +1,10 @@
-package com.openrouter.intellij.services
+package org.zhavoronkov.openrouter.services
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
-import com.openrouter.intellij.models.OpenRouterSettings
+import org.zhavoronkov.openrouter.models.OpenRouterSettings
 
 /**
  * Service for managing OpenRouter plugin settings

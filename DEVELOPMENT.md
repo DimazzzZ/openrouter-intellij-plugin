@@ -231,7 +231,7 @@ client.newCall(request).execute().use { response ->
 ### Enable Debug Logging
 Add to your IDE's log configuration:
 ```
-com.openrouter.intellij:DEBUG
+org.zhavoronkov.openrouter:DEBUG
 ```
 
 ### Common Debug Points

@@ -1,4 +1,4 @@
-package com.openrouter.intellij.settings
+package org.zhavoronkov.openrouter.settings
 
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel

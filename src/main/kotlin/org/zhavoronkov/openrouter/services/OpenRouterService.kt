@@ -1,10 +1,10 @@
-package com.openrouter.intellij.services
+package org.zhavoronkov.openrouter.services
 
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
-import com.openrouter.intellij.models.*
+import org.zhavoronkov.openrouter.models.*
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody

@@ -1,9 +1,9 @@
-package com.openrouter.intellij.settings
+package org.zhavoronkov.openrouter.settings
 
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.ui.Messages
-import com.openrouter.intellij.services.OpenRouterService
-import com.openrouter.intellij.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.services.OpenRouterService
+import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import javax.swing.JComponent
 
 /**
