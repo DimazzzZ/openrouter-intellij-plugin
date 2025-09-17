@@ -4,8 +4,12 @@ import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
-import org.zhavoronkov.openrouter.models.*
-import okhttp3.*
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.zhavoronkov.openrouter.models.ApiKeysListResponse
+import org.zhavoronkov.openrouter.models.CreateApiKeyRequest
+import org.zhavoronkov.openrouter.models.CreateApiKeyResponse
+import org.zhavoronkov.openrouter.models.DeleteApiKeyResponse
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
@@ -15,12 +19,12 @@ import java.util.concurrent.CompletableFuture
  * Service for interacting with OpenRouter API
  */
 class OpenRouterService {
-    
+
     private val logger = Logger.getInstance(OpenRouterService::class.java)
     private val gson = Gson()
     private val client = OkHttpClient()
     private val settingsService = OpenRouterSettingsService.getInstance()
-    
+
     companion object {
         private const val BASE_URL = "https://openrouter.ai/api/v1"
         private const val CHAT_COMPLETIONS_ENDPOINT = "$BASE_URL/chat/completions"
@@ -31,7 +35,7 @@ class OpenRouterService {
             return ApplicationManager.getApplication().getService(OpenRouterService::class.java)
         }
     }
-    
+
     /**
      * Get usage statistics for a specific generation
      */
@@ -43,7 +47,7 @@ class OpenRouterService {
                     .addHeader("Authorization", "Bearer ${settingsService.getApiKey()}")
                     .addHeader("Content-Type", "application/json")
                     .build()
-                
+
                 client.newCall(request).execute().use { response ->
                     if (response.isSuccessful) {
                         response.body?.string()?.let { responseBody ->
@@ -65,7 +69,7 @@ class OpenRouterService {
             }
         }
     }
-    
+
     /**
      * Test API connection with a simple request
      */
@@ -79,24 +83,27 @@ class OpenRouterService {
                     ),
                     "max_tokens" to 1
                 )).toRequestBody("application/json".toMediaType())
-                
+
                 val request = Request.Builder()
                     .url(CHAT_COMPLETIONS_ENDPOINT)
                     .post(requestBody)
                     .addHeader("Authorization", "Bearer ${settingsService.getApiKey()}")
                     .addHeader("Content-Type", "application/json")
                     .build()
-                
+
                 client.newCall(request).execute().use { response ->
                     response.isSuccessful
                 }
-            } catch (e: Exception) {
+            } catch (e: IOException) {
                 logger.warn("Connection test failed", e)
+                false
+            } catch (e: JsonSyntaxException) {
+                logger.warn("Connection test failed - invalid JSON response", e)
                 false
             }
         }
     }
-    
+
     /**
      * Get API keys list with usage information
      */
@@ -225,8 +232,11 @@ class OpenRouterService {
                         null
                     }
                 }
-            } catch (e: Exception) {
-                logger.error("Error creating API key", e)
+            } catch (e: IOException) {
+                logger.error("Error creating API key - network issue", e)
+                null
+            } catch (e: JsonSyntaxException) {
+                logger.error("Error creating API key - invalid JSON response", e)
                 null
             }
         }
@@ -258,8 +268,11 @@ class OpenRouterService {
                         null
                     }
                 }
-            } catch (e: Exception) {
-                logger.error("Error deleting API key", e)
+            } catch (e: IOException) {
+                logger.error("Error deleting API key - network issue", e)
+                null
+            } catch (e: JsonSyntaxException) {
+                logger.error("Error deleting API key - invalid JSON response", e)
                 null
             }
         }

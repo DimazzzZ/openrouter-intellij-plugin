@@ -14,7 +14,7 @@ import com.intellij.openapi.wm.StatusBar
 import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.impl.status.EditorBasedWidget
 import com.intellij.util.Consumer
-import org.zhavoronkov.openrouter.icons.OpenRouterIcons
+
 import org.zhavoronkov.openrouter.models.ConnectionStatus
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
@@ -37,13 +37,13 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
     companion object {
         const val ID = "OpenRouterStatusBar"
     }
-    
+
     override fun ID(): String = ID
-    
+
     override fun getPresentation(): StatusBarWidget.WidgetPresentation = this
-    
+
     override fun getTooltipText(): String = currentTooltip
-    
+
     override fun getClickConsumer(): Consumer<MouseEvent>? {
         return Consumer { event ->
             // Always show the comprehensive popup menu on any click
@@ -52,7 +52,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
     }
 
     override fun getIcon(): Icon = connectionStatus.icon
-    
+
     private fun showPopupMenu(event: MouseEvent) {
         val popupStep = OpenRouterPopupStep()
         val popup = JBPopupFactory.getInstance().createListPopup(popupStep)
@@ -88,7 +88,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
         override fun getDefaultOptionIndex(): Int = -1
     }
-    
+
     private fun createMenuItems(): List<PopupMenuItem> {
         val items = mutableListOf<PopupMenuItem>()
 
@@ -150,7 +150,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
         return items
     }
-    
+
     // Action methods
     private fun showQuotaUsage() {
         // Show quota usage in a modal dialog
@@ -206,7 +206,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
                 if (keyInfo != null) {
                     connectionStatus = ConnectionStatus.READY
                     val data = keyInfo.data
-                    val used = data.usage  // Credits used (e.g., $0.792)
+                    val used = data.usage // Credits used (e.g., $0.792)
                     val limit = data.limit // Credit limit (e.g., $10.002)
                     val remaining = if (limit != null) limit - used else Double.MAX_VALUE
 
@@ -254,11 +254,11 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         currentTooltip = "OpenRouter - ${connectionStatus.description}. Click to open menu."
         updateStatusBar()
     }
-    
+
     private fun updateStatusBar() {
         myStatusBar?.updateWidget(ID)
     }
-    
+
     override fun install(statusBar: StatusBar) {
         super.install(statusBar)
         // Initial update
@@ -271,8 +271,25 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
     }
 
     private fun startAutoRefresh() {
-        // TODO: Implement periodic refresh using ApplicationManager.getApplication().executeOnPooledThread
-        // with settingsService.getRefreshInterval()
+        val refreshInterval = settingsService.getRefreshInterval()
+        ApplicationManager.getApplication().executeOnPooledThread {
+            while (settingsService.isAutoRefreshEnabled()) {
+                try {
+                    Thread.sleep(refreshInterval * 1000L)
+                    ApplicationManager.getApplication().invokeLater {
+                        updateQuotaInfo()
+                    }
+                } catch (e: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    break
+                } catch (e: RuntimeException) {
+                    // Log error but continue
+                    com.intellij.openapi.diagnostic.Logger.getInstance(OpenRouterStatusBarWidget::class.java)
+                        .warn("Error in auto-refresh loop", e)
+                    break
+                }
+            }
+        }
     }
 }
 
@@ -301,6 +318,8 @@ data class PopupMenuItem(
                     return PopupStep.FINAL_CHOICE
                 }
             }
-        } else null
+        } else {
+            null
+        }
     }
 }

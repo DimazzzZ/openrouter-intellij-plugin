@@ -1,22 +1,26 @@
 package org.zhavoronkov.openrouter.settings
 
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.ui.Messages
+import com.intellij.ui.ToolbarDecorator
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.table.JBTable
-import com.intellij.ui.ToolbarDecorator
 import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.JBUI
 import org.zhavoronkov.openrouter.models.ApiKeyInfo
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
-import com.intellij.openapi.ui.Messages
-import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.diagnostic.Logger
 import java.awt.BorderLayout
 import java.awt.Dimension
-import javax.swing.*
+
+import javax.swing.JPanel
+import javax.swing.JSpinner
+import javax.swing.ListSelectionModel
+import javax.swing.SpinnerNumberModel
 import javax.swing.table.AbstractTableModel
 
 /**
@@ -80,20 +84,20 @@ class OpenRouterSettingsPanel {
     companion object {
         private const val INTELLIJ_API_KEY_NAME = "IntelliJ IDEA Plugin"
     }
-    
+
     init {
         provisioningKeyField = JBPasswordField()
         provisioningKeyField.columns = 40
 
         defaultModelField = JBTextField("openai/gpt-4o")
         defaultModelField.columns = 30
-        
+
         autoRefreshCheckBox = JBCheckBox("Auto-refresh quota information")
-        
+
         refreshIntervalSpinner = JSpinner(SpinnerNumberModel(300, 60, 3600, 60))
-        
+
         showCostsCheckBox = JBCheckBox("Show costs in status bar")
-        
+
         panel = FormBuilder.createFormBuilder()
             .addLabeledComponent(
                 JBLabel("Provisioning Key:"),
@@ -123,20 +127,24 @@ class OpenRouterSettingsPanel {
             .addComponent(showCostsCheckBox, 1)
             .addComponentFillVertically(JPanel(), 0)
             .panel
-        
+
         panel.border = JBUI.Borders.empty(10)
-        
+
         // Set up listeners
         autoRefreshCheckBox.addActionListener {
             refreshIntervalSpinner.isEnabled = autoRefreshCheckBox.isSelected
         }
     }
-    
+
     private fun createProvisioningKeyPanel(): JPanel {
         val panel = JPanel(BorderLayout())
         panel.add(provisioningKeyField, BorderLayout.CENTER)
 
-        val helpLabel = JBLabel("<html><small><b>Required for quota monitoring.</b> Get your provisioning key from <a href='https://openrouter.ai/settings/provisioning-keys'>openrouter.ai/settings/provisioning-keys</a></small></html>")
+        val helpLabel = JBLabel(
+            "<html><small><b>Required for quota monitoring.</b> Get your provisioning key from " +
+            "<a href='https://openrouter.ai/settings/provisioning-keys'>openrouter.ai/settings/provisioning-keys</a>" +
+            "</small></html>"
+        )
         panel.add(helpLabel, BorderLayout.SOUTH)
 
         return panel
@@ -159,7 +167,9 @@ class OpenRouterSettingsPanel {
 
         panel.add(tablePanel, BorderLayout.CENTER)
 
-        val helpLabel = JBLabel("<html><small>Manage your API keys. Automatically loads when Provisioning Key is configured.</small></html>")
+        val helpLabel = JBLabel(
+            "<html><small>Manage your API keys. Automatically loads when Provisioning Key is configured.</small></html>"
+        )
         panel.add(helpLabel, BorderLayout.SOUTH)
 
         // Auto-load table when panel is created
@@ -312,7 +322,7 @@ class OpenRouterSettingsPanel {
             }
         }
     }
-    
+
     fun getPanel(): JPanel = panel
 
     fun getProvisioningKey(): String = String(provisioningKeyField.password)
@@ -320,28 +330,28 @@ class OpenRouterSettingsPanel {
     fun setProvisioningKey(provisioningKey: String) {
         provisioningKeyField.text = provisioningKey
     }
-    
+
     fun getDefaultModel(): String = defaultModelField.text
-    
+
     fun setDefaultModel(model: String) {
         defaultModelField.text = model
     }
-    
+
     fun isAutoRefreshEnabled(): Boolean = autoRefreshCheckBox.isSelected
-    
+
     fun setAutoRefresh(enabled: Boolean) {
         autoRefreshCheckBox.isSelected = enabled
         refreshIntervalSpinner.isEnabled = enabled
     }
-    
+
     fun getRefreshInterval(): Int = refreshIntervalSpinner.value as Int
-    
+
     fun setRefreshInterval(interval: Int) {
         refreshIntervalSpinner.value = interval
     }
-    
+
     fun shouldShowCosts(): Boolean = showCostsCheckBox.isSelected
-    
+
     fun setShowCosts(show: Boolean) {
         showCostsCheckBox.isSelected = show
     }

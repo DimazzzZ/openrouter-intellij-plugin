@@ -27,7 +27,7 @@ class ConnectionStatusTest {
         @DisplayName("Should have correct READY status properties")
         fun testReadyStatus() {
             val status = ConnectionStatus.READY
-            
+
             assertEquals("Ready", status.displayName)
             assertEquals("Connected and ready to use", status.description)
             assertEquals(OpenRouterIcons.SUCCESS, status.icon)
@@ -37,7 +37,7 @@ class ConnectionStatusTest {
         @DisplayName("Should have correct ERROR status properties")
         fun testErrorStatus() {
             val status = ConnectionStatus.ERROR
-            
+
             assertEquals("Error", status.displayName)
             assertEquals("Connection failed or API error", status.description)
             assertEquals(OpenRouterIcons.ERROR, status.icon)
@@ -63,8 +63,8 @@ class ConnectionStatusTest {
         fun testUniqueDisplayNames() {
             val displayNames = ConnectionStatus.values().map { it.displayName }
             val uniqueDisplayNames = displayNames.toSet()
-            
-            assertEquals(displayNames.size, uniqueDisplayNames.size, 
+
+            assertEquals(displayNames.size, uniqueDisplayNames.size,
                 "All connection statuses should have unique display names")
         }
 
@@ -72,7 +72,7 @@ class ConnectionStatusTest {
         @DisplayName("Should have non-empty descriptions")
         fun testNonEmptyDescriptions() {
             ConnectionStatus.values().forEach { status ->
-                assertFalse(status.description.isBlank(), 
+                assertFalse(status.description.isBlank(),
                     "Status ${status.name} should have a non-empty description")
             }
         }
@@ -81,7 +81,7 @@ class ConnectionStatusTest {
         @DisplayName("Should have valid icons")
         fun testValidIcons() {
             ConnectionStatus.values().forEach { status ->
-                assertNotNull(status.icon, 
+                assertNotNull(status.icon,
                     "Status ${status.name} should have a valid icon")
             }
         }
@@ -143,7 +143,7 @@ class ConnectionStatusTest {
         @DisplayName("Should represent initial connection state")
         fun testInitialConnectionState() {
             val status = ConnectionStatus.CONNECTING
-            
+
             assertTrue(status.displayName.contains("Connecting"))
             assertTrue(status.description.contains("Connecting"))
         }
@@ -152,7 +152,7 @@ class ConnectionStatusTest {
         @DisplayName("Should represent successful connection state")
         fun testSuccessfulConnectionState() {
             val status = ConnectionStatus.READY
-            
+
             assertTrue(status.displayName.contains("Ready"))
             assertTrue(status.description.contains("ready"))
         }
@@ -161,7 +161,7 @@ class ConnectionStatusTest {
         @DisplayName("Should represent error state")
         fun testErrorState() {
             val status = ConnectionStatus.ERROR
-            
+
             assertTrue(status.displayName.contains("Error"))
             assertTrue(status.description.contains("error") || status.description.contains("failed"))
         }
@@ -185,11 +185,11 @@ class ConnectionStatusTest {
         fun testUserFriendlyDisplayNames() {
             ConnectionStatus.values().forEach { status ->
                 // Display names should be capitalized and readable
-                assertTrue(status.displayName.first().isUpperCase(), 
+                assertTrue(status.displayName.first().isUpperCase(),
                     "Display name for ${status.name} should start with uppercase")
-                
+
                 // Should not contain underscores (user-friendly)
-                assertFalse(status.displayName.contains("_"), 
+                assertFalse(status.displayName.contains("_"),
                     "Display name for ${status.name} should not contain underscores")
             }
         }
@@ -198,13 +198,13 @@ class ConnectionStatusTest {
         @DisplayName("Should have descriptive tooltips")
         fun testDescriptiveTooltips() {
             ConnectionStatus.values().forEach { status ->
-                assertTrue(status.description.length > 10, 
+                assertTrue(status.description.length > 10,
                     "Description for ${status.name} should be descriptive (>10 chars)")
-                
+
                 // Should end with proper punctuation or be a complete phrase
-                assertTrue(status.description.endsWith(".") || 
+                assertTrue(status.description.endsWith(".") ||
                           status.description.endsWith("...") ||
-                          !status.description.contains(" "), 
+                          !status.description.contains(" "),
                     "Description for ${status.name} should have proper formatting")
             }
         }
@@ -217,7 +217,7 @@ class ConnectionStatusTest {
             assertTrue(readyStatus.displayName.lowercase().contains("ready") ||
                       readyStatus.description.lowercase().contains("ready") ||
                       readyStatus.description.lowercase().contains("connected"))
-            
+
             // ERROR should indicate problem state
             val errorStatus = ConnectionStatus.ERROR
             assertTrue(errorStatus.displayName.lowercase().contains("error") ||

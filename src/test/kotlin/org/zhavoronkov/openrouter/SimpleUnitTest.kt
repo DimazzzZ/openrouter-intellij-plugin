@@ -109,7 +109,7 @@ class SimpleUnitTest {
         fun testCreateApiKeyRequest() {
             val request = CreateApiKeyRequest(name = "test-key", limit = 100.0)
             val json = gson.toJson(request)
-            
+
             assertTrue(json.contains("\"name\":\"test-key\""))
             assertTrue(json.contains("\"limit\":100.0"))
         }
@@ -284,7 +284,7 @@ class SimpleUnitTest {
         fun testApiKeyValidation() {
             val validKey = "sk-or-v1-1234567890abcdef"
             val invalidKey = "invalid-key"
-            
+
             assertTrue(validKey.startsWith("sk-or-v1-"))
             assertFalse(invalidKey.startsWith("sk-or-v1-"))
         }
@@ -299,7 +299,7 @@ class SimpleUnitTest {
                 25.5 to "$25.50",
                 100.0 to "$100.00"
             )
-            
+
             testCases.forEach { (value, expected) ->
                 val formatted = String.format("$%.2f", value)
                 assertEquals(expected, formatted)
@@ -311,7 +311,7 @@ class SimpleUnitTest {
         fun testUnlimitedQuotaDisplay() {
             val limit: Double? = null
             val display = limit?.let { String.format("$%.2f", it) } ?: "Unlimited"
-            
+
             assertEquals("Unlimited", display)
         }
 
@@ -321,7 +321,7 @@ class SimpleUnitTest {
             val usage = 25.0
             val limit = 100.0
             val percentage = (usage / limit) * 100
-            
+
             assertEquals(25.0, percentage)
         }
     }

@@ -110,7 +110,7 @@ class OpenRouterModelsTest {
         fun testCreateApiKeyRequestSerialization() {
             val request = CreateApiKeyRequest(name = "test-key", limit = 100.0)
             val json = gson.toJson(request)
-            
+
             assertTrue(json.contains("\"name\":\"test-key\""))
             assertTrue(json.contains("\"limit\":100.0"))
         }
@@ -120,7 +120,7 @@ class OpenRouterModelsTest {
         fun testCreateApiKeyRequestWithNullLimit() {
             val request = CreateApiKeyRequest(name = "test-key", limit = null)
             val json = gson.toJson(request)
-            
+
             assertTrue(json.contains("\"name\":\"test-key\""))
             // Gson should include null values by default
         }

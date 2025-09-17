@@ -26,7 +26,7 @@ class OpenRouterIconsTest {
         @DisplayName("Should load SUCCESS icon")
         fun testSuccessIconLoading() {
             val icon = OpenRouterIcons.SUCCESS
-            
+
             assertNotNull(icon, "SUCCESS icon should not be null")
             assertTrue(icon is Icon, "SUCCESS should be a valid Icon instance")
         }
@@ -35,7 +35,7 @@ class OpenRouterIconsTest {
         @DisplayName("Should load ERROR icon")
         fun testErrorIconLoading() {
             val icon = OpenRouterIcons.ERROR
-            
+
             assertNotNull(icon, "ERROR icon should not be null")
             assertTrue(icon is Icon, "ERROR should be a valid Icon instance")
         }
@@ -67,7 +67,7 @@ class OpenRouterIconsTest {
                 OpenRouterIcons.ERROR,
                 OpenRouterIcons.TOOL_WINDOW
             )
-            
+
             icons.forEach { icon ->
                 assertTrue(icon.iconWidth > 0, "Icon width should be positive")
                 assertTrue(icon.iconHeight > 0, "Icon height should be positive")
@@ -81,7 +81,7 @@ class OpenRouterIconsTest {
                 OpenRouterIcons.SUCCESS,
                 OpenRouterIcons.ERROR
             )
-            
+
             statusBarIcons.forEach { icon ->
                 // Status bar icons should typically be 16x16 or similar small sizes
                 assertTrue(icon.iconWidth <= 24, "Status bar icon width should be <= 24px")
@@ -96,11 +96,11 @@ class OpenRouterIconsTest {
         fun testConsistentStatusIconSizes() {
             val successIcon = OpenRouterIcons.SUCCESS
             val errorIcon = OpenRouterIcons.ERROR
-            
+
             // Success and error icons should have the same dimensions for consistency
-            assertEquals(successIcon.iconWidth, errorIcon.iconWidth, 
+            assertEquals(successIcon.iconWidth, errorIcon.iconWidth,
                 "Success and error icons should have the same width")
-            assertEquals(successIcon.iconHeight, errorIcon.iconHeight, 
+            assertEquals(successIcon.iconHeight, errorIcon.iconHeight,
                 "Success and error icons should have the same height")
         }
     }
@@ -118,7 +118,7 @@ class OpenRouterIconsTest {
                 "/icons/openrouter-plugin-success-16.png",
                 "/icons/openrouter-plugin-error-16.png"
             )
-            
+
             iconPaths.forEach { path ->
                 val resource = this::class.java.getResource(path)
                 assertNotNull(resource, "Icon file should exist at path: $path")
@@ -134,9 +134,9 @@ class OpenRouterIconsTest {
                 val logoResource = this::class.java.getResource("/icons/openrouter-logo-16.png")
                 val successResource = this::class.java.getResource("/icons/openrouter-plugin-success-16.png")
                 val errorResource = this::class.java.getResource("/icons/openrouter-plugin-error-16.png")
-                
+
                 // At least one of these should exist (depending on actual file names)
-                assertTrue(logoResource != null || 
+                assertTrue(logoResource != null ||
                           this::class.java.getResource("/icons/openrouter-logo.png") != null,
                     "Logo icon resource should exist")
             }
@@ -169,11 +169,11 @@ class OpenRouterIconsTest {
                 OpenRouterIcons.ERROR,
                 OpenRouterIcons.STATUS_BAR
             )
-            
+
             statusIcons.forEach { icon ->
                 // Status bar icons should be small and square-ish
                 val aspectRatio = icon.iconWidth.toDouble() / icon.iconHeight.toDouble()
-                assertTrue(aspectRatio >= 0.5 && aspectRatio <= 2.0, 
+                assertTrue(aspectRatio >= 0.5 && aspectRatio <= 2.0,
                     "Icon aspect ratio should be reasonable for status bar")
             }
         }
@@ -186,7 +186,7 @@ class OpenRouterIconsTest {
                 OpenRouterIcons.SUCCESS,
                 OpenRouterIcons.ERROR
             )
-            
+
             menuIcons.forEach { icon ->
                 // Menu icons should be small enough for menu items
                 assertTrue(icon.iconWidth <= 32, "Menu icon width should be <= 32px")
@@ -209,7 +209,7 @@ class OpenRouterIconsTest {
                 "SUCCESS" to OpenRouterIcons.SUCCESS,
                 "ERROR" to OpenRouterIcons.ERROR
             )
-            
+
             // All icons should be loaded successfully
             icons.forEach { (name, icon) ->
                 assertNotNull(icon, "$name icon should be loaded")
@@ -224,7 +224,7 @@ class OpenRouterIconsTest {
                 OpenRouterIcons.SUCCESS,
                 OpenRouterIcons.ERROR
             )
-            
+
             icons.forEach { icon ->
                 // Icons should be paintable (basic requirement for Swing icons)
                 assertDoesNotThrow {
@@ -246,15 +246,15 @@ class OpenRouterIconsTest {
         fun testEfficientIconLoading() {
             // Icons should load quickly (this is more of a smoke test)
             val startTime = System.currentTimeMillis()
-            
+
             // Load all icons
             OpenRouterIcons.STATUS_BAR
             OpenRouterIcons.SUCCESS
             OpenRouterIcons.ERROR
-            
+
             val endTime = System.currentTimeMillis()
             val loadTime = endTime - startTime
-            
+
             // Icon loading should be fast (less than 1 second for all icons)
             assertTrue(loadTime < 1000, "Icon loading should be fast (< 1 second)")
         }
@@ -297,7 +297,7 @@ class OpenRouterIconsTest {
                     OpenRouterIcons.SUCCESS,
                     OpenRouterIcons.ERROR
                 )
-                
+
                 // Access icon properties
                 icons.forEach { icon ->
                     icon.iconWidth

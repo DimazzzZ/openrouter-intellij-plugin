@@ -2,28 +2,34 @@ package org.zhavoronkov.openrouter.ui
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.ui.popup.JBPopup
+import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.util.ui.JBUI
 import org.zhavoronkov.openrouter.icons.OpenRouterIcons
 import org.zhavoronkov.openrouter.models.ApiKeysListResponse
+import org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
-import org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService
-import java.awt.*
-import javax.swing.*
+import java.awt.BorderLayout
+import java.awt.Dimension
+
+import javax.swing.JButton
+import javax.swing.JLabel
+import javax.swing.JPanel
+import javax.swing.JProgressBar
+
 
 /**
  * Popup that displays OpenRouter usage statistics and information
  */
 class OpenRouterStatsPopup(private val project: Project) {
-    
+
     private val openRouterService = OpenRouterService.getInstance()
     private val settingsService = OpenRouterSettingsService.getInstance()
     private val trackingService = OpenRouterGenerationTrackingService.getInstance()
-    
+
     private lateinit var usageLabel: JBLabel
     private lateinit var limitLabel: JBLabel
     private lateinit var remainingLabel: JBLabel
@@ -34,7 +40,7 @@ class OpenRouterStatsPopup(private val project: Project) {
     private lateinit var progressBar: JProgressBar
     private lateinit var refreshButton: JButton
     private lateinit var settingsButton: JButton
-    
+
     fun show(component: Component?) {
         val popup = createPopup()
         if (component != null) {
@@ -50,10 +56,10 @@ class OpenRouterStatsPopup(private val project: Project) {
         popup.showCenteredInCurrentWindow(project)
         loadData()
     }
-    
+
     private fun createPopup(): JBPopup {
         val panel = createMainPanel()
-        
+
         return JBPopupFactory.getInstance()
             .createComponentPopupBuilder(panel, null)
             .setTitle("OpenRouter Statistics")
@@ -62,49 +68,49 @@ class OpenRouterStatsPopup(private val project: Project) {
             .setRequestFocus(true)
             .createPopup()
     }
-    
+
     private fun createMainPanel(): JPanel {
         val mainPanel = JBPanel<JBPanel<*>>(BorderLayout()).apply {
             preferredSize = Dimension(380, 320)
             border = JBUI.Borders.empty(12)
         }
-        
+
         // Header with icon and title
         val headerPanel = createHeaderPanel()
         mainPanel.add(headerPanel, BorderLayout.NORTH)
-        
+
         // Stats content
         val statsPanel = createStatsPanel()
         mainPanel.add(statsPanel, BorderLayout.CENTER)
-        
+
         // Action buttons
         val buttonPanel = createButtonPanel()
         mainPanel.add(buttonPanel, BorderLayout.SOUTH)
-        
+
         return mainPanel
     }
-    
+
     private fun createHeaderPanel(): JPanel {
         val headerPanel = JBPanel<JBPanel<*>>(FlowLayout(FlowLayout.LEFT, 0, 0))
-        
+
         val iconLabel = JBLabel(OpenRouterIcons.STATUS_BAR)
         val titleLabel = JBLabel("OpenRouter API").apply {
             font = font.deriveFont(Font.BOLD, 14f)
         }
-        
+
         headerPanel.add(iconLabel)
         headerPanel.add(Box.createHorizontalStrut(8))
         headerPanel.add(titleLabel)
-        
+
         return headerPanel
     }
-    
+
     private fun createStatsPanel(): JPanel {
         val statsPanel = JBPanel<JBPanel<*>>().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             border = JBUI.Borders.empty(12, 0)
         }
-        
+
         // Account information
         usageLabel = JBLabel("Usage: Loading...").apply {
             font = font.deriveFont(Font.BOLD)
@@ -151,39 +157,39 @@ class OpenRouterStatsPopup(private val project: Project) {
         statsPanel.add(recentTokensLabel)
         statsPanel.add(Box.createVerticalStrut(4))
         statsPanel.add(generationCountLabel)
-        
+
         return statsPanel
     }
-    
+
     private fun createButtonPanel(): JPanel {
         val buttonPanel = JBPanel<JBPanel<*>>(FlowLayout(FlowLayout.RIGHT, 0, 0)).apply {
             border = JBUI.Borders.emptyTop(12)
         }
-        
+
         refreshButton = JButton("Refresh").apply {
             addActionListener { loadData() }
         }
-        
+
         settingsButton = JButton("Settings").apply {
             addActionListener { openSettings() }
         }
-        
+
         buttonPanel.add(refreshButton)
         buttonPanel.add(Box.createHorizontalStrut(8))
         buttonPanel.add(settingsButton)
-        
+
         return buttonPanel
     }
-    
+
     private fun loadData() {
         if (!settingsService.isConfigured()) {
             showNotConfigured()
             return
         }
-        
+
         // Show loading state
         setLoadingState()
-        
+
         openRouterService.getApiKeysList().thenAccept { apiKeysResponse ->
             ApplicationManager.getApplication().invokeLater {
                 if (apiKeysResponse != null) {
@@ -194,7 +200,7 @@ class OpenRouterStatsPopup(private val project: Project) {
             }
         }
     }
-    
+
     private fun setLoadingState() {
         usageLabel.text = "Usage: Loading..."
         limitLabel.text = "Limit: Loading..."
@@ -207,15 +213,11 @@ class OpenRouterStatsPopup(private val project: Project) {
         progressBar.isIndeterminate = true
         refreshButton.isEnabled = false
     }
-    
-
 
     private fun updateWithApiKeysList(apiKeysResponse: ApiKeysListResponse) {
         val enabledKeys = apiKeysResponse.data.filter { !it.disabled }
         val totalUsage = 0.0 // Usage not available from API keys list endpoint
         val totalLimit = enabledKeys.mapNotNull { it.limit }.sum()
-
-
 
         // Format usage with appropriate precision
         usageLabel.text = "Total Usage: Not Available"
@@ -254,7 +256,7 @@ class OpenRouterStatsPopup(private val project: Project) {
         recentTokensLabel.text = "Recent Tokens: ${String.format("%,d", recentTokens)} (last 50 calls)"
         generationCountLabel.text = "Tracked Calls: $generationCount total"
     }
-    
+
     private fun showNotConfigured() {
         usageLabel.text = "Usage: Not configured"
         limitLabel.text = "Limit: -"
@@ -268,7 +270,7 @@ class OpenRouterStatsPopup(private val project: Project) {
         progressBar.isIndeterminate = false
         refreshButton.isEnabled = false
     }
-    
+
     private fun showError() {
         usageLabel.text = "Usage: Error loading data"
         limitLabel.text = "Limit: -"
@@ -282,7 +284,7 @@ class OpenRouterStatsPopup(private val project: Project) {
         progressBar.isIndeterminate = false
         refreshButton.isEnabled = true
     }
-    
+
     private fun openSettings() {
         ApplicationManager.getApplication().invokeLater {
             com.intellij.openapi.options.ShowSettingsUtil.getInstance()

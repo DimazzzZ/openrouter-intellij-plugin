@@ -10,32 +10,32 @@ import javax.swing.JComponent
  * Configurable for OpenRouter plugin settings
  */
 class OpenRouterConfigurable : Configurable {
-    
+
     private var settingsPanel: OpenRouterSettingsPanel? = null
     private val settingsService = OpenRouterSettingsService.getInstance()
     private val openRouterService = OpenRouterService.getInstance()
-    
+
     override fun getDisplayName(): String = "OpenRouter"
-    
+
     override fun createComponent(): JComponent? {
         settingsPanel = OpenRouterSettingsPanel()
         settingsPanel?.refreshApiKeys() // Load API keys when panel is created
         return settingsPanel?.getPanel()
     }
-    
+
     override fun isModified(): Boolean {
         val panel = settingsPanel ?: return false
-        
+
         return panel.getProvisioningKey() != settingsService.getProvisioningKey() ||
-                panel.getDefaultModel() != settingsService.getDefaultModel() ||
-                panel.isAutoRefreshEnabled() != settingsService.isAutoRefreshEnabled() ||
-                panel.getRefreshInterval() != settingsService.getRefreshInterval() ||
-                panel.shouldShowCosts() != settingsService.shouldShowCosts()
+            panel.getDefaultModel() != settingsService.getDefaultModel() ||
+            panel.isAutoRefreshEnabled() != settingsService.isAutoRefreshEnabled() ||
+            panel.getRefreshInterval() != settingsService.getRefreshInterval() ||
+            panel.shouldShowCosts() != settingsService.shouldShowCosts()
     }
-    
+
     override fun apply() {
         val panel = settingsPanel ?: return
-        
+
         val oldProvisioningKey = settingsService.getProvisioningKey()
         val newProvisioningKey = panel.getProvisioningKey()
 
@@ -45,7 +45,7 @@ class OpenRouterConfigurable : Configurable {
         settingsService.setAutoRefresh(panel.isAutoRefreshEnabled())
         settingsService.setRefreshInterval(panel.getRefreshInterval())
         settingsService.setShowCosts(panel.shouldShowCosts())
-        
+
         // Refresh API keys table if provisioning key changed
         if (oldProvisioningKey != newProvisioningKey) {
             panel.refreshApiKeys()
@@ -59,10 +59,10 @@ class OpenRouterConfigurable : Configurable {
             testConnection()
         }
     }
-    
+
     override fun reset() {
         val panel = settingsPanel ?: return
-        
+
         panel.setProvisioningKey(settingsService.getProvisioningKey())
         panel.setDefaultModel(settingsService.getDefaultModel())
         panel.setAutoRefresh(settingsService.isAutoRefreshEnabled())
@@ -70,11 +70,11 @@ class OpenRouterConfigurable : Configurable {
         panel.setShowCosts(settingsService.shouldShowCosts())
         panel.refreshApiKeys() // Refresh API keys when resetting
     }
-    
+
     override fun disposeUIResources() {
         settingsPanel = null
     }
-    
+
     private fun testConnection() {
         openRouterService.testConnection().thenAccept { success ->
             if (success) {

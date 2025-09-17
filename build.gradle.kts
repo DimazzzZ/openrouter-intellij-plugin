@@ -2,6 +2,7 @@ plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "1.9.10"
     id("org.jetbrains.intellij") version "1.17.3"
+    id("io.gitlab.arturbosch.detekt") version "1.23.4"
 }
 
 group = project.findProperty("pluginGroup") ?: "com.openrouter"
@@ -23,14 +24,30 @@ dependencies {
     testImplementation("org.mockito:mockito-junit-jupiter:5.1.1")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.11.0")
     testImplementation("org.assertj:assertj-core:3.24.2")
+
+    // Detekt plugins
+    detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.4")
 }
 
 // Configure Gradle IntelliJ Plugin
 intellij {
     version.set("2023.2.5")
     type.set("IC") // Target IDE Platform
-    
+
     plugins.set(listOf(/* Plugin Dependencies */))
+}
+
+// Configure Detekt
+detekt {
+    buildUponDefaultConfig = true
+    allRules = false
+    config.setFrom("$projectDir/config/detekt/detekt.yml")
+    baseline = file("$projectDir/config/detekt/baseline.xml")
+}
+
+// Configure Detekt tasks
+tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
+    jvmTarget = "17"
 }
 
 tasks {
@@ -65,6 +82,17 @@ tasks {
 
     test {
         useJUnitPlatform()
+    }
+
+    // Configure Detekt reports
+    withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
+        reports {
+            html.required.set(true)
+            xml.required.set(true)
+            txt.required.set(true)
+            sarif.required.set(true)
+            md.required.set(true)
+        }
     }
 
     // Custom task to update version

@@ -48,7 +48,7 @@ class ApiKeysTableModelTest {
                 hash = "hash3"
             )
         )
-        
+
         tableModel = ApiKeyTableModel()
     }
 
@@ -86,7 +86,7 @@ class ApiKeysTableModelTest {
         @DisplayName("Should not be editable")
         fun testNotEditable() {
             tableModel.setApiKeys(sampleApiKeys)
-            
+
             for (row in 0 until tableModel.rowCount) {
                 for (col in 0 until tableModel.columnCount) {
                     assertFalse(tableModel.isCellEditable(row, col),
@@ -110,7 +110,7 @@ class ApiKeysTableModelTest {
         @DisplayName("Should set API keys correctly")
         fun testSetApiKeys() {
             tableModel.setApiKeys(sampleApiKeys)
-            
+
             assertEquals(sampleApiKeys.size, tableModel.rowCount,
                 "Row count should match API keys count")
         }
@@ -120,7 +120,7 @@ class ApiKeysTableModelTest {
         fun testClearData() {
             tableModel.setApiKeys(sampleApiKeys)
             assertEquals(sampleApiKeys.size, tableModel.rowCount)
-            
+
             tableModel.setApiKeys(emptyList())
             assertEquals(0, tableModel.rowCount, "Table should be empty after clearing")
         }
@@ -129,11 +129,11 @@ class ApiKeysTableModelTest {
         @DisplayName("Should handle null API keys list")
         fun testNullApiKeys() {
             tableModel.setApiKeys(sampleApiKeys)
-            
+
             assertDoesNotThrow {
                 tableModel.setApiKeys(emptyList())
             }
-            
+
             assertEquals(0, tableModel.rowCount)
         }
 
@@ -240,7 +240,7 @@ class ApiKeysTableModelTest {
             assertThrows(IndexOutOfBoundsException::class.java) {
                 tableModel.getValueAt(0, -1)
             }
-            
+
             assertThrows(IndexOutOfBoundsException::class.java) {
                 tableModel.getValueAt(0, tableModel.columnCount)
             }
@@ -252,7 +252,7 @@ class ApiKeysTableModelTest {
             assertThrows(IndexOutOfBoundsException::class.java) {
                 tableModel.getValueAt(-1, 0)
             }
-            
+
             assertThrows(IndexOutOfBoundsException::class.java) {
                 tableModel.getValueAt(tableModel.rowCount, 0)
             }
@@ -275,7 +275,7 @@ class ApiKeysTableModelTest {
                 100.0 to "$100.00",
                 1000.0 to "$1000.00"
             )
-            
+
             testCases.forEach { (value, expected) ->
                 val apiKey = ApiKeyInfo(
                     name = "test",
@@ -287,9 +287,9 @@ class ApiKeysTableModelTest {
                     updatedAt = null,
                     hash = "test"
                 )
-                
+
                 tableModel.setApiKeys(listOf(apiKey))
-                
+
                 if (value > 0) {
                     assertEquals(expected, tableModel.getValueAt(0, 2),
                         "Limit formatting for $value")
@@ -312,9 +312,9 @@ class ApiKeysTableModelTest {
                 updatedAt = null,
                 hash = "test"
             )
-            
+
             tableModel.setApiKeys(listOf(apiKey))
-            
+
             assertEquals("Unlimited", tableModel.getValueAt(0, 2),
                 "Null limit should display as 'Unlimited'")
         }
@@ -332,9 +332,9 @@ class ApiKeysTableModelTest {
                 updatedAt = null,
                 hash = "test"
             )
-            
+
             tableModel.setApiKeys(listOf(apiKey))
-            
+
             assertEquals("$999999.99", tableModel.getValueAt(0, 2))
             assertEquals("$123456.78", tableModel.getValueAt(0, 3))
         }
@@ -348,7 +348,7 @@ class ApiKeysTableModelTest {
         @DisplayName("Should fire table data changed event when setting API keys")
         fun testTableDataChangedEvent() {
             var eventFired = false
-            
+
             tableModel.addTableModelListener { event ->
                 eventFired = true
                 assertEquals(javax.swing.event.TableModelEvent.HEADER_ROW, event.firstRow)
@@ -356,9 +356,9 @@ class ApiKeysTableModelTest {
                 assertEquals(javax.swing.event.TableModelEvent.ALL_COLUMNS, event.column)
                 assertEquals(javax.swing.event.TableModelEvent.UPDATE, event.type)
             }
-            
+
             tableModel.setApiKeys(sampleApiKeys)
-            
+
             assertTrue(eventFired, "Table model should fire data changed event")
         }
 

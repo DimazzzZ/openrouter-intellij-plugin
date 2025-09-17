@@ -32,11 +32,11 @@ class OpenRouterSettingsServiceTest {
         fun testIsConfiguredWithoutProvisioningKey() {
             // Create a service with empty provisioning key
             val service = OpenRouterSettingsService()
-            
+
             // Since we can't mock the PropertiesComponent easily,
             // we'll test by setting and getting values
             service.setProvisioningKey("")
-            
+
             assertFalse(service.isConfigured())
         }
 
@@ -44,9 +44,9 @@ class OpenRouterSettingsServiceTest {
         @DisplayName("Should return true when provisioning key is set")
         fun testIsConfiguredWithProvisioningKey() {
             val service = OpenRouterSettingsService()
-            
+
             service.setProvisioningKey("test-provisioning-key")
-            
+
             assertTrue(service.isConfigured())
         }
 
@@ -54,9 +54,9 @@ class OpenRouterSettingsServiceTest {
         @DisplayName("Should return false for blank provisioning key")
         fun testIsConfiguredWithBlankProvisioningKey() {
             val service = OpenRouterSettingsService()
-            
+
             service.setProvisioningKey("   ")
-            
+
             assertFalse(service.isConfigured())
         }
     }
@@ -70,9 +70,9 @@ class OpenRouterSettingsServiceTest {
         fun testProvisioningKeyStorage() {
             val service = OpenRouterSettingsService()
             val testKey = "test-provisioning-key-123"
-            
+
             service.setProvisioningKey(testKey)
-            
+
             assertEquals(testKey, service.getProvisioningKey())
         }
 
@@ -80,7 +80,7 @@ class OpenRouterSettingsServiceTest {
         @DisplayName("Should return empty string for unset provisioning key")
         fun testUnsetProvisioningKey() {
             val service = OpenRouterSettingsService()
-            
+
             // Default should be empty
             assertEquals("", service.getProvisioningKey())
         }
@@ -89,9 +89,9 @@ class OpenRouterSettingsServiceTest {
         @DisplayName("Should handle null provisioning key gracefully")
         fun testNullProvisioningKey() {
             val service = OpenRouterSettingsService()
-            
+
             service.setProvisioningKey("")
-            
+
             assertEquals("", service.getProvisioningKey())
         }
     }
@@ -105,9 +105,9 @@ class OpenRouterSettingsServiceTest {
         fun testApiKeyStorage() {
             val service = OpenRouterSettingsService()
             val testKey = "sk-or-v1-test-api-key"
-            
+
             service.setApiKey(testKey)
-            
+
             assertEquals(testKey, service.getApiKey())
         }
 
@@ -115,7 +115,7 @@ class OpenRouterSettingsServiceTest {
         @DisplayName("Should return empty string for unset API key")
         fun testUnsetApiKey() {
             val service = OpenRouterSettingsService()
-            
+
             assertEquals("", service.getApiKey())
         }
     }
@@ -204,11 +204,11 @@ class OpenRouterSettingsServiceTest {
         @DisplayName("Should validate API key format")
         fun testApiKeyValidation() {
             val service = OpenRouterSettingsService()
-            
+
             // Valid API key format
             service.setApiKey("sk-or-v1-1234567890abcdef")
             assertEquals("sk-or-v1-1234567890abcdef", service.getApiKey())
-            
+
             // Empty key should be allowed (for clearing)
             service.setApiKey("")
             assertEquals("", service.getApiKey())
@@ -218,11 +218,11 @@ class OpenRouterSettingsServiceTest {
         @DisplayName("Should validate provisioning key format")
         fun testProvisioningKeyValidation() {
             val service = OpenRouterSettingsService()
-            
+
             // Valid provisioning key
             service.setProvisioningKey("pk-1234567890abcdef")
             assertEquals("pk-1234567890abcdef", service.getProvisioningKey())
-            
+
             // Empty key should be allowed
             service.setProvisioningKey("")
             assertEquals("", service.getProvisioningKey())
@@ -238,10 +238,10 @@ class OpenRouterSettingsServiceTest {
         fun testVeryLongKeys() {
             val service = OpenRouterSettingsService()
             val longKey = "a".repeat(1000)
-            
+
             service.setApiKey(longKey)
             service.setProvisioningKey(longKey)
-            
+
             assertEquals(longKey, service.getApiKey())
             assertEquals(longKey, service.getProvisioningKey())
         }
@@ -251,9 +251,9 @@ class OpenRouterSettingsServiceTest {
         fun testSpecialCharactersInKeys() {
             val service = OpenRouterSettingsService()
             val specialKey = "sk-or-v1-!@#$%^&*()_+-=[]{}|;:,.<>?"
-            
+
             service.setApiKey(specialKey)
-            
+
             assertEquals(specialKey, service.getApiKey())
         }
 
@@ -262,9 +262,9 @@ class OpenRouterSettingsServiceTest {
         fun testUnicodeCharacters() {
             val service = OpenRouterSettingsService()
             val unicodeKey = "sk-or-v1-测试🔑"
-            
+
             service.setApiKey(unicodeKey)
-            
+
             assertEquals(unicodeKey, service.getApiKey())
         }
     }

@@ -9,7 +9,7 @@ import com.intellij.ui.content.ContentFactory
  * Factory for creating OpenRouter tool window
  */
 class OpenRouterToolWindowFactory : ToolWindowFactory {
-    
+
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
         val toolWindowContent = OpenRouterToolWindowContent(project)
         val content = ContentFactory.getInstance().createContent(

@@ -43,7 +43,7 @@ class ApiIntegrationTest {
         @DisplayName("Should successfully fetch API keys list")
         fun testGetApiKeysListSuccess() {
             val mockResponse = loadMockResponse("api-keys-list-response.json")
-            
+
             mockWebServer.enqueue(
                 MockResponse()
                     .setResponseCode(200)
@@ -59,19 +59,19 @@ class ApiIntegrationTest {
                 .build()
 
             val response = httpClient.newCall(request).execute()
-            
+
             assertEquals(200, response.code)
             assertEquals("application/json", response.header("Content-Type"))
-            
+
             val responseBody = response.body?.string()
             assertNotNull(responseBody)
-            
+
             val parsedResponse = gson.fromJson(responseBody, Map::class.java)
             assertNotNull(parsedResponse["data"])
-            
+
             val data = parsedResponse["data"] as List<*>
             assertTrue(data.isNotEmpty())
-            
+
             val firstKey = data[0] as Map<*, *>
             assertEquals("development-key", firstKey["name"])
             assertEquals(false, firstKey["disabled"])
@@ -81,7 +81,7 @@ class ApiIntegrationTest {
         @DisplayName("Should handle 401 unauthorized error")
         fun testGetApiKeysListUnauthorized() {
             val errorResponse = loadMockResponse("error-response.json")
-            
+
             mockWebServer.enqueue(
                 MockResponse()
                     .setResponseCode(401)
@@ -97,13 +97,13 @@ class ApiIntegrationTest {
                 .build()
 
             val response = httpClient.newCall(request).execute()
-            
+
             assertEquals(401, response.code)
-            
+
             val responseBody = response.body?.string()
             val parsedResponse = gson.fromJson(responseBody, Map::class.java)
             assertNotNull(parsedResponse["error"])
-            
+
             val error = parsedResponse["error"] as Map<*, *>
             assertEquals(401.0, error["code"])
             assertEquals("Invalid API key", error["message"])
@@ -118,7 +118,7 @@ class ApiIntegrationTest {
         @DisplayName("Should successfully create API key")
         fun testCreateApiKeySuccess() {
             val mockResponse = loadMockResponse("api-key-create-response.json")
-            
+
             mockWebServer.enqueue(
                 MockResponse()
                     .setResponseCode(200)
@@ -127,7 +127,7 @@ class ApiIntegrationTest {
             )
 
             val requestBody = """{"name":"IntelliJ IDEA Plugin","limit":null}"""
-            
+
             val request = Request.Builder()
                 .url(mockWebServer.url("/api/v1/keys"))
                 .header("Authorization", "Bearer $testProvisioningKey")
@@ -136,19 +136,19 @@ class ApiIntegrationTest {
                 .build()
 
             val response = httpClient.newCall(request).execute()
-            
+
             assertEquals(200, response.code)
-            
+
             val responseBody = response.body?.string()
             val parsedResponse = gson.fromJson(responseBody, Map::class.java)
             assertNotNull(parsedResponse["data"])
             assertNotNull(parsedResponse["key"])
-            
+
             val data = parsedResponse["data"] as Map<*, *>
             assertEquals("IntelliJ IDEA Plugin", data["name"])
             assertEquals(false, data["disabled"])
             assertEquals(0.0, data["usage"])
-            
+
             val actualKey = parsedResponse["key"] as String
             assertTrue(actualKey.startsWith("sk-or-v1-"))
         }
@@ -168,7 +168,7 @@ class ApiIntegrationTest {
                     }
                 }
             """.trimIndent()
-            
+
             mockWebServer.enqueue(
                 MockResponse()
                     .setResponseCode(400)
@@ -177,7 +177,7 @@ class ApiIntegrationTest {
             )
 
             val requestBody = """{"name":"","limit":null}"""
-            
+
             val request = Request.Builder()
                 .url(mockWebServer.url("/api/v1/keys"))
                 .header("Authorization", "Bearer $testProvisioningKey")
@@ -186,15 +186,15 @@ class ApiIntegrationTest {
                 .build()
 
             val response = httpClient.newCall(request).execute()
-            
+
             assertEquals(400, response.code)
-            
+
             val responseBody = response.body?.string()
             val parsedResponse = gson.fromJson(responseBody, Map::class.java)
             val error = parsedResponse["error"] as Map<*, *>
             assertEquals(400.0, error["code"])
             assertEquals("Invalid request parameters", error["message"])
-            
+
             val metadata = error["metadata"] as Map<*, *>
             assertEquals("validation_error", metadata["type"])
             assertEquals("name", metadata["field"])
@@ -209,7 +209,7 @@ class ApiIntegrationTest {
         @DisplayName("Should successfully delete API key")
         fun testDeleteApiKeySuccess() {
             val mockResponse = loadMockResponse("api-key-delete-response.json")
-            
+
             mockWebServer.enqueue(
                 MockResponse()
                     .setResponseCode(200)
@@ -225,13 +225,13 @@ class ApiIntegrationTest {
                 .build()
 
             val response = httpClient.newCall(request).execute()
-            
+
             assertEquals(200, response.code)
-            
+
             val responseBody = response.body?.string()
             val parsedResponse = gson.fromJson(responseBody, Map::class.java)
             assertNotNull(parsedResponse["data"])
-            
+
             val data = parsedResponse["data"] as Map<*, *>
             assertEquals("test-key", data["name"])
             assertEquals(true, data["deleted"])
@@ -251,7 +251,7 @@ class ApiIntegrationTest {
                     }
                 }
             """.trimIndent()
-            
+
             mockWebServer.enqueue(
                 MockResponse()
                     .setResponseCode(404)
@@ -267,9 +267,9 @@ class ApiIntegrationTest {
                 .build()
 
             val response = httpClient.newCall(request).execute()
-            
+
             assertEquals(404, response.code)
-            
+
             val responseBody = response.body?.string()
             val parsedResponse = gson.fromJson(responseBody, Map::class.java)
             val error = parsedResponse["error"] as Map<*, *>
@@ -286,7 +286,7 @@ class ApiIntegrationTest {
         @DisplayName("Should successfully fetch key info")
         fun testGetKeyInfoSuccess() {
             val mockResponse = loadMockResponse("key-info-response.json")
-            
+
             mockWebServer.enqueue(
                 MockResponse()
                     .setResponseCode(200)
@@ -302,13 +302,13 @@ class ApiIntegrationTest {
                 .build()
 
             val response = httpClient.newCall(request).execute()
-            
+
             assertEquals(200, response.code)
-            
+
             val responseBody = response.body?.string()
             val parsedResponse = gson.fromJson(responseBody, Map::class.java)
             assertNotNull(parsedResponse["data"])
-            
+
             val data = parsedResponse["data"] as Map<*, *>
             assertEquals("sk-or-v1-abc...xyz", data["label"])
             assertEquals(0.0000495, data["usage"])

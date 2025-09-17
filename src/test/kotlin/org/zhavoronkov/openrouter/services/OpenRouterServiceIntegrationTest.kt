@@ -25,11 +25,11 @@ class OpenRouterServiceIntegrationTest {
     fun setUp() {
         mockWebServer = MockWebServer()
         mockWebServer.start()
-        
+
         mockSettingsService = mock(OpenRouterSettingsService::class.java)
         // whenever(mockSettingsService.getProvisioningKey()).thenReturn(testProvisioningKey)
         // whenever(mockSettingsService.getApiKey()).thenReturn(testApiKey)
-        
+
         gson = Gson()
     }
 
@@ -46,7 +46,7 @@ class OpenRouterServiceIntegrationTest {
         @DisplayName("Should successfully fetch API keys list")
         fun testGetApiKeysListSuccess() {
             val mockResponse = loadMockResponse("api-keys-list-response.json")
-            
+
             mockWebServer.enqueue(
                 MockResponse()
                     .setResponseCode(200)
@@ -57,14 +57,14 @@ class OpenRouterServiceIntegrationTest {
             // Verify the mock response structure
             val response = gson.fromJson(mockResponse, Map::class.java)
             assertNotNull(response["data"])
-            
+
             val data = response["data"] as List<*>
             assertTrue(data.isNotEmpty())
-            
+
             val firstKey = data[0] as Map<*, *>
             assertEquals("postman", firstKey["name"])
             assertEquals(false, firstKey["disabled"])
-            
+
             val intellijKey = data.find { (it as Map<*, *>)["name"] == "IntelliJ IDEA Plugin" } as Map<*, *>
             assertNotNull(intellijKey)
             assertEquals("IntelliJ IDEA Plugin", intellijKey["name"])
@@ -75,7 +75,7 @@ class OpenRouterServiceIntegrationTest {
         @DisplayName("Should handle empty API keys list")
         fun testGetApiKeysListEmpty() {
             val emptyResponse = """{"data": []}"""
-            
+
             mockWebServer.enqueue(
                 MockResponse()
                     .setResponseCode(200)
@@ -92,7 +92,7 @@ class OpenRouterServiceIntegrationTest {
         @DisplayName("Should handle 401 unauthorized error")
         fun testGetApiKeysListUnauthorized() {
             val errorResponse = loadMockResponse("error-response.json")
-            
+
             mockWebServer.enqueue(
                 MockResponse()
                     .setResponseCode(401)
@@ -102,7 +102,7 @@ class OpenRouterServiceIntegrationTest {
 
             val response = gson.fromJson(errorResponse, Map::class.java)
             assertNotNull(response["error"])
-            
+
             val error = response["error"] as Map<*, *>
             assertEquals(401.0, error["code"])
             assertEquals("Invalid API key", error["message"])
@@ -117,7 +117,7 @@ class OpenRouterServiceIntegrationTest {
         @DisplayName("Should successfully create API key")
         fun testCreateApiKeySuccess() {
             val mockResponse = loadMockResponse("api-key-create-response.json")
-            
+
             mockWebServer.enqueue(
                 MockResponse()
                     .setResponseCode(200)
@@ -128,12 +128,12 @@ class OpenRouterServiceIntegrationTest {
             val response = gson.fromJson(mockResponse, Map::class.java)
             assertNotNull(response["data"])
             assertNotNull(response["key"])
-            
+
             val data = response["data"] as Map<*, *>
             assertEquals("IntelliJ IDEA Plugin", data["name"])
             assertEquals(false, data["disabled"])
             assertEquals(0.0, data["usage"])
-            
+
             val actualKey = response["key"] as String
             assertTrue(actualKey.startsWith("sk-or-v1-"))
         }
@@ -149,7 +149,7 @@ class OpenRouterServiceIntegrationTest {
 
             // Expected request body
             val expectedRequestBody = """{"name":"IntelliJ IDEA Plugin","limit":null}"""
-            
+
             // Verify the request structure
             val requestMap = gson.fromJson(expectedRequestBody, Map::class.java)
             assertEquals("IntelliJ IDEA Plugin", requestMap["name"])
@@ -166,7 +166,7 @@ class OpenRouterServiceIntegrationTest {
             )
 
             val requestBodyWithLimit = """{"name":"Test Key","limit":100.0}"""
-            
+
             val requestMap = gson.fromJson(requestBodyWithLimit, Map::class.java)
             assertEquals("Test Key", requestMap["name"])
             assertEquals(100.0, requestMap["limit"])
@@ -187,7 +187,7 @@ class OpenRouterServiceIntegrationTest {
                     }
                 }
             """.trimIndent()
-            
+
             mockWebServer.enqueue(
                 MockResponse()
                     .setResponseCode(400)
@@ -199,7 +199,7 @@ class OpenRouterServiceIntegrationTest {
             val error = response["error"] as Map<*, *>
             assertEquals(400.0, error["code"])
             assertEquals("Invalid request parameters", error["message"])
-            
+
             val metadata = error["metadata"] as Map<*, *>
             assertEquals("validation_error", metadata["type"])
             assertEquals("name", metadata["field"])
@@ -214,7 +214,7 @@ class OpenRouterServiceIntegrationTest {
         @DisplayName("Should successfully delete API key")
         fun testDeleteApiKeySuccess() {
             val mockResponse = loadMockResponse("api-key-delete-response.json")
-            
+
             mockWebServer.enqueue(
                 MockResponse()
                     .setResponseCode(200)
@@ -224,7 +224,7 @@ class OpenRouterServiceIntegrationTest {
 
             val response = gson.fromJson(mockResponse, Map::class.java)
             assertNotNull(response["data"])
-            
+
             val data = response["data"] as Map<*, *>
             assertEquals("test-key", data["name"])
             assertEquals(true, data["deleted"])
@@ -244,7 +244,7 @@ class OpenRouterServiceIntegrationTest {
                     }
                 }
             """.trimIndent()
-            
+
             mockWebServer.enqueue(
                 MockResponse()
                     .setResponseCode(404)
@@ -267,7 +267,7 @@ class OpenRouterServiceIntegrationTest {
         @DisplayName("Should successfully fetch key info")
         fun testGetKeyInfoSuccess() {
             val mockResponse = loadMockResponse("key-info-response.json")
-            
+
             mockWebServer.enqueue(
                 MockResponse()
                     .setResponseCode(200)
@@ -277,7 +277,7 @@ class OpenRouterServiceIntegrationTest {
 
             val response = gson.fromJson(mockResponse, Map::class.java)
             assertNotNull(response["data"])
-            
+
             val data = response["data"] as Map<*, *>
             assertEquals("sk-or-v1-abc...xyz", data["label"])
             assertEquals(0.0000495, data["usage"])
@@ -298,7 +298,7 @@ class OpenRouterServiceIntegrationTest {
                     }
                 }
             """.trimIndent()
-            
+
             mockWebServer.enqueue(
                 MockResponse()
                     .setResponseCode(200)

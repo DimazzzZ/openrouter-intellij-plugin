@@ -14,28 +14,28 @@ import org.zhavoronkov.openrouter.models.GenerationTrackingInfo
     storages = [Storage("openrouter-generations.xml")]
 )
 class OpenRouterGenerationTrackingService : PersistentStateComponent<OpenRouterGenerationTrackingService.State> {
-    
+
     data class State(
         var generations: MutableList<GenerationTrackingInfo> = mutableListOf()
     )
-    
+
     private var state = State()
     private val settingsService = OpenRouterSettingsService.getInstance()
-    
+
     companion object {
         fun getInstance(): OpenRouterGenerationTrackingService {
             return ApplicationManager.getApplication().getService(OpenRouterGenerationTrackingService::class.java)
         }
     }
-    
+
     override fun getState(): State {
         return state
     }
-    
+
     override fun loadState(state: State) {
         this.state = state
     }
-    
+
     /**
      * Track a new generation
      */
@@ -43,23 +43,23 @@ class OpenRouterGenerationTrackingService : PersistentStateComponent<OpenRouterG
         if (!settingsService.getState().trackGenerations) {
             return
         }
-        
+
         state.generations.add(0, generationInfo) // Add to beginning for most recent first
-        
+
         // Limit the number of tracked generations
         val maxTracked = settingsService.getState().maxTrackedGenerations
         if (state.generations.size > maxTracked) {
             state.generations = state.generations.take(maxTracked).toMutableList()
         }
     }
-    
+
     /**
      * Get recent generations
      */
     fun getRecentGenerations(limit: Int = 10): List<GenerationTrackingInfo> {
         return state.generations.take(limit)
     }
-    
+
     /**
      * Get total cost for recent generations
      */
@@ -68,7 +68,7 @@ class OpenRouterGenerationTrackingService : PersistentStateComponent<OpenRouterG
             .mapNotNull { it.totalCost }
             .sum()
     }
-    
+
     /**
      * Get total tokens for recent generations
      */
@@ -77,21 +77,21 @@ class OpenRouterGenerationTrackingService : PersistentStateComponent<OpenRouterG
             .mapNotNull { it.totalTokens }
             .sum()
     }
-    
+
     /**
      * Clear all tracked generations
      */
     fun clearGenerations() {
         state.generations.clear()
     }
-    
+
     /**
      * Get generation count
      */
     fun getGenerationCount(): Int {
         return state.generations.size
     }
-    
+
     /**
      * Update generation with detailed stats (when available from /api/v1/generation endpoint)
      */
