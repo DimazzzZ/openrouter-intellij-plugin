@@ -32,7 +32,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
     private var connectionStatus = ConnectionStatus.NOT_CONFIGURED
     private var currentText = "Status: Not Configured"
-    private var currentTooltip = "OpenRouter - Click to view menu"
+    private var currentTooltip = "OpenRouter Status: Not Configured - Usage: Not available"
 
     companion object {
         const val ID = "OpenRouterStatusBar"
@@ -218,7 +218,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
                     val data = keyInfo.data
                     val used = data.usage // Credits used (e.g., $0.792)
                     val limit = data.limit // Credit limit (e.g., $10.002)
-                    val remaining = if (limit != null) limit - used else Double.MAX_VALUE
+
 
                     currentText = if (limit != null) {
                         if (settingsService.shouldShowCosts()) {
@@ -233,22 +233,15 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
                         "Status: Ready - $${String.format(Locale.US, "%.3f", used)} (unlimited)"
                     }
 
-                    currentTooltip = buildString {
-                        append("OpenRouter API Status: ${connectionStatus.displayName}\n")
-                        append("Used: $${String.format(Locale.US, "%.3f", used)}\n")
-                        if (limit != null) {
-                            append("Limit: $${String.format(Locale.US, "%.2f", limit)}\n")
-                            append("Remaining: $${String.format(Locale.US, "%.2f", remaining)}\n")
-                        } else {
-                            append("Limit: Unlimited\n")
-                        }
-                        append("Tier: ${if (data.isFreeTier) "Free" else "Paid"}\n")
-                        append("\nClick to open menu")
+                    currentTooltip = if (limit != null) {
+                        "OpenRouter Status: ${connectionStatus.displayName} - Usage: $${String.format(Locale.US, "%.3f", used)}/$${String.format(Locale.US, "%.0f", limit)}"
+                    } else {
+                        "OpenRouter Status: ${connectionStatus.displayName} - Usage: $${String.format(Locale.US, "%.3f", used)}/unlimited"
                     }
                 } else {
                     connectionStatus = ConnectionStatus.ERROR
                     currentText = "Status: Error"
-                    currentTooltip = "OpenRouter - Failed to load usage info. Click to open menu."
+                    currentTooltip = "OpenRouter Status: Error - Usage: Unable to load"
                 }
                 updateStatusBar()
             }
@@ -263,7 +256,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         }
 
         currentText = "Status: ${connectionStatus.displayName}"
-        currentTooltip = "OpenRouter - ${connectionStatus.description}. Click to open menu."
+        currentTooltip = "OpenRouter Status: ${connectionStatus.displayName} - Usage: Not available"
         updateStatusBar()
     }
 

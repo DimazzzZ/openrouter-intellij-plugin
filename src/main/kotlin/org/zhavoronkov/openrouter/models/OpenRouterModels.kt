@@ -75,7 +75,8 @@ data class CreateApiKeyRequest(
 )
 
 data class CreateApiKeyResponse(
-    val data: CreatedApiKeyInfo
+    val data: CreatedApiKeyInfo,
+    val key: String // The actual API key value (only returned on creation) - at root level
 )
 
 data class CreatedApiKeyInfo(
@@ -86,17 +87,11 @@ data class CreatedApiKeyInfo(
     val disabled: Boolean,
     @SerializedName("created_at") val createdAt: String,
     @SerializedName("updated_at") val updatedAt: String?,
-    val hash: String,
-    val key: String // The actual API key value (only returned on creation)
+    val hash: String
 )
 
 // API Key deletion response
 data class DeleteApiKeyResponse(
-    val data: DeletedApiKeyInfo
-)
-
-data class DeletedApiKeyInfo(
-    val name: String,
     val deleted: Boolean
 )
 

@@ -3,10 +3,14 @@ package org.zhavoronkov.openrouter.settings
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
+import com.intellij.ui.JBColor
 import com.intellij.ui.ToolbarDecorator
+
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
+import com.intellij.ui.components.JBPanel
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextField
@@ -21,9 +25,15 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.FlowLayout
+import java.awt.Font
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.util.Locale
+import javax.swing.Action
+import javax.swing.JComponent
+import javax.swing.Timer
 import javax.swing.JButton
 import javax.swing.JCheckBox
 import javax.swing.JPanel
@@ -339,22 +349,97 @@ class OpenRouterSettingsPanel {
         val limit = if (limitInput.isNullOrBlank()) null else limitInput.toDoubleOrNull()
 
         openRouterService.createApiKey(label, limit).thenAccept { response ->
-            ApplicationManager.getApplication().invokeLater {
+            ApplicationManager.getApplication().invokeLater({
                 if (response != null) {
-                    Messages.showInfoMessage(
-                        "API Key created successfully!\nKey: ${response.data.key}\n\n" +
-                            "Please save this key securely - it won't be shown again.",
-                        "API Key Created"
-                    )
+                    PluginLogger.Settings.debug("API key created successfully: ${response.data.label}")
+                    // Show the API key in a copyable dialog
+                    showApiKeyDialog(response.key, response.data.label)
+                    // Refresh the table to show the new key
+                    PluginLogger.Settings.debug("Refreshing table after API key creation")
                     loadApiKeysWithoutAutoCreate()
                 } else {
+                    PluginLogger.Settings.warn("Failed to create API key - response was null")
                     Messages.showErrorDialog(
                         "Failed to create API key. Please check your Provisioning Key and try again.",
                         "Creation Failed"
                     )
                 }
+            }, com.intellij.openapi.application.ModalityState.any())
+        }
+    }
+
+    /**
+     * Show a dialog with the newly created API key in a copyable format
+     */
+    private fun showApiKeyDialog(apiKey: String, label: String) {
+        PluginLogger.Settings.debug("Showing API key dialog for label: $label, key length: ${apiKey.length}")
+        val dialog = object : DialogWrapper(true) {
+            init {
+                title = "API Key Created Successfully"
+                init()
+            }
+
+            override fun createCenterPanel(): JComponent {
+                val panel = JBPanel<JBPanel<*>>(BorderLayout())
+                panel.preferredSize = Dimension(500, 200)
+
+                // Header message
+                val headerLabel = JBLabel("<html><b>Your new API key has been created!</b><br/>" +
+                    "Label: $label<br/><br/>" +
+                    "⚠️ <b>Important:</b> Copy this key now - it will not be shown again.</html>")
+                headerLabel.border = JBUI.Borders.empty(10)
+                panel.add(headerLabel, BorderLayout.NORTH)
+
+                // API key text field (read-only but copyable)
+                val keyField = JBTextField(apiKey)
+                keyField.isEditable = false
+                keyField.selectAll() // Pre-select the text for easy copying
+                keyField.border = JBUI.Borders.compound(
+                    JBUI.Borders.empty(10),
+                    JBUI.Borders.customLine(JBColor.GRAY, 1)
+                )
+                keyField.font = Font(Font.MONOSPACED, Font.PLAIN, 12)
+                panel.add(keyField, BorderLayout.CENTER)
+
+                // Copy button
+                val copyButton = JButton("Copy to Clipboard")
+                copyButton.addActionListener {
+                    try {
+                        PluginLogger.Settings.debug("Copying API key to clipboard: ${apiKey.take(10)}...")
+                        val clipboard = Toolkit.getDefaultToolkit().systemClipboard
+                        val stringSelection = StringSelection(apiKey)
+                        clipboard.setContents(stringSelection, null)
+
+                        // Show brief confirmation
+                        copyButton.text = "Copied!"
+                        val timer = Timer(1500) {
+                            copyButton.text = "Copy to Clipboard"
+                        }
+                        timer.isRepeats = false
+                        timer.start()
+                        PluginLogger.Settings.debug("API key copied to clipboard successfully")
+                    } catch (e: Exception) {
+                        PluginLogger.Settings.error("Failed to copy API key to clipboard", e)
+                        Messages.showErrorDialog(
+                            "Failed to copy to clipboard: ${e.message}",
+                            "Copy Error"
+                        )
+                    }
+                }
+
+                val buttonPanel = JBPanel<JBPanel<*>>(FlowLayout())
+                buttonPanel.add(copyButton)
+                panel.add(buttonPanel, BorderLayout.SOUTH)
+
+                return panel
+            }
+
+            override fun createActions(): Array<Action> {
+                return arrayOf(okAction)
             }
         }
+
+        dialog.show()
     }
 
     private fun removeApiKey() {
@@ -380,21 +465,34 @@ class OpenRouterSettingsPanel {
         )
 
         if (result == Messages.YES) {
+            PluginLogger.Settings.debug("User confirmed deletion of API key: ${apiKey.label}")
             openRouterService.deleteApiKey(apiKey.hash).thenAccept { response ->
                 ApplicationManager.getApplication().invokeLater({
-                    if (response != null && response.data.deleted) {
+                    PluginLogger.Settings.debug("Delete API key callback executed - response: ${if (response != null) "not null" else "null"}")
+                    if (response != null && response.deleted) {
+                        PluginLogger.Settings.debug("API key deleted successfully, refreshing table")
                         Messages.showInfoMessage(
                             "API Key '${apiKey.label}' has been deleted successfully.",
                             "API Key Deleted"
                         )
                         loadApiKeysWithoutAutoCreate()
                     } else {
+                        PluginLogger.Settings.warn("Failed to delete API key - response: $response")
                         Messages.showErrorDialog(
                             "Failed to delete API key. Please try again.",
                             "Deletion Failed"
                         )
                     }
                 }, com.intellij.openapi.application.ModalityState.any())
+            }.exceptionally { throwable ->
+                PluginLogger.Settings.error("Exception during API key deletion", throwable)
+                ApplicationManager.getApplication().invokeLater({
+                    Messages.showErrorDialog(
+                        "Error occurred while deleting API key: ${throwable.message}",
+                        "Deletion Error"
+                    )
+                }, com.intellij.openapi.application.ModalityState.any())
+                null
             }
         }
     }
@@ -534,7 +632,7 @@ class OpenRouterSettingsPanel {
                         PluginLogger.Settings.info("Successfully created IntelliJ IDEA Plugin API key: ${response.data.name}")
 
                         // Store the API key securely
-                        settingsService.setApiKey(response.data.key)
+                        settingsService.setApiKey(response.key)
 
                         // Refresh the table to show the new key (but don't create another one)
                         loadApiKeysWithoutAutoCreate()
