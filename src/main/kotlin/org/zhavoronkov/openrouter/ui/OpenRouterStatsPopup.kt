@@ -14,6 +14,7 @@ import org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import java.awt.BorderLayout
+import java.awt.Color
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.FlowLayout
@@ -117,38 +118,25 @@ class OpenRouterStatsPopup(private val project: Project) {
         }
 
         // Account information
-        tierLabel = JBLabel("Account: Loading...").apply {
-            foreground = JBUI.CurrentTheme.Label.foreground()
-        }
+        tierLabel = JBLabel("Account: Loading...")
 
         // Credits information
         totalCreditsLabel = JBLabel("Total Credits: Loading...").apply {
             font = font.deriveFont(Font.BOLD)
-            foreground = JBUI.CurrentTheme.Label.foreground()
         }
-        creditsUsageLabel = JBLabel("Credits Used: Loading...").apply {
-            foreground = JBUI.CurrentTheme.Label.foreground()
-        }
-        creditsRemainingLabel = JBLabel("Credits Remaining: Loading...").apply {
-            foreground = JBUI.CurrentTheme.Label.foreground()
-        }
+        creditsUsageLabel = JBLabel("Credits Used: Loading...")
+        creditsRemainingLabel = JBLabel("Credits Remaining: Loading...")
 
         // Progress bar
         progressBar = JProgressBar(0, 100).apply {
-            isStringPainted = true
+            isStringPainted = false // temporarily disabled
             string = "Loading..."
         }
 
         // Recent activity information
-        recentCostLabel = JBLabel("Recent Cost: Loading...").apply {
-            foreground = JBUI.CurrentTheme.Label.foreground()
-        }
-        recentTokensLabel = JBLabel("Recent Tokens: Loading...").apply {
-            foreground = JBUI.CurrentTheme.Label.foreground()
-        }
-        generationCountLabel = JBLabel("Tracked Calls: Loading...").apply {
-            foreground = JBUI.CurrentTheme.Label.foreground()
-        }
+        recentCostLabel = JBLabel("Recent Cost: Loading...")
+        recentTokensLabel = JBLabel("Recent Tokens: Loading...")
+        generationCountLabel = JBLabel("Tracked Calls: Loading...")
 
         statsPanel.add(tierLabel)
         statsPanel.add(Box.createVerticalStrut(8))
