@@ -9,14 +9,15 @@ import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBScrollPane
-
 import com.intellij.ui.components.JBTextField
+import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.JBUI
 import org.zhavoronkov.openrouter.models.ApiKeyInfo
 import org.zhavoronkov.openrouter.models.ProviderInfo
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.FlowLayout
@@ -56,9 +57,23 @@ class ApiKeyTableModel : AbstractTableModel() {
     }
 
     fun setApiKeys(keys: List<ApiKeyInfo>) {
+        PluginLogger.Settings.debug("ApiKeysTableModel.setApiKeys called with ${keys.size} keys")
+
+        // Ensure we're on EDT for UI updates
+        if (!ApplicationManager.getApplication().isDispatchThread) {
+            PluginLogger.Settings.debug("Not on EDT, scheduling setApiKeys on EDT")
+            ApplicationManager.getApplication().invokeLater({
+                setApiKeys(keys)
+            }, com.intellij.openapi.application.ModalityState.any())
+            return
+        }
+
+        PluginLogger.Settings.debug("On EDT, updating table model")
         apiKeys.clear()
         apiKeys.addAll(keys)
+        PluginLogger.Settings.debug("ApiKeysTableModel internal list now has ${apiKeys.size} keys")
         fireTableDataChanged()
+        PluginLogger.Settings.debug("fireTableDataChanged() called - table should now show ${apiKeys.size} rows")
     }
 
     fun getApiKeyAt(rowIndex: Int): ApiKeyInfo? {
@@ -85,12 +100,11 @@ class OpenRouterSettingsPanel {
     private val refreshIntervalSpinner: JSpinner
     private val showCostsCheckBox: JBCheckBox
     private val apiKeyTableModel = ApiKeyTableModel()
-    private val apiKeyTable = JTable(apiKeyTableModel)
+    private val apiKeyTable = JBTable(apiKeyTableModel)
     private val providersTableModel = ProvidersTableModel()
-    private val providersTable = JTable(providersTableModel)
+    private val providersTable = JBTable(providersTableModel)
     private val openRouterService = OpenRouterService.getInstance()
     private val settingsService = OpenRouterSettingsService.getInstance()
-    private val logger = Logger.getInstance(OpenRouterSettingsPanel::class.java)
 
     companion object {
         private const val INTELLIJ_API_KEY_NAME = "IntelliJ IDEA Plugin"
@@ -98,8 +112,14 @@ class OpenRouterSettingsPanel {
     }
 
     init {
+        // Initialize logging configuration
+        PluginLogger.logConfiguration()
+        PluginLogger.Settings.debug("Initializing OpenRouter Settings Panel")
+        println("[OpenRouter] Settings panel initializing...") // Immediate console output
+
         provisioningKeyField = JBPasswordField()
-        provisioningKeyField.columns = 20  // Reduced from 30 to prevent horizontal scroll
+        provisioningKeyField.columns = 10  // Fixed width - half of previous size
+        provisioningKeyField.preferredSize = Dimension(200, provisioningKeyField.preferredSize.height)
 
         defaultModelField = JBTextField("openai/gpt-4o")
         defaultModelField.columns = 18     // Reduced from 25 to be more responsive
@@ -171,6 +191,8 @@ class OpenRouterSettingsPanel {
     private fun createApiKeyTablePanel(): JPanel {
         val panel = JPanel(BorderLayout())
 
+        PluginLogger.Settings.debug("Creating API key table panel with JBTable")
+
         // Configure table for responsive layout
         apiKeyTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
         apiKeyTable.autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
@@ -182,6 +204,10 @@ class OpenRouterSettingsPanel {
         apiKeyTable.columnModel.getColumn(2).preferredWidth = 70   // Usage
         apiKeyTable.columnModel.getColumn(3).preferredWidth = 70   // Limit
         apiKeyTable.columnModel.getColumn(4).preferredWidth = 60   // Status
+
+        PluginLogger.Settings.debug("API key table configured with model: ${apiKeyTable.model}")
+        PluginLogger.Settings.debug("Initial table row count: ${apiKeyTable.rowCount}")
+        PluginLogger.Settings.debug("Initial model row count: ${apiKeyTableModel.rowCount}")
 
         // Create toolbar with add/remove buttons
         val tablePanel = ToolbarDecorator.createDecorator(apiKeyTable)
@@ -366,32 +392,38 @@ class OpenRouterSettingsPanel {
     }
 
     fun refreshApiKeys() {
-        logger.info("Refreshing API keys table")
+        PluginLogger.Settings.debug("Refreshing API keys table")
 
         // Check if provisioning key is available (either in panel or saved settings)
         val currentProvisioningKey = getProvisioningKey()
         val savedProvisioningKey = settingsService.getProvisioningKey()
         val provisioningKey = if (currentProvisioningKey.isNotBlank()) currentProvisioningKey else savedProvisioningKey
 
+        PluginLogger.Settings.debug("Current provisioning key from panel: ${if (currentProvisioningKey.isNotBlank()) "[PRESENT]" else "[EMPTY]"}")
+        PluginLogger.Settings.debug("Saved provisioning key from settings: ${if (savedProvisioningKey.isNotBlank()) "[PRESENT]" else "[EMPTY]"}")
+        PluginLogger.Settings.debug("Using provisioning key: ${if (provisioningKey.isNotBlank()) "[PRESENT]" else "[EMPTY]"}")
 
         if (provisioningKey.isBlank()) {
-            logger.info("Provisioning key not configured, clearing table")
+            PluginLogger.Settings.debug("Provisioning key not configured, clearing table")
             apiKeyTableModel.setApiKeys(emptyList())
             return
         }
 
-        logger.info("Fetching API keys from OpenRouter with provisioning key: ${provisioningKey.take(10)}...")
+        PluginLogger.Settings.debug("Fetching API keys from OpenRouter with provisioning key: ${provisioningKey.take(10)}...")
         openRouterService.getApiKeysList(provisioningKey).thenAccept { response ->
-            ApplicationManager.getApplication().invokeLater {
+            PluginLogger.Settings.debug("thenAccept callback executed - response is ${if (response != null) "not null" else "null"}")
+            ApplicationManager.getApplication().invokeLater({
+                PluginLogger.Settings.debug("invokeLater callback executed")
                 if (response != null) {
                     val apiKeys = response.data
-                    logger.info("Successfully received ${apiKeys.size} API keys from OpenRouter")
+                    PluginLogger.Settings.info("Successfully received ${apiKeys.size} API keys from OpenRouter")
+                    PluginLogger.Settings.debug("About to call apiKeyTableModel.setApiKeys with ${apiKeys.size} keys")
                     apiKeyTableModel.setApiKeys(apiKeys)
 
                     // Check if IntelliJ IDEA Plugin API key exists and handle creation
                     ensureIntellijApiKeyExists(apiKeys)
                 } else {
-                    logger.warn("Failed to fetch API keys from OpenRouter - response was null")
+                    PluginLogger.Settings.warn("Failed to fetch API keys from OpenRouter - response was null")
                     apiKeyTableModel.setApiKeys(emptyList())
                     // Show user-friendly error message
                     Messages.showWarningDialog(
@@ -399,7 +431,17 @@ class OpenRouterSettingsPanel {
                         "Load Failed"
                     )
                 }
-            }
+            }, com.intellij.openapi.application.ModalityState.any())
+        }.exceptionally { throwable ->
+            PluginLogger.Settings.error("Exception in getApiKeysList thenAccept callback", throwable)
+            ApplicationManager.getApplication().invokeLater({
+                apiKeyTableModel.setApiKeys(emptyList())
+                Messages.showErrorDialog(
+                    "Error loading API keys: ${throwable.message}",
+                    "Load Error"
+                )
+            }, com.intellij.openapi.application.ModalityState.any())
+            null
         }
     }
 
@@ -411,30 +453,30 @@ class OpenRouterSettingsPanel {
         val existingIntellijApiKey = currentApiKeys.find { it.name == INTELLIJ_API_KEY_NAME }
 
         if (existingIntellijApiKey != null) {
-            logger.info("IntelliJ IDEA Plugin API key already exists: ${existingIntellijApiKey.name}")
+            PluginLogger.Settings.debug("IntelliJ IDEA Plugin API key already exists: ${existingIntellijApiKey.name}")
             return // API key exists, nothing to do
         }
 
         // Second check: Are we already in the process of creating one?
         if (isCreatingApiKey) {
-            logger.info("API key creation already in progress, skipping")
+            PluginLogger.Settings.debug("API key creation already in progress, skipping")
             return
         }
 
         // Third check: Do we have a stored API key that might be valid?
         val storedApiKey = settingsService.getApiKey()
         if (storedApiKey.isNotBlank()) {
-            logger.info("Stored API key exists, assuming it's valid")
+            PluginLogger.Settings.debug("Stored API key exists, assuming it's valid")
             return
         }
 
         // Only now create the API key
-        logger.info("No IntelliJ IDEA Plugin API key found, creating one...")
+        PluginLogger.Settings.debug("No IntelliJ IDEA Plugin API key found, creating one...")
         createIntellijApiKeyOnce()
     }
 
     private fun loadApiKeysWithoutAutoCreate() {
-        logger.info("Loading API keys without auto-creation")
+        PluginLogger.Settings.debug("Loading API keys without auto-creation")
 
         // Check if provisioning key is available (either in panel or saved settings)
         val currentProvisioningKey = getProvisioningKey()
@@ -442,22 +484,33 @@ class OpenRouterSettingsPanel {
         val provisioningKey = if (currentProvisioningKey.isNotBlank()) currentProvisioningKey else savedProvisioningKey
 
         if (provisioningKey.isBlank()) {
-            logger.info("Provisioning key not configured, clearing table")
+            PluginLogger.Settings.debug("Provisioning key not configured, clearing table")
             apiKeyTableModel.setApiKeys(emptyList())
             return
         }
 
         openRouterService.getApiKeysList(provisioningKey).thenAccept { response ->
-            ApplicationManager.getApplication().invokeLater {
+            PluginLogger.Settings.debug("refreshApiKeys thenAccept callback executed - response is ${if (response != null) "not null" else "null"}")
+            ApplicationManager.getApplication().invokeLater({
+                PluginLogger.Settings.debug("refreshApiKeys invokeLater callback executed")
                 if (response != null) {
                     val apiKeys = response.data
-                    logger.info("Received ${apiKeys.size} API keys from OpenRouter")
+                    PluginLogger.Settings.info("Received ${apiKeys.size} API keys from OpenRouter")
+                    PluginLogger.Settings.debug("Setting API keys in table model: ${apiKeys.map { it.name }}")
                     apiKeyTableModel.setApiKeys(apiKeys)
+                    PluginLogger.Settings.debug("Table model now has ${apiKeyTableModel.rowCount} rows")
+                    PluginLogger.Settings.debug("Table component row count: ${apiKeyTable.rowCount}")
                 } else {
-                    logger.warn("Failed to fetch API keys from OpenRouter")
+                    PluginLogger.Settings.warn("Failed to fetch API keys from OpenRouter")
                     apiKeyTableModel.setApiKeys(emptyList())
                 }
-            }
+            }, com.intellij.openapi.application.ModalityState.any())
+        }.exceptionally { throwable ->
+            PluginLogger.Settings.error("Exception in refreshApiKeys thenAccept callback", throwable)
+            ApplicationManager.getApplication().invokeLater({
+                apiKeyTableModel.setApiKeys(emptyList())
+            }, com.intellij.openapi.application.ModalityState.any())
+            null
         }
     }
 
@@ -465,12 +518,12 @@ class OpenRouterSettingsPanel {
         // Set the flag to prevent multiple creation attempts
         isCreatingApiKey = true
 
-        logger.info("Attempting to create IntelliJ IDEA Plugin API key (once)")
+        PluginLogger.Settings.debug("Attempting to create IntelliJ IDEA Plugin API key (once)")
         openRouterService.createApiKey(INTELLIJ_API_KEY_NAME, null).thenAccept { response ->
             ApplicationManager.getApplication().invokeLater {
                 try {
                     if (response != null) {
-                        logger.info("Successfully created IntelliJ IDEA Plugin API key: ${response.data.name}")
+                        PluginLogger.Settings.info("Successfully created IntelliJ IDEA Plugin API key: ${response.data.name}")
 
                         // Store the API key securely
                         settingsService.setApiKey(response.data.key)
@@ -483,7 +536,7 @@ class OpenRouterSettingsPanel {
                             "API Key Created"
                         )
                     } else {
-                        logger.warn("Failed to create IntelliJ IDEA Plugin API key")
+                        PluginLogger.Settings.warn("Failed to create IntelliJ IDEA Plugin API key")
                         Messages.showWarningDialog(
                             "Failed to automatically create '$INTELLIJ_API_KEY_NAME' API key. " +
                                 "Please check your provisioning key and try again.",
@@ -503,22 +556,22 @@ class OpenRouterSettingsPanel {
      */
     private fun resetApiKeyCreationFlag() {
         isCreatingApiKey = false
-        logger.info("Reset API key creation flag")
+        PluginLogger.Settings.debug("Reset API key creation flag")
     }
 
     /**
      * Load providers list from OpenRouter
      */
     private fun loadProviders() {
-        logger.info("Loading providers list from OpenRouter API")
+        PluginLogger.Settings.debug("Loading providers list from OpenRouter API")
 
         openRouterService.getProviders().thenAccept { response ->
             ApplicationManager.getApplication().invokeLater {
                 if (response != null && response.data.isNotEmpty()) {
-                    logger.info("Successfully loaded ${response.data.size} providers from OpenRouter")
+                    PluginLogger.Settings.info("Successfully loaded ${response.data.size} providers from OpenRouter")
                     providersTableModel.setProviders(response.data)
                 } else {
-                    logger.warn("Failed to load providers - response was null or empty")
+                    PluginLogger.Settings.warn("Failed to load providers - response was null or empty")
                     providersTableModel.setProviders(emptyList())
                     Messages.showWarningDialog(
                         "Failed to load providers list. Please check your internet connection and try again.",
@@ -528,7 +581,7 @@ class OpenRouterSettingsPanel {
             }
         }.exceptionally { throwable ->
             ApplicationManager.getApplication().invokeLater {
-                logger.error("Exception while loading providers", throwable)
+                PluginLogger.Settings.error("Exception while loading providers", throwable)
                 providersTableModel.setProviders(emptyList())
                 Messages.showErrorDialog(
                     "Error loading providers: ${throwable.message}",

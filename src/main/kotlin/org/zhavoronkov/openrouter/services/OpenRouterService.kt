@@ -18,6 +18,7 @@ import org.zhavoronkov.openrouter.models.KeyData
 import org.zhavoronkov.openrouter.models.KeyInfoResponse
 import org.zhavoronkov.openrouter.models.ProvidersResponse
 import org.zhavoronkov.openrouter.models.QuotaInfo
+import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.io.IOException
 import java.util.concurrent.CompletableFuture
 
@@ -44,7 +45,6 @@ import java.util.concurrent.CompletableFuture
  */
 class OpenRouterService {
 
-    private val logger = Logger.getInstance(OpenRouterService::class.java)
     private val gson = Gson()
     private val client = OkHttpClient()
     private val settingsService = OpenRouterSettingsService.getInstance()
@@ -86,19 +86,19 @@ class OpenRouterService {
                             try {
                                 gson.fromJson(responseBody, GenerationResponse::class.java)
                             } catch (e: JsonSyntaxException) {
-                                logger.warn("Failed to parse generation response", e)
+                                PluginLogger.Service.warn("Failed to parse generation response", e)
                                 null
                             }
                         }
                     } else {
-                        logger.warn(
+                        PluginLogger.Service.warn(
                             "Failed to get generation stats: ${response.code} ${response.message}"
                         )
                         null
                     }
                 }
             } catch (e: IOException) {
-                logger.warn("Network error getting generation stats", e)
+                PluginLogger.Service.warn("Network error getting generation stats", e)
                 null
             }
         }
@@ -131,10 +131,10 @@ class OpenRouterService {
                     response.isSuccessful
                 }
             } catch (e: IOException) {
-                logger.warn("Connection test failed", e)
+                PluginLogger.Service.warn("Connection test failed", e)
                 false
             } catch (e: JsonSyntaxException) {
-                logger.warn("Connection test failed - invalid JSON response", e)
+                PluginLogger.Service.warn("Connection test failed - invalid JSON response", e)
                 false
             }
         }
@@ -155,10 +155,10 @@ class OpenRouterService {
     fun getApiKeysList(provisioningKey: String): CompletableFuture<ApiKeysListResponse?> {
         return CompletableFuture.supplyAsync {
             try {
-                logger.info(
+                PluginLogger.Service.debug(
                     "Fetching API keys list from OpenRouter with provisioning key: ${provisioningKey.take(10)}..."
                 )
-                logger.info("Making request to: $API_KEYS_ENDPOINT")
+                PluginLogger.Service.debug("Making request to: $API_KEYS_ENDPOINT")
 
                 val request = Request.Builder()
                     .url(API_KEYS_ENDPOINT)
@@ -168,27 +168,33 @@ class OpenRouterService {
 
                 client.newCall(request).execute().use { response ->
                     val responseBody = response.body?.string() ?: ""
-                    logger.info("OpenRouter API keys list response code: ${response.code}")
-                    logger.info("OpenRouter API keys list response: $responseBody")
+                    PluginLogger.Service.debug("OpenRouter API keys list response code: ${response.code}")
+                    PluginLogger.Service.debug("OpenRouter API keys list response: $responseBody")
 
                     if (response.isSuccessful) {
                         try {
+                            PluginLogger.Service.debug("Attempting to parse JSON response...")
                             val result = gson.fromJson(responseBody, ApiKeysListResponse::class.java)
-                            logger.info("Successfully parsed ${result?.data?.size ?: 0} API keys")
+                            PluginLogger.Service.info("Successfully parsed ${result?.data?.size ?: 0} API keys")
+                            PluginLogger.Service.debug("Parsed API keys: ${result?.data?.map { it.name } ?: emptyList()}")
                             result
                         } catch (e: JsonSyntaxException) {
-                            logger.warn("Failed to parse API keys list response: $responseBody", e)
+                            PluginLogger.Service.warn("Failed to parse API keys list response: $responseBody", e)
+                            PluginLogger.Service.debug("JSON parsing error details: ${e.message}")
+                            null
+                        } catch (e: Exception) {
+                            PluginLogger.Service.warn("Unexpected error parsing API keys list response", e)
                             null
                         }
                     } else {
-                        logger.warn(
+                        PluginLogger.Service.warn(
                             "Failed to get API keys list: ${response.code} ${response.message} - $responseBody"
                         )
                         null
                     }
                 }
             } catch (e: IOException) {
-                logger.warn("Network error getting key info", e)
+                PluginLogger.Service.warn("Network error getting API keys list", e)
                 null
             }
         }
@@ -252,9 +258,9 @@ class OpenRouterService {
                 val requestBody = CreateApiKeyRequest(name = name, limit = limit)
                 val json = gson.toJson(requestBody)
 
-                logger.info("Creating API key with name: $name using provisioning key: ${provisioningKey.take(10)}...")
-                logger.info("Making POST request to: $API_KEYS_ENDPOINT")
-                logger.info("Request body: $json")
+                PluginLogger.Service.debug("Creating API key with name: $name using provisioning key: ${provisioningKey.take(10)}...")
+                PluginLogger.Service.debug("Making POST request to: $API_KEYS_ENDPOINT")
+                PluginLogger.Service.debug("Request body: $json")
 
                 val request = Request.Builder()
                     .url(API_KEYS_ENDPOINT)
@@ -265,28 +271,28 @@ class OpenRouterService {
 
                 client.newCall(request).execute().use { response ->
                     val responseBody = response.body?.string() ?: ""
-                    logger.info("Create API key response code: ${response.code}")
-                    logger.info("Create API key response: $responseBody")
+                    PluginLogger.Service.debug("Create API key response code: ${response.code}")
+                    PluginLogger.Service.debug("Create API key response: $responseBody")
 
                     if (response.isSuccessful) {
                         try {
                             val result = gson.fromJson(responseBody, CreateApiKeyResponse::class.java)
-                            logger.info("Successfully created API key: ${result?.data?.name}")
+                            PluginLogger.Service.info("Successfully created API key: ${result?.data?.name}")
                             result
                         } catch (e: JsonSyntaxException) {
-                            logger.warn("Failed to parse create API key response: $responseBody", e)
+                            PluginLogger.Service.warn("Failed to parse create API key response: $responseBody", e)
                             null
                         }
                     } else {
-                        logger.warn("Failed to create API key: ${response.code} ${response.message} - $responseBody")
+                        PluginLogger.Service.warn("Failed to create API key: ${response.code} ${response.message} - $responseBody")
                         null
                     }
                 }
             } catch (e: IOException) {
-                logger.error("Error creating API key - network issue", e)
+                PluginLogger.Service.error("Error creating API key - network issue", e)
                 null
             } catch (e: JsonSyntaxException) {
-                logger.error("Error creating API key - invalid JSON response", e)
+                PluginLogger.Service.error("Error creating API key - invalid JSON response", e)
                 null
             }
         }
@@ -307,24 +313,24 @@ class OpenRouterService {
                     .delete()
                     .build()
 
-                logger.info("Deleting API key: $keyName")
+                PluginLogger.Service.debug("Deleting API key: $keyName")
 
                 client.newCall(request).execute().use { response ->
                     val responseBody = response.body?.string() ?: ""
-                    logger.info("Delete API key response: $responseBody")
+                    PluginLogger.Service.debug("Delete API key response: $responseBody")
 
                     if (response.isSuccessful) {
                         gson.fromJson(responseBody, DeleteApiKeyResponse::class.java)
                     } else {
-                        logger.warn("Failed to delete API key: ${response.code} - $responseBody")
+                        PluginLogger.Service.warn("Failed to delete API key: ${response.code} - $responseBody")
                         null
                     }
                 }
             } catch (e: IOException) {
-                logger.error("Error deleting API key - network issue", e)
+                PluginLogger.Service.error("Error deleting API key - network issue", e)
                 null
             } catch (e: JsonSyntaxException) {
-                logger.error("Error deleting API key - invalid JSON response", e)
+                PluginLogger.Service.error("Error deleting API key - invalid JSON response", e)
                 null
             }
         }
@@ -340,12 +346,12 @@ class OpenRouterService {
                 // Credits endpoint requires API key, not provisioning key
                 val apiKey = settingsService.getStoredApiKey()
                 if (apiKey.isNullOrBlank()) {
-                    logger.warn("No API key available for credits endpoint")
+                    PluginLogger.Service.warn("No API key available for credits endpoint")
                     return@supplyAsync null
                 }
 
-                logger.info("Fetching credits from OpenRouter with API key: ${apiKey.take(10)}...")
-                logger.info("Making request to: $CREDITS_ENDPOINT")
+                PluginLogger.Service.debug("Fetching credits from OpenRouter with API key: ${apiKey.take(10)}...")
+                PluginLogger.Service.debug("Making request to: $CREDITS_ENDPOINT")
 
                 val request = Request.Builder()
                     .url(CREDITS_ENDPOINT)
@@ -355,21 +361,21 @@ class OpenRouterService {
 
                 val response = client.newCall(request).execute()
                 val responseBody = response.body?.string() ?: ""
-                logger.info("Credits response: ${response.code} - $responseBody")
+                PluginLogger.Service.debug("Credits response: ${response.code} - $responseBody")
 
                 if (response.isSuccessful) {
                     val creditsResponse = gson.fromJson(responseBody, CreditsResponse::class.java)
-                    logger.info("Successfully parsed credits response: ${creditsResponse.data}")
+                    PluginLogger.Service.info("Successfully parsed credits response: ${creditsResponse.data}")
                     creditsResponse
                 } else {
-                    logger.warn("Failed to fetch credits: ${response.code} - $responseBody")
+                    PluginLogger.Service.warn("Failed to fetch credits: ${response.code} - $responseBody")
                     null
                 }
             } catch (e: IOException) {
-                logger.error("Error fetching credits - network issue", e)
+                PluginLogger.Service.error("Error fetching credits - network issue", e)
                 null
             } catch (e: JsonSyntaxException) {
-                logger.error("Error fetching credits - invalid JSON response", e)
+                PluginLogger.Service.error("Error fetching credits - invalid JSON response", e)
                 null
             }
         }
@@ -382,8 +388,8 @@ class OpenRouterService {
     fun getProviders(): CompletableFuture<ProvidersResponse?> {
         return CompletableFuture.supplyAsync {
             try {
-                logger.info("Fetching providers list from OpenRouter (public endpoint)")
-                logger.info("Making request to: $PROVIDERS_ENDPOINT")
+                PluginLogger.Service.debug("Fetching providers list from OpenRouter (public endpoint)")
+                PluginLogger.Service.debug("Making request to: $PROVIDERS_ENDPOINT")
 
                 // Providers endpoint is public - no authentication required
                 val request = Request.Builder()
@@ -393,21 +399,21 @@ class OpenRouterService {
 
                 val response = client.newCall(request).execute()
                 val responseBody = response.body?.string() ?: ""
-                logger.info("Providers response: ${response.code} - ${responseBody.take(200)}...")
+                PluginLogger.Service.debug("Providers response: ${response.code} - ${responseBody.take(200)}...")
 
                 if (response.isSuccessful) {
                     val providersResponse = gson.fromJson(responseBody, ProvidersResponse::class.java)
-                    logger.info("Successfully parsed providers response: ${providersResponse.data.size} providers")
+                    PluginLogger.Service.info("Successfully parsed providers response: ${providersResponse.data.size} providers")
                     providersResponse
                 } else {
-                    logger.warn("Failed to fetch providers: ${response.code} - $responseBody")
+                    PluginLogger.Service.warn("Failed to fetch providers: ${response.code} - $responseBody")
                     null
                 }
             } catch (e: IOException) {
-                logger.error("Error fetching providers - network issue", e)
+                PluginLogger.Service.error("Error fetching providers - network issue", e)
                 null
             } catch (e: JsonSyntaxException) {
-                logger.error("Error fetching providers - invalid JSON response", e)
+                PluginLogger.Service.error("Error fetching providers - invalid JSON response", e)
                 null
             }
         }
