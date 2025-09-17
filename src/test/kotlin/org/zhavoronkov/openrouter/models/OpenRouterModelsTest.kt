@@ -148,7 +148,7 @@ class OpenRouterModelsTest {
 
             assertEquals("new123", response.data.hash)
             assertEquals("new-key", response.data.name)
-            assertEquals("sk-or-v1-actual-key-value", response.data.key)
+            assertEquals("sk-or-v1-actual-key-value", response.key)
             assertEquals(0.0, response.data.usage)
         }
     }

@@ -127,9 +127,9 @@ class SimpleUnitTest {
                         "limit": null,
                         "usage": 0.0,
                         "created_at": "2025-09-17T12:00:00.000000+00:00",
-                        "updated_at": null,
-                        "key": "sk-or-v1-actual-key-value"
-                    }
+                        "updated_at": null
+                    },
+                    "key": "sk-or-v1-actual-key-value"
                 }
             """.trimIndent()
 
@@ -137,7 +137,7 @@ class SimpleUnitTest {
 
             assertEquals("new123", response.data.hash)
             assertEquals("new-key", response.data.name)
-            assertEquals("sk-or-v1-actual-key-value", response.data.key)
+            assertEquals("sk-or-v1-actual-key-value", response.key)
             assertEquals(0.0, response.data.usage)
         }
     }

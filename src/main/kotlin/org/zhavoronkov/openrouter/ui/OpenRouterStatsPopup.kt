@@ -35,9 +35,6 @@ class OpenRouterStatsPopup(private val project: Project) {
     private val settingsService = OpenRouterSettingsService.getInstance()
     private val trackingService = OpenRouterGenerationTrackingService.getInstance()
 
-    private lateinit var usageLabel: JBLabel
-    private lateinit var limitLabel: JBLabel
-    private lateinit var remainingLabel: JBLabel
     private lateinit var tierLabel: JBLabel
     private lateinit var totalCreditsLabel: JBLabel
     private lateinit var creditsUsageLabel: JBLabel
@@ -120,19 +117,21 @@ class OpenRouterStatsPopup(private val project: Project) {
         }
 
         // Account information
-        usageLabel = JBLabel("Usage: Loading...").apply {
-            font = font.deriveFont(Font.BOLD)
+        tierLabel = JBLabel("Account: Loading...").apply {
+            foreground = JBUI.CurrentTheme.Label.foreground()
         }
-        limitLabel = JBLabel("Limit: Loading...")
-        remainingLabel = JBLabel("Remaining: Loading...")
-        tierLabel = JBLabel("Account: Loading...")
 
         // Credits information
         totalCreditsLabel = JBLabel("Total Credits: Loading...").apply {
             font = font.deriveFont(Font.BOLD)
+            foreground = JBUI.CurrentTheme.Label.foreground()
         }
-        creditsUsageLabel = JBLabel("Credits Used: Loading...")
-        creditsRemainingLabel = JBLabel("Credits Remaining: Loading...")
+        creditsUsageLabel = JBLabel("Credits Used: Loading...").apply {
+            foreground = JBUI.CurrentTheme.Label.foreground()
+        }
+        creditsRemainingLabel = JBLabel("Credits Remaining: Loading...").apply {
+            foreground = JBUI.CurrentTheme.Label.foreground()
+        }
 
         // Progress bar
         progressBar = JProgressBar(0, 100).apply {
@@ -141,16 +140,16 @@ class OpenRouterStatsPopup(private val project: Project) {
         }
 
         // Recent activity information
-        recentCostLabel = JBLabel("Recent Cost: Loading...")
-        recentTokensLabel = JBLabel("Recent Tokens: Loading...")
-        generationCountLabel = JBLabel("Tracked Calls: Loading...")
+        recentCostLabel = JBLabel("Recent Cost: Loading...").apply {
+            foreground = JBUI.CurrentTheme.Label.foreground()
+        }
+        recentTokensLabel = JBLabel("Recent Tokens: Loading...").apply {
+            foreground = JBUI.CurrentTheme.Label.foreground()
+        }
+        generationCountLabel = JBLabel("Tracked Calls: Loading...").apply {
+            foreground = JBUI.CurrentTheme.Label.foreground()
+        }
 
-        statsPanel.add(usageLabel)
-        statsPanel.add(Box.createVerticalStrut(4))
-        statsPanel.add(limitLabel)
-        statsPanel.add(Box.createVerticalStrut(4))
-        statsPanel.add(remainingLabel)
-        statsPanel.add(Box.createVerticalStrut(4))
         statsPanel.add(tierLabel)
         statsPanel.add(Box.createVerticalStrut(8))
 
@@ -221,11 +220,9 @@ class OpenRouterStatsPopup(private val project: Project) {
         apiKeysFuture.thenAccept { apiKeysResponse ->
             creditsFuture.thenAccept { creditsResponse ->
                 ApplicationManager.getApplication().invokeLater {
-                    if (apiKeysResponse != null) {
+                    if (apiKeysResponse != null && creditsResponse != null) {
                         updateWithApiKeysList(apiKeysResponse)
-                        if (creditsResponse != null) {
-                            updateWithCredits(creditsResponse)
-                        }
+                        updateWithCredits(creditsResponse)
                     } else {
                         showError()
                     }
@@ -235,9 +232,6 @@ class OpenRouterStatsPopup(private val project: Project) {
     }
 
     private fun setLoadingState() {
-        usageLabel.text = "Usage: Loading..."
-        limitLabel.text = "Limit: Loading..."
-        remainingLabel.text = "Remaining: Loading..."
         tierLabel.text = "Account: Loading..."
         totalCreditsLabel.text = "Total Credits: Loading..."
         creditsUsageLabel.text = "Credits Used: Loading..."
@@ -252,29 +246,6 @@ class OpenRouterStatsPopup(private val project: Project) {
 
     private fun updateWithApiKeysList(apiKeysResponse: ApiKeysListResponse) {
         val enabledKeys = apiKeysResponse.data.filter { !it.disabled }
-        val totalUsage = 0.0 // Usage not available from API keys list endpoint
-        val totalLimit = enabledKeys.mapNotNull { it.limit }.sum()
-
-        // Format usage with appropriate precision
-        usageLabel.text = "Total Usage: Not Available"
-
-        if (totalLimit > 0) {
-            val remaining = totalLimit
-            limitLabel.text = "Total Limit: $${String.format(Locale.US, "%.2f", totalLimit)}"
-            remainingLabel.text = "Remaining: $${String.format(Locale.US, "%.2f", remaining)}"
-
-            val percentage = 0 // Can't calculate without usage data
-            progressBar.value = percentage
-            progressBar.string = "$percentage% used"
-            progressBar.isIndeterminate = false
-        } else {
-            limitLabel.text = "Limit: Unlimited"
-            remainingLabel.text = "Remaining: Unlimited"
-            progressBar.value = 0
-            progressBar.string = "Unlimited (${String.format(Locale.US, "%.3f", totalUsage)} used)"
-            progressBar.isIndeterminate = false
-        }
-
         tierLabel.text = "Account: ${enabledKeys.size} API Key${if (enabledKeys.size != 1) "s" else ""} Active"
 
         // Update tracking information
@@ -302,13 +273,22 @@ class OpenRouterStatsPopup(private val project: Project) {
         totalCreditsLabel.text = "Total Credits: $${String.format(Locale.US, "%.3f", totalCredits)}"
         creditsUsageLabel.text = "Credits Used: $${String.format(Locale.US, "%.3f", usedCredits)}"
         creditsRemainingLabel.text = "Credits Remaining: $${String.format(Locale.US, "%.3f", remainingCredits)}"
+
+        // Update progress bar with credits information
+        if (totalCredits > 0) {
+            val percentage = ((usedCredits / totalCredits) * 100).toInt()
+            progressBar.value = percentage
+            progressBar.string = "${percentage}% used ($${String.format(Locale.US, "%.3f", usedCredits)}/$${String.format(Locale.US, "%.3f", totalCredits)})"
+            progressBar.isIndeterminate = false
+        } else {
+            progressBar.value = 0
+            progressBar.string = "No credits available"
+            progressBar.isIndeterminate = false
+        }
     }
 
     private fun showNotConfigured() {
-        usageLabel.text = "Usage: Not configured"
-        limitLabel.text = "Limit: -"
-        remainingLabel.text = "Remaining: -"
-        tierLabel.text = "Account: -"
+        tierLabel.text = "Account: Not configured"
         totalCreditsLabel.text = "Total Credits: -"
         creditsUsageLabel.text = "Credits Used: -"
         creditsRemainingLabel.text = "Credits Remaining: -"
@@ -322,10 +302,7 @@ class OpenRouterStatsPopup(private val project: Project) {
     }
 
     private fun showError() {
-        usageLabel.text = "Usage: Error loading data"
-        limitLabel.text = "Limit: -"
-        remainingLabel.text = "Remaining: -"
-        tierLabel.text = "Account: -"
+        tierLabel.text = "Account: Error loading data"
         totalCreditsLabel.text = "Total Credits: -"
         creditsUsageLabel.text = "Credits Used: -"
         creditsRemainingLabel.text = "Credits Remaining: -"

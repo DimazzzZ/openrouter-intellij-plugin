@@ -338,24 +338,24 @@ class OpenRouterService {
 
     /**
      * Get credits information from OpenRouter
-     * NOTE: This endpoint requires API Key authentication, not Provisioning Key
+     * NOTE: This endpoint requires Provisioning Key authentication, not API Key
      */
     fun getCredits(): CompletableFuture<CreditsResponse?> {
         return CompletableFuture.supplyAsync {
             try {
-                // Credits endpoint requires API key, not provisioning key
-                val apiKey = settingsService.getStoredApiKey()
-                if (apiKey.isNullOrBlank()) {
-                    PluginLogger.Service.warn("No API key available for credits endpoint")
+                // Credits endpoint requires provisioning key, not API key
+                val provisioningKey = settingsService.getProvisioningKey()
+                if (provisioningKey.isBlank()) {
+                    PluginLogger.Service.warn("No provisioning key available for credits endpoint")
                     return@supplyAsync null
                 }
 
-                PluginLogger.Service.debug("Fetching credits from OpenRouter with API key: ${apiKey.take(10)}...")
+                PluginLogger.Service.debug("Fetching credits from OpenRouter with provisioning key: ${provisioningKey.take(10)}...")
                 PluginLogger.Service.debug("Making request to: $CREDITS_ENDPOINT")
 
                 val request = Request.Builder()
                     .url(CREDITS_ENDPOINT)
-                    .addHeader("Authorization", "Bearer $apiKey")
+                    .addHeader("Authorization", "Bearer $provisioningKey")
                     .addHeader("Content-Type", "application/json")
                     .build()
 

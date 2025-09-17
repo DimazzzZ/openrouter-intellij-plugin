@@ -74,7 +74,7 @@ class ApiKeyTableModel : AbstractTableModel() {
             PluginLogger.Settings.debug("Not on EDT, scheduling setApiKeys on EDT")
             ApplicationManager.getApplication().invokeLater({
                 setApiKeys(keys)
-            }, com.intellij.openapi.application.ModalityState.any())
+            }, com.intellij.openapi.application.ModalityState.defaultModalityState())
             return
         }
 
@@ -84,6 +84,8 @@ class ApiKeyTableModel : AbstractTableModel() {
         PluginLogger.Settings.debug("ApiKeysTableModel internal list now has ${apiKeys.size} keys")
         fireTableDataChanged()
         PluginLogger.Settings.debug("fireTableDataChanged() called - table should now show ${apiKeys.size} rows")
+        PluginLogger.Settings.debug("Table model getRowCount() returns: ${getRowCount()}")
+        PluginLogger.Settings.debug("First key details: ${if (keys.isNotEmpty()) keys[0] else "No keys"}")
     }
 
     fun getApiKeyAt(rowIndex: Int): ApiKeyInfo? {
@@ -95,6 +97,10 @@ class ApiKeyTableModel : AbstractTableModel() {
             apiKeys.removeAt(rowIndex)
             fireTableRowsDeleted(rowIndex, rowIndex)
         }
+    }
+
+    fun getApiKeys(): List<ApiKeyInfo> {
+        return apiKeys.toList()
     }
 }
 
@@ -364,7 +370,7 @@ class OpenRouterSettingsPanel {
                         "Creation Failed"
                     )
                 }
-            }, com.intellij.openapi.application.ModalityState.any())
+            }, com.intellij.openapi.application.ModalityState.defaultModalityState())
         }
     }
 
@@ -483,7 +489,7 @@ class OpenRouterSettingsPanel {
                             "Deletion Failed"
                         )
                     }
-                }, com.intellij.openapi.application.ModalityState.any())
+                }, com.intellij.openapi.application.ModalityState.defaultModalityState())
             }.exceptionally { throwable ->
                 PluginLogger.Settings.error("Exception during API key deletion", throwable)
                 ApplicationManager.getApplication().invokeLater({
@@ -491,7 +497,7 @@ class OpenRouterSettingsPanel {
                         "Error occurred while deleting API key: ${throwable.message}",
                         "Deletion Error"
                     )
-                }, com.intellij.openapi.application.ModalityState.any())
+                }, com.intellij.openapi.application.ModalityState.defaultModalityState())
                 null
             }
         }
@@ -518,13 +524,16 @@ class OpenRouterSettingsPanel {
         PluginLogger.Settings.debug("Fetching API keys from OpenRouter with provisioning key: ${provisioningKey.take(10)}...")
         openRouterService.getApiKeysList(provisioningKey).thenAccept { response ->
             PluginLogger.Settings.debug("thenAccept callback executed - response is ${if (response != null) "not null" else "null"}")
+            PluginLogger.Settings.debug("About to call ApplicationManager.invokeLater")
             ApplicationManager.getApplication().invokeLater({
-                PluginLogger.Settings.debug("invokeLater callback executed")
+                PluginLogger.Settings.debug("invokeLater callback executed - starting UI update")
                 if (response != null) {
                     val apiKeys = response.data
                     PluginLogger.Settings.info("Successfully received ${apiKeys.size} API keys from OpenRouter")
                     PluginLogger.Settings.debug("About to call apiKeyTableModel.setApiKeys with ${apiKeys.size} keys")
                     apiKeyTableModel.setApiKeys(apiKeys)
+                    PluginLogger.Settings.debug("After setApiKeys - table row count: ${apiKeyTable.rowCount}")
+                    PluginLogger.Settings.debug("After setApiKeys - model row count: ${apiKeyTableModel.rowCount}")
 
                     // Check if IntelliJ IDEA Plugin API key exists and handle creation
                     ensureIntellijApiKeyExists(apiKeys)
@@ -546,7 +555,7 @@ class OpenRouterSettingsPanel {
                     "Error loading API keys: ${throwable.message}",
                     "Load Error"
                 )
-            }, com.intellij.openapi.application.ModalityState.any())
+            }, com.intellij.openapi.application.ModalityState.defaultModalityState())
             null
         }
     }
@@ -555,24 +564,38 @@ class OpenRouterSettingsPanel {
      * Ensures that the IntelliJ IDEA Plugin API key exists, creating it only if necessary
      */
     private fun ensureIntellijApiKeyExists(currentApiKeys: List<ApiKeyInfo>) {
-        // First check: Does the API key already exist on the server?
-        val existingIntellijApiKey = currentApiKeys.find { it.name == INTELLIJ_API_KEY_NAME }
-
-        if (existingIntellijApiKey != null) {
-            PluginLogger.Settings.debug("IntelliJ IDEA Plugin API key already exists: ${existingIntellijApiKey.name}")
-            return // API key exists, nothing to do
-        }
-
-        // Second check: Are we already in the process of creating one?
-        if (isCreatingApiKey) {
-            PluginLogger.Settings.debug("API key creation already in progress, skipping")
-            return
-        }
-
-        // Third check: Do we have a stored API key that might be valid?
+        // First check: Do we have a stored API key that might be valid?
         val storedApiKey = settingsService.getApiKey()
         if (storedApiKey.isNotBlank()) {
             PluginLogger.Settings.debug("Stored API key exists, assuming it's valid")
+            return
+        }
+
+        // Second check: Does the API key already exist on the server?
+        val existingIntellijApiKey = currentApiKeys.find { it.name == INTELLIJ_API_KEY_NAME }
+
+        if (existingIntellijApiKey != null) {
+            PluginLogger.Settings.debug("IntelliJ IDEA Plugin API key exists on server but not stored locally: ${existingIntellijApiKey.name}")
+            PluginLogger.Settings.warn("IntelliJ IDEA Plugin API key exists on server but the actual key value is not available. You may need to delete and recreate it.")
+
+            // Show a dialog asking if the user wants to recreate the key
+            val result = Messages.showYesNoDialog(
+                "The 'IntelliJ IDEA Plugin' API key exists on the server but is not available locally.\n\n" +
+                "This means the credits endpoint cannot be used. Would you like to recreate the API key?\n\n" +
+                "Note: This will delete the existing key and create a new one.",
+                "Recreate IntelliJ API Key?",
+                Messages.getQuestionIcon()
+            )
+
+            if (result == Messages.YES) {
+                recreateIntellijApiKey()
+            }
+            return // API key exists on server but we can't get the actual key value
+        }
+
+        // Third check: Are we already in the process of creating one?
+        if (isCreatingApiKey) {
+            PluginLogger.Settings.debug("API key creation already in progress, skipping")
             return
         }
 
@@ -615,7 +638,7 @@ class OpenRouterSettingsPanel {
             PluginLogger.Settings.error("Exception in refreshApiKeys thenAccept callback", throwable)
             ApplicationManager.getApplication().invokeLater({
                 apiKeyTableModel.setApiKeys(emptyList())
-            }, com.intellij.openapi.application.ModalityState.any())
+            }, com.intellij.openapi.application.ModalityState.defaultModalityState())
             null
         }
     }
@@ -625,8 +648,16 @@ class OpenRouterSettingsPanel {
         isCreatingApiKey = true
 
         PluginLogger.Settings.debug("Attempting to create IntelliJ IDEA Plugin API key (once)")
-        openRouterService.createApiKey(INTELLIJ_API_KEY_NAME, null).thenAccept { response ->
-            ApplicationManager.getApplication().invokeLater {
+
+        val provisioningKey = getProvisioningKey()
+        if (provisioningKey.isBlank()) {
+            PluginLogger.Settings.warn("Cannot create API key: no provisioning key available")
+            isCreatingApiKey = false
+            return
+        }
+
+        openRouterService.createApiKey(INTELLIJ_API_KEY_NAME).thenAccept { response ->
+            ApplicationManager.getApplication().invokeLater({
                 try {
                     if (response != null) {
                         PluginLogger.Settings.info("Successfully created IntelliJ IDEA Plugin API key: ${response.data.name}")
@@ -634,13 +665,11 @@ class OpenRouterSettingsPanel {
                         // Store the API key securely
                         settingsService.setApiKey(response.key)
 
+                        // Show the API key creation dialog
+                        showApiKeyDialog(response.key, INTELLIJ_API_KEY_NAME)
+
                         // Refresh the table to show the new key (but don't create another one)
                         loadApiKeysWithoutAutoCreate()
-
-                        Messages.showInfoMessage(
-                            "Automatically created '$INTELLIJ_API_KEY_NAME' API key for plugin use.",
-                            "API Key Created"
-                        )
                     } else {
                         PluginLogger.Settings.warn("Failed to create IntelliJ IDEA Plugin API key")
                         Messages.showWarningDialog(
@@ -653,7 +682,63 @@ class OpenRouterSettingsPanel {
                     // Always reset the flag when done
                     isCreatingApiKey = false
                 }
+            }, com.intellij.openapi.application.ModalityState.defaultModalityState())
+        }.exceptionally { throwable ->
+            ApplicationManager.getApplication().invokeLater({
+                PluginLogger.Settings.error("Error creating IntelliJ IDEA Plugin API key: ${throwable.message}")
+                isCreatingApiKey = false
+            }, com.intellij.openapi.application.ModalityState.defaultModalityState())
+            null
+        }
+    }
+
+    /**
+     * Recreates the IntelliJ IDEA Plugin API key by first deleting the existing one
+     */
+    private fun recreateIntellijApiKey() {
+        val currentApiKeys = apiKeyTableModel.getApiKeys()
+        val existingIntellijApiKey = currentApiKeys.find { it.name == INTELLIJ_API_KEY_NAME }
+
+        if (existingIntellijApiKey != null) {
+            PluginLogger.Settings.debug("Deleting existing IntelliJ IDEA Plugin API key before recreating")
+
+            val provisioningKey = getProvisioningKey()
+            if (provisioningKey.isBlank()) {
+                PluginLogger.Settings.warn("Cannot recreate API key: no provisioning key available")
+                return
             }
+
+            openRouterService.deleteApiKey(existingIntellijApiKey.hash)
+                .thenAccept { deleteResponse ->
+                    ApplicationManager.getApplication().invokeLater({
+                        if (deleteResponse?.deleted == true) {
+                            PluginLogger.Settings.debug("Existing IntelliJ IDEA Plugin API key deleted, now creating new one")
+                            // Clear the stored API key
+                            settingsService.setApiKey("")
+                            // Create a new one
+                            createIntellijApiKeyOnce()
+                        } else {
+                            PluginLogger.Settings.error("Failed to delete existing IntelliJ IDEA Plugin API key")
+                            Messages.showErrorDialog(
+                                "Failed to delete the existing 'IntelliJ IDEA Plugin' API key. Please try again.",
+                                "Deletion Failed"
+                            )
+                        }
+                    }, com.intellij.openapi.application.ModalityState.defaultModalityState())
+                }
+                .exceptionally { throwable ->
+                    ApplicationManager.getApplication().invokeLater({
+                        PluginLogger.Settings.error("Error deleting existing IntelliJ IDEA Plugin API key: ${throwable.message}")
+                        Messages.showErrorDialog(
+                            "Error occurred while deleting the existing API key: ${throwable.message}",
+                            "Error"
+                        )
+                    }, com.intellij.openapi.application.ModalityState.defaultModalityState())
+                    null
+                }
+        } else {
+            // No existing key, just create a new one
+            createIntellijApiKeyOnce()
         }
     }
 

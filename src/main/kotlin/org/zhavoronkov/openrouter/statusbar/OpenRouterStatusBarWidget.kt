@@ -211,32 +211,31 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         connectionStatus = ConnectionStatus.CONNECTING
         updateStatusBar()
 
-        openRouterService.getKeyInfo().thenAccept { keyInfo: org.zhavoronkov.openrouter.models.KeyInfoResponse? ->
+        openRouterService.getCredits().thenAccept { creditsResponse: org.zhavoronkov.openrouter.models.CreditsResponse? ->
             ApplicationManager.getApplication().invokeLater {
-                if (keyInfo != null) {
+                if (creditsResponse != null) {
                     connectionStatus = ConnectionStatus.READY
-                    val data = keyInfo.data
-                    val used = data.usage // Credits used (e.g., $0.792)
-                    val limit = data.limit // Credit limit (e.g., $10.002)
+                    val data = creditsResponse.data
+                    val used = data.totalUsage // Credits used (e.g., $0.792)
+                    val total = data.totalCredits // Total credits (e.g., $10.002)
 
-
-                    currentText = if (limit != null) {
+                    currentText = if (total > 0) {
                         if (settingsService.shouldShowCosts()) {
                             val usedFormatted = String.format(Locale.US, "%.3f", used)
-                            val limitFormatted = String.format(Locale.US, "%.2f", limit)
-                            "Status: Ready - $$usedFormatted/$$limitFormatted"
+                            val totalFormatted = String.format(Locale.US, "%.2f", total)
+                            "Status: Ready - $$usedFormatted/$$totalFormatted"
                         } else {
-                            val percentage = (used / limit) * 100
+                            val percentage = (used / total) * 100
                             "Status: Ready - ${String.format(Locale.US, "%.1f", percentage)}% used"
                         }
                     } else {
-                        "Status: Ready - $${String.format(Locale.US, "%.3f", used)} (unlimited)"
+                        "Status: Ready - $${String.format(Locale.US, "%.3f", used)} (no credits)"
                     }
 
-                    currentTooltip = if (limit != null) {
-                        "OpenRouter Status: ${connectionStatus.displayName} - Usage: $${String.format(Locale.US, "%.3f", used)}/$${String.format(Locale.US, "%.0f", limit)}"
+                    currentTooltip = if (total > 0) {
+                        "OpenRouter Status: ${connectionStatus.displayName} - Usage: $${String.format(Locale.US, "%.3f", used)}/$${String.format(Locale.US, "%.0f", total)}"
                     } else {
-                        "OpenRouter Status: ${connectionStatus.displayName} - Usage: $${String.format(Locale.US, "%.3f", used)}/unlimited"
+                        "OpenRouter Status: ${connectionStatus.displayName} - Usage: $${String.format(Locale.US, "%.3f", used)}/no credits"
                     }
                 } else {
                     connectionStatus = ConnectionStatus.ERROR
