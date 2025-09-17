@@ -2,30 +2,22 @@ package org.zhavoronkov.openrouter.statusbar
 
 import com.intellij.icons.AllIcons
 import com.intellij.ide.BrowserUtil
-import com.intellij.openapi.actionSystem.ActionManager
-import com.intellij.openapi.actionSystem.ActionPlaces
-import com.intellij.openapi.actionSystem.AnAction
-import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.keymap.KeymapManager
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.popup.JBPopupFactory
-import com.intellij.openapi.ui.popup.ListPopup
 import com.intellij.openapi.ui.popup.ListSeparator
 import com.intellij.openapi.ui.popup.PopupStep
 import com.intellij.openapi.ui.popup.util.BaseListPopupStep
 import com.intellij.openapi.wm.StatusBar
 import com.intellij.openapi.wm.StatusBarWidget
-import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.openapi.wm.impl.status.EditorBasedWidget
 import com.intellij.util.Consumer
 import org.zhavoronkov.openrouter.icons.OpenRouterIcons
 import org.zhavoronkov.openrouter.models.ConnectionStatus
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
-
 import org.zhavoronkov.openrouter.ui.OpenRouterStatsPopup
 import java.awt.event.MouseEvent
 import javax.swing.Icon
@@ -44,7 +36,6 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
     companion object {
         const val ID = "OpenRouterStatusBar"
-        const val CHAT_ACTION_ID = "OpenRouter.OpenChat"
     }
     
     override fun ID(): String = ID

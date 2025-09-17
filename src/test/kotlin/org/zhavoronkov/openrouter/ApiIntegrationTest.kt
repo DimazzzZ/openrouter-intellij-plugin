@@ -3,6 +3,7 @@ package org.zhavoronkov.openrouter
 import com.google.gson.Gson
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.*
@@ -131,7 +132,7 @@ class ApiIntegrationTest {
                 .url(mockWebServer.url("/api/v1/keys"))
                 .header("Authorization", "Bearer $testProvisioningKey")
                 .header("Content-Type", "application/json")
-                .post(RequestBody.create("application/json".toMediaType(), requestBody))
+                .post(requestBody.toRequestBody("application/json".toMediaType()))
                 .build()
 
             val response = httpClient.newCall(request).execute()
@@ -181,7 +182,7 @@ class ApiIntegrationTest {
                 .url(mockWebServer.url("/api/v1/keys"))
                 .header("Authorization", "Bearer $testProvisioningKey")
                 .header("Content-Type", "application/json")
-                .post(RequestBody.create("application/json".toMediaType(), requestBody))
+                .post(requestBody.toRequestBody("application/json".toMediaType()))
                 .build()
 
             val response = httpClient.newCall(request).execute()

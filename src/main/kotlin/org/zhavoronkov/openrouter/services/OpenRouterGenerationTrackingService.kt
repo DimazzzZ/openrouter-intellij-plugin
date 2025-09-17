@@ -5,7 +5,6 @@ import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import org.zhavoronkov.openrouter.models.GenerationTrackingInfo
-import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
  * Service for tracking OpenRouter API generations and their costs

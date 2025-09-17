@@ -8,15 +8,11 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.util.ui.JBUI
 import org.zhavoronkov.openrouter.icons.OpenRouterIcons
-import org.zhavoronkov.openrouter.models.KeyInfoResponse
 import org.zhavoronkov.openrouter.models.ApiKeysListResponse
-import org.zhavoronkov.openrouter.models.ApiKeyInfo
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService
 import java.awt.*
-import java.awt.event.ActionEvent
-import java.awt.event.ActionListener
 import javax.swing.*
 
 /**
@@ -212,61 +208,14 @@ class OpenRouterStatsPopup(private val project: Project) {
         refreshButton.isEnabled = false
     }
     
-    private fun updateWithKeyInfo(keyInfo: KeyInfoResponse) {
-        val data = keyInfo.data
-        val usage = data.usage
-        val limit = data.limit
 
-        // Log the actual values for debugging
-        println("DEBUG: OpenRouter API Response:")
-        println("  - usage: $usage")
-        println("  - limit: $limit")
-        println("  - isFreeTier: ${data.isFreeTier}")
-        println("  - label: ${data.label}")
-
-        // Format usage with appropriate precision
-        usageLabel.text = "Usage: $${String.format("%.3f", usage)}"
-
-        if (limit != null && limit > 0) {
-            val remaining = limit - usage
-            limitLabel.text = "Limit: $${String.format("%.2f", limit)}"
-            remainingLabel.text = "Remaining: $${String.format("%.2f", remaining)}"
-
-            val percentage = ((usage / limit) * 100).toInt()
-            progressBar.value = percentage
-            progressBar.string = "$percentage% used"
-            progressBar.isIndeterminate = false
-        } else {
-            // Handle unlimited or zero limit case
-            limitLabel.text = "Limit: Unlimited"
-            remainingLabel.text = "Remaining: Unlimited"
-            progressBar.value = 0
-            progressBar.string = "Unlimited (${String.format("%.3f", usage)} used)"
-            progressBar.isIndeterminate = false
-        }
-
-        tierLabel.text = "Account: ${if (data.isFreeTier) "Free Tier" else "Paid Account"}"
-
-        // Update tracking information
-        updateTrackingInfo()
-
-        refreshButton.isEnabled = true
-    }
 
     private fun updateWithApiKeysList(apiKeysResponse: ApiKeysListResponse) {
         val enabledKeys = apiKeysResponse.data.filter { !it.disabled }
         val totalUsage = 0.0 // Usage not available from API keys list endpoint
         val totalLimit = enabledKeys.mapNotNull { it.limit }.sum()
 
-        // Log the actual values for debugging
-        println("DEBUG: OpenRouter API Keys Response:")
-        println("  - Total keys: ${apiKeysResponse.data.size}")
-        println("  - Enabled keys: ${enabledKeys.size}")
-        println("  - Total usage: $totalUsage (not available from this endpoint)")
-        println("  - Total limit: $totalLimit")
-        enabledKeys.forEach { key ->
-            println("  - Key: ${key.label} | Limit: ${key.limit} | Status: ${if (key.disabled) "Disabled" else "Enabled"}")
-        }
+
 
         // Format usage with appropriate precision
         usageLabel.text = "Total Usage: Not Available"

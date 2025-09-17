@@ -25,10 +25,7 @@ class OpenRouterService {
         private const val BASE_URL = "https://openrouter.ai/api/v1"
         private const val CHAT_COMPLETIONS_ENDPOINT = "$BASE_URL/chat/completions"
         private const val GENERATION_ENDPOINT = "$BASE_URL/generation"
-        private const val KEY_INFO_ENDPOINT = "$BASE_URL/key"
-        private const val API_KEYS_LIST_ENDPOINT = "$BASE_URL/keys"
-        private const val API_KEYS_CREATE_ENDPOINT = "$BASE_URL/keys"
-        private const val API_KEYS_DELETE_ENDPOINT = "$BASE_URL/keys"
+        private const val API_KEYS_ENDPOINT = "$BASE_URL/keys"
 
         fun getInstance(): OpenRouterService {
             return ApplicationManager.getApplication().getService(OpenRouterService::class.java)
@@ -108,10 +105,10 @@ class OpenRouterService {
             try {
                 val provisioningKey = settingsService.getProvisioningKey()
                 logger.info("Fetching API keys list from OpenRouter with provisioning key: ${provisioningKey.take(10)}...")
-                logger.info("Making request to: $API_KEYS_LIST_ENDPOINT")
+                logger.info("Making request to: $API_KEYS_ENDPOINT")
 
                 val request = Request.Builder()
-                    .url(API_KEYS_LIST_ENDPOINT)
+                    .url(API_KEYS_ENDPOINT)
                     .addHeader("Authorization", "Bearer $provisioningKey")
                     .addHeader("Content-Type", "application/json")
                     .build()
@@ -199,11 +196,11 @@ class OpenRouterService {
                 val json = gson.toJson(requestBody)
 
                 logger.info("Creating API key with name: $name using provisioning key: ${provisioningKey.take(10)}...")
-                logger.info("Making POST request to: $API_KEYS_CREATE_ENDPOINT")
+                logger.info("Making POST request to: $API_KEYS_ENDPOINT")
                 logger.info("Request body: $json")
 
                 val request = Request.Builder()
-                    .url(API_KEYS_CREATE_ENDPOINT)
+                    .url(API_KEYS_ENDPOINT)
                     .addHeader("Authorization", "Bearer $provisioningKey")
                     .addHeader("Content-Type", "application/json")
                     .post(json.toRequestBody("application/json".toMediaType()))
@@ -242,7 +239,7 @@ class OpenRouterService {
         return CompletableFuture.supplyAsync {
             try {
                 val request = Request.Builder()
-                    .url("$API_KEYS_DELETE_ENDPOINT/$keyName")
+                    .url("$API_KEYS_ENDPOINT/$keyName")
                     .addHeader("Authorization", "Bearer ${settingsService.getProvisioningKey()}")
                     .addHeader("Content-Type", "application/json")
                     .delete()
