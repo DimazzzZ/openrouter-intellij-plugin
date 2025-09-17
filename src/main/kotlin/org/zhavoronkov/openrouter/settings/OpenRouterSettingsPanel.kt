@@ -138,18 +138,6 @@ class OpenRouterSettingsPanel {
                 false
             )
             .addLabeledComponent(
-                JBLabel("API Keys:"),
-                createApiKeyTablePanel(),
-                1,
-                false
-            )
-            .addLabeledComponent(
-                JBLabel("Available Providers:"),
-                createProvidersTablePanel(),
-                1,
-                false
-            )
-            .addLabeledComponent(
                 JBLabel("Default Model:"),
                 defaultModelField,
                 1,
@@ -163,6 +151,10 @@ class OpenRouterSettingsPanel {
                 false
             )
             .addComponent(showCostsCheckBox, 1)
+            .addVerticalGap(15)
+            .addComponent(createApiKeyTablePanel(), 1)
+            .addVerticalGap(15)
+            .addComponent(createProvidersTablePanel(), 1)
             .addComponentFillVertically(JPanel(), 0)
             .panel
 
@@ -193,47 +185,54 @@ class OpenRouterSettingsPanel {
 
         PluginLogger.Settings.debug("Creating API key table panel with JBTable")
 
-        // Configure table for responsive layout
+        // Add table label according to JetBrains guidelines
+        val tableLabel = JBLabel("API Keys List:")
+        tableLabel.border = JBUI.Borders.emptyBottom(5)
+        panel.add(tableLabel, BorderLayout.NORTH)
+
+        // Configure table for full-width layout
         apiKeyTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
         apiKeyTable.autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
-        apiKeyTable.preferredScrollableViewportSize = Dimension(450, 120)  // Reduced width
+        apiKeyTable.fillsViewportHeight = true
 
-        // Set column widths to be more responsive
-        apiKeyTable.columnModel.getColumn(0).preferredWidth = 100  // Label
-        apiKeyTable.columnModel.getColumn(1).preferredWidth = 120  // Name
-        apiKeyTable.columnModel.getColumn(2).preferredWidth = 70   // Usage
-        apiKeyTable.columnModel.getColumn(3).preferredWidth = 70   // Limit
-        apiKeyTable.columnModel.getColumn(4).preferredWidth = 60   // Status
+        // Set column widths for better proportions
+        apiKeyTable.columnModel.getColumn(0).preferredWidth = 120  // Label
+        apiKeyTable.columnModel.getColumn(1).preferredWidth = 150  // Name
+        apiKeyTable.columnModel.getColumn(2).preferredWidth = 80   // Usage
+        apiKeyTable.columnModel.getColumn(3).preferredWidth = 80   // Limit
+        apiKeyTable.columnModel.getColumn(4).preferredWidth = 70   // Status
 
         PluginLogger.Settings.debug("API key table configured with model: ${apiKeyTable.model}")
         PluginLogger.Settings.debug("Initial table row count: ${apiKeyTable.rowCount}")
         PluginLogger.Settings.debug("Initial model row count: ${apiKeyTableModel.rowCount}")
 
-        // Create toolbar with add/remove buttons
+        // Create toolbar with add/remove buttons - full width
         val tablePanel = ToolbarDecorator.createDecorator(apiKeyTable)
             .setAddAction { addApiKey() }
             .setRemoveAction { removeApiKey() }
             .setAddActionName("Add API Key")
             .setRemoveActionName("Remove API Key")
-            .setPreferredSize(Dimension(450, 150))  // Reduced width for better fit
+            .setPreferredSize(Dimension(-1, 150))  // Full width, fixed height
             .createPanel()
 
         panel.add(tablePanel, BorderLayout.CENTER)
 
-        // Add refresh button for API keys
+        // Add refresh button and help text
+        val bottomPanel = JPanel(BorderLayout())
+
         val buttonPanel = JPanel(FlowLayout(FlowLayout.RIGHT))
         val refreshButton = JButton("Refresh API Keys")
         refreshButton.addActionListener { refreshApiKeys() }
         buttonPanel.add(refreshButton)
+        bottomPanel.add(buttonPanel, BorderLayout.NORTH)
 
         val helpLabel = JBLabel(
             "<html><small>Manage your API keys. Automatically loads when Provisioning Key is configured.</small></html>"
         )
+        helpLabel.border = JBUI.Borders.emptyTop(5)
+        bottomPanel.add(helpLabel, BorderLayout.SOUTH)
 
-        val southPanel = JPanel(BorderLayout())
-        southPanel.add(buttonPanel, BorderLayout.NORTH)
-        southPanel.add(helpLabel, BorderLayout.SOUTH)
-        panel.add(southPanel, BorderLayout.SOUTH)
+        panel.add(bottomPanel, BorderLayout.SOUTH)
 
         // Reset the creation flag when panel is created
         resetApiKeyCreationFlag()
@@ -246,16 +245,21 @@ class OpenRouterSettingsPanel {
     private fun createProvidersTablePanel(): JPanel {
         val panel = JPanel(BorderLayout())
 
-        // Configure providers table
+        // Add table label according to JetBrains guidelines
+        val tableLabel = JBLabel("Available Providers List:")
+        tableLabel.border = JBUI.Borders.emptyBottom(5)
+        panel.add(tableLabel, BorderLayout.NORTH)
+
+        // Configure providers table for full-width layout
         providersTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
         providersTable.autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
         providersTable.fillsViewportHeight = true
 
-        // Set column widths to be more responsive
-        providersTable.columnModel.getColumn(0).preferredWidth = 120  // Provider
-        providersTable.columnModel.getColumn(1).preferredWidth = 70   // Status
-        providersTable.columnModel.getColumn(2).preferredWidth = 90   // Privacy Policy
-        providersTable.columnModel.getColumn(3).preferredWidth = 100  // Terms of Service
+        // Set column widths for better proportions
+        providersTable.columnModel.getColumn(0).preferredWidth = 150  // Provider
+        providersTable.columnModel.getColumn(1).preferredWidth = 80   // Status
+        providersTable.columnModel.getColumn(2).preferredWidth = 120  // Privacy Policy
+        providersTable.columnModel.getColumn(3).preferredWidth = 120  // Terms of Service
 
         // Add double-click listener to open links
         providersTable.addMouseListener(object : MouseAdapter() {
@@ -281,24 +285,28 @@ class OpenRouterSettingsPanel {
         })
 
         val scrollPane = JBScrollPane(providersTable)
-        scrollPane.preferredSize = Dimension(450, 180)  // Reduced size for better fit
+        scrollPane.preferredSize = Dimension(-1, 180)  // Full width, fixed height
         panel.add(scrollPane, BorderLayout.CENTER)
 
-        // Add refresh button
+        // Add refresh button and help text
+        val bottomPanel = JPanel(BorderLayout())
+
         val buttonPanel = JPanel(FlowLayout(FlowLayout.RIGHT))
         val refreshButton = JButton("Refresh Providers")
         refreshButton.addActionListener { loadProviders() }
         buttonPanel.add(refreshButton)
-        panel.add(buttonPanel, BorderLayout.SOUTH)
+        bottomPanel.add(buttonPanel, BorderLayout.NORTH)
 
-        // Auto-load providers when panel is created
-        loadProviders()
-
-        // Help text (moved to SOUTH for consistency with other sections)
         val helpLabel = JBLabel(
             "<html><small>List of available AI providers on OpenRouter. Double-click on Privacy Policy or Terms to open links.</small></html>"
         )
-        panel.add(helpLabel, BorderLayout.SOUTH)
+        helpLabel.border = JBUI.Borders.emptyTop(5)
+        bottomPanel.add(helpLabel, BorderLayout.SOUTH)
+
+        panel.add(bottomPanel, BorderLayout.SOUTH)
+
+        // Auto-load providers when panel is created
+        loadProviders()
 
         return panel
     }
