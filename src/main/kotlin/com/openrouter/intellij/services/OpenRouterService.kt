@@ -26,6 +26,7 @@ class OpenRouterService {
         private const val CHAT_COMPLETIONS_ENDPOINT = "$BASE_URL/chat/completions"
         private const val GENERATION_ENDPOINT = "$BASE_URL/generation"
         private const val KEY_INFO_ENDPOINT = "$BASE_URL/key"
+        private const val API_KEYS_LIST_ENDPOINT = "$BASE_URL/keys"
 
         fun getInstance(): OpenRouterService {
             return ApplicationManager.getApplication().getService(OpenRouterService::class.java)
@@ -98,14 +99,14 @@ class OpenRouterService {
     }
     
     /**
-     * Get API key information including usage and limits
+     * Get API keys list with usage information
      */
-    fun getKeyInfo(): CompletableFuture<KeyInfoResponse?> {
+    fun getApiKeysList(): CompletableFuture<ApiKeysListResponse?> {
         return CompletableFuture.supplyAsync {
             try {
                 val request = Request.Builder()
-                    .url(KEY_INFO_ENDPOINT)
-                    .addHeader("Authorization", "Bearer ${settingsService.getApiKey()}")
+                    .url(API_KEYS_LIST_ENDPOINT)
+                    .addHeader("Authorization", "Bearer ${settingsService.getProvisioningKey()}")
                     .addHeader("Content-Type", "application/json")
                     .build()
 
@@ -113,12 +114,10 @@ class OpenRouterService {
                     if (response.isSuccessful) {
                         response.body?.string()?.let { responseBody ->
                             try {
-                                logger.info("OpenRouter API response: $responseBody")
-                                val keyInfo = gson.fromJson(responseBody, KeyInfoResponse::class.java)
-                                logger.info("Parsed key info - usage: ${keyInfo.data.usage}, limit: ${keyInfo.data.limit}, isFreeTier: ${keyInfo.data.isFreeTier}")
-                                keyInfo
+                                logger.info("OpenRouter API keys list response: $responseBody")
+                                gson.fromJson(responseBody, ApiKeysListResponse::class.java)
                             } catch (e: JsonSyntaxException) {
-                                logger.warn("Failed to parse key info response: $responseBody", e)
+                                logger.warn("Failed to parse API keys list response: $responseBody", e)
                                 null
                             }
                         }
@@ -135,25 +134,51 @@ class OpenRouterService {
     }
 
     /**
-     * Get current quota information based on key info
+     * Get current quota information based on API keys list
      */
     fun getQuotaInfo(): CompletableFuture<QuotaInfo?> {
-        return getKeyInfo().thenApply { keyInfo ->
-            keyInfo?.let {
-                val used = it.data.usage
-                val total = it.data.limit ?: Double.MAX_VALUE
-                val remaining = if (it.data.limit != null) it.data.limit - used else Double.MAX_VALUE
+        return getApiKeysList().thenApply { apiKeysResponse ->
+            apiKeysResponse?.let { response ->
+                // Sum up usage from all enabled keys
+                val enabledKeys = response.data.filter { !it.disabled }
+                val totalUsed = enabledKeys.sumOf { it.usage }
+                val totalLimit = enabledKeys.mapNotNull { it.limit }.sum()
+                val remaining = if (totalLimit > 0) totalLimit - totalUsed else Double.MAX_VALUE
 
                 QuotaInfo(
                     remaining = remaining,
-                    total = total,
-                    used = used,
+                    total = totalLimit,
+                    used = totalUsed,
                     resetDate = null // OpenRouter doesn't provide reset date in this endpoint
                 )
             }
         }
     }
-    
+
+    /**
+     * Get key info for backward compatibility - returns summary of all keys
+     */
+    fun getKeyInfo(): CompletableFuture<KeyInfoResponse?> {
+        return getApiKeysList().thenApply { apiKeysResponse ->
+            apiKeysResponse?.let { response ->
+                val enabledKeys = response.data.filter { !it.disabled }
+                val totalUsed = enabledKeys.sumOf { it.usage }
+                val totalLimit = enabledKeys.mapNotNull { it.limit }.sum()
+                val hasLimit = totalLimit > 0
+
+                // Create a summary KeyInfoResponse
+                KeyInfoResponse(
+                    data = KeyData(
+                        label = "All Keys Summary",
+                        usage = totalUsed,
+                        limit = if (hasLimit) totalLimit else null,
+                        isFreeTier = false // Assume paid if using provisioning keys
+                    )
+                )
+            }
+        }
+    }
+
     /**
      * Check if the service is properly configured
      */

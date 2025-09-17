@@ -79,7 +79,8 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         override fun getSeparatorAbove(value: PopupMenuItem): ListSeparator? =
             if (value == PopupMenuItem.SEPARATOR) ListSeparator() else null
 
-        override fun isSelectable(value: PopupMenuItem): Boolean = value != PopupMenuItem.SEPARATOR
+        override fun isSelectable(value: PopupMenuItem): Boolean =
+            value != PopupMenuItem.SEPARATOR && value.action != null
 
         override fun onChosen(selectedValue: PopupMenuItem, finalChoice: Boolean): PopupStep<*>? {
             if (selectedValue == PopupMenuItem.SEPARATOR) {
@@ -163,7 +164,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
     private fun showQuotaUsage() {
         // Show quota usage in a modal dialog
         val statsPopup = OpenRouterStatsPopup(project)
-        statsPopup.showCenteredInCurrentWindow(myStatusBar?.component)
+        statsPopup.showCenteredInCurrentWindow()
     }
 
     private fun logout() {
@@ -176,6 +177,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
         if (result == Messages.YES) {
             settingsService.setApiKey("")
+            settingsService.setProvisioningKey("")
             updateConnectionStatus()
             Messages.showInfoMessage(project, "Successfully logged out from OpenRouter.ai", "Logout")
         }
@@ -295,7 +297,7 @@ data class PopupMenuItem(
     val shortcut: String? = null
 ) {
     companion object {
-        val SEPARATOR = PopupMenuItem("---")
+        val SEPARATOR = PopupMenuItem("")
     }
 
     fun createSubmenu(): PopupStep<PopupMenuItem>? {

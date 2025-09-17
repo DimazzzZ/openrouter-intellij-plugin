@@ -26,6 +26,7 @@ class OpenRouterConfigurable : Configurable {
         val panel = settingsPanel ?: return false
         
         return panel.getApiKey() != settingsService.getApiKey() ||
+                panel.getProvisioningKey() != settingsService.getProvisioningKey() ||
                 panel.getDefaultModel() != settingsService.getDefaultModel() ||
                 panel.isAutoRefreshEnabled() != settingsService.isAutoRefreshEnabled() ||
                 panel.getRefreshInterval() != settingsService.getRefreshInterval() ||
@@ -35,18 +36,19 @@ class OpenRouterConfigurable : Configurable {
     override fun apply() {
         val panel = settingsPanel ?: return
         
-        val oldApiKey = settingsService.getApiKey()
-        val newApiKey = panel.getApiKey()
-        
+        val oldProvisioningKey = settingsService.getProvisioningKey()
+        val newProvisioningKey = panel.getProvisioningKey()
+
         // Update settings
-        settingsService.setApiKey(newApiKey)
+        settingsService.setApiKey(panel.getApiKey())
+        settingsService.setProvisioningKey(newProvisioningKey)
         settingsService.setDefaultModel(panel.getDefaultModel())
         settingsService.setAutoRefresh(panel.isAutoRefreshEnabled())
         settingsService.setRefreshInterval(panel.getRefreshInterval())
         settingsService.setShowCosts(panel.shouldShowCosts())
         
-        // Test connection if API key changed
-        if (oldApiKey != newApiKey && newApiKey.isNotBlank()) {
+        // Test connection if provisioning key changed
+        if (oldProvisioningKey != newProvisioningKey && newProvisioningKey.isNotBlank()) {
             testConnection()
         }
     }
@@ -55,6 +57,7 @@ class OpenRouterConfigurable : Configurable {
         val panel = settingsPanel ?: return
         
         panel.setApiKey(settingsService.getApiKey())
+        panel.setProvisioningKey(settingsService.getProvisioningKey())
         panel.setDefaultModel(settingsService.getDefaultModel())
         panel.setAutoRefresh(settingsService.isAutoRefreshEnabled())
         panel.setRefreshInterval(settingsService.getRefreshInterval())

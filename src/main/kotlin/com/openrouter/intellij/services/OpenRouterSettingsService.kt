@@ -32,9 +32,15 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
     }
     
     fun getApiKey(): String = settings.apiKey
-    
+
     fun setApiKey(apiKey: String) {
         settings.apiKey = apiKey
+    }
+
+    fun getProvisioningKey(): String = settings.provisioningKey
+
+    fun setProvisioningKey(provisioningKey: String) {
+        settings.provisioningKey = provisioningKey
     }
     
     fun getDefaultModel(): String = settings.defaultModel
@@ -61,10 +67,6 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
         settings.showCosts = show
     }
     
-    fun isConfigured(): Boolean {
-        return settings.apiKey.isNotBlank()
-    }
-
     fun isTrackingEnabled(): Boolean = settings.trackGenerations
 
     fun setTrackingEnabled(enabled: Boolean) {
@@ -76,4 +78,6 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
     fun setMaxTrackedGenerations(max: Int) {
         settings.maxTrackedGenerations = max
     }
+
+    fun isConfigured(): Boolean = settings.provisioningKey.isNotBlank()
 }

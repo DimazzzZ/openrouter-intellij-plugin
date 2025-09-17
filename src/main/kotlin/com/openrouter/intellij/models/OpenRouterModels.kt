@@ -52,6 +52,22 @@ data class KeyData(
     @SerializedName("is_free_tier") val isFreeTier: Boolean // Whether the user has paid for credits before
 )
 
+// New models for the correct API endpoint
+data class ApiKeysListResponse(
+    val data: List<ApiKeyInfo>
+)
+
+data class ApiKeyInfo(
+    val name: String,
+    val label: String,
+    val limit: Double?,
+    val usage: Double,
+    val disabled: Boolean,
+    @SerializedName("created_at") val createdAt: String,
+    @SerializedName("updated_at") val updatedAt: String,
+    val hash: String
+)
+
 data class ModelInfo(
     val id: String,
     val name: String,
@@ -82,6 +98,7 @@ data class GenerationTrackingInfo(
  */
 data class OpenRouterSettings(
     var apiKey: String = "",
+    var provisioningKey: String = "",
     var defaultModel: String = "openai/gpt-4o",
     var autoRefresh: Boolean = true,
     var refreshInterval: Int = 300, // seconds

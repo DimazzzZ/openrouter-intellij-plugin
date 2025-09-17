@@ -16,6 +16,7 @@ class OpenRouterSettingsPanel {
     
     private val panel: JPanel
     private val apiKeyField: JBPasswordField
+    private val provisioningKeyField: JBPasswordField
     private val defaultModelField: JBTextField
     private val autoRefreshCheckBox: JBCheckBox
     private val refreshIntervalSpinner: JSpinner
@@ -24,7 +25,10 @@ class OpenRouterSettingsPanel {
     init {
         apiKeyField = JBPasswordField()
         apiKeyField.columns = 40
-        
+
+        provisioningKeyField = JBPasswordField()
+        provisioningKeyField.columns = 40
+
         defaultModelField = JBTextField("openai/gpt-4o")
         defaultModelField.columns = 30
         
@@ -38,6 +42,12 @@ class OpenRouterSettingsPanel {
             .addLabeledComponent(
                 JBLabel("API Key:"),
                 createApiKeyPanel(),
+                1,
+                false
+            )
+            .addLabeledComponent(
+                JBLabel("Provisioning Key:"),
+                createProvisioningKeyPanel(),
                 1,
                 false
             )
@@ -69,19 +79,35 @@ class OpenRouterSettingsPanel {
     private fun createApiKeyPanel(): JPanel {
         val panel = JPanel(BorderLayout())
         panel.add(apiKeyField, BorderLayout.CENTER)
-        
+
         val helpLabel = JBLabel("<html><small>Get your API key from <a href='https://openrouter.ai/keys'>openrouter.ai/keys</a></small></html>")
         panel.add(helpLabel, BorderLayout.SOUTH)
-        
+
+        return panel
+    }
+
+    private fun createProvisioningKeyPanel(): JPanel {
+        val panel = JPanel(BorderLayout())
+        panel.add(provisioningKeyField, BorderLayout.CENTER)
+
+        val helpLabel = JBLabel("<html><small><b>Required for quota monitoring.</b> Get your provisioning key from <a href='https://openrouter.ai/settings/provisioning-keys'>openrouter.ai/settings/provisioning-keys</a></small></html>")
+        panel.add(helpLabel, BorderLayout.SOUTH)
+
         return panel
     }
     
     fun getPanel(): JPanel = panel
     
     fun getApiKey(): String = String(apiKeyField.password)
-    
+
     fun setApiKey(apiKey: String) {
         apiKeyField.text = apiKey
+    }
+
+    fun getProvisioningKey(): String = String(provisioningKeyField.password)
+
+    fun setProvisioningKey(provisioningKey: String) {
+        provisioningKeyField.text = provisioningKey
     }
     
     fun getDefaultModel(): String = defaultModelField.text

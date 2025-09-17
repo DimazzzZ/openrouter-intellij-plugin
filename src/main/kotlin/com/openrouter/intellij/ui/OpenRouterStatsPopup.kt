@@ -9,6 +9,8 @@ import com.intellij.ui.components.JBPanel
 import com.intellij.util.ui.JBUI
 import com.openrouter.intellij.icons.OpenRouterIcons
 import com.openrouter.intellij.models.KeyInfoResponse
+import com.openrouter.intellij.models.ApiKeysListResponse
+import com.openrouter.intellij.models.ApiKeyInfo
 import com.openrouter.intellij.services.OpenRouterService
 import com.openrouter.intellij.services.OpenRouterSettingsService
 import com.openrouter.intellij.services.OpenRouterGenerationTrackingService
@@ -47,7 +49,7 @@ class OpenRouterStatsPopup(private val project: Project) {
         loadData()
     }
 
-    fun showCenteredInCurrentWindow(component: Component?) {
+    fun showCenteredInCurrentWindow() {
         val popup = createPopup()
         popup.showCenteredInCurrentWindow(project)
         loadData()
@@ -186,10 +188,10 @@ class OpenRouterStatsPopup(private val project: Project) {
         // Show loading state
         setLoadingState()
         
-        openRouterService.getKeyInfo().thenAccept { keyInfo ->
+        openRouterService.getApiKeysList().thenAccept { apiKeysResponse ->
             ApplicationManager.getApplication().invokeLater {
-                if (keyInfo != null) {
-                    updateWithKeyInfo(keyInfo)
+                if (apiKeysResponse != null) {
+                    updateWithApiKeysList(apiKeysResponse)
                 } else {
                     showError()
                 }
@@ -244,6 +246,49 @@ class OpenRouterStatsPopup(private val project: Project) {
         }
 
         tierLabel.text = "Account: ${if (data.isFreeTier) "Free Tier" else "Paid Account"}"
+
+        // Update tracking information
+        updateTrackingInfo()
+
+        refreshButton.isEnabled = true
+    }
+
+    private fun updateWithApiKeysList(apiKeysResponse: ApiKeysListResponse) {
+        val enabledKeys = apiKeysResponse.data.filter { !it.disabled }
+        val totalUsage = enabledKeys.sumOf { it.usage }
+        val totalLimit = enabledKeys.mapNotNull { it.limit }.sum()
+
+        // Log the actual values for debugging
+        println("DEBUG: OpenRouter API Keys Response:")
+        println("  - Total keys: ${apiKeysResponse.data.size}")
+        println("  - Enabled keys: ${enabledKeys.size}")
+        println("  - Total usage: $totalUsage")
+        println("  - Total limit: $totalLimit")
+        enabledKeys.forEach { key ->
+            println("  - Key: ${key.label} | Usage: ${key.usage} | Limit: ${key.limit} | Status: ${if (key.disabled) "Disabled" else "Enabled"}")
+        }
+
+        // Format usage with appropriate precision
+        usageLabel.text = "Total Usage: $${String.format("%.3f", totalUsage)}"
+
+        if (totalLimit > 0) {
+            val remaining = totalLimit - totalUsage
+            limitLabel.text = "Total Limit: $${String.format("%.2f", totalLimit)}"
+            remainingLabel.text = "Remaining: $${String.format("%.2f", remaining)}"
+
+            val percentage = ((totalUsage / totalLimit) * 100).toInt()
+            progressBar.value = percentage
+            progressBar.string = "$percentage% used"
+            progressBar.isIndeterminate = false
+        } else {
+            limitLabel.text = "Limit: Unlimited"
+            remainingLabel.text = "Remaining: Unlimited"
+            progressBar.value = 0
+            progressBar.string = "Unlimited (${String.format("%.3f", totalUsage)} used)"
+            progressBar.isIndeterminate = false
+        }
+
+        tierLabel.text = "Account: ${enabledKeys.size} API Key${if (enabledKeys.size != 1) "s" else ""} Active"
 
         // Update tracking information
         updateTrackingInfo()
