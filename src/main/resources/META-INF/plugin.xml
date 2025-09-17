@@ -51,13 +51,15 @@
             id="OpenRouterStatusBar"
             order="after Encoding"/>
         
-        <!-- Tool window -->
-        <toolWindow 
-            id="OpenRouter" 
-            secondary="true" 
+        <!-- Tool window - TEMPORARILY DISABLED -->
+        <!--
+        <toolWindow
+            id="OpenRouter"
+            secondary="true"
             icon="org.zhavoronkov.openrouter.icons.OpenRouterIcons.TOOL_WINDOW"
             anchor="right"
             factoryClass="org.zhavoronkov.openrouter.toolwindow.OpenRouterToolWindowFactory"/>
+        -->
     </extensions>
 
     <!-- Actions -->

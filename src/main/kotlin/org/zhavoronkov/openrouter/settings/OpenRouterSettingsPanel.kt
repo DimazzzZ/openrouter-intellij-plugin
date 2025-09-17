@@ -134,8 +134,8 @@ class OpenRouterSettingsPanel {
         println("[OpenRouter] Settings panel initializing...") // Immediate console output
 
         provisioningKeyField = JBPasswordField()
-        provisioningKeyField.columns = 10  // Fixed width - half of previous size
-        provisioningKeyField.preferredSize = Dimension(200, provisioningKeyField.preferredSize.height)
+        provisioningKeyField.columns = 30  // Reasonable width for provisioning keys
+        provisioningKeyField.preferredSize = Dimension(300, provisioningKeyField.preferredSize.height)
 
         defaultModelField = JBTextField("openai/gpt-4o")
         defaultModelField.columns = 18     // Reduced from 25 to be more responsive
