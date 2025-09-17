@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": 401,
+    "message": "Invalid API key",
+    "metadata": {
+      "type": "authentication_error"
+    }
+  }
+}
