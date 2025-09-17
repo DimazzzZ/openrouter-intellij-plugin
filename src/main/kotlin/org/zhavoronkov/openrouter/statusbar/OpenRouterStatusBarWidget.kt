@@ -67,7 +67,14 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
         override fun hasSubstep(selectedValue: PopupMenuItem): Boolean = selectedValue.hasSubmenu
 
-        override fun getSeparatorAbove(value: PopupMenuItem): ListSeparator = ListSeparator()
+        override fun getSeparatorAbove(value: PopupMenuItem): ListSeparator? {
+            // Add separator only before "View Quota Usage" and before documentation items
+            return when (value.text) {
+                "View Quota Usage" -> ListSeparator()
+                "View OpenRouter Documentation..." -> ListSeparator()
+                else -> null
+            }
+        }
 
         override fun isSelectable(value: PopupMenuItem): Boolean =
             value.action != null

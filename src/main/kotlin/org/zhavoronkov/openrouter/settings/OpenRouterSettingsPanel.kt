@@ -380,8 +380,8 @@ class OpenRouterSettingsPanel {
         )
 
         if (result == Messages.YES) {
-            openRouterService.deleteApiKey(apiKey.name).thenAccept { response ->
-                ApplicationManager.getApplication().invokeLater {
+            openRouterService.deleteApiKey(apiKey.hash).thenAccept { response ->
+                ApplicationManager.getApplication().invokeLater({
                     if (response != null && response.data.deleted) {
                         Messages.showInfoMessage(
                             "API Key '${apiKey.label}' has been deleted successfully.",
@@ -394,7 +394,7 @@ class OpenRouterSettingsPanel {
                             "Deletion Failed"
                         )
                     }
-                }
+                }, com.intellij.openapi.application.ModalityState.any())
             }
         }
     }

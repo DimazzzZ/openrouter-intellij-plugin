@@ -299,21 +299,21 @@ class OpenRouterService {
     }
 
     /**
-     * Delete an API key
+     * Delete an API key by hash
      * NOTE: This endpoint requires Provisioning Key authentication
      */
-    fun deleteApiKey(keyName: String): CompletableFuture<DeleteApiKeyResponse?> {
+    fun deleteApiKey(keyHash: String): CompletableFuture<DeleteApiKeyResponse?> {
         return CompletableFuture.supplyAsync {
             try {
-                // API key deletion requires provisioning key
+                // API key deletion requires provisioning key and uses hash in URL
                 val request = Request.Builder()
-                    .url("$API_KEYS_ENDPOINT/$keyName")
+                    .url("$API_KEYS_ENDPOINT/$keyHash")
                     .addHeader("Authorization", "Bearer ${settingsService.getProvisioningKey()}")
                     .addHeader("Content-Type", "application/json")
                     .delete()
                     .build()
 
-                PluginLogger.Service.debug("Deleting API key: $keyName")
+                PluginLogger.Service.debug("Deleting API key with hash: $keyHash")
 
                 client.newCall(request).execute().use { response ->
                     val responseBody = response.body?.string() ?: ""
