@@ -78,8 +78,18 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for detailed development setup and contribu
 git clone https://github.com/DimazzzZ/openrouter-intellij-plugin.git
 cd openrouter-intellij-plugin
 ./gradlew build --no-daemon
-
 ```
+
+## Testing
+
+The plugin includes a comprehensive test suite with covering core functionality:
+
+```bash
+# Run all core tests
+./gradlew test --tests "org.zhavoronkov.openrouter.SimpleUnitTest" --tests "org.zhavoronkov.openrouter.ApiIntegrationTest"
+```
+
+For detailed testing information, see [TESTING.md](TESTING.md).
 
 ## Contributing
 
