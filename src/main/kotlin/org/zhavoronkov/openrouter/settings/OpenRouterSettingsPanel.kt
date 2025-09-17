@@ -757,10 +757,13 @@ class OpenRouterSettingsPanel {
         PluginLogger.Settings.debug("Loading providers list from OpenRouter API")
 
         openRouterService.getProviders().thenAccept { response ->
-            ApplicationManager.getApplication().invokeLater {
+            ApplicationManager.getApplication().invokeLater({
                 if (response != null && response.data.isNotEmpty()) {
                     PluginLogger.Settings.info("Successfully loaded ${response.data.size} providers from OpenRouter")
+                    PluginLogger.Settings.debug("About to call providersTableModel.setProviders with ${response.data.size} providers")
                     providersTableModel.setProviders(response.data)
+                    PluginLogger.Settings.debug("After setProviders - providers table row count: ${providersTable.rowCount}")
+                    PluginLogger.Settings.debug("After setProviders - providers model row count: ${providersTableModel.rowCount}")
                 } else {
                     PluginLogger.Settings.warn("Failed to load providers - response was null or empty")
                     providersTableModel.setProviders(emptyList())
@@ -769,16 +772,16 @@ class OpenRouterSettingsPanel {
                         "Load Failed"
                     )
                 }
-            }
+            }, com.intellij.openapi.application.ModalityState.any())
         }.exceptionally { throwable ->
-            ApplicationManager.getApplication().invokeLater {
+            ApplicationManager.getApplication().invokeLater({
                 PluginLogger.Settings.error("Exception while loading providers", throwable)
                 providersTableModel.setProviders(emptyList())
                 Messages.showErrorDialog(
                     "Error loading providers: ${throwable.message}",
                     "Load Error"
                 )
-            }
+            }, com.intellij.openapi.application.ModalityState.any())
             null
         }
     }
@@ -849,8 +852,24 @@ class ProvidersTableModel : AbstractTableModel() {
     override fun isCellEditable(rowIndex: Int, columnIndex: Int): Boolean = false
 
     fun setProviders(newProviders: List<ProviderInfo>) {
+        PluginLogger.Settings.debug("ProvidersTableModel.setProviders called with ${newProviders.size} providers")
+
+        // Ensure we're on EDT for UI updates
+        if (!ApplicationManager.getApplication().isDispatchThread) {
+            PluginLogger.Settings.debug("Not on EDT, scheduling setProviders on EDT")
+            ApplicationManager.getApplication().invokeLater({
+                setProviders(newProviders)
+            }, com.intellij.openapi.application.ModalityState.defaultModalityState())
+            return
+        }
+
+        PluginLogger.Settings.debug("On EDT, updating providers table model")
         providers = newProviders
+        PluginLogger.Settings.debug("ProvidersTableModel internal list now has ${providers.size} providers")
         fireTableDataChanged()
+        PluginLogger.Settings.debug("fireTableDataChanged() called - providers table should now show ${providers.size} rows")
+        PluginLogger.Settings.debug("Providers table model getRowCount() returns: ${getRowCount()}")
+        PluginLogger.Settings.debug("First provider details: ${if (newProviders.isNotEmpty()) newProviders[0].name else "No providers"}")
     }
 
     fun getProvider(rowIndex: Int): ProviderInfo? {
