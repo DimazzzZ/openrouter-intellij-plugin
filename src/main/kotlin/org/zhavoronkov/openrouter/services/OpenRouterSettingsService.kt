@@ -48,6 +48,15 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
         }
     }
 
+    /**
+     * Get the stored API key (used for endpoints that require API key authentication)
+     * This is typically the "IntelliJ IDEA Plugin" API key created automatically
+     */
+    fun getStoredApiKey(): String? {
+        val apiKey = getApiKey()
+        return if (apiKey.isNotBlank()) apiKey else null
+    }
+
     fun getProvisioningKey(): String {
         return if (EncryptionUtil.isEncrypted(settings.provisioningKey)) {
             EncryptionUtil.decrypt(settings.provisioningKey)

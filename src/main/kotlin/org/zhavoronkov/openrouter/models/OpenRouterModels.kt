@@ -110,6 +110,19 @@ data class CreditsData(
     @SerializedName("total_usage") val totalUsage: Double
 )
 
+// Providers endpoint response
+data class ProvidersResponse(
+    val data: List<ProviderInfo>
+)
+
+data class ProviderInfo(
+    val name: String,
+    val slug: String,
+    @SerializedName("privacy_policy_url") val privacyPolicyUrl: String?,
+    @SerializedName("terms_of_service_url") val termsOfServiceUrl: String?,
+    @SerializedName("status_page_url") val statusPageUrl: String?
+)
+
 data class ModelInfo(
     val id: String,
     val name: String,

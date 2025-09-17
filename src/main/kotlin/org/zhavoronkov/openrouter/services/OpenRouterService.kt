@@ -16,12 +16,31 @@ import org.zhavoronkov.openrouter.models.DeleteApiKeyResponse
 import org.zhavoronkov.openrouter.models.GenerationResponse
 import org.zhavoronkov.openrouter.models.KeyData
 import org.zhavoronkov.openrouter.models.KeyInfoResponse
+import org.zhavoronkov.openrouter.models.ProvidersResponse
 import org.zhavoronkov.openrouter.models.QuotaInfo
 import java.io.IOException
 import java.util.concurrent.CompletableFuture
 
 /**
  * Service for interacting with OpenRouter API
+ *
+ * AUTHENTICATION PATTERNS:
+ *
+ * 1. PROVISIONING KEY ENDPOINTS (Bearer <provisioning-key>):
+ *    - /api/v1/keys (API key management: list, create, delete)
+ *    - Used for managing API keys programmatically
+ *    - Requires provisioning key from OpenRouter settings/provisioning-keys
+ *
+ * 2. API KEY ENDPOINTS (Bearer <api-key>):
+ *    - /api/v1/chat/completions (chat completions)
+ *    - /api/v1/generation (generation stats)
+ *    - /api/v1/credits (credits information)
+ *    - Used for actual AI model interactions and account info
+ *    - Requires regular API key (typically the auto-created "IntelliJ IDEA Plugin" key)
+ *
+ * 3. PUBLIC ENDPOINTS (no authentication):
+ *    - /api/v1/providers (list of available AI providers)
+ *    - Publicly accessible information
  */
 class OpenRouterService {
 
@@ -32,10 +51,17 @@ class OpenRouterService {
 
     companion object {
         private const val BASE_URL = "https://openrouter.ai/api/v1"
+
+        // Endpoints requiring API Key authentication (Bearer <api-key>)
         private const val CHAT_COMPLETIONS_ENDPOINT = "$BASE_URL/chat/completions"
         private const val GENERATION_ENDPOINT = "$BASE_URL/generation"
-        private const val API_KEYS_ENDPOINT = "$BASE_URL/keys"
         private const val CREDITS_ENDPOINT = "$BASE_URL/credits"
+
+        // Endpoints requiring Provisioning Key authentication (Bearer <provisioning-key>)
+        private const val API_KEYS_ENDPOINT = "$BASE_URL/keys"
+
+        // Public endpoints (no authentication required)
+        private const val PROVIDERS_ENDPOINT = "$BASE_URL/providers"
 
         fun getInstance(): OpenRouterService {
             return ApplicationManager.getApplication().getService(OpenRouterService::class.java)
@@ -116,10 +142,12 @@ class OpenRouterService {
 
     /**
      * Get API keys list with usage information
+     * NOTE: This endpoint requires Provisioning Key authentication
      */
     fun getApiKeysList(): CompletableFuture<ApiKeysListResponse?> {
         return CompletableFuture.supplyAsync {
             try {
+                // API keys management endpoints require provisioning key
                 val provisioningKey = settingsService.getProvisioningKey()
                 logger.info(
                     "Fetching API keys list from OpenRouter with provisioning key: ${provisioningKey.take(10)}..."
@@ -208,10 +236,12 @@ class OpenRouterService {
 
     /**
      * Create a new API key
+     * NOTE: This endpoint requires Provisioning Key authentication
      */
     fun createApiKey(name: String, limit: Double? = null): CompletableFuture<CreateApiKeyResponse?> {
         return CompletableFuture.supplyAsync {
             try {
+                // API key creation requires provisioning key
                 val provisioningKey = settingsService.getProvisioningKey()
                 val requestBody = CreateApiKeyRequest(name = name, limit = limit)
                 val json = gson.toJson(requestBody)
@@ -258,10 +288,12 @@ class OpenRouterService {
 
     /**
      * Delete an API key
+     * NOTE: This endpoint requires Provisioning Key authentication
      */
     fun deleteApiKey(keyName: String): CompletableFuture<DeleteApiKeyResponse?> {
         return CompletableFuture.supplyAsync {
             try {
+                // API key deletion requires provisioning key
                 val request = Request.Builder()
                     .url("$API_KEYS_ENDPOINT/$keyName")
                     .addHeader("Authorization", "Bearer ${settingsService.getProvisioningKey()}")
@@ -294,17 +326,24 @@ class OpenRouterService {
 
     /**
      * Get credits information from OpenRouter
+     * NOTE: This endpoint requires API Key authentication, not Provisioning Key
      */
     fun getCredits(): CompletableFuture<CreditsResponse?> {
         return CompletableFuture.supplyAsync {
             try {
-                val provisioningKey = settingsService.getProvisioningKey()
-                logger.info("Fetching credits from OpenRouter with provisioning key: ${provisioningKey.take(10)}...")
+                // Credits endpoint requires API key, not provisioning key
+                val apiKey = settingsService.getStoredApiKey()
+                if (apiKey.isNullOrBlank()) {
+                    logger.warn("No API key available for credits endpoint")
+                    return@supplyAsync null
+                }
+
+                logger.info("Fetching credits from OpenRouter with API key: ${apiKey.take(10)}...")
                 logger.info("Making request to: $CREDITS_ENDPOINT")
 
                 val request = Request.Builder()
                     .url(CREDITS_ENDPOINT)
-                    .addHeader("Authorization", "Bearer $provisioningKey")
+                    .addHeader("Authorization", "Bearer $apiKey")
                     .addHeader("Content-Type", "application/json")
                     .build()
 
@@ -325,6 +364,44 @@ class OpenRouterService {
                 null
             } catch (e: JsonSyntaxException) {
                 logger.error("Error fetching credits - invalid JSON response", e)
+                null
+            }
+        }
+    }
+
+    /**
+     * Get list of available providers from OpenRouter
+     * NOTE: This is a public endpoint that requires no authentication
+     */
+    fun getProviders(): CompletableFuture<ProvidersResponse?> {
+        return CompletableFuture.supplyAsync {
+            try {
+                logger.info("Fetching providers list from OpenRouter (public endpoint)")
+                logger.info("Making request to: $PROVIDERS_ENDPOINT")
+
+                // Providers endpoint is public - no authentication required
+                val request = Request.Builder()
+                    .url(PROVIDERS_ENDPOINT)
+                    .addHeader("Content-Type", "application/json")
+                    .build()
+
+                val response = client.newCall(request).execute()
+                val responseBody = response.body?.string() ?: ""
+                logger.info("Providers response: ${response.code} - ${responseBody.take(200)}...")
+
+                if (response.isSuccessful) {
+                    val providersResponse = gson.fromJson(responseBody, ProvidersResponse::class.java)
+                    logger.info("Successfully parsed providers response: ${providersResponse.data.size} providers")
+                    providersResponse
+                } else {
+                    logger.warn("Failed to fetch providers: ${response.code} - $responseBody")
+                    null
+                }
+            } catch (e: IOException) {
+                logger.error("Error fetching providers - network issue", e)
+                null
+            } catch (e: JsonSyntaxException) {
+                logger.error("Error fetching providers - invalid JSON response", e)
                 null
             }
         }

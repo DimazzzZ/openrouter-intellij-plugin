@@ -1,5 +1,6 @@
 package org.zhavoronkov.openrouter.settings
 
+import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.ui.Messages
@@ -7,18 +8,26 @@ import com.intellij.ui.ToolbarDecorator
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
+import com.intellij.ui.components.JBScrollPane
+
 import com.intellij.ui.components.JBTextField
-import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.JBUI
 import org.zhavoronkov.openrouter.models.ApiKeyInfo
+import org.zhavoronkov.openrouter.models.ProviderInfo
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import java.awt.BorderLayout
 import java.awt.Dimension
+import java.awt.FlowLayout
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
 import java.util.Locale
+import javax.swing.JButton
+import javax.swing.JCheckBox
 import javax.swing.JPanel
 import javax.swing.JSpinner
+import javax.swing.JTable
 import javax.swing.ListSelectionModel
 import javax.swing.SpinnerNumberModel
 import javax.swing.table.AbstractTableModel
@@ -76,7 +85,9 @@ class OpenRouterSettingsPanel {
     private val refreshIntervalSpinner: JSpinner
     private val showCostsCheckBox: JBCheckBox
     private val apiKeyTableModel = ApiKeyTableModel()
-    private val apiKeyTable = JBTable(apiKeyTableModel)
+    private val apiKeyTable = JTable(apiKeyTableModel)
+    private val providersTableModel = ProvidersTableModel()
+    private val providersTable = JTable(providersTableModel)
     private val openRouterService = OpenRouterService.getInstance()
     private val settingsService = OpenRouterSettingsService.getInstance()
     private val logger = Logger.getInstance(OpenRouterSettingsPanel::class.java)
@@ -88,10 +99,10 @@ class OpenRouterSettingsPanel {
 
     init {
         provisioningKeyField = JBPasswordField()
-        provisioningKeyField.columns = 30
+        provisioningKeyField.columns = 20  // Reduced from 30 to prevent horizontal scroll
 
         defaultModelField = JBTextField("openai/gpt-4o")
-        defaultModelField.columns = 25
+        defaultModelField.columns = 18     // Reduced from 25 to be more responsive
 
         autoRefreshCheckBox = JBCheckBox("Auto-refresh quota information")
 
@@ -109,6 +120,12 @@ class OpenRouterSettingsPanel {
             .addLabeledComponent(
                 JBLabel("API Keys:"),
                 createApiKeyTablePanel(),
+                1,
+                false
+            )
+            .addLabeledComponent(
+                JBLabel("Available Providers:"),
+                createProvidersTablePanel(),
                 1,
                 false
             )
@@ -156,15 +173,15 @@ class OpenRouterSettingsPanel {
 
         // Configure table for responsive layout
         apiKeyTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
-        apiKeyTable.autoResizeMode = JBTable.AUTO_RESIZE_ALL_COLUMNS
-        apiKeyTable.preferredScrollableViewportSize = Dimension(500, 120)
+        apiKeyTable.autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
+        apiKeyTable.preferredScrollableViewportSize = Dimension(450, 120)  // Reduced width
 
         // Set column widths to be more responsive
-        apiKeyTable.columnModel.getColumn(0).preferredWidth = 120  // Label
-        apiKeyTable.columnModel.getColumn(1).preferredWidth = 150  // Name
-        apiKeyTable.columnModel.getColumn(2).preferredWidth = 80   // Usage
-        apiKeyTable.columnModel.getColumn(3).preferredWidth = 80   // Limit
-        apiKeyTable.columnModel.getColumn(4).preferredWidth = 70   // Status
+        apiKeyTable.columnModel.getColumn(0).preferredWidth = 100  // Label
+        apiKeyTable.columnModel.getColumn(1).preferredWidth = 120  // Name
+        apiKeyTable.columnModel.getColumn(2).preferredWidth = 70   // Usage
+        apiKeyTable.columnModel.getColumn(3).preferredWidth = 70   // Limit
+        apiKeyTable.columnModel.getColumn(4).preferredWidth = 60   // Status
 
         // Create toolbar with add/remove buttons
         val tablePanel = ToolbarDecorator.createDecorator(apiKeyTable)
@@ -172,21 +189,91 @@ class OpenRouterSettingsPanel {
             .setRemoveAction { removeApiKey() }
             .setAddActionName("Add API Key")
             .setRemoveActionName("Remove API Key")
-            .setPreferredSize(Dimension(500, 150))
+            .setPreferredSize(Dimension(450, 150))  // Reduced width for better fit
             .createPanel()
 
         panel.add(tablePanel, BorderLayout.CENTER)
 
+        // Add refresh button for API keys
+        val buttonPanel = JPanel(FlowLayout(FlowLayout.RIGHT))
+        val refreshButton = JButton("Refresh API Keys")
+        refreshButton.addActionListener { refreshApiKeys() }
+        buttonPanel.add(refreshButton)
+
         val helpLabel = JBLabel(
             "<html><small>Manage your API keys. Automatically loads when Provisioning Key is configured.</small></html>"
         )
-        panel.add(helpLabel, BorderLayout.SOUTH)
+
+        val southPanel = JPanel(BorderLayout())
+        southPanel.add(buttonPanel, BorderLayout.NORTH)
+        southPanel.add(helpLabel, BorderLayout.SOUTH)
+        panel.add(southPanel, BorderLayout.SOUTH)
 
         // Reset the creation flag when panel is created
         resetApiKeyCreationFlag()
 
         // Auto-load table when panel is created
         refreshApiKeys()
+
+        return panel
+    }
+
+    private fun createProvidersTablePanel(): JPanel {
+        val panel = JPanel(BorderLayout())
+
+        // Configure providers table
+        providersTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
+        providersTable.autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
+        providersTable.fillsViewportHeight = true
+
+        // Set column widths to be more responsive
+        providersTable.columnModel.getColumn(0).preferredWidth = 120  // Provider
+        providersTable.columnModel.getColumn(1).preferredWidth = 70   // Status
+        providersTable.columnModel.getColumn(2).preferredWidth = 90   // Privacy Policy
+        providersTable.columnModel.getColumn(3).preferredWidth = 100  // Terms of Service
+
+        // Add double-click listener to open links
+        providersTable.addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                if (e.clickCount == 2) {
+                    val row = providersTable.rowAtPoint(e.point)
+                    val col = providersTable.columnAtPoint(e.point)
+                    if (row >= 0 && col >= 2) { // Privacy Policy or Terms columns
+                        val provider = providersTableModel.getProvider(row)
+                        if (provider != null) {
+                            val url = when (col) {
+                                2 -> provider.privacyPolicyUrl
+                                3 -> provider.termsOfServiceUrl
+                                else -> null
+                            }
+                            if (url != null) {
+                                BrowserUtil.browse(url)
+                            }
+                        }
+                    }
+                }
+            }
+        })
+
+        val scrollPane = JBScrollPane(providersTable)
+        scrollPane.preferredSize = Dimension(450, 180)  // Reduced size for better fit
+        panel.add(scrollPane, BorderLayout.CENTER)
+
+        // Add refresh button
+        val buttonPanel = JPanel(FlowLayout(FlowLayout.RIGHT))
+        val refreshButton = JButton("Refresh Providers")
+        refreshButton.addActionListener { loadProviders() }
+        buttonPanel.add(refreshButton)
+        panel.add(buttonPanel, BorderLayout.SOUTH)
+
+        // Auto-load providers when panel is created
+        loadProviders()
+
+        // Help text (moved to SOUTH for consistency with other sections)
+        val helpLabel = JBLabel(
+            "<html><small>List of available AI providers on OpenRouter. Double-click on Privacy Policy or Terms to open links.</small></html>"
+        )
+        panel.add(helpLabel, BorderLayout.SOUTH)
 
         return panel
     }
@@ -287,19 +374,24 @@ class OpenRouterSettingsPanel {
             return
         }
 
-        logger.info("Fetching API keys from OpenRouter")
+        logger.info("Fetching API keys from OpenRouter with provisioning key: ${settingsService.getProvisioningKey().take(10)}...")
         openRouterService.getApiKeysList().thenAccept { response ->
             ApplicationManager.getApplication().invokeLater {
                 if (response != null) {
                     val apiKeys = response.data
-                    logger.info("Received ${apiKeys.size} API keys from OpenRouter")
+                    logger.info("Successfully received ${apiKeys.size} API keys from OpenRouter")
                     apiKeyTableModel.setApiKeys(apiKeys)
 
                     // Check if IntelliJ IDEA Plugin API key exists and handle creation
                     ensureIntellijApiKeyExists(apiKeys)
                 } else {
-                    logger.warn("Failed to fetch API keys from OpenRouter")
+                    logger.warn("Failed to fetch API keys from OpenRouter - response was null")
                     apiKeyTableModel.setApiKeys(emptyList())
+                    // Show user-friendly error message
+                    Messages.showWarningDialog(
+                        "Failed to load API keys. Please check your Provisioning Key and internet connection.",
+                        "Load Failed"
+                    )
                 }
             }
         }
@@ -402,12 +494,49 @@ class OpenRouterSettingsPanel {
         logger.info("Reset API key creation flag")
     }
 
+    /**
+     * Load providers list from OpenRouter
+     */
+    private fun loadProviders() {
+        logger.info("Loading providers list from OpenRouter API")
+
+        openRouterService.getProviders().thenAccept { response ->
+            ApplicationManager.getApplication().invokeLater {
+                if (response != null && response.data.isNotEmpty()) {
+                    logger.info("Successfully loaded ${response.data.size} providers from OpenRouter")
+                    providersTableModel.setProviders(response.data)
+                } else {
+                    logger.warn("Failed to load providers - response was null or empty")
+                    providersTableModel.setProviders(emptyList())
+                    Messages.showWarningDialog(
+                        "Failed to load providers list. Please check your internet connection and try again.",
+                        "Load Failed"
+                    )
+                }
+            }
+        }.exceptionally { throwable ->
+            ApplicationManager.getApplication().invokeLater {
+                logger.error("Exception while loading providers", throwable)
+                providersTableModel.setProviders(emptyList())
+                Messages.showErrorDialog(
+                    "Error loading providers: ${throwable.message}",
+                    "Load Error"
+                )
+            }
+            null
+        }
+    }
+
     fun getPanel(): JPanel = panel
 
     fun getProvisioningKey(): String = String(provisioningKeyField.password)
 
     fun setProvisioningKey(provisioningKey: String) {
         provisioningKeyField.text = provisioningKey
+        // Refresh tables when provisioning key is set
+        if (provisioningKey.isNotBlank()) {
+            refreshApiKeys()
+        }
     }
 
     fun getDefaultModel(): String = defaultModelField.text
@@ -433,5 +562,46 @@ class OpenRouterSettingsPanel {
 
     fun setShowCosts(show: Boolean) {
         showCostsCheckBox.isSelected = show
+    }
+}
+
+/**
+ * Table model for displaying OpenRouter providers
+ */
+class ProvidersTableModel : AbstractTableModel() {
+    private var providers: List<ProviderInfo> = emptyList()
+
+    private val columnNames = arrayOf("Provider", "Status", "Privacy Policy", "Terms of Service")
+
+    override fun getRowCount(): Int = providers.size
+
+    override fun getColumnCount(): Int = columnNames.size
+
+    override fun getColumnName(column: Int): String = columnNames[column]
+
+    override fun getValueAt(rowIndex: Int, columnIndex: Int): Any {
+        val provider = providers[rowIndex]
+        return when (columnIndex) {
+            0 -> provider.name
+            1 -> "Available" // All providers in the list are available
+            2 -> if (provider.privacyPolicyUrl != null) "View" else "-"
+            3 -> if (provider.termsOfServiceUrl != null) "View" else "-"
+            else -> ""
+        }
+    }
+
+    override fun isCellEditable(rowIndex: Int, columnIndex: Int): Boolean = false
+
+    fun setProviders(newProviders: List<ProviderInfo>) {
+        providers = newProviders
+        fireTableDataChanged()
+    }
+
+    fun getProvider(rowIndex: Int): ProviderInfo? {
+        return if (rowIndex >= 0 && rowIndex < providers.size) {
+            providers[rowIndex]
+        } else {
+            null
+        }
     }
 }

@@ -67,17 +67,12 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
         override fun hasSubstep(selectedValue: PopupMenuItem): Boolean = selectedValue.hasSubmenu
 
-        override fun getSeparatorAbove(value: PopupMenuItem): ListSeparator? =
-            if (value == PopupMenuItem.SEPARATOR) ListSeparator() else null
+        override fun getSeparatorAbove(value: PopupMenuItem): ListSeparator = ListSeparator()
 
         override fun isSelectable(value: PopupMenuItem): Boolean =
-            value != PopupMenuItem.SEPARATOR && value.action != null
+            value.action != null
 
         override fun onChosen(selectedValue: PopupMenuItem, finalChoice: Boolean): PopupStep<*>? {
-            if (selectedValue == PopupMenuItem.SEPARATOR) {
-                return FINAL_CHOICE
-            }
-
             if (selectedValue.hasSubmenu) {
                 return selectedValue.createSubmenu()
             } else {
@@ -100,8 +95,6 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
                 action = null // Status display only
             )
         )
-
-        items.add(PopupMenuItem.SEPARATOR)
 
         // Quota / Usage
         items.add(
@@ -139,8 +132,6 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
                 )
             )
         }
-
-        items.add(PopupMenuItem.SEPARATOR)
 
         // Documentation
         items.add(
@@ -323,10 +314,6 @@ data class PopupMenuItem(
     val submenuItems: List<PopupMenuItem> = emptyList(),
     val shortcut: String? = null
 ) {
-    companion object {
-        val SEPARATOR = PopupMenuItem("")
-    }
-
     fun createSubmenu(): PopupStep<PopupMenuItem>? {
         return if (hasSubmenu && submenuItems.isNotEmpty()) {
             object : BaseListPopupStep<PopupMenuItem>(text, submenuItems) {
