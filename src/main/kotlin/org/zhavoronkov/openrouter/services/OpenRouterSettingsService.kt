@@ -5,6 +5,7 @@ import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
+import org.zhavoronkov.openrouter.utils.EncryptionUtil
 
 /**
  * Service for managing OpenRouter plugin settings
@@ -31,16 +32,36 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
         this.settings = state
     }
 
-    fun getApiKey(): String = settings.apiKey
-
-    fun setApiKey(apiKey: String) {
-        settings.apiKey = apiKey
+    fun getApiKey(): String {
+        return if (EncryptionUtil.isEncrypted(settings.apiKey)) {
+            EncryptionUtil.decrypt(settings.apiKey)
+        } else {
+            settings.apiKey
+        }
     }
 
-    fun getProvisioningKey(): String = settings.provisioningKey
+    fun setApiKey(apiKey: String) {
+        settings.apiKey = if (apiKey.isNotBlank()) {
+            EncryptionUtil.encrypt(apiKey)
+        } else {
+            apiKey
+        }
+    }
+
+    fun getProvisioningKey(): String {
+        return if (EncryptionUtil.isEncrypted(settings.provisioningKey)) {
+            EncryptionUtil.decrypt(settings.provisioningKey)
+        } else {
+            settings.provisioningKey
+        }
+    }
 
     fun setProvisioningKey(provisioningKey: String) {
-        settings.provisioningKey = provisioningKey
+        settings.provisioningKey = if (provisioningKey.isNotBlank()) {
+            EncryptionUtil.encrypt(provisioningKey)
+        } else {
+            provisioningKey
+        }
     }
 
     fun getDefaultModel(): String = settings.defaultModel
@@ -79,5 +100,8 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
         settings.maxTrackedGenerations = max
     }
 
-    fun isConfigured(): Boolean = settings.provisioningKey.isNotBlank()
+    fun isConfigured(): Boolean {
+        val provisioningKey = getProvisioningKey()
+        return provisioningKey.isNotBlank()
+    }
 }

@@ -112,6 +112,15 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
             )
         )
 
+        // Settings (direct action, no submenu)
+        items.add(
+            PopupMenuItem(
+                text = "Settings",
+                icon = AllIcons.General.Settings,
+                action = { openSettings() }
+            )
+        )
+
         // Authentication
         if (settingsService.isConfigured()) {
             items.add(
@@ -130,17 +139,6 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
                 )
             )
         }
-
-        items.add(PopupMenuItem.SEPARATOR)
-
-        // Settings (direct action, no submenu)
-        items.add(
-            PopupMenuItem(
-                text = "Settings",
-                icon = AllIcons.General.Settings,
-                action = { openSettings() }
-            )
-        )
 
         items.add(PopupMenuItem.SEPARATOR)
 

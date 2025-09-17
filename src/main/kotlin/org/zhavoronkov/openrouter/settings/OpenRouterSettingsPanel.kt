@@ -83,14 +83,15 @@ class OpenRouterSettingsPanel {
 
     companion object {
         private const val INTELLIJ_API_KEY_NAME = "IntelliJ IDEA Plugin"
+        private var isCreatingApiKey = false // Flag to prevent multiple creation attempts
     }
 
     init {
         provisioningKeyField = JBPasswordField()
-        provisioningKeyField.columns = 40
+        provisioningKeyField.columns = 30
 
         defaultModelField = JBTextField("openai/gpt-4o")
-        defaultModelField.columns = 30
+        defaultModelField.columns = 25
 
         autoRefreshCheckBox = JBCheckBox("Auto-refresh quota information")
 
@@ -153,9 +154,17 @@ class OpenRouterSettingsPanel {
     private fun createApiKeyTablePanel(): JPanel {
         val panel = JPanel(BorderLayout())
 
-        // Configure table
+        // Configure table for responsive layout
         apiKeyTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
-        apiKeyTable.preferredScrollableViewportSize = Dimension(600, 150)
+        apiKeyTable.autoResizeMode = JBTable.AUTO_RESIZE_ALL_COLUMNS
+        apiKeyTable.preferredScrollableViewportSize = Dimension(500, 120)
+
+        // Set column widths to be more responsive
+        apiKeyTable.columnModel.getColumn(0).preferredWidth = 120  // Label
+        apiKeyTable.columnModel.getColumn(1).preferredWidth = 150  // Name
+        apiKeyTable.columnModel.getColumn(2).preferredWidth = 80   // Usage
+        apiKeyTable.columnModel.getColumn(3).preferredWidth = 80   // Limit
+        apiKeyTable.columnModel.getColumn(4).preferredWidth = 70   // Status
 
         // Create toolbar with add/remove buttons
         val tablePanel = ToolbarDecorator.createDecorator(apiKeyTable)
@@ -163,6 +172,7 @@ class OpenRouterSettingsPanel {
             .setRemoveAction { removeApiKey() }
             .setAddActionName("Add API Key")
             .setRemoveActionName("Remove API Key")
+            .setPreferredSize(Dimension(500, 150))
             .createPanel()
 
         panel.add(tablePanel, BorderLayout.CENTER)
@@ -171,6 +181,9 @@ class OpenRouterSettingsPanel {
             "<html><small>Manage your API keys. Automatically loads when Provisioning Key is configured.</small></html>"
         )
         panel.add(helpLabel, BorderLayout.SOUTH)
+
+        // Reset the creation flag when panel is created
+        resetApiKeyCreationFlag()
 
         // Auto-load table when panel is created
         refreshApiKeys()
@@ -213,7 +226,7 @@ class OpenRouterSettingsPanel {
                             "Please save this key securely - it won't be shown again.",
                         "API Key Created"
                     )
-                    refreshApiKeys()
+                    loadApiKeysWithoutAutoCreate()
                 } else {
                     Messages.showErrorDialog(
                         "Failed to create API key. Please check your Provisioning Key and try again.",
@@ -254,7 +267,7 @@ class OpenRouterSettingsPanel {
                             "API Key '${apiKey.label}' has been deleted successfully.",
                             "API Key Deleted"
                         )
-                        refreshApiKeys()
+                        loadApiKeysWithoutAutoCreate()
                     } else {
                         Messages.showErrorDialog(
                             "Failed to delete API key. Please try again.",
@@ -282,16 +295,8 @@ class OpenRouterSettingsPanel {
                     logger.info("Received ${apiKeys.size} API keys from OpenRouter")
                     apiKeyTableModel.setApiKeys(apiKeys)
 
-                    // Check if IntelliJ IDEA Plugin API key exists
-                    val intellijApiKey = apiKeys.find { it.name == INTELLIJ_API_KEY_NAME }
-                    if (intellijApiKey != null) {
-                        // API key exists, we're good to go
-                        // Note: We use provisioning key for quota monitoring, not the API key
-                        logger.info("Found existing IntelliJ IDEA Plugin API key: ${intellijApiKey.name}")
-                    } else {
-                        // Create the IntelliJ IDEA Plugin API key automatically
-                        createIntellijApiKey()
-                    }
+                    // Check if IntelliJ IDEA Plugin API key exists and handle creation
+                    ensureIntellijApiKeyExists(apiKeys)
                 } else {
                     logger.warn("Failed to fetch API keys from OpenRouter")
                     apiKeyTableModel.setApiKeys(emptyList())
@@ -300,30 +305,101 @@ class OpenRouterSettingsPanel {
         }
     }
 
-    private fun createIntellijApiKey() {
-        logger.info("Attempting to create IntelliJ IDEA Plugin API key")
-        openRouterService.createApiKey(INTELLIJ_API_KEY_NAME, null).thenAccept { response ->
+    /**
+     * Ensures that the IntelliJ IDEA Plugin API key exists, creating it only if necessary
+     */
+    private fun ensureIntellijApiKeyExists(currentApiKeys: List<ApiKeyInfo>) {
+        // First check: Does the API key already exist on the server?
+        val existingIntellijApiKey = currentApiKeys.find { it.name == INTELLIJ_API_KEY_NAME }
+
+        if (existingIntellijApiKey != null) {
+            logger.info("IntelliJ IDEA Plugin API key already exists: ${existingIntellijApiKey.name}")
+            return // API key exists, nothing to do
+        }
+
+        // Second check: Are we already in the process of creating one?
+        if (isCreatingApiKey) {
+            logger.info("API key creation already in progress, skipping")
+            return
+        }
+
+        // Third check: Do we have a stored API key that might be valid?
+        val storedApiKey = settingsService.getApiKey()
+        if (storedApiKey.isNotBlank()) {
+            logger.info("Stored API key exists, assuming it's valid")
+            return
+        }
+
+        // Only now create the API key
+        logger.info("No IntelliJ IDEA Plugin API key found, creating one...")
+        createIntellijApiKeyOnce()
+    }
+
+    private fun loadApiKeysWithoutAutoCreate() {
+        logger.info("Loading API keys without auto-creation")
+        if (!settingsService.isConfigured()) {
+            logger.info("Provisioning key not configured, clearing table")
+            apiKeyTableModel.setApiKeys(emptyList())
+            return
+        }
+
+        openRouterService.getApiKeysList().thenAccept { response ->
             ApplicationManager.getApplication().invokeLater {
                 if (response != null) {
-                    logger.info("Successfully created IntelliJ IDEA Plugin API key: ${response.data.name}")
-
-                    // Refresh the table to show the new key
-                    refreshApiKeys()
-
-                    Messages.showInfoMessage(
-                        "Automatically created '$INTELLIJ_API_KEY_NAME' API key for plugin use.",
-                        "API Key Created"
-                    )
+                    val apiKeys = response.data
+                    logger.info("Received ${apiKeys.size} API keys from OpenRouter")
+                    apiKeyTableModel.setApiKeys(apiKeys)
                 } else {
-                    logger.warn("Failed to create IntelliJ IDEA Plugin API key")
-                    Messages.showWarningDialog(
-                        "Failed to automatically create '$INTELLIJ_API_KEY_NAME' API key. " +
-                            "Please check your provisioning key and try again.",
-                        "Auto-creation Failed"
-                    )
+                    logger.warn("Failed to fetch API keys from OpenRouter")
+                    apiKeyTableModel.setApiKeys(emptyList())
                 }
             }
         }
+    }
+
+    private fun createIntellijApiKeyOnce() {
+        // Set the flag to prevent multiple creation attempts
+        isCreatingApiKey = true
+
+        logger.info("Attempting to create IntelliJ IDEA Plugin API key (once)")
+        openRouterService.createApiKey(INTELLIJ_API_KEY_NAME, null).thenAccept { response ->
+            ApplicationManager.getApplication().invokeLater {
+                try {
+                    if (response != null) {
+                        logger.info("Successfully created IntelliJ IDEA Plugin API key: ${response.data.name}")
+
+                        // Store the API key securely
+                        settingsService.setApiKey(response.data.key)
+
+                        // Refresh the table to show the new key (but don't create another one)
+                        loadApiKeysWithoutAutoCreate()
+
+                        Messages.showInfoMessage(
+                            "Automatically created '$INTELLIJ_API_KEY_NAME' API key for plugin use.",
+                            "API Key Created"
+                        )
+                    } else {
+                        logger.warn("Failed to create IntelliJ IDEA Plugin API key")
+                        Messages.showWarningDialog(
+                            "Failed to automatically create '$INTELLIJ_API_KEY_NAME' API key. " +
+                                "Please check your provisioning key and try again.",
+                            "Auto-creation Failed"
+                        )
+                    }
+                } finally {
+                    // Always reset the flag when done
+                    isCreatingApiKey = false
+                }
+            }
+        }
+    }
+
+    /**
+     * Reset the API key creation flag - useful when settings panel is reopened
+     */
+    private fun resetApiKeyCreationFlag() {
+        isCreatingApiKey = false
+        logger.info("Reset API key creation flag")
     }
 
     fun getPanel(): JPanel = panel
