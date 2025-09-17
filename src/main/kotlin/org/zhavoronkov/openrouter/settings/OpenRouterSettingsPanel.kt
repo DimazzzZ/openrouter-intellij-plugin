@@ -16,7 +16,7 @@ import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import java.awt.BorderLayout
 import java.awt.Dimension
-
+import java.util.Locale
 import javax.swing.JPanel
 import javax.swing.JSpinner
 import javax.swing.ListSelectionModel
@@ -39,8 +39,8 @@ class ApiKeyTableModel : AbstractTableModel() {
         return when (columnIndex) {
             0 -> key.label
             1 -> key.name
-            2 -> String.format("$%.6f", key.usage)
-            3 -> key.limit?.let { String.format("$%.2f", it) } ?: "Unlimited"
+            2 -> String.format(Locale.US, "$%.6f", key.usage)
+            3 -> key.limit?.let { String.format(Locale.US, "$%.2f", it) } ?: "Unlimited"
             4 -> if (key.disabled) "Disabled" else "Enabled"
             else -> ""
         }
@@ -142,8 +142,8 @@ class OpenRouterSettingsPanel {
 
         val helpLabel = JBLabel(
             "<html><small><b>Required for quota monitoring.</b> Get your provisioning key from " +
-            "<a href='https://openrouter.ai/settings/provisioning-keys'>openrouter.ai/settings/provisioning-keys</a>" +
-            "</small></html>"
+                "<a href='https://openrouter.ai/settings/provisioning-keys'>" +
+                "openrouter.ai/settings/provisioning-keys</a></small></html>"
         )
         panel.add(helpLabel, BorderLayout.SOUTH)
 
@@ -209,7 +209,8 @@ class OpenRouterSettingsPanel {
             ApplicationManager.getApplication().invokeLater {
                 if (response != null) {
                     Messages.showInfoMessage(
-                        "API Key created successfully!\nKey: ${response.data.key}\n\nPlease save this key securely - it won't be shown again.",
+                        "API Key created successfully!\nKey: ${response.data.key}\n\n" +
+                            "Please save this key securely - it won't be shown again.",
                         "API Key Created"
                     )
                     refreshApiKeys()
@@ -239,7 +240,8 @@ class OpenRouterSettingsPanel {
         }
 
         val result = Messages.showYesNoDialog(
-            "Are you sure you want to delete the API key '${apiKey.label}' (${apiKey.name})?\nThis action cannot be undone.",
+            "Are you sure you want to delete the API key '${apiKey.label}' (${apiKey.name})?\n" +
+                "This action cannot be undone.",
             "Confirm Deletion",
             Messages.getWarningIcon()
         )
@@ -315,7 +317,8 @@ class OpenRouterSettingsPanel {
                 } else {
                     logger.warn("Failed to create IntelliJ IDEA Plugin API key")
                     Messages.showWarningDialog(
-                        "Failed to automatically create '$INTELLIJ_API_KEY_NAME' API key. Please check your provisioning key and try again.",
+                        "Failed to automatically create '$INTELLIJ_API_KEY_NAME' API key. " +
+                            "Please check your provisioning key and try again.",
                         "Auto-creation Failed"
                     )
                 }

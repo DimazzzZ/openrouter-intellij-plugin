@@ -13,13 +13,17 @@ import org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import java.awt.BorderLayout
+import java.awt.Component
 import java.awt.Dimension
-
+import java.awt.FlowLayout
+import java.awt.Font
+import java.util.Locale
+import javax.swing.Box
+import javax.swing.BoxLayout
 import javax.swing.JButton
-import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.JProgressBar
-
+import javax.swing.JSeparator
 
 /**
  * Popup that displays OpenRouter usage statistics and information
@@ -224,8 +228,8 @@ class OpenRouterStatsPopup(private val project: Project) {
 
         if (totalLimit > 0) {
             val remaining = totalLimit
-            limitLabel.text = "Total Limit: $${String.format("%.2f", totalLimit)}"
-            remainingLabel.text = "Remaining: $${String.format("%.2f", remaining)}"
+            limitLabel.text = "Total Limit: $${String.format(Locale.US, "%.2f", totalLimit)}"
+            remainingLabel.text = "Remaining: $${String.format(Locale.US, "%.2f", remaining)}"
 
             val percentage = 0 // Can't calculate without usage data
             progressBar.value = percentage
@@ -235,7 +239,7 @@ class OpenRouterStatsPopup(private val project: Project) {
             limitLabel.text = "Limit: Unlimited"
             remainingLabel.text = "Remaining: Unlimited"
             progressBar.value = 0
-            progressBar.string = "Unlimited (${String.format("%.3f", totalUsage)} used)"
+            progressBar.string = "Unlimited (${String.format(Locale.US, "%.3f", totalUsage)} used)"
             progressBar.isIndeterminate = false
         }
 
@@ -252,8 +256,8 @@ class OpenRouterStatsPopup(private val project: Project) {
         val recentTokens = trackingService.getTotalRecentTokens(50)
         val generationCount = trackingService.getGenerationCount()
 
-        recentCostLabel.text = "Recent Cost: $${String.format("%.6f", recentCost)} (last 50 calls)"
-        recentTokensLabel.text = "Recent Tokens: ${String.format("%,d", recentTokens)} (last 50 calls)"
+        recentCostLabel.text = "Recent Cost: $${String.format(Locale.US, "%.6f", recentCost)} (last 50 calls)"
+        recentTokensLabel.text = "Recent Tokens: ${String.format(Locale.US, "%,d", recentTokens)} (last 50 calls)"
         generationCountLabel.text = "Tracked Calls: $generationCount total"
     }
 

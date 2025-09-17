@@ -14,12 +14,12 @@ import com.intellij.openapi.wm.StatusBar
 import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.impl.status.EditorBasedWidget
 import com.intellij.util.Consumer
-
 import org.zhavoronkov.openrouter.models.ConnectionStatus
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.ui.OpenRouterStatsPopup
 import java.awt.event.MouseEvent
+import java.util.Locale
 import javax.swing.Icon
 
 /**
@@ -93,60 +93,74 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         val items = mutableListOf<PopupMenuItem>()
 
         // Status Display
-        items.add(PopupMenuItem(
-            text = "Status: ${connectionStatus.displayName}",
-            icon = connectionStatus.icon,
-            action = null // Status display only
-        ))
+        items.add(
+            PopupMenuItem(
+                text = "Status: ${connectionStatus.displayName}",
+                icon = connectionStatus.icon,
+                action = null // Status display only
+            )
+        )
 
         items.add(PopupMenuItem.SEPARATOR)
 
         // Quota / Usage
-        items.add(PopupMenuItem(
-            text = "View Quota Usage",
-            icon = AllIcons.General.Information,
-            action = { showQuotaUsage() }
-        ))
+        items.add(
+            PopupMenuItem(
+                text = "View Quota Usage",
+                icon = AllIcons.General.Information,
+                action = { showQuotaUsage() }
+            )
+        )
 
         // Authentication
         if (settingsService.isConfigured()) {
-            items.add(PopupMenuItem(
-                text = "Logout from OpenRouter.ai",
-                icon = AllIcons.Actions.Exit,
-                action = { logout() }
-            ))
+            items.add(
+                PopupMenuItem(
+                    text = "Logout from OpenRouter.ai",
+                    icon = AllIcons.Actions.Exit,
+                    action = { logout() }
+                )
+            )
         } else {
-            items.add(PopupMenuItem(
-                text = "Login to OpenRouter.ai",
-                icon = AllIcons.Actions.Execute,
-                action = { openSettings() }
-            ))
+            items.add(
+                PopupMenuItem(
+                    text = "Login to OpenRouter.ai",
+                    icon = AllIcons.Actions.Execute,
+                    action = { openSettings() }
+                )
+            )
         }
 
         items.add(PopupMenuItem.SEPARATOR)
 
         // Settings (direct action, no submenu)
-        items.add(PopupMenuItem(
-            text = "Settings",
-            icon = AllIcons.General.Settings,
-            action = { openSettings() }
-        ))
+        items.add(
+            PopupMenuItem(
+                text = "Settings",
+                icon = AllIcons.General.Settings,
+                action = { openSettings() }
+            )
+        )
 
         items.add(PopupMenuItem.SEPARATOR)
 
         // Documentation
-        items.add(PopupMenuItem(
-            text = "View OpenRouter Documentation...",
-            icon = AllIcons.Actions.Help,
-            action = { openDocumentation() }
-        ))
+        items.add(
+            PopupMenuItem(
+                text = "View OpenRouter Documentation...",
+                icon = AllIcons.Actions.Help,
+                action = { openDocumentation() }
+            )
+        )
 
         // Feedback
-        items.add(PopupMenuItem(
-            text = "View Feedback Repository...",
-            icon = AllIcons.Vcs.Vendors.Github,
-            action = { openFeedbackRepository() }
-        ))
+        items.add(
+            PopupMenuItem(
+                text = "View Feedback Repository...",
+                icon = AllIcons.Vcs.Vendors.Github,
+                action = { openFeedbackRepository() }
+            )
+        )
 
         return items
     }
@@ -201,7 +215,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         connectionStatus = ConnectionStatus.CONNECTING
         updateStatusBar()
 
-        openRouterService.getKeyInfo().thenAccept { keyInfo ->
+        openRouterService.getKeyInfo().thenAccept { keyInfo: org.zhavoronkov.openrouter.models.KeyInfoResponse? ->
             ApplicationManager.getApplication().invokeLater {
                 if (keyInfo != null) {
                     connectionStatus = ConnectionStatus.READY
@@ -212,21 +226,23 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
                     currentText = if (limit != null) {
                         if (settingsService.shouldShowCosts()) {
-                            "Status: Ready - $${String.format("%.3f", used)}/$${String.format("%.2f", limit)}"
+                            val usedFormatted = String.format(Locale.US, "%.3f", used)
+                            val limitFormatted = String.format(Locale.US, "%.2f", limit)
+                            "Status: Ready - $$usedFormatted/$$limitFormatted"
                         } else {
                             val percentage = (used / limit) * 100
-                            "Status: Ready - ${String.format("%.1f", percentage)}% used"
+                            "Status: Ready - ${String.format(Locale.US, "%.1f", percentage)}% used"
                         }
                     } else {
-                        "Status: Ready - $${String.format("%.3f", used)} (unlimited)"
+                        "Status: Ready - $${String.format(Locale.US, "%.3f", used)} (unlimited)"
                     }
 
                     currentTooltip = buildString {
                         append("OpenRouter API Status: ${connectionStatus.displayName}\n")
-                        append("Used: $${String.format("%.3f", used)}\n")
+                        append("Used: $${String.format(Locale.US, "%.3f", used)}\n")
                         if (limit != null) {
-                            append("Limit: $${String.format("%.2f", limit)}\n")
-                            append("Remaining: $${String.format("%.2f", remaining)}\n")
+                            append("Limit: $${String.format(Locale.US, "%.2f", limit)}\n")
+                            append("Remaining: $${String.format(Locale.US, "%.2f", remaining)}\n")
                         } else {
                             append("Limit: Unlimited\n")
                         }
@@ -282,10 +298,15 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
                 } catch (e: InterruptedException) {
                     Thread.currentThread().interrupt()
                     break
-                } catch (e: RuntimeException) {
+                } catch (e: IllegalStateException) {
                     // Log error but continue
                     com.intellij.openapi.diagnostic.Logger.getInstance(OpenRouterStatusBarWidget::class.java)
                         .warn("Error in auto-refresh loop", e)
+                    break
+                } catch (e: SecurityException) {
+                    // Log error but continue
+                    com.intellij.openapi.diagnostic.Logger.getInstance(OpenRouterStatusBarWidget::class.java)
+                        .warn("Security error in auto-refresh loop", e)
                     break
                 }
             }

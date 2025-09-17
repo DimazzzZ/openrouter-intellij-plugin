@@ -4,14 +4,18 @@ import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.zhavoronkov.openrouter.models.ApiKeysListResponse
 import org.zhavoronkov.openrouter.models.CreateApiKeyRequest
 import org.zhavoronkov.openrouter.models.CreateApiKeyResponse
 import org.zhavoronkov.openrouter.models.DeleteApiKeyResponse
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody.Companion.toRequestBody
+import org.zhavoronkov.openrouter.models.GenerationResponse
+import org.zhavoronkov.openrouter.models.KeyData
+import org.zhavoronkov.openrouter.models.KeyInfoResponse
+import org.zhavoronkov.openrouter.models.QuotaInfo
 import java.io.IOException
 import java.util.concurrent.CompletableFuture
 
@@ -59,7 +63,9 @@ class OpenRouterService {
                             }
                         }
                     } else {
-                        logger.warn("Failed to get generation stats: ${response.code} ${response.message}")
+                        logger.warn(
+                            "Failed to get generation stats: ${response.code} ${response.message}"
+                        )
                         null
                     }
                 }
@@ -76,13 +82,15 @@ class OpenRouterService {
     fun testConnection(): CompletableFuture<Boolean> {
         return CompletableFuture.supplyAsync {
             try {
-                val requestBody = gson.toJson(mapOf(
-                    "model" to "openai/gpt-3.5-turbo",
-                    "messages" to listOf(
-                        mapOf("role" to "user", "content" to "Hello")
-                    ),
-                    "max_tokens" to 1
-                )).toRequestBody("application/json".toMediaType())
+                val requestBody = gson.toJson(
+                    mapOf(
+                        "model" to "openai/gpt-3.5-turbo",
+                        "messages" to listOf(
+                            mapOf("role" to "user", "content" to "Hello")
+                        ),
+                        "max_tokens" to 1
+                    )
+                ).toRequestBody("application/json".toMediaType())
 
                 val request = Request.Builder()
                     .url(CHAT_COMPLETIONS_ENDPOINT)
@@ -111,7 +119,9 @@ class OpenRouterService {
         return CompletableFuture.supplyAsync {
             try {
                 val provisioningKey = settingsService.getProvisioningKey()
-                logger.info("Fetching API keys list from OpenRouter with provisioning key: ${provisioningKey.take(10)}...")
+                logger.info(
+                    "Fetching API keys list from OpenRouter with provisioning key: ${provisioningKey.take(10)}..."
+                )
                 logger.info("Making request to: $API_KEYS_ENDPOINT")
 
                 val request = Request.Builder()
@@ -135,7 +145,9 @@ class OpenRouterService {
                             null
                         }
                     } else {
-                        logger.warn("Failed to get API keys list: ${response.code} ${response.message} - $responseBody")
+                        logger.warn(
+                            "Failed to get API keys list: ${response.code} ${response.message} - $responseBody"
+                        )
                         null
                     }
                 }

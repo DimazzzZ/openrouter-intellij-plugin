@@ -95,7 +95,13 @@ class OpenRouterGenerationTrackingService : PersistentStateComponent<OpenRouterG
     /**
      * Update generation with detailed stats (when available from /api/v1/generation endpoint)
      */
-    fun updateGenerationStats(generationId: String, promptTokens: Int?, completionTokens: Int?, totalTokens: Int?, totalCost: Double?) {
+    fun updateGenerationStats(
+        generationId: String,
+        promptTokens: Int?,
+        completionTokens: Int?,
+        totalTokens: Int?,
+        totalCost: Double?
+    ) {
         val generation = state.generations.find { it.generationId == generationId }
         if (generation != null) {
             val index = state.generations.indexOf(generation)

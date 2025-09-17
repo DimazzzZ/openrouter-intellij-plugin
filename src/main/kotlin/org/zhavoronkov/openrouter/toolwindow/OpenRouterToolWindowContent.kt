@@ -9,7 +9,10 @@ import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import java.awt.BorderLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
-import javax.swing.*
+import java.util.Locale
+import javax.swing.JButton
+import javax.swing.JPanel
+import javax.swing.SwingUtilities
 
 /**
  * Content for the OpenRouter tool window
@@ -111,7 +114,10 @@ class OpenRouterToolWindowContent(private val project: Project) {
             JBUI.Borders.empty(10)
         )
 
-        val messageLabel = JBLabel("<html><b>OpenRouter not configured</b><br/>Please configure your API key to use OpenRouter features.</html>")
+        val messageLabel = JBLabel(
+            "<html><b>OpenRouter not configured</b><br/>" +
+                "Please configure your API key to use OpenRouter features.</html>"
+        )
         panel.add(messageLabel, BorderLayout.CENTER)
 
         val configButton = JButton("Configure")
@@ -144,11 +150,17 @@ class OpenRouterToolWindowContent(private val project: Project) {
         }
 
         // Get quota info
-        openRouterService.getQuotaInfo().thenAccept { quota ->
+        openRouterService.getQuotaInfo().thenAccept { quota: org.zhavoronkov.openrouter.models.QuotaInfo? ->
             SwingUtilities.invokeLater {
                 if (quota != null) {
-                    quotaLabel.text = "$${String.format("%.2f", quota.total ?: 0.0)}"
-                    usageLabel.text = "$${String.format("%.2f", quota.used ?: 0.0)} (${String.format("%.1f", ((quota.used ?: 0.0) / (quota.total ?: 1.0)) * 100)}%)"
+                    quotaLabel.text = "$${String.format(Locale.US, "%.2f", quota.total ?: 0.0)}"
+                    val usedAmount = String.format(Locale.US, "%.2f", quota.used ?: 0.0)
+                    val percentage = String.format(
+                        Locale.US,
+                        "%.1f",
+                        ((quota.used ?: 0.0) / (quota.total ?: 1.0)) * 100
+                    )
+                    usageLabel.text = "$$usedAmount ($percentage%)"
                 } else {
                     quotaLabel.text = "Failed to load"
                     usageLabel.text = "Failed to load"

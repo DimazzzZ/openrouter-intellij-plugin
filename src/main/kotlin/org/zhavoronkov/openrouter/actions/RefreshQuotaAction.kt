@@ -3,7 +3,6 @@ package org.zhavoronkov.openrouter.actions
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.project.Project
-
 import com.intellij.openapi.wm.WindowManager
 import org.zhavoronkov.openrouter.icons.OpenRouterIcons
 import org.zhavoronkov.openrouter.statusbar.OpenRouterStatusBarWidget
