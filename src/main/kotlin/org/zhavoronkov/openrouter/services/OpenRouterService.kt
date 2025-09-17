@@ -11,6 +11,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.zhavoronkov.openrouter.models.ApiKeysListResponse
 import org.zhavoronkov.openrouter.models.CreateApiKeyRequest
 import org.zhavoronkov.openrouter.models.CreateApiKeyResponse
+import org.zhavoronkov.openrouter.models.CreditsResponse
 import org.zhavoronkov.openrouter.models.DeleteApiKeyResponse
 import org.zhavoronkov.openrouter.models.GenerationResponse
 import org.zhavoronkov.openrouter.models.KeyData
@@ -34,6 +35,7 @@ class OpenRouterService {
         private const val CHAT_COMPLETIONS_ENDPOINT = "$BASE_URL/chat/completions"
         private const val GENERATION_ENDPOINT = "$BASE_URL/generation"
         private const val API_KEYS_ENDPOINT = "$BASE_URL/keys"
+        private const val CREDITS_ENDPOINT = "$BASE_URL/credits"
 
         fun getInstance(): OpenRouterService {
             return ApplicationManager.getApplication().getService(OpenRouterService::class.java)
@@ -285,6 +287,44 @@ class OpenRouterService {
                 null
             } catch (e: JsonSyntaxException) {
                 logger.error("Error deleting API key - invalid JSON response", e)
+                null
+            }
+        }
+    }
+
+    /**
+     * Get credits information from OpenRouter
+     */
+    fun getCredits(): CompletableFuture<CreditsResponse?> {
+        return CompletableFuture.supplyAsync {
+            try {
+                val provisioningKey = settingsService.getProvisioningKey()
+                logger.info("Fetching credits from OpenRouter with provisioning key: ${provisioningKey.take(10)}...")
+                logger.info("Making request to: $CREDITS_ENDPOINT")
+
+                val request = Request.Builder()
+                    .url(CREDITS_ENDPOINT)
+                    .addHeader("Authorization", "Bearer $provisioningKey")
+                    .addHeader("Content-Type", "application/json")
+                    .build()
+
+                val response = client.newCall(request).execute()
+                val responseBody = response.body?.string() ?: ""
+                logger.info("Credits response: ${response.code} - $responseBody")
+
+                if (response.isSuccessful) {
+                    val creditsResponse = gson.fromJson(responseBody, CreditsResponse::class.java)
+                    logger.info("Successfully parsed credits response: ${creditsResponse.data}")
+                    creditsResponse
+                } else {
+                    logger.warn("Failed to fetch credits: ${response.code} - $responseBody")
+                    null
+                }
+            } catch (e: IOException) {
+                logger.error("Error fetching credits - network issue", e)
+                null
+            } catch (e: JsonSyntaxException) {
+                logger.error("Error fetching credits - invalid JSON response", e)
                 null
             }
         }

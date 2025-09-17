@@ -100,6 +100,16 @@ data class DeletedApiKeyInfo(
     val deleted: Boolean
 )
 
+// Credits endpoint response
+data class CreditsResponse(
+    val data: CreditsData
+)
+
+data class CreditsData(
+    @SerializedName("total_credits") val totalCredits: Double,
+    @SerializedName("total_usage") val totalUsage: Double
+)
+
 data class ModelInfo(
     val id: String,
     val name: String,

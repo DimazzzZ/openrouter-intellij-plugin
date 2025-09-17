@@ -9,6 +9,7 @@ import com.intellij.ui.components.JBPanel
 import com.intellij.util.ui.JBUI
 import org.zhavoronkov.openrouter.icons.OpenRouterIcons
 import org.zhavoronkov.openrouter.models.ApiKeysListResponse
+import org.zhavoronkov.openrouter.models.CreditsResponse
 import org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
@@ -38,6 +39,9 @@ class OpenRouterStatsPopup(private val project: Project) {
     private lateinit var limitLabel: JBLabel
     private lateinit var remainingLabel: JBLabel
     private lateinit var tierLabel: JBLabel
+    private lateinit var totalCreditsLabel: JBLabel
+    private lateinit var creditsUsageLabel: JBLabel
+    private lateinit var creditsRemainingLabel: JBLabel
     private lateinit var recentCostLabel: JBLabel
     private lateinit var recentTokensLabel: JBLabel
     private lateinit var generationCountLabel: JBLabel
@@ -75,7 +79,7 @@ class OpenRouterStatsPopup(private val project: Project) {
 
     private fun createMainPanel(): JPanel {
         val mainPanel = JBPanel<JBPanel<*>>(BorderLayout()).apply {
-            preferredSize = Dimension(380, 320)
+            preferredSize = Dimension(400, 400)
             border = JBUI.Borders.empty(12)
         }
 
@@ -123,6 +127,13 @@ class OpenRouterStatsPopup(private val project: Project) {
         remainingLabel = JBLabel("Remaining: Loading...")
         tierLabel = JBLabel("Account: Loading...")
 
+        // Credits information
+        totalCreditsLabel = JBLabel("Total Credits: Loading...").apply {
+            font = font.deriveFont(Font.BOLD)
+        }
+        creditsUsageLabel = JBLabel("Credits Used: Loading...")
+        creditsRemainingLabel = JBLabel("Credits Remaining: Loading...")
+
         // Progress bar
         progressBar = JProgressBar(0, 100).apply {
             isStringPainted = true
@@ -142,6 +153,15 @@ class OpenRouterStatsPopup(private val project: Project) {
         statsPanel.add(Box.createVerticalStrut(4))
         statsPanel.add(tierLabel)
         statsPanel.add(Box.createVerticalStrut(8))
+
+        // Credits section
+        statsPanel.add(totalCreditsLabel)
+        statsPanel.add(Box.createVerticalStrut(4))
+        statsPanel.add(creditsUsageLabel)
+        statsPanel.add(Box.createVerticalStrut(4))
+        statsPanel.add(creditsRemainingLabel)
+        statsPanel.add(Box.createVerticalStrut(8))
+
         statsPanel.add(progressBar)
         statsPanel.add(Box.createVerticalStrut(12))
 
@@ -194,12 +214,21 @@ class OpenRouterStatsPopup(private val project: Project) {
         // Show loading state
         setLoadingState()
 
-        openRouterService.getApiKeysList().thenAccept { apiKeysResponse ->
-            ApplicationManager.getApplication().invokeLater {
-                if (apiKeysResponse != null) {
-                    updateWithApiKeysList(apiKeysResponse)
-                } else {
-                    showError()
+        // Fetch both API keys and credits information
+        val apiKeysFuture = openRouterService.getApiKeysList()
+        val creditsFuture = openRouterService.getCredits()
+
+        apiKeysFuture.thenAccept { apiKeysResponse ->
+            creditsFuture.thenAccept { creditsResponse ->
+                ApplicationManager.getApplication().invokeLater {
+                    if (apiKeysResponse != null) {
+                        updateWithApiKeysList(apiKeysResponse)
+                        if (creditsResponse != null) {
+                            updateWithCredits(creditsResponse)
+                        }
+                    } else {
+                        showError()
+                    }
                 }
             }
         }
@@ -210,6 +239,9 @@ class OpenRouterStatsPopup(private val project: Project) {
         limitLabel.text = "Limit: Loading..."
         remainingLabel.text = "Remaining: Loading..."
         tierLabel.text = "Account: Loading..."
+        totalCreditsLabel.text = "Total Credits: Loading..."
+        creditsUsageLabel.text = "Credits Used: Loading..."
+        creditsRemainingLabel.text = "Credits Remaining: Loading..."
         recentCostLabel.text = "Recent Cost: Loading..."
         recentTokensLabel.text = "Recent Tokens: Loading..."
         generationCountLabel.text = "Tracked Calls: Loading..."
@@ -261,11 +293,25 @@ class OpenRouterStatsPopup(private val project: Project) {
         generationCountLabel.text = "Tracked Calls: $generationCount total"
     }
 
+    private fun updateWithCredits(creditsResponse: CreditsResponse) {
+        val creditsData = creditsResponse.data
+        val totalCredits = creditsData.totalCredits
+        val usedCredits = creditsData.totalUsage
+        val remainingCredits = totalCredits - usedCredits
+
+        totalCreditsLabel.text = "Total Credits: $${String.format(Locale.US, "%.3f", totalCredits)}"
+        creditsUsageLabel.text = "Credits Used: $${String.format(Locale.US, "%.3f", usedCredits)}"
+        creditsRemainingLabel.text = "Credits Remaining: $${String.format(Locale.US, "%.3f", remainingCredits)}"
+    }
+
     private fun showNotConfigured() {
         usageLabel.text = "Usage: Not configured"
         limitLabel.text = "Limit: -"
         remainingLabel.text = "Remaining: -"
         tierLabel.text = "Account: -"
+        totalCreditsLabel.text = "Total Credits: -"
+        creditsUsageLabel.text = "Credits Used: -"
+        creditsRemainingLabel.text = "Credits Remaining: -"
         recentCostLabel.text = "Recent Cost: -"
         recentTokensLabel.text = "Recent Tokens: -"
         generationCountLabel.text = "Tracked Calls: -"
@@ -280,6 +326,9 @@ class OpenRouterStatsPopup(private val project: Project) {
         limitLabel.text = "Limit: -"
         remainingLabel.text = "Remaining: -"
         tierLabel.text = "Account: -"
+        totalCreditsLabel.text = "Total Credits: -"
+        creditsUsageLabel.text = "Credits Used: -"
+        creditsRemainingLabel.text = "Credits Remaining: -"
         recentCostLabel.text = "Recent Cost: -"
         recentTokensLabel.text = "Recent Tokens: -"
         generationCountLabel.text = "Tracked Calls: -"
