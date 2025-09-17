@@ -276,6 +276,84 @@ class SimpleUnitTest {
     }
 
     @Nested
+    @DisplayName("Activity Model Tests")
+    inner class ActivityModelTests {
+
+        @Test
+        @DisplayName("Should deserialize ActivityResponse")
+        fun testActivityResponse() {
+            val json = """
+                {
+                    "data": [
+                        {
+                            "date": "2025-01-15",
+                            "model": "openai/gpt-4.1",
+                            "model_permaslug": "openai/gpt-4.1-2025-04-14",
+                            "endpoint_id": "c235abe8-11cc-42d3-95ad-72f4d198287a",
+                            "provider_name": "openai",
+                            "usage": 0.05,
+                            "byok_usage_inference": 0.02,
+                            "requests": 10,
+                            "prompt_tokens": 1500,
+                            "completion_tokens": 800,
+                            "reasoning_tokens": 200
+                        },
+                        {
+                            "date": "2025-01-14",
+                            "model": "anthropic/claude-3-sonnet",
+                            "model_permaslug": "anthropic/claude-3-sonnet",
+                            "endpoint_id": "7ebeebfa-c067-4f1f-9fc0-c1f2f781f967",
+                            "provider_name": "anthropic",
+                            "usage": 0.03,
+                            "byok_usage_inference": 0.01,
+                            "requests": 5,
+                            "prompt_tokens": 800,
+                            "completion_tokens": 400,
+                            "reasoning_tokens": 100
+                        }
+                    ]
+                }
+            """.trimIndent()
+
+            val response = gson.fromJson(json, ActivityResponse::class.java)
+
+            assertEquals(2, response.data.size)
+
+            val firstActivity = response.data[0]
+            assertEquals("2025-01-15", firstActivity.date)
+            assertEquals("openai/gpt-4.1", firstActivity.model)
+            assertEquals("openai/gpt-4.1-2025-04-14", firstActivity.modelPermaslug)
+            assertEquals("c235abe8-11cc-42d3-95ad-72f4d198287a", firstActivity.endpointId)
+            assertEquals("openai", firstActivity.providerName)
+            assertEquals(0.05, firstActivity.usage)
+            assertEquals(0.02, firstActivity.byokUsageInference)
+            assertEquals(10, firstActivity.requests)
+            assertEquals(1500, firstActivity.promptTokens)
+            assertEquals(800, firstActivity.completionTokens)
+            assertEquals(200, firstActivity.reasoningTokens)
+
+            val secondActivity = response.data[1]
+            assertEquals("anthropic/claude-3-sonnet", secondActivity.model)
+            assertEquals(5, secondActivity.requests)
+            assertEquals(0.03, secondActivity.usage)
+        }
+
+        @Test
+        @DisplayName("Should handle empty ActivityResponse")
+        fun testEmptyActivityResponse() {
+            val json = """
+                {
+                    "data": []
+                }
+            """.trimIndent()
+
+            val response = gson.fromJson(json, ActivityResponse::class.java)
+
+            assertTrue(response.data.isEmpty())
+        }
+    }
+
+    @Nested
     @DisplayName("Business Logic Tests")
     inner class BusinessLogicTests {
 

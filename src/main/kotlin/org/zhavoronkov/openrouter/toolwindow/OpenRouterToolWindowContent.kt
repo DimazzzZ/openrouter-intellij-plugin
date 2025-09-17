@@ -6,6 +6,7 @@ import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.ui.JBUI
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.models.ActivityResponse
 import java.awt.BorderLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
@@ -27,6 +28,7 @@ class OpenRouterToolWindowContent(private val project: Project) {
     private val quotaLabel = JBLabel("Quota: N/A")
     private val usageLabel = JBLabel("Usage: N/A")
     private val modelLabel = JBLabel("Model: N/A")
+    private val activityLabel = JBLabel("Recent Activity: N/A")
 
     init {
         contentPanel = createMainPanel()
@@ -92,9 +94,16 @@ class OpenRouterToolWindowContent(private val project: Project) {
         gbc.gridx = 1
         panel.add(usageLabel, gbc)
 
-        // Configuration section
+        // Activity
         gbc.gridx = 0
         gbc.gridy = 4
+        panel.add(JBLabel("Activity:"), gbc)
+        gbc.gridx = 1
+        panel.add(activityLabel, gbc)
+
+        // Configuration section
+        gbc.gridx = 0
+        gbc.gridy = 5
         gbc.gridwidth = 2
         gbc.fill = GridBagConstraints.HORIZONTAL
         gbc.insets = JBUI.insets(20, 5, 5, 5)
@@ -136,11 +145,13 @@ class OpenRouterToolWindowContent(private val project: Project) {
             modelLabel.text = "N/A"
             quotaLabel.text = "N/A"
             usageLabel.text = "N/A"
+            activityLabel.text = "N/A"
             return
         }
 
         statusLabel.text = "Checking..."
         modelLabel.text = settingsService.getDefaultModel()
+        activityLabel.text = "Loading..."
 
         // Test connection
         openRouterService.testConnection().thenAccept { connected ->
@@ -164,6 +175,19 @@ class OpenRouterToolWindowContent(private val project: Project) {
                 } else {
                     quotaLabel.text = "Failed to load"
                     usageLabel.text = "Failed to load"
+                }
+            }
+        }
+
+        // Get activity info
+        openRouterService.getActivity().thenAccept { activityResponse: ActivityResponse? ->
+            SwingUtilities.invokeLater {
+                if (activityResponse != null && activityResponse.data.isNotEmpty()) {
+                    val totalRequests = activityResponse.data.sumOf { it.requests }
+                    val totalUsage = activityResponse.data.sumOf { it.usage }
+                    activityLabel.text = "$totalRequests requests, $${String.format(Locale.US, "%.4f", totalUsage)}"
+                } else {
+                    activityLabel.text = "No recent activity"
                 }
             }
         }

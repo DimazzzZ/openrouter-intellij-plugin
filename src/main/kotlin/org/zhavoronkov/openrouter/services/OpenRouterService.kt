@@ -8,6 +8,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.zhavoronkov.openrouter.models.ActivityResponse
 import org.zhavoronkov.openrouter.models.ApiKeysListResponse
 import org.zhavoronkov.openrouter.models.CreateApiKeyRequest
 import org.zhavoronkov.openrouter.models.CreateApiKeyResponse
@@ -56,6 +57,7 @@ class OpenRouterService {
         private const val CHAT_COMPLETIONS_ENDPOINT = "$BASE_URL/chat/completions"
         private const val GENERATION_ENDPOINT = "$BASE_URL/generation"
         private const val CREDITS_ENDPOINT = "$BASE_URL/credits"
+        private const val ACTIVITY_ENDPOINT = "$BASE_URL/activity"
 
         // Endpoints requiring Provisioning Key authentication (Bearer <provisioning-key>)
         private const val API_KEYS_ENDPOINT = "$BASE_URL/keys"
@@ -376,6 +378,50 @@ class OpenRouterService {
                 null
             } catch (e: JsonSyntaxException) {
                 PluginLogger.Service.error("Error fetching credits - invalid JSON response", e)
+                null
+            }
+        }
+    }
+
+    /**
+     * Get activity analytics from OpenRouter
+     * NOTE: This endpoint requires API Key authentication
+     */
+    fun getActivity(): CompletableFuture<ActivityResponse?> {
+        return CompletableFuture.supplyAsync {
+            try {
+                val apiKey = settingsService.getApiKey()
+                if (apiKey.isBlank()) {
+                    PluginLogger.Service.warn("No API key available for activity endpoint")
+                    return@supplyAsync null
+                }
+
+                PluginLogger.Service.debug("Fetching activity from OpenRouter with API key: ${apiKey.take(10)}...")
+                PluginLogger.Service.debug("Making request to: $ACTIVITY_ENDPOINT")
+
+                val request = Request.Builder()
+                    .url(ACTIVITY_ENDPOINT)
+                    .addHeader("Authorization", "Bearer $apiKey")
+                    .addHeader("Content-Type", "application/json")
+                    .build()
+
+                val response = client.newCall(request).execute()
+                val responseBody = response.body?.string() ?: ""
+                PluginLogger.Service.debug("Activity response: ${response.code} - $responseBody")
+
+                if (response.isSuccessful) {
+                    val activityResponse = gson.fromJson(responseBody, ActivityResponse::class.java)
+                    PluginLogger.Service.info("Successfully parsed activity response with ${activityResponse.data.size} entries")
+                    activityResponse
+                } else {
+                    PluginLogger.Service.warn("Failed to fetch activity: ${response.code} - $responseBody")
+                    null
+                }
+            } catch (e: IOException) {
+                PluginLogger.Service.error("Error fetching activity - network issue", e)
+                null
+            } catch (e: JsonSyntaxException) {
+                PluginLogger.Service.error("Error fetching activity - invalid JSON response", e)
                 null
             }
         }

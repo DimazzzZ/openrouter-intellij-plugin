@@ -144,6 +144,27 @@ data class GenerationTrackingInfo(
 )
 
 /**
+ * Activity analytics data models for /api/v1/activity endpoint
+ */
+data class ActivityResponse(
+    val data: List<ActivityData>
+)
+
+data class ActivityData(
+    val date: String,
+    val model: String,
+    @SerializedName("model_permaslug") val modelPermaslug: String,
+    @SerializedName("endpoint_id") val endpointId: String,
+    @SerializedName("provider_name") val providerName: String,
+    val usage: Double,
+    @SerializedName("byok_usage_inference") val byokUsageInference: Double,
+    val requests: Int,
+    @SerializedName("prompt_tokens") val promptTokens: Int,
+    @SerializedName("completion_tokens") val completionTokens: Int,
+    @SerializedName("reasoning_tokens") val reasoningTokens: Int
+)
+
+/**
  * Settings data class
  */
 data class OpenRouterSettings(

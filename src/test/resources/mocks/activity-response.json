@@ -1,0 +1,43 @@
+{
+  "data": [
+    {
+      "date": "2025-01-15",
+      "model": "openai/gpt-4.1",
+      "model_permaslug": "openai/gpt-4.1-2025-04-14",
+      "endpoint_id": "c235abe8-11cc-42d3-95ad-72f4d198287a",
+      "provider_name": "openai",
+      "usage": 0.05,
+      "byok_usage_inference": 0.02,
+      "requests": 10,
+      "prompt_tokens": 1500,
+      "completion_tokens": 800,
+      "reasoning_tokens": 200
+    },
+    {
+      "date": "2025-01-14",
+      "model": "anthropic/claude-3-sonnet",
+      "model_permaslug": "anthropic/claude-3-sonnet",
+      "endpoint_id": "7ebeebfa-c067-4f1f-9fc0-c1f2f781f967",
+      "provider_name": "anthropic",
+      "usage": 0.03,
+      "byok_usage_inference": 0.01,
+      "requests": 5,
+      "prompt_tokens": 800,
+      "completion_tokens": 400,
+      "reasoning_tokens": 100
+    },
+    {
+      "date": "2025-01-13",
+      "model": "google/gemini-pro",
+      "model_permaslug": "google/gemini-pro",
+      "endpoint_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "provider_name": "google",
+      "usage": 0.02,
+      "byok_usage_inference": 0.01,
+      "requests": 3,
+      "prompt_tokens": 600,
+      "completion_tokens": 300,
+      "reasoning_tokens": 50
+    }
+  ]
+}
