@@ -27,6 +27,8 @@ class OpenRouterService {
         private const val GENERATION_ENDPOINT = "$BASE_URL/generation"
         private const val KEY_INFO_ENDPOINT = "$BASE_URL/key"
         private const val API_KEYS_LIST_ENDPOINT = "$BASE_URL/keys"
+        private const val API_KEYS_CREATE_ENDPOINT = "$BASE_URL/keys"
+        private const val API_KEYS_DELETE_ENDPOINT = "$BASE_URL/keys"
 
         fun getInstance(): OpenRouterService {
             return ApplicationManager.getApplication().getService(OpenRouterService::class.java)
@@ -104,25 +106,32 @@ class OpenRouterService {
     fun getApiKeysList(): CompletableFuture<ApiKeysListResponse?> {
         return CompletableFuture.supplyAsync {
             try {
+                val provisioningKey = settingsService.getProvisioningKey()
+                logger.info("Fetching API keys list from OpenRouter with provisioning key: ${provisioningKey.take(10)}...")
+                logger.info("Making request to: $API_KEYS_LIST_ENDPOINT")
+
                 val request = Request.Builder()
                     .url(API_KEYS_LIST_ENDPOINT)
-                    .addHeader("Authorization", "Bearer ${settingsService.getProvisioningKey()}")
+                    .addHeader("Authorization", "Bearer $provisioningKey")
                     .addHeader("Content-Type", "application/json")
                     .build()
 
                 client.newCall(request).execute().use { response ->
+                    val responseBody = response.body?.string() ?: ""
+                    logger.info("OpenRouter API keys list response code: ${response.code}")
+                    logger.info("OpenRouter API keys list response: $responseBody")
+
                     if (response.isSuccessful) {
-                        response.body?.string()?.let { responseBody ->
-                            try {
-                                logger.info("OpenRouter API keys list response: $responseBody")
-                                gson.fromJson(responseBody, ApiKeysListResponse::class.java)
-                            } catch (e: JsonSyntaxException) {
-                                logger.warn("Failed to parse API keys list response: $responseBody", e)
-                                null
-                            }
+                        try {
+                            val result = gson.fromJson(responseBody, ApiKeysListResponse::class.java)
+                            logger.info("Successfully parsed ${result?.data?.size ?: 0} API keys")
+                            result
+                        } catch (e: JsonSyntaxException) {
+                            logger.warn("Failed to parse API keys list response: $responseBody", e)
+                            null
                         }
                     } else {
-                        logger.warn("Failed to get key info: ${response.code} ${response.message}")
+                        logger.warn("Failed to get API keys list: ${response.code} ${response.message} - $responseBody")
                         null
                     }
                 }
@@ -139,9 +148,9 @@ class OpenRouterService {
     fun getQuotaInfo(): CompletableFuture<QuotaInfo?> {
         return getApiKeysList().thenApply { apiKeysResponse ->
             apiKeysResponse?.let { response ->
-                // Sum up usage from all enabled keys
+                // Sum up limits from all enabled keys (usage not available from this endpoint)
                 val enabledKeys = response.data.filter { !it.disabled }
-                val totalUsed = enabledKeys.sumOf { it.usage }
+                val totalUsed = 0.0 // Usage not available from keys list endpoint
                 val totalLimit = enabledKeys.mapNotNull { it.limit }.sum()
                 val remaining = if (totalLimit > 0) totalLimit - totalUsed else Double.MAX_VALUE
 
@@ -162,7 +171,7 @@ class OpenRouterService {
         return getApiKeysList().thenApply { apiKeysResponse ->
             apiKeysResponse?.let { response ->
                 val enabledKeys = response.data.filter { !it.disabled }
-                val totalUsed = enabledKeys.sumOf { it.usage }
+                val totalUsed = 0.0 // Usage not available from keys list endpoint
                 val totalLimit = enabledKeys.mapNotNull { it.limit }.sum()
                 val hasLimit = totalLimit > 0
 
@@ -175,6 +184,86 @@ class OpenRouterService {
                         isFreeTier = false // Assume paid if using provisioning keys
                     )
                 )
+            }
+        }
+    }
+
+    /**
+     * Create a new API key
+     */
+    fun createApiKey(label: String, limit: Double? = null): CompletableFuture<CreateApiKeyResponse?> {
+        return CompletableFuture.supplyAsync {
+            try {
+                val provisioningKey = settingsService.getProvisioningKey()
+                val requestBody = CreateApiKeyRequest(label = label, limit = limit)
+                val json = gson.toJson(requestBody)
+
+                logger.info("Creating API key with label: $label using provisioning key: ${provisioningKey.take(10)}...")
+                logger.info("Making POST request to: $API_KEYS_CREATE_ENDPOINT")
+                logger.info("Request body: $json")
+
+                val request = Request.Builder()
+                    .url(API_KEYS_CREATE_ENDPOINT)
+                    .addHeader("Authorization", "Bearer $provisioningKey")
+                    .addHeader("Content-Type", "application/json")
+                    .post(json.toRequestBody("application/json".toMediaType()))
+                    .build()
+
+                client.newCall(request).execute().use { response ->
+                    val responseBody = response.body?.string() ?: ""
+                    logger.info("Create API key response code: ${response.code}")
+                    logger.info("Create API key response: $responseBody")
+
+                    if (response.isSuccessful) {
+                        try {
+                            val result = gson.fromJson(responseBody, CreateApiKeyResponse::class.java)
+                            logger.info("Successfully created API key: ${result?.data?.name}")
+                            result
+                        } catch (e: JsonSyntaxException) {
+                            logger.warn("Failed to parse create API key response: $responseBody", e)
+                            null
+                        }
+                    } else {
+                        logger.warn("Failed to create API key: ${response.code} ${response.message} - $responseBody")
+                        null
+                    }
+                }
+            } catch (e: Exception) {
+                logger.error("Error creating API key", e)
+                null
+            }
+        }
+    }
+
+    /**
+     * Delete an API key
+     */
+    fun deleteApiKey(keyName: String): CompletableFuture<DeleteApiKeyResponse?> {
+        return CompletableFuture.supplyAsync {
+            try {
+                val request = Request.Builder()
+                    .url("$API_KEYS_DELETE_ENDPOINT/$keyName")
+                    .addHeader("Authorization", "Bearer ${settingsService.getProvisioningKey()}")
+                    .addHeader("Content-Type", "application/json")
+                    .delete()
+                    .build()
+
+                logger.info("Deleting API key: $keyName")
+
+                client.newCall(request).execute().use { response ->
+                    val responseBody = response.body?.string() ?: ""
+                    logger.info("Delete API key response: $responseBody")
+
+                    if (response.isSuccessful) {
+                        gson.fromJson(responseBody, DeleteApiKeyResponse::class.java)
+                    } else {
+                        logger.warn("Failed to delete API key: ${response.code} - $responseBody")
+                        null
+                    }
+                }
+            } catch (e: Exception) {
+                logger.error("Error deleting API key", e)
+                null
             }
         }
     }

@@ -1,6 +1,7 @@
 package org.zhavoronkov.openrouter.models
 
 import com.intellij.icons.AllIcons
+import org.zhavoronkov.openrouter.icons.OpenRouterIcons
 import javax.swing.Icon
 
 /**
@@ -11,9 +12,9 @@ enum class ConnectionStatus(
     val icon: Icon,
     val description: String
 ) {
-    READY("Ready", AllIcons.RunConfigurations.TestPassed, "Connected and ready to use"),
+    READY("Ready", OpenRouterIcons.SUCCESS, "Connected and ready to use"),
     CONNECTING("Connecting...", AllIcons.Process.Step_1, "Establishing connection"),
-    ERROR("Error", AllIcons.RunConfigurations.TestError, "Connection failed or API error"),
+    ERROR("Error", OpenRouterIcons.ERROR, "Connection failed or API error"),
     NOT_CONFIGURED("Not Configured", AllIcons.RunConfigurations.TestIgnored, "API key not configured"),
     OFFLINE("Offline", AllIcons.RunConfigurations.TestSkipped, "No internet connection")
 }

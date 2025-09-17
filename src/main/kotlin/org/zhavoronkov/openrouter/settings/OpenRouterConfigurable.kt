@@ -19,14 +19,14 @@ class OpenRouterConfigurable : Configurable {
     
     override fun createComponent(): JComponent? {
         settingsPanel = OpenRouterSettingsPanel()
+        settingsPanel?.refreshApiKeys() // Load API keys when panel is created
         return settingsPanel?.getPanel()
     }
     
     override fun isModified(): Boolean {
         val panel = settingsPanel ?: return false
         
-        return panel.getApiKey() != settingsService.getApiKey() ||
-                panel.getProvisioningKey() != settingsService.getProvisioningKey() ||
+        return panel.getProvisioningKey() != settingsService.getProvisioningKey() ||
                 panel.getDefaultModel() != settingsService.getDefaultModel() ||
                 panel.isAutoRefreshEnabled() != settingsService.isAutoRefreshEnabled() ||
                 panel.getRefreshInterval() != settingsService.getRefreshInterval() ||
@@ -40,13 +40,20 @@ class OpenRouterConfigurable : Configurable {
         val newProvisioningKey = panel.getProvisioningKey()
 
         // Update settings
-        settingsService.setApiKey(panel.getApiKey())
         settingsService.setProvisioningKey(newProvisioningKey)
         settingsService.setDefaultModel(panel.getDefaultModel())
         settingsService.setAutoRefresh(panel.isAutoRefreshEnabled())
         settingsService.setRefreshInterval(panel.getRefreshInterval())
         settingsService.setShowCosts(panel.shouldShowCosts())
         
+        // Refresh API keys table if provisioning key changed
+        if (oldProvisioningKey != newProvisioningKey) {
+            panel.refreshApiKeys()
+
+            // If this is the first time setting a provisioning key, the refreshApiKeys will automatically
+            // create the IntelliJ IDEA Plugin API key if it doesn't exist
+        }
+
         // Test connection if provisioning key changed
         if (oldProvisioningKey != newProvisioningKey && newProvisioningKey.isNotBlank()) {
             testConnection()
@@ -56,12 +63,12 @@ class OpenRouterConfigurable : Configurable {
     override fun reset() {
         val panel = settingsPanel ?: return
         
-        panel.setApiKey(settingsService.getApiKey())
         panel.setProvisioningKey(settingsService.getProvisioningKey())
         panel.setDefaultModel(settingsService.getDefaultModel())
         panel.setAutoRefresh(settingsService.isAutoRefreshEnabled())
         panel.setRefreshInterval(settingsService.getRefreshInterval())
         panel.setShowCosts(settingsService.shouldShowCosts())
+        panel.refreshApiKeys() // Refresh API keys when resetting
     }
     
     override fun disposeUIResources() {

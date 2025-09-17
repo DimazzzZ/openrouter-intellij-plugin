@@ -7,7 +7,7 @@ import javax.swing.Icon
  * Icon definitions for the OpenRouter plugin
  */
 object OpenRouterIcons {
-    
+
     @JvmField
     val TOOL_WINDOW: Icon = IconLoader.getIcon("/icons/openrouter-16.png", OpenRouterIcons::class.java)
 
@@ -19,4 +19,10 @@ object OpenRouterIcons {
 
     @JvmField
     val SETTINGS: Icon = IconLoader.getIcon("/icons/openrouter-16.png", OpenRouterIcons::class.java)
+
+    @JvmField
+    val SUCCESS: Icon = IconLoader.getIcon("/icons/openrouter-plugin-success-16.png", OpenRouterIcons::class.java)
+
+    @JvmField
+    val ERROR: Icon = IconLoader.getIcon("/icons/openrouter-plugin-error-16.png", OpenRouterIcons::class.java)
 }

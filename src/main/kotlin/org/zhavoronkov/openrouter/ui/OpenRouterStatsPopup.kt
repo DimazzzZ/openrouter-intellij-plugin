@@ -255,28 +255,28 @@ class OpenRouterStatsPopup(private val project: Project) {
 
     private fun updateWithApiKeysList(apiKeysResponse: ApiKeysListResponse) {
         val enabledKeys = apiKeysResponse.data.filter { !it.disabled }
-        val totalUsage = enabledKeys.sumOf { it.usage }
+        val totalUsage = 0.0 // Usage not available from API keys list endpoint
         val totalLimit = enabledKeys.mapNotNull { it.limit }.sum()
 
         // Log the actual values for debugging
         println("DEBUG: OpenRouter API Keys Response:")
         println("  - Total keys: ${apiKeysResponse.data.size}")
         println("  - Enabled keys: ${enabledKeys.size}")
-        println("  - Total usage: $totalUsage")
+        println("  - Total usage: $totalUsage (not available from this endpoint)")
         println("  - Total limit: $totalLimit")
         enabledKeys.forEach { key ->
-            println("  - Key: ${key.label} | Usage: ${key.usage} | Limit: ${key.limit} | Status: ${if (key.disabled) "Disabled" else "Enabled"}")
+            println("  - Key: ${key.label} | Limit: ${key.limit} | Status: ${if (key.disabled) "Disabled" else "Enabled"}")
         }
 
         // Format usage with appropriate precision
-        usageLabel.text = "Total Usage: $${String.format("%.3f", totalUsage)}"
+        usageLabel.text = "Total Usage: Not Available"
 
         if (totalLimit > 0) {
-            val remaining = totalLimit - totalUsage
+            val remaining = totalLimit
             limitLabel.text = "Total Limit: $${String.format("%.2f", totalLimit)}"
             remainingLabel.text = "Remaining: $${String.format("%.2f", remaining)}"
 
-            val percentage = ((totalUsage / totalLimit) * 100).toInt()
+            val percentage = 0 // Can't calculate without usage data
             progressBar.value = percentage
             progressBar.string = "$percentage% used"
             progressBar.isIndeterminate = false
