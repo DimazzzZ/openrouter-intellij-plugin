@@ -212,8 +212,7 @@ class OpenRouterSettingsPanel {
         // Reset the creation flag when panel is created
         resetApiKeyCreationFlag()
 
-        // Auto-load table when panel is created
-        refreshApiKeys()
+        // Note: refreshApiKeys() will be called by the configurable after settings are loaded
 
         return panel
     }
@@ -368,14 +367,21 @@ class OpenRouterSettingsPanel {
 
     fun refreshApiKeys() {
         logger.info("Refreshing API keys table")
-        if (!settingsService.isConfigured()) {
+
+        // Check if provisioning key is available (either in panel or saved settings)
+        val currentProvisioningKey = getProvisioningKey()
+        val savedProvisioningKey = settingsService.getProvisioningKey()
+        val provisioningKey = if (currentProvisioningKey.isNotBlank()) currentProvisioningKey else savedProvisioningKey
+
+
+        if (provisioningKey.isBlank()) {
             logger.info("Provisioning key not configured, clearing table")
             apiKeyTableModel.setApiKeys(emptyList())
             return
         }
 
-        logger.info("Fetching API keys from OpenRouter with provisioning key: ${settingsService.getProvisioningKey().take(10)}...")
-        openRouterService.getApiKeysList().thenAccept { response ->
+        logger.info("Fetching API keys from OpenRouter with provisioning key: ${provisioningKey.take(10)}...")
+        openRouterService.getApiKeysList(provisioningKey).thenAccept { response ->
             ApplicationManager.getApplication().invokeLater {
                 if (response != null) {
                     val apiKeys = response.data
@@ -429,13 +435,19 @@ class OpenRouterSettingsPanel {
 
     private fun loadApiKeysWithoutAutoCreate() {
         logger.info("Loading API keys without auto-creation")
-        if (!settingsService.isConfigured()) {
+
+        // Check if provisioning key is available (either in panel or saved settings)
+        val currentProvisioningKey = getProvisioningKey()
+        val savedProvisioningKey = settingsService.getProvisioningKey()
+        val provisioningKey = if (currentProvisioningKey.isNotBlank()) currentProvisioningKey else savedProvisioningKey
+
+        if (provisioningKey.isBlank()) {
             logger.info("Provisioning key not configured, clearing table")
             apiKeyTableModel.setApiKeys(emptyList())
             return
         }
 
-        openRouterService.getApiKeysList().thenAccept { response ->
+        openRouterService.getApiKeysList(provisioningKey).thenAccept { response ->
             ApplicationManager.getApplication().invokeLater {
                 if (response != null) {
                     val apiKeys = response.data

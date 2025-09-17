@@ -19,8 +19,19 @@ class OpenRouterConfigurable : Configurable {
 
     override fun createComponent(): JComponent? {
         settingsPanel = OpenRouterSettingsPanel()
-        settingsPanel?.refreshApiKeys() // Load API keys when panel is created
-        return settingsPanel?.getPanel()
+
+        // Load current settings into the panel BEFORE refreshing API keys
+        val panel = settingsPanel ?: return null
+        panel.setProvisioningKey(settingsService.getProvisioningKey())
+        panel.setDefaultModel(settingsService.getDefaultModel())
+        panel.setAutoRefresh(settingsService.isAutoRefreshEnabled())
+        panel.setRefreshInterval(settingsService.getRefreshInterval())
+        panel.setShowCosts(settingsService.shouldShowCosts())
+
+        // Now refresh API keys with the loaded provisioning key
+        panel.refreshApiKeys()
+
+        return panel.getPanel()
     }
 
     override fun isModified(): Boolean {

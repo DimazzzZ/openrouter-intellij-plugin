@@ -145,10 +145,16 @@ class OpenRouterService {
      * NOTE: This endpoint requires Provisioning Key authentication
      */
     fun getApiKeysList(): CompletableFuture<ApiKeysListResponse?> {
+        return getApiKeysList(settingsService.getProvisioningKey())
+    }
+
+    /**
+     * Get API keys list with usage information using a specific provisioning key
+     * NOTE: This endpoint requires Provisioning Key authentication
+     */
+    fun getApiKeysList(provisioningKey: String): CompletableFuture<ApiKeysListResponse?> {
         return CompletableFuture.supplyAsync {
             try {
-                // API keys management endpoints require provisioning key
-                val provisioningKey = settingsService.getProvisioningKey()
                 logger.info(
                     "Fetching API keys list from OpenRouter with provisioning key: ${provisioningKey.take(10)}..."
                 )

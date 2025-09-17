@@ -84,6 +84,21 @@ tasks {
         useJUnitPlatform()
     }
 
+    runIde {
+        // Configure development IDE settings
+        maxHeapSize = "2g"
+
+        // Enable debug logging for your plugin
+        systemProperty("idea.log.debug.categories", "org.zhavoronkov.openrouter")
+
+        // Optional: Start with a clean environment
+        // systemProperty("idea.config.path", "${project.buildDir}/idea-config")
+        // systemProperty("idea.system.path", "${project.buildDir}/idea-system")
+
+        // Optional: Auto-reload plugin on changes
+        autoReloadPlugins.set(true)
+    }
+
     // Configure Detekt reports
     withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
         reports {
