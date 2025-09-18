@@ -1,65 +1,107 @@
-# Development Guide
+# 🛠️ Development Guide
 
 This guide covers development setup, building, testing, and contributing to the OpenRouter IntelliJ Plugin.
 
-## Prerequisites
+## 📋 Prerequisites
 
+### Required Tools
 - **JDK 17 or higher** - Required for IntelliJ Platform development
 - **IntelliJ IDEA** - Ultimate or Community Edition with Plugin Development support
-- **Git** - For version control
-- **ImageMagick** (optional) - For icon processing
+- **Git** - For version control and collaboration
 
-## Quick Start
+### Optional Tools
+- **ImageMagick** - For icon processing and optimization
+- **Docker** - For containerized testing environments
+- **Postman/Insomnia** - For API testing and development
 
-### 1. Clone and Setup
+### OpenRouter Account
+- **Free Account** - Sign up at [OpenRouter.ai](https://openrouter.ai)
+- **Provisioning Key** - Get from [Provisioning Keys](https://openrouter.ai/settings/provisioning-keys)
+- **API Documentation** - Familiarize with [OpenRouter API](https://openrouter.ai/docs)
+
+## 🚀 Quick Start
+
+### 1. Repository Setup
 ```bash
+# Clone the repository
 git clone https://github.com/DimazzzZ/openrouter-intellij-plugin.git
 cd openrouter-intellij-plugin
+
+# Make gradlew executable (Unix/macOS)
 chmod +x gradlew
+
+# Verify Java version
+java -version  # Should be JDK 17+
 ```
 
-### 2. Build and Test
+### 2. Build and Verify
 ```bash
-# Build the plugin
+# 🏗️ Build the plugin
 ./gradlew build --no-daemon
 
-# Run in development IDE
+# 🧪 Run tests to verify setup
+./gradlew test --no-daemon
+
+# 🔍 Verify plugin structure
+./gradlew verifyPlugin --no-daemon
+```
+
+### 3. Development Testing
+```bash
+# 🚀 Run in development IDE (recommended for testing)
 ./gradlew runIde --no-daemon
 
-# Run tests
-./gradlew test --no-daemon
-```
-
-### 3. Install Locally
-```bash
-# Build distribution
+# 📦 Build distribution for manual installation
 ./gradlew buildPlugin --no-daemon
 
-# Install in IntelliJ IDEA:
-# Settings > Plugins > Install from Disk > select build/distributions/openrouter-intellij-plugin-*.zip
+# 📁 Distribution will be in: build/distributions/openrouter-intellij-plugin-*.zip
 ```
 
-## Version Management
+### 4. Local Installation
+```bash
+# Option 1: Install from disk in IntelliJ IDEA
+# Settings > Plugins > ⚙️ > Install Plugin from Disk > select ZIP file
+
+# Option 2: Use development IDE (safer for testing)
+./gradlew runIde --no-daemon
+```
+
+## 📝 Version Management
 
 ### Single Source of Truth
-All plugin metadata is centralized in `gradle.properties`:
+All plugin metadata is centralized in `gradle.properties` for consistency:
+
 ```properties
-pluginVersion = 0.1.2
+# Core plugin information
+pluginVersion = 0.1.0
 pluginName = OpenRouter
 pluginGroup = org.zhavoronkov
 pluginId = org.zhavoronkov.openrouter
+
+# Metadata
+pluginDisplayName = OpenRouter
+pluginVendorName = Dmitry Zhavoronkov
+pluginVendorEmail = openrouter-plugin@zhavoronkov.org
+pluginDescription = OpenRouter plugin for IntelliJ IDEA...
+
+# Compatibility
+pluginSinceBuild = 232        # IntelliJ 2023.2+
+pluginUntilBuild = 252.*      # IntelliJ 2025.2+
 ```
 
-### Update Version
+### Version Update Process
 ```bash
-# Recommended: Use update script
-./scripts/update-version.sh 1.2.0
+# 🔄 Update version (if update script exists)
+./scripts/update-version.sh 0.1.0
 
-# Alternative: Gradle task
-./gradlew updateVersion -PnewVersion=1.2.0 --no-configuration-cache
+# 📝 Manual update in gradle.properties
+# Edit pluginVersion = 0.1.0
 
-# Check current version
-./gradlew showVersion --no-configuration-cache
+# ✅ Verify version
+./gradlew properties | grep pluginVersion
+
+# 🏗️ Build with new version
+./gradlew clean build --no-daemon
 ```
 
 ## Building and Testing
@@ -100,80 +142,114 @@ pluginId = org.zhavoronkov.openrouter
 ./gradlew verifyPlugin --no-daemon
 ```
 
-## Project Architecture
+## 🏗️ Project Architecture
 
+### Directory Structure
 ```
 openrouter-intellij-plugin/
-├── build.gradle.kts              # Build configuration
-├── gradle.properties             # Gradle properties
-├── settings.gradle.kts           # Gradle settings
-├── src/
-│   ├── main/
-│   │   ├── kotlin/com/openrouter/intellij/
-│   │   │   ├── actions/          # Plugin actions
-│   │   │   │   ├── OpenChatAction.kt
-│   │   │   │   ├── OpenSettingsAction.kt
-│   │   │   │   ├── RefreshQuotaAction.kt
-│   │   │   │   └── ShowUsageAction.kt
-│   │   │   ├── icons/            # Icon definitions
-│   │   │   │   └── OpenRouterIcons.kt
-│   │   │   ├── models/           # Data models
-│   │   │   │   ├── ConnectionStatus.kt
-│   │   │   │   └── OpenRouterModels.kt
-│   │   │   ├── services/         # Core services
-│   │   │   │   ├── OpenRouterService.kt
-│   │   │   │   ├── OpenRouterSettingsService.kt
-│   │   │   │   └── OpenRouterGenerationTrackingService.kt
-│   │   │   ├── settings/         # Settings UI
-│   │   │   │   ├── OpenRouterConfigurable.kt
-│   │   │   │   └── OpenRouterSettingsPanel.kt
-│   │   │   ├── statusbar/        # Enhanced status bar widget
-│   │   │   │   ├── OpenRouterStatusBarWidget.kt
-│   │   │   │   └── OpenRouterStatusBarWidgetFactory.kt
-│   │   │   ├── toolwindow/       # Tool window
-│   │   │   │   ├── OpenRouterToolWindowContent.kt
-│   │   │   │   └── OpenRouterToolWindowFactory.kt
-│   │   │   └── ui/               # UI components
-│   │   │       ├── OpenRouterChatWindow.kt
-│   │   │       └── OpenRouterStatsPopup.kt
-│   │   └── resources/
-│   │       ├── META-INF/
-│   │       │   ├── plugin.xml    # Plugin configuration
-│   │       │   ├── pluginIcon.png
-│   │       │   └── pluginIcon@2x.png
-│   │       └── icons/            # Official OpenRouter icons
-│   │           ├── openrouter-logo.png
-│   │           ├── openrouter-13.png
-│   │           ├── openrouter-16.png
-│   │           ├── openrouter-40.png
-│   │           ├── pluginIcon.png
-│   │           └── pluginIcon@2x.png
-│   └── test/                     # Test files
-└── docs/                         # Documentation
+├── 📁 build.gradle.kts              # Build configuration & dependencies
+├── 📁 gradle.properties             # Plugin metadata & versions
+├── 📁 settings.gradle.kts           # Gradle settings
+├── 📁 src/main/kotlin/org/zhavoronkov/openrouter/
+│   ├── 🎯 actions/                  # Plugin actions & menu items
+│   │   ├── OpenSettingsAction.kt    # Open settings dialog
+│   │   ├── RefreshQuotaAction.kt    # Refresh quota information
+│   │   └── ShowUsageAction.kt       # Show usage statistics
+│   ├── 🎨 icons/                    # Icon definitions & resources
+│   │   └── OpenRouterIcons.kt       # Icon constants & loading
+│   ├── 📊 models/                   # Data models & DTOs
+│   │   ├── ConnectionStatus.kt      # Connection state enum
+│   │   └── OpenRouterModels.kt      # API response models
+│   ├── ⚙️ services/                 # Core business logic
+│   │   ├── OpenRouterService.kt     # API communication service
+│   │   ├── OpenRouterSettingsService.kt # Settings persistence
+│   │   └── OpenRouterGenerationTrackingService.kt # Usage tracking
+│   ├── 🔧 settings/                 # Settings UI components
+│   │   ├── OpenRouterConfigurable.kt # Settings page configuration
+│   │   └── OpenRouterSettingsPanel.kt # Settings UI panel
+│   ├── 📍 statusbar/                # Status bar integration
+│   │   ├── OpenRouterStatusBarWidget.kt # Main status bar widget
+│   │   └── OpenRouterStatusBarWidgetFactory.kt # Widget factory
+│   ├── 🛠️ toolwindow/               # Tool window components (disabled in v1.0)
+│   │   ├── OpenRouterToolWindowContent.kt # Tool window content (future feature)
+│   │   └── OpenRouterToolWindowFactory.kt # Tool window factory (future feature)
+│   ├── 🎭 ui/                       # UI components & dialogs
+│   │   └── OpenRouterStatsPopup.kt  # Statistics popup dialog
+│   └── 🔧 utils/                    # Utility classes
+│       └── PluginLogger.kt          # Logging utilities
+├── 📁 src/main/resources/
+│   ├── 📁 META-INF/
+│   │   ├── plugin.xml               # Plugin configuration
+│   │   ├── pluginIcon.png           # Plugin icon (16x16)
+│   │   └── pluginIcon@2x.png        # Plugin icon (32x32)
+│   └── 📁 icons/                    # UI icons & branding
+│       ├── openrouter-logo.png      # Official OpenRouter logo
+│       ├── openrouter-13.png        # Status bar icon (13x13)
+│       ├── openrouter-16.png        # Menu icon (16x16)
+│       └── openrouter-40.png        # Large icon (40x40)
+├── 📁 src/test/kotlin/              # Test suites
+│   ├── SimpleUnitTest.kt            # Unit tests (15 tests)
+│   ├── ApiIntegrationTest.kt        # API tests (7 tests)
+│   └── 📁 resources/mocks/          # Mock API responses
+└── 📁 docs/                         # Documentation files
+    ├── README.md                    # Main documentation
+    ├── DEVELOPMENT.md               # This file
+    ├── TESTING.md                   # Testing guide
+    └── CHANGELOG.md                 # Version history
 ```
 
-## Key Components
+## 🔧 Key Components
 
-### Core Services
-- **OpenRouterService**: API communication with OpenRouter (chat completions, key info, generation stats)
-- **OpenRouterSettingsService**: Plugin settings and persistence with single source of truth
-- **OpenRouterGenerationTrackingService**: Track and monitor API usage
+### 🏢 Core Services (Application-Level)
+- **OpenRouterService** - Central API communication hub
+  - Handles all OpenRouter API endpoints (`/keys`, `/credits`, `/activity`)
+  - Manages authentication patterns (provisioning keys vs API keys)
+  - Provides async operations with CompletableFuture
+  - Includes connection testing and error handling
 
-### Enhanced UI Components
-- **Status Bar Widget**: Interactive popup menu with connection status, authentication, and quick actions
-- **Chat Window**: Integrated chat interface with OpenRouter models (⇧⌃C shortcut)
-- **Settings Panel**: API key configuration and preferences
-- **Tool Window**: Detailed usage statistics and model information
+- **OpenRouterSettingsService** - Configuration management
+  - Secure credential storage using IntelliJ's credential store
+  - Settings validation and persistence
+  - Single source of truth for all configuration
+  - Automatic migration and compatibility handling
 
-### Key Features
-- **StatusBarWidget**: Shows quota info in the status bar
-- **ToolWindow**: Detailed usage statistics view
-- **Settings Panel**: Configuration interface
+- **OpenRouterGenerationTrackingService** - Usage analytics
+  - Tracks API calls and token usage
+  - Maintains generation history and statistics
+  - Provides cost analysis and performance metrics
+  - Configurable tracking limits and retention
 
-### Actions
-- **ShowUsageAction**: Opens the tool window
-- **RefreshQuotaAction**: Updates quota information
-- **OpenSettingsAction**: Opens settings dialog
+### 🎨 UI Components
+- **OpenRouterStatusBarWidget** - Main user interface
+  - Real-time status display with color-coded indicators
+  - Comprehensive popup menu with all features
+  - Smart tooltips with usage summaries
+  - Minimal footprint similar to GitHub Copilot
+
+- **OpenRouterSettingsPanel** - Configuration interface
+  - Provisioning key and API key management
+  - API key creation and validation
+  - Settings testing and verification
+  - User-friendly error messages and guidance
+
+- **OpenRouterStatsPopup** - Detailed analytics
+  - Modal dialog with comprehensive usage statistics
+  - Real-time data fetching and display
+  - Cost analysis and budget tracking
+  - Activity summaries and model usage patterns
+
+- **OpenRouterToolWindowContent** - Extended monitoring (Future Feature)
+  - Currently disabled in plugin.xml
+  - Planned for future release with persistent analytics
+  - Will provide historical usage data and trends
+  - Performance metrics and diagnostics capabilities
+
+### 🎯 Actions & Integration
+- **ShowUsageAction** - Opens usage statistics popup (tool window disabled in v1.0)
+- **RefreshQuotaAction** - Manually refreshes quota and usage data
+- **OpenSettingsAction** - Direct access to plugin configuration
+- **Tools Menu Integration** - Native IntelliJ menu integration
+- **Status Bar Integration** - Seamless IDE status bar integration
 
 ## Development Guidelines
 

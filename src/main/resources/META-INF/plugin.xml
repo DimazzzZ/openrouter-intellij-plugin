@@ -8,27 +8,82 @@
     <name>OpenRouter</name>
 
     <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
-    <vendor email="openrouter-plugin@zhavoronkov.org" url="https://github.com/DimazzzZ/openrouter-intellij-plugin">OpenRouter</vendor>
+    <vendor email="openrouter-plugin@zhavoronkov.org" url="https://github.com/DimazzzZ/openrouter-intellij-plugin">Dmitry Zhavoronkov</vendor>
 
     <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
          Simple HTML elements (text formatting, paragraphs, and lists) can be added inside this element.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-description -->
     <description><![CDATA[
-    OpenRouter plugin for IntelliJ IDEA provides integration with OpenRouter.ai API for AI model access and usage monitoring.
-    
-    Features:
-    • View API quota and usage statistics
-    • Monitor token consumption and costs
-    • Quick access to OpenRouter settings
-    • Status bar widget for real-time usage info
-    • Support for multiple AI models
-    
-    Get started by configuring your OpenRouter API key in Settings > Tools > OpenRouter.
+    <p><strong>OpenRouter IntelliJ Plugin</strong> - Comprehensive integration with <a href="https://openrouter.ai">OpenRouter.ai</a> for accessing 400+ AI models with advanced usage monitoring and quota tracking.</p>
+
+    <h3>🚀 Key Features</h3>
+    <ul>
+        <li><strong>Interactive Status Bar Widget</strong> - Real-time usage display with comprehensive popup menu</li>
+        <li><strong>Advanced API Key Management</strong> - Secure provisioning key support with automatic API key creation</li>
+        <li><strong>Detailed Usage Analytics</strong> - Track token consumption, costs, and model performance</li>
+        <li><strong>Multi-Model Support</strong> - Access to 400+ AI models through OpenRouter's unified API</li>
+        <li><strong>Real-time Monitoring</strong> - Live connection status with color-coded indicators</li>
+        <li><strong>Comprehensive Settings</strong> - Easy configuration with validation and testing</li>
+    </ul>
+
+    <h3>🎯 Quick Start</h3>
+    <ol>
+        <li>Get your Provisioning Key from <a href="https://openrouter.ai/settings/provisioning-keys">OpenRouter Provisioning Keys</a></li>
+        <li>Configure in <strong>Settings → Tools → OpenRouter</strong></li>
+        <li>Click the status bar widget to access all features</li>
+    </ol>
+
+    <h3>💡 Perfect For</h3>
+    <ul>
+        <li>Developers using AI models for code assistance</li>
+        <li>Teams monitoring AI usage and costs</li>
+        <li>Anyone wanting easy access to multiple AI providers</li>
+    </ul>
+
+    <p><em>This is an unofficial plugin and is not affiliated with OpenRouter.ai.</em></p>
   ]]></description>
 
     <!-- Product and plugin compatibility requirements.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
     <depends>com.intellij.modules.platform</depends>
+
+    <!-- Plugin tags for marketplace categorization -->
+    <tags>
+        <tag>ai</tag>
+        <tag>openrouter</tag>
+        <tag>api</tag>
+        <tag>monitoring</tag>
+        <tag>usage</tag>
+        <tag>statistics</tag>
+        <tag>quota</tag>
+        <tag>integration</tag>
+    </tags>
+
+    <!-- Change notes for this version -->
+    <change-notes><![CDATA[
+        <h3>🎉 Initial Release (v1.0.0)</h3>
+        <p>First stable release of the OpenRouter IntelliJ Plugin with comprehensive OpenRouter.ai integration.</p>
+
+        <h4>✨ Key Features</h4>
+        <ul>
+            <li><strong>Interactive Status Bar Widget</strong> - Real-time usage display with comprehensive popup menu</li>
+            <li><strong>Advanced API Key Management</strong> - Provisioning key support with automatic API key creation</li>
+            <li><strong>Detailed Usage Analytics</strong> - Track token consumption, costs, and model performance</li>
+            <li><strong>Smart Settings Panel</strong> - Configuration with validation and testing</li>
+            <li><strong>Statistics Popup</strong> - Modal dialog with comprehensive usage analytics</li>
+            <li><strong>Multi-IDE Support</strong> - Works across all JetBrains IDEs (2023.2+)</li>
+        </ul>
+
+        <h4>🔧 Technical Highlights</h4>
+        <ul>
+            <li>Secure credential storage using IntelliJ's built-in storage</li>
+            <li>Asynchronous API operations for smooth user experience</li>
+            <li>Comprehensive error handling and user feedback</li>
+            <li>22 passing tests ensuring reliability</li>
+        </ul>
+
+        <p>Get started by adding your OpenRouter Provisioning Key in <strong>Settings → Tools → OpenRouter</strong></p>
+    ]]></change-notes>
 
     <!-- Extension points defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->

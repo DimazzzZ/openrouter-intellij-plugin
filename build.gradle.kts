@@ -90,7 +90,7 @@ tasks {
 
         // Enable debug logging for your plugin
         systemProperty("idea.log.debug.categories", "org.zhavoronkov.openrouter")
-        systemProperty("openrouter.debug", "true")
+        systemProperty("openrouter.debug", "false")
 
         // Optional: Start with a clean environment
         // systemProperty("idea.config.path", "${project.buildDir}/idea-config")
