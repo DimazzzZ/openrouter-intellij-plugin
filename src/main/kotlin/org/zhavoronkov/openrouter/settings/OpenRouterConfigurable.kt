@@ -23,7 +23,8 @@ class OpenRouterConfigurable : Configurable {
         // Load current settings into the panel BEFORE refreshing API keys
         val panel = settingsPanel ?: return null
         panel.setProvisioningKey(settingsService.getProvisioningKey())
-        panel.setDefaultModel(settingsService.getDefaultModel())
+        // TODO: Future version - Default model selection
+        // panel.setDefaultModel(settingsService.getDefaultModel())
         panel.setAutoRefresh(settingsService.isAutoRefreshEnabled())
         panel.setRefreshInterval(settingsService.getRefreshInterval())
         panel.setShowCosts(settingsService.shouldShowCosts())
@@ -38,7 +39,8 @@ class OpenRouterConfigurable : Configurable {
         val panel = settingsPanel ?: return false
 
         return panel.getProvisioningKey() != settingsService.getProvisioningKey() ||
-            panel.getDefaultModel() != settingsService.getDefaultModel() ||
+            // TODO: Future version - Default model selection
+            // panel.getDefaultModel() != settingsService.getDefaultModel() ||
             panel.isAutoRefreshEnabled() != settingsService.isAutoRefreshEnabled() ||
             panel.getRefreshInterval() != settingsService.getRefreshInterval() ||
             panel.shouldShowCosts() != settingsService.shouldShowCosts()
@@ -52,7 +54,8 @@ class OpenRouterConfigurable : Configurable {
 
         // Update settings
         settingsService.setProvisioningKey(newProvisioningKey)
-        settingsService.setDefaultModel(panel.getDefaultModel())
+        // TODO: Future version - Default model selection
+        // settingsService.setDefaultModel(panel.getDefaultModel())
         settingsService.setAutoRefresh(panel.isAutoRefreshEnabled())
         settingsService.setRefreshInterval(panel.getRefreshInterval())
         settingsService.setShowCosts(panel.shouldShowCosts())
@@ -75,7 +78,8 @@ class OpenRouterConfigurable : Configurable {
         val panel = settingsPanel ?: return
 
         panel.setProvisioningKey(settingsService.getProvisioningKey())
-        panel.setDefaultModel(settingsService.getDefaultModel())
+        // TODO: Future version - Default model selection
+        // panel.setDefaultModel(settingsService.getDefaultModel())
         panel.setAutoRefresh(settingsService.isAutoRefreshEnabled())
         panel.setRefreshInterval(settingsService.getRefreshInterval())
         panel.setShowCosts(settingsService.shouldShowCosts())

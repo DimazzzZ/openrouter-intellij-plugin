@@ -73,11 +73,12 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
         }
     }
 
-    fun getDefaultModel(): String = settings.defaultModel
-
-    fun setDefaultModel(model: String) {
-        settings.defaultModel = model
-    }
+    // TODO: Future version - Default model selection
+    // fun getDefaultModel(): String = settings.defaultModel
+    //
+    // fun setDefaultModel(model: String) {
+    //     settings.defaultModel = model
+    // }
 
     fun isAutoRefreshEnabled(): Boolean = settings.autoRefresh
 

@@ -111,14 +111,16 @@ class OpenRouterSettingsPanel {
 
     private val panel: JPanel
     private val provisioningKeyField: JBPasswordField
-    private val defaultModelField: JBTextField
+    // TODO: Future version - Default model selection
+    // private val defaultModelField: JBTextField
     private val autoRefreshCheckBox: JBCheckBox
     private val refreshIntervalSpinner: JSpinner
     private val showCostsCheckBox: JBCheckBox
     private val apiKeyTableModel = ApiKeyTableModel()
     private val apiKeyTable = JBTable(apiKeyTableModel)
-    private val providersTableModel = ProvidersTableModel()
-    private val providersTable = JBTable(providersTableModel)
+    // TODO: Future version - Providers list
+    // private val providersTableModel = ProvidersTableModel()
+    // private val providersTable = JBTable(providersTableModel)
     private val openRouterService = OpenRouterService.getInstance()
     private val settingsService = OpenRouterSettingsService.getInstance()
 
@@ -137,8 +139,9 @@ class OpenRouterSettingsPanel {
         provisioningKeyField.columns = 30  // Reasonable width for provisioning keys
         provisioningKeyField.preferredSize = Dimension(300, provisioningKeyField.preferredSize.height)
 
-        defaultModelField = JBTextField("openai/gpt-4o")
-        defaultModelField.columns = 18     // Reduced from 25 to be more responsive
+        // TODO: Future version - Default model selection
+        // defaultModelField = JBTextField("openai/gpt-4o")
+        // defaultModelField.columns = 18     // Reduced from 25 to be more responsive
 
         autoRefreshCheckBox = JBCheckBox("Auto-refresh quota information")
 
@@ -153,12 +156,13 @@ class OpenRouterSettingsPanel {
                 1,
                 false
             )
-            .addLabeledComponent(
-                JBLabel("Default Model:"),
-                defaultModelField,
-                1,
-                false
-            )
+            // TODO: Future version - Default model selection
+            // .addLabeledComponent(
+            //     JBLabel("Default Model:"),
+            //     defaultModelField,
+            //     1,
+            //     false
+            // )
             .addComponent(autoRefreshCheckBox, 1)
             .addLabeledComponent(
                 JBLabel("Refresh Interval (seconds):"),
@@ -169,8 +173,9 @@ class OpenRouterSettingsPanel {
             .addComponent(showCostsCheckBox, 1)
             .addVerticalGap(15)
             .addComponent(createApiKeyTablePanel(), 1)
-            .addVerticalGap(15)
-            .addComponent(createProvidersTablePanel(), 1)
+            // TODO: Future version - Providers list
+            // .addVerticalGap(15)
+            // .addComponent(createProvidersTablePanel(), 1)
             .addComponentFillVertically(JPanel(), 0)
             .panel
 
@@ -258,74 +263,75 @@ class OpenRouterSettingsPanel {
         return panel
     }
 
-    private fun createProvidersTablePanel(): JPanel {
-        val panel = JPanel(BorderLayout())
-
-        // Add table label according to JetBrains guidelines
-        val tableLabel = JBLabel("Available Providers List:")
-        tableLabel.border = JBUI.Borders.emptyBottom(5)
-        panel.add(tableLabel, BorderLayout.NORTH)
-
-        // Configure providers table for full-width layout
-        providersTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
-        providersTable.autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
-        providersTable.fillsViewportHeight = true
-
-        // Set column widths for better proportions
-        providersTable.columnModel.getColumn(0).preferredWidth = 150  // Provider
-        providersTable.columnModel.getColumn(1).preferredWidth = 80   // Status
-        providersTable.columnModel.getColumn(2).preferredWidth = 120  // Privacy Policy
-        providersTable.columnModel.getColumn(3).preferredWidth = 120  // Terms of Service
-
-        // Add double-click listener to open links
-        providersTable.addMouseListener(object : MouseAdapter() {
-            override fun mouseClicked(e: MouseEvent) {
-                if (e.clickCount == 2) {
-                    val row = providersTable.rowAtPoint(e.point)
-                    val col = providersTable.columnAtPoint(e.point)
-                    if (row >= 0 && col >= 2) { // Privacy Policy or Terms columns
-                        val provider = providersTableModel.getProvider(row)
-                        if (provider != null) {
-                            val url = when (col) {
-                                2 -> provider.privacyPolicyUrl
-                                3 -> provider.termsOfServiceUrl
-                                else -> null
-                            }
-                            if (url != null) {
-                                BrowserUtil.browse(url)
-                            }
-                        }
-                    }
-                }
-            }
-        })
-
-        val scrollPane = JBScrollPane(providersTable)
-        scrollPane.preferredSize = Dimension(-1, 180)  // Full width, fixed height
-        panel.add(scrollPane, BorderLayout.CENTER)
-
-        // Add refresh button and help text
-        val bottomPanel = JPanel(BorderLayout())
-
-        val buttonPanel = JPanel(FlowLayout(FlowLayout.RIGHT))
-        val refreshButton = JButton("Refresh Providers")
-        refreshButton.addActionListener { loadProviders() }
-        buttonPanel.add(refreshButton)
-        bottomPanel.add(buttonPanel, BorderLayout.NORTH)
-
-        val helpLabel = JBLabel(
-            "<html><small>List of available AI providers on OpenRouter. Double-click on Privacy Policy or Terms to open links.</small></html>"
-        )
-        helpLabel.border = JBUI.Borders.emptyTop(5)
-        bottomPanel.add(helpLabel, BorderLayout.SOUTH)
-
-        panel.add(bottomPanel, BorderLayout.SOUTH)
-
-        // Auto-load providers when panel is created
-        loadProviders()
-
-        return panel
-    }
+    // TODO: Future version - Providers list
+    // private fun createProvidersTablePanel(): JPanel {
+    //     val panel = JPanel(BorderLayout())
+    //
+    //     // Add table label according to JetBrains guidelines
+    //     val tableLabel = JBLabel("Available Providers List:")
+    //     tableLabel.border = JBUI.Borders.emptyBottom(5)
+    //     panel.add(tableLabel, BorderLayout.NORTH)
+    //
+    //     // Configure providers table for full-width layout
+    //     providersTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
+    //     providersTable.autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
+    //     providersTable.fillsViewportHeight = true
+    //
+    //     // Set column widths for better proportions
+    //     providersTable.columnModel.getColumn(0).preferredWidth = 150  // Provider
+    //     providersTable.columnModel.getColumn(1).preferredWidth = 80   // Status
+    //     providersTable.columnModel.getColumn(2).preferredWidth = 120  // Privacy Policy
+    //     providersTable.columnModel.getColumn(3).preferredWidth = 120  // Terms of Service
+    //
+    //     // Add double-click listener to open links
+    //     providersTable.addMouseListener(object : MouseAdapter() {
+    //         override fun mouseClicked(e: MouseEvent) {
+    //             if (e.clickCount == 2) {
+    //                 val row = providersTable.rowAtPoint(e.point)
+    //                 val col = providersTable.columnAtPoint(e.point)
+    //                 if (row >= 0 && col >= 2) { // Privacy Policy or Terms columns
+    //                     val provider = providersTableModel.getProvider(row)
+    //                     if (provider != null) {
+    //                         val url = when (col) {
+    //                             2 -> provider.privacyPolicyUrl
+    //                             3 -> provider.termsOfServiceUrl
+    //                             else -> null
+    //                         }
+    //                         if (url != null) {
+    //                             BrowserUtil.browse(url)
+    //                         }
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     })
+    //
+    //     val scrollPane = JBScrollPane(providersTable)
+    //     scrollPane.preferredSize = Dimension(-1, 180)  // Full width, fixed height
+    //     panel.add(scrollPane, BorderLayout.CENTER)
+    //
+    //     // Add refresh button and help text
+    //     val bottomPanel = JPanel(BorderLayout())
+    //
+    //     val buttonPanel = JPanel(FlowLayout(FlowLayout.RIGHT))
+    //     val refreshButton = JButton("Refresh Providers")
+    //     refreshButton.addActionListener { loadProviders() }
+    //     buttonPanel.add(refreshButton)
+    //     bottomPanel.add(buttonPanel, BorderLayout.NORTH)
+    //
+    //     val helpLabel = JBLabel(
+    //         "<html><small>List of available AI providers on OpenRouter. Double-click on Privacy Policy or Terms to open links.</small></html>"
+    //     )
+    //     helpLabel.border = JBUI.Borders.emptyTop(5)
+    //     bottomPanel.add(helpLabel, BorderLayout.SOUTH)
+    //
+    //     panel.add(bottomPanel, BorderLayout.SOUTH)
+    //
+    //     // Auto-load providers when panel is created
+    //     loadProviders()
+    //
+    //     return panel
+    // }
 
     private fun addApiKey() {
         if (!settingsService.isConfigured()) {
@@ -750,41 +756,42 @@ class OpenRouterSettingsPanel {
         PluginLogger.Settings.debug("Reset API key creation flag")
     }
 
-    /**
-     * Load providers list from OpenRouter
-     */
-    private fun loadProviders() {
-        PluginLogger.Settings.debug("Loading providers list from OpenRouter API")
-
-        openRouterService.getProviders().thenAccept { response ->
-            ApplicationManager.getApplication().invokeLater({
-                if (response != null && response.data.isNotEmpty()) {
-                    PluginLogger.Settings.info("Successfully loaded ${response.data.size} providers from OpenRouter")
-                    PluginLogger.Settings.debug("About to call providersTableModel.setProviders with ${response.data.size} providers")
-                    providersTableModel.setProviders(response.data)
-                    PluginLogger.Settings.debug("After setProviders - providers table row count: ${providersTable.rowCount}")
-                    PluginLogger.Settings.debug("After setProviders - providers model row count: ${providersTableModel.rowCount}")
-                } else {
-                    PluginLogger.Settings.warn("Failed to load providers - response was null or empty")
-                    providersTableModel.setProviders(emptyList())
-                    Messages.showWarningDialog(
-                        "Failed to load providers list. Please check your internet connection and try again.",
-                        "Load Failed"
-                    )
-                }
-            }, com.intellij.openapi.application.ModalityState.any())
-        }.exceptionally { throwable ->
-            ApplicationManager.getApplication().invokeLater({
-                PluginLogger.Settings.error("Exception while loading providers", throwable)
-                providersTableModel.setProviders(emptyList())
-                Messages.showErrorDialog(
-                    "Error loading providers: ${throwable.message}",
-                    "Load Error"
-                )
-            }, com.intellij.openapi.application.ModalityState.any())
-            null
-        }
-    }
+    // TODO: Future version - Providers list
+    // /**
+    //  * Load providers list from OpenRouter
+    //  */
+    // private fun loadProviders() {
+    //     PluginLogger.Settings.debug("Loading providers list from OpenRouter API")
+    //
+    //     openRouterService.getProviders().thenAccept { response ->
+    //         ApplicationManager.getApplication().invokeLater({
+    //             if (response != null && response.data.isNotEmpty()) {
+    //                 PluginLogger.Settings.info("Successfully loaded ${response.data.size} providers from OpenRouter")
+    //                 PluginLogger.Settings.debug("About to call providersTableModel.setProviders with ${response.data.size} providers")
+    //                 providersTableModel.setProviders(response.data)
+    //                 PluginLogger.Settings.debug("After setProviders - providers table row count: ${providersTable.rowCount}")
+    //                 PluginLogger.Settings.debug("After setProviders - providers model row count: ${providersTableModel.rowCount}")
+    //             } else {
+    //                 PluginLogger.Settings.warn("Failed to load providers - response was null or empty")
+    //                 providersTableModel.setProviders(emptyList())
+    //                 Messages.showWarningDialog(
+    //                     "Failed to load providers list. Please check your internet connection and try again.",
+    //                     "Load Failed"
+    //                 )
+    //             }
+    //         }, com.intellij.openapi.application.ModalityState.any())
+    //     }.exceptionally { throwable ->
+    //         ApplicationManager.getApplication().invokeLater({
+    //             PluginLogger.Settings.error("Exception while loading providers", throwable)
+    //             providersTableModel.setProviders(emptyList())
+    //             Messages.showErrorDialog(
+    //                 "Error loading providers: ${throwable.message}",
+    //                 "Load Error"
+    //             )
+    //         }, com.intellij.openapi.application.ModalityState.any())
+    //         null
+    //     }
+    // }
 
     fun getPanel(): JPanel = panel
 
@@ -798,11 +805,12 @@ class OpenRouterSettingsPanel {
         }
     }
 
-    fun getDefaultModel(): String = defaultModelField.text
-
-    fun setDefaultModel(model: String) {
-        defaultModelField.text = model
-    }
+    // TODO: Future version - Default model selection
+    // fun getDefaultModel(): String = defaultModelField.text
+    //
+    // fun setDefaultModel(model: String) {
+    //     defaultModelField.text = model
+    // }
 
     fun isAutoRefreshEnabled(): Boolean = autoRefreshCheckBox.isSelected
 
@@ -824,59 +832,60 @@ class OpenRouterSettingsPanel {
     }
 }
 
-/**
- * Table model for displaying OpenRouter providers
- */
-class ProvidersTableModel : AbstractTableModel() {
-    private var providers: List<ProviderInfo> = emptyList()
-
-    private val columnNames = arrayOf("Provider", "Status", "Privacy Policy", "Terms of Service")
-
-    override fun getRowCount(): Int = providers.size
-
-    override fun getColumnCount(): Int = columnNames.size
-
-    override fun getColumnName(column: Int): String = columnNames[column]
-
-    override fun getValueAt(rowIndex: Int, columnIndex: Int): Any {
-        val provider = providers[rowIndex]
-        return when (columnIndex) {
-            0 -> provider.name
-            1 -> "Available" // All providers in the list are available
-            2 -> if (provider.privacyPolicyUrl != null) "View" else "-"
-            3 -> if (provider.termsOfServiceUrl != null) "View" else "-"
-            else -> ""
-        }
-    }
-
-    override fun isCellEditable(rowIndex: Int, columnIndex: Int): Boolean = false
-
-    fun setProviders(newProviders: List<ProviderInfo>) {
-        PluginLogger.Settings.debug("ProvidersTableModel.setProviders called with ${newProviders.size} providers")
-
-        // Ensure we're on EDT for UI updates
-        if (!ApplicationManager.getApplication().isDispatchThread) {
-            PluginLogger.Settings.debug("Not on EDT, scheduling setProviders on EDT")
-            ApplicationManager.getApplication().invokeLater({
-                setProviders(newProviders)
-            }, com.intellij.openapi.application.ModalityState.defaultModalityState())
-            return
-        }
-
-        PluginLogger.Settings.debug("On EDT, updating providers table model")
-        providers = newProviders
-        PluginLogger.Settings.debug("ProvidersTableModel internal list now has ${providers.size} providers")
-        fireTableDataChanged()
-        PluginLogger.Settings.debug("fireTableDataChanged() called - providers table should now show ${providers.size} rows")
-        PluginLogger.Settings.debug("Providers table model getRowCount() returns: ${getRowCount()}")
-        PluginLogger.Settings.debug("First provider details: ${if (newProviders.isNotEmpty()) newProviders[0].name else "No providers"}")
-    }
-
-    fun getProvider(rowIndex: Int): ProviderInfo? {
-        return if (rowIndex >= 0 && rowIndex < providers.size) {
-            providers[rowIndex]
-        } else {
-            null
-        }
-    }
-}
+// TODO: Future version - Providers list
+// /**
+//  * Table model for displaying OpenRouter providers
+//  */
+// class ProvidersTableModel : AbstractTableModel() {
+//     private var providers: List<ProviderInfo> = emptyList()
+//
+//     private val columnNames = arrayOf("Provider", "Status", "Privacy Policy", "Terms of Service")
+//
+//     override fun getRowCount(): Int = providers.size
+//
+//     override fun getColumnCount(): Int = columnNames.size
+//
+//     override fun getColumnName(column: Int): String = columnNames[column]
+//
+//     override fun getValueAt(rowIndex: Int, columnIndex: Int): Any {
+//         val provider = providers[rowIndex]
+//         return when (columnIndex) {
+//             0 -> provider.name
+//             1 -> "Available" // All providers in the list are available
+//             2 -> if (provider.privacyPolicyUrl != null) "View" else "-"
+//             3 -> if (provider.termsOfServiceUrl != null) "View" else "-"
+//             else -> ""
+//         }
+//     }
+//
+//     override fun isCellEditable(rowIndex: Int, columnIndex: Int): Boolean = false
+//
+//     fun setProviders(newProviders: List<ProviderInfo>) {
+//         PluginLogger.Settings.debug("ProvidersTableModel.setProviders called with ${newProviders.size} providers")
+//
+//         // Ensure we're on EDT for UI updates
+//         if (!ApplicationManager.getApplication().isDispatchThread) {
+//             PluginLogger.Settings.debug("Not on EDT, scheduling setProviders on EDT")
+//             ApplicationManager.getApplication().invokeLater({
+//                 setProviders(newProviders)
+//             }, com.intellij.openapi.application.ModalityState.defaultModalityState())
+//             return
+//         }
+//
+//         PluginLogger.Settings.debug("On EDT, updating providers table model")
+//         providers = newProviders
+//         PluginLogger.Settings.debug("ProvidersTableModel internal list now has ${providers.size} providers")
+//         fireTableDataChanged()
+//         PluginLogger.Settings.debug("fireTableDataChanged() called - providers table should now show ${providers.size} rows")
+//         PluginLogger.Settings.debug("Providers table model getRowCount() returns: ${getRowCount()}")
+//         PluginLogger.Settings.debug("First provider details: ${if (newProviders.isNotEmpty()) newProviders[0].name else "No providers"}")
+//     }
+//
+//     fun getProvider(rowIndex: Int): ProviderInfo? {
+//         return if (rowIndex >= 0 && rowIndex < providers.size) {
+//             providers[rowIndex]
+//         } else {
+//             null
+//         }
+//     }
+// }

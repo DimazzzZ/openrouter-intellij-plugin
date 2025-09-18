@@ -133,7 +133,8 @@ class OpenRouterSettingsServiceTest {
 
             assertEquals("", settings.apiKey)
             assertEquals("", settings.provisioningKey)
-            assertEquals("openai/gpt-4o", settings.defaultModel)
+            // TODO: Future version - Default model selection
+            // assertEquals("openai/gpt-4o", settings.defaultModel)
             assertTrue(settings.autoRefresh)
             assertEquals(300, settings.refreshInterval)
             assertTrue(settings.showCosts)
@@ -148,7 +149,8 @@ class OpenRouterSettingsServiceTest {
             val testSettings = OpenRouterSettings(
                 apiKey = "test-api-key",
                 provisioningKey = "test-prov-key",
-                defaultModel = "anthropic/claude-3",
+                // TODO: Future version - Default model selection
+                // defaultModel = "anthropic/claude-3",
                 autoRefresh = false,
                 refreshInterval = 600,
                 showCosts = false,
@@ -161,7 +163,8 @@ class OpenRouterSettingsServiceTest {
 
             assertEquals(testSettings.apiKey, loadedSettings.apiKey)
             assertEquals(testSettings.provisioningKey, loadedSettings.provisioningKey)
-            assertEquals(testSettings.defaultModel, loadedSettings.defaultModel)
+            // TODO: Future version - Default model selection
+            // assertEquals(testSettings.defaultModel, loadedSettings.defaultModel)
             assertEquals(testSettings.autoRefresh, loadedSettings.autoRefresh)
             assertEquals(testSettings.refreshInterval, loadedSettings.refreshInterval)
             assertEquals(testSettings.showCosts, loadedSettings.showCosts)

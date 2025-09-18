@@ -170,7 +170,8 @@ data class ActivityData(
 data class OpenRouterSettings(
     var apiKey: String = "",
     var provisioningKey: String = "",
-    var defaultModel: String = "openai/gpt-4o",
+    // TODO: Future version - Default model selection
+    // var defaultModel: String = "openai/gpt-4o",
     var autoRefresh: Boolean = true,
     var refreshInterval: Int = 300, // seconds
     var showCosts: Boolean = true,

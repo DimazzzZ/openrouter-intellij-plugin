@@ -153,7 +153,8 @@ class SimpleUnitTest {
 
             assertEquals("", settings.apiKey)
             assertEquals("", settings.provisioningKey)
-            assertEquals("openai/gpt-4o", settings.defaultModel)
+            // TODO: Future version - Default model selection
+            // assertEquals("openai/gpt-4o", settings.defaultModel)
             assertTrue(settings.autoRefresh)
             assertEquals(300, settings.refreshInterval)
             assertTrue(settings.showCosts)
@@ -167,7 +168,8 @@ class SimpleUnitTest {
             val settings = OpenRouterSettings(
                 apiKey = "test-key",
                 provisioningKey = "test-prov-key",
-                defaultModel = "anthropic/claude-3",
+                // TODO: Future version - Default model selection
+                // defaultModel = "anthropic/claude-3",
                 autoRefresh = false,
                 refreshInterval = 600,
                 showCosts = false,
@@ -177,7 +179,8 @@ class SimpleUnitTest {
 
             assertEquals("test-key", settings.apiKey)
             assertEquals("test-prov-key", settings.provisioningKey)
-            assertEquals("anthropic/claude-3", settings.defaultModel)
+            // TODO: Future version - Default model selection
+            // assertEquals("anthropic/claude-3", settings.defaultModel)
             assertFalse(settings.autoRefresh)
             assertEquals(600, settings.refreshInterval)
             assertFalse(settings.showCosts)

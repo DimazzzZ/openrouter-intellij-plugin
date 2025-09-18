@@ -150,7 +150,9 @@ class OpenRouterToolWindowContent(private val project: Project) {
         }
 
         statusLabel.text = "Checking..."
-        modelLabel.text = settingsService.getDefaultModel()
+        // TODO: Future version - Default model selection
+        // modelLabel.text = settingsService.getDefaultModel()
+        modelLabel.text = "N/A" // Placeholder until model selection is implemented
         activityLabel.text = "Loading..."
 
         // Test connection
