@@ -1,6 +1,6 @@
 # OpenRouter IntelliJ Plugin
 
-[![JetBrains Plugin](https://img.shields.io/badge/JetBrains-Plugin-orange.svg)](https://plugins.jetbrains.com/plugin/PLUGIN_ID)
+[![JetBrains Plugin](https://img.shields.io/badge/JetBrains-Plugin-orange.svg)](https://plugins.jetbrains.com/plugin/28520)
 [![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
