@@ -61,8 +61,8 @@
 
     <!-- Change notes for this version -->
     <change-notes><![CDATA[
-        <h3>🎉 Initial Release (v1.0.0)</h3>
-        <p>First stable release of the OpenRouter IntelliJ Plugin with comprehensive OpenRouter.ai integration.</p>
+        <h3>🎉 Initial Release (v0.1.0)</h3>
+        <p>First beta release of the OpenRouter IntelliJ Plugin with comprehensive OpenRouter.ai integration.</p>
 
         <h4>✨ Key Features</h4>
         <ul>
