@@ -84,8 +84,8 @@ class OpenRouterStatsPopup(private val project: Project) {
     private fun createMainPanel(): JPanel {
         val mainPanel = JBPanel<JBPanel<*>>(BorderLayout()).apply {
             // Set minimum size but allow content to expand
-            preferredSize = Dimension(400, 300)
-            minimumSize = Dimension(400, 250)
+            preferredSize = Dimension(450, 300)
+            minimumSize = Dimension(450, 250)
             border = JBUI.Borders.empty(12)
         }
 
@@ -123,8 +123,8 @@ class OpenRouterStatsPopup(private val project: Project) {
         val statsPanel = JBPanel<JBPanel<*>>().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             border = JBUI.Borders.empty(12, 0)
-            minimumSize = Dimension(350, 200)
-            preferredSize = Dimension(350, 250)
+            minimumSize = Dimension(400, 200)
+            preferredSize = Dimension(400, 250)
         }
 
         // Account information
@@ -151,9 +151,8 @@ class OpenRouterStatsPopup(private val project: Project) {
         // Real OpenRouter activity data
         activity24hLabel = JBLabel("Last 24 hours: Loading...")
         activityWeekLabel = JBLabel("Last week: Loading...")
-        activityModelsLabel = JBLabel("Recent Models: Loading...").apply {
-            // Allow text wrapping for long model lists
-            putClientProperty("html.disable", false)
+        activityModelsLabel = JBLabel("<html>Recent Models:<br/>• Loading...</html>").apply {
+            verticalAlignment = JBLabel.TOP
         }
 
         statsPanel.add(tierLabel)
@@ -265,7 +264,7 @@ class OpenRouterStatsPopup(private val project: Project) {
         creditsRemainingLabel.text = "Credits Remaining: Loading..."
         activity24hLabel.text = "Last 24 hours: Loading..."
         activityWeekLabel.text = "Last week: Loading..."
-        activityModelsLabel.text = "Recent Models: Loading..."
+        activityModelsLabel.text = "<html>Recent Models:<br/>• Loading...</html>"
         // recentCostLabel.text = "Recent Cost: Loading..." // TEMPORARILY COMMENTED OUT
         // recentTokensLabel.text = "Recent Tokens: Loading..." // TEMPORARILY COMMENTED OUT
         // generationCountLabel.text = "Tracked Calls: Loading..." // TEMPORARILY COMMENTED OUT
@@ -324,7 +323,7 @@ class OpenRouterStatsPopup(private val project: Project) {
         if (activityResponse == null || activityResponse.data.isEmpty()) {
             activity24hLabel.text = "Last 24 hours: No recent activity"
             activityWeekLabel.text = "Last week: No recent activity"
-            activityModelsLabel.text = "Recent Models: None"
+            activityModelsLabel.text = "<html>Recent Models:<br/>• None</html>"
             return
         }
 
@@ -358,17 +357,24 @@ class OpenRouterStatsPopup(private val project: Project) {
         val usageWeek = lastWeek.sumOf { it.usage }
         activityWeekLabel.text = "Last week: $requestsWeek requests, $${String.format(Locale.US, "%.4f", usageWeek)} spent"
 
-        // Get unique models from last week with better display
-        val uniqueModels = lastWeek.map { it.model }.distinct().sorted()
+        // Get models from last week, sorted by latest usage (most recent date first)
+        val modelsByDate = lastWeek
+            .groupBy { it.model }
+            .mapValues { (_, activities) -> activities.maxOf { it.date } }
+            .toList()
+            .sortedByDescending { it.second } // Sort by date descending (latest first)
+            .map { it.first } // Extract just the model names
+
         val modelText = when {
-            uniqueModels.isEmpty() -> "None"
-            uniqueModels.size <= 5 -> uniqueModels.joinToString(", ")
+            modelsByDate.isEmpty() -> "<html>Recent Models:<br/>• None</html>"
             else -> {
-                val displayModels = uniqueModels.take(4).joinToString(", ")
-                "<html>$displayModels<br/>and ${uniqueModels.size - 4} more models</html>"
+                val displayModels = modelsByDate.take(5) // Show up to 5 models
+                val bullets = displayModels.joinToString("<br/>") { "• $it" }
+                val moreText = if (modelsByDate.size > 5) "<br/>• +${modelsByDate.size - 5} more" else ""
+                "<html>Recent Models:<br/>$bullets$moreText</html>"
             }
         }
-        activityModelsLabel.text = "Recent Models: $modelText"
+        activityModelsLabel.text = modelText
     }
 
     /**
@@ -398,7 +404,7 @@ class OpenRouterStatsPopup(private val project: Project) {
         creditsRemainingLabel.text = "Credits Remaining: -"
         activity24hLabel.text = "Last 24 hours: -"
         activityWeekLabel.text = "Last week: -"
-        activityModelsLabel.text = "Recent Models: -"
+        activityModelsLabel.text = "<html>Recent Models:<br/>• -</html>"
         // recentCostLabel.text = "Recent Cost: -" // TEMPORARILY COMMENTED OUT
         // recentTokensLabel.text = "Recent Tokens: -" // TEMPORARILY COMMENTED OUT
         // generationCountLabel.text = "Tracked Calls: -" // TEMPORARILY COMMENTED OUT
@@ -415,7 +421,7 @@ class OpenRouterStatsPopup(private val project: Project) {
         creditsRemainingLabel.text = "Credits Remaining: -"
         activity24hLabel.text = "Last 24 hours: -"
         activityWeekLabel.text = "Last week: -"
-        activityModelsLabel.text = "Recent Models: -"
+        activityModelsLabel.text = "<html>Recent Models:<br/>• -</html>"
         // recentCostLabel.text = "Recent Cost: -" // TEMPORARILY COMMENTED OUT
         // recentTokensLabel.text = "Recent Tokens: -" // TEMPORARILY COMMENTED OUT
         // generationCountLabel.text = "Tracked Calls: -" // TEMPORARILY COMMENTED OUT
