@@ -57,10 +57,10 @@ class OpenRouterService {
         private const val CHAT_COMPLETIONS_ENDPOINT = "$BASE_URL/chat/completions"
         private const val GENERATION_ENDPOINT = "$BASE_URL/generation"
         private const val CREDITS_ENDPOINT = "$BASE_URL/credits"
-        private const val ACTIVITY_ENDPOINT = "$BASE_URL/activity"
 
         // Endpoints requiring Provisioning Key authentication (Bearer <provisioning-key>)
         private const val API_KEYS_ENDPOINT = "$BASE_URL/keys"
+        private const val ACTIVITY_ENDPOINT = "$BASE_URL/activity"
 
         // Public endpoints (no authentication required)
         private const val PROVIDERS_ENDPOINT = "$BASE_URL/providers"
@@ -385,23 +385,23 @@ class OpenRouterService {
 
     /**
      * Get activity analytics from OpenRouter
-     * NOTE: This endpoint requires API Key authentication
+     * NOTE: This endpoint requires Provisioning Key authentication
      */
     fun getActivity(): CompletableFuture<ActivityResponse?> {
         return CompletableFuture.supplyAsync {
             try {
-                val apiKey = settingsService.getApiKey()
-                if (apiKey.isBlank()) {
-                    PluginLogger.Service.warn("No API key available for activity endpoint")
+                val provisioningKey = settingsService.getProvisioningKey()
+                if (provisioningKey.isBlank()) {
+                    PluginLogger.Service.warn("No provisioning key available for activity endpoint")
                     return@supplyAsync null
                 }
 
-                PluginLogger.Service.debug("Fetching activity from OpenRouter with API key: ${apiKey.take(10)}...")
+                PluginLogger.Service.debug("Fetching activity from OpenRouter with provisioning key: ${provisioningKey.take(10)}...")
                 PluginLogger.Service.debug("Making request to: $ACTIVITY_ENDPOINT")
 
                 val request = Request.Builder()
                     .url(ACTIVITY_ENDPOINT)
-                    .addHeader("Authorization", "Bearer $apiKey")
+                    .addHeader("Authorization", "Bearer $provisioningKey")
                     .addHeader("Content-Type", "application/json")
                     .build()
 

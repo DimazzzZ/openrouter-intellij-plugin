@@ -26,8 +26,8 @@ enum class ConnectionStatus(
     ERROR("Error", OpenRouterIcons.ERROR, "Connection failed or API error"),
 
     /** API key is not configured */
-    NOT_CONFIGURED("Not Configured", AllIcons.RunConfigurations.TestIgnored, "API key not configured"),
+    NOT_CONFIGURED("Not Configured", OpenRouterIcons.ERROR, "API key not configured"),
 
     /** No internet connection available */
-    OFFLINE("Offline", AllIcons.RunConfigurations.TestSkipped, "No internet connection")
+    OFFLINE("Offline", OpenRouterIcons.ERROR, "No internet connection")
 }

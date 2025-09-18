@@ -16,7 +16,7 @@
     <description><![CDATA[
     <p><strong>OpenRouter IntelliJ Plugin</strong> - Comprehensive integration with <a href="https://openrouter.ai">OpenRouter.ai</a> for accessing 400+ AI models with advanced usage monitoring and quota tracking.</p>
 
-    <h3>🚀 Key Features</h3>
+    <h3>Key Features</h3>
     <ul>
         <li><strong>Interactive Status Bar Widget</strong> - Real-time usage display with comprehensive popup menu</li>
         <li><strong>Advanced API Key Management</strong> - Secure provisioning key support with automatic API key creation</li>
@@ -26,14 +26,14 @@
         <li><strong>Comprehensive Settings</strong> - Easy configuration with validation and testing</li>
     </ul>
 
-    <h3>🎯 Quick Start</h3>
+    <h3>Quick Start</h3>
     <ol>
         <li>Get your Provisioning Key from <a href="https://openrouter.ai/settings/provisioning-keys">OpenRouter Provisioning Keys</a></li>
         <li>Configure in <strong>Settings → Tools → OpenRouter</strong></li>
         <li>Click the status bar widget to access all features</li>
     </ol>
 
-    <h3>💡 Perfect For</h3>
+    <h3>Perfect For</h3>
     <ul>
         <li>Developers using AI models for code assistance</li>
         <li>Teams monitoring AI usage and costs</li>
@@ -47,24 +47,14 @@
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
     <depends>com.intellij.modules.platform</depends>
 
-    <!-- Plugin tags for marketplace categorization -->
-    <tags>
-        <tag>ai</tag>
-        <tag>openrouter</tag>
-        <tag>api</tag>
-        <tag>monitoring</tag>
-        <tag>usage</tag>
-        <tag>statistics</tag>
-        <tag>quota</tag>
-        <tag>integration</tag>
-    </tags>
+
 
     <!-- Change notes for this version -->
     <change-notes><![CDATA[
         <h3>🎉 Initial Release (v0.1.0)</h3>
         <p>First beta release of the OpenRouter IntelliJ Plugin with comprehensive OpenRouter.ai integration.</p>
 
-        <h4>✨ Key Features</h4>
+        <h4>Key Features</h4>
         <ul>
             <li><strong>Interactive Status Bar Widget</strong> - Real-time usage display with comprehensive popup menu</li>
             <li><strong>Advanced API Key Management</strong> - Provisioning key support with automatic API key creation</li>
@@ -74,7 +64,7 @@
             <li><strong>Multi-IDE Support</strong> - Works across all JetBrains IDEs (2023.2+)</li>
         </ul>
 
-        <h4>🔧 Technical Highlights</h4>
+        <h4>Technical Highlights</h4>
         <ul>
             <li>Secure credential storage using IntelliJ's built-in storage</li>
             <li>Asynchronous API operations for smooth user experience</li>

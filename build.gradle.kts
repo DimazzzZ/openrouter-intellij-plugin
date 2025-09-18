@@ -89,7 +89,7 @@ tasks {
         maxHeapSize = "2g"
 
         // Enable debug logging for your plugin
-        systemProperty("idea.log.debug.categories", "org.zhavoronkov.openrouter")
+        // systemProperty("idea.log.debug.categories", "org.zhavoronkov.openrouter")
         systemProperty("openrouter.debug", "false")
 
         // Optional: Start with a clean environment

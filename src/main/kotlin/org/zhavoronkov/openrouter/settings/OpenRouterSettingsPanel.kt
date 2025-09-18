@@ -584,18 +584,8 @@ class OpenRouterSettingsPanel {
             PluginLogger.Settings.debug("IntelliJ IDEA Plugin API key exists on server but not stored locally: ${existingIntellijApiKey.name}")
             PluginLogger.Settings.warn("IntelliJ IDEA Plugin API key exists on server but the actual key value is not available. You may need to delete and recreate it.")
 
-            // Show a dialog asking if the user wants to recreate the key
-            val result = Messages.showYesNoDialog(
-                "The 'IntelliJ IDEA Plugin' API key exists on the server but is not available locally.\n\n" +
-                "This means the credits endpoint cannot be used. Would you like to recreate the API key?\n\n" +
-                "Note: This will delete the existing key and create a new one.",
-                "Recreate IntelliJ API Key?",
-                Messages.getQuestionIcon()
-            )
-
-            if (result == Messages.YES) {
-                recreateIntellijApiKey()
-            }
+            // Show a dialog asking if the user wants to recreate the key or enter manually
+            showRecreateApiKeyDialog()
             return // API key exists on server but we can't get the actual key value
         }
 
@@ -676,6 +666,9 @@ class OpenRouterSettingsPanel {
 
                         // Refresh the table to show the new key (but don't create another one)
                         loadApiKeysWithoutAutoCreate()
+
+                        // Refresh the status bar to show the new connection status
+                        refreshStatusBarWidget()
                     } else {
                         PluginLogger.Settings.warn("Failed to create IntelliJ IDEA Plugin API key")
                         Messages.showWarningDialog(
@@ -829,6 +822,124 @@ class OpenRouterSettingsPanel {
 
     fun setShowCosts(show: Boolean) {
         showCostsCheckBox.isSelected = show
+    }
+
+    /**
+     * Show a dialog with options to recreate API key or enter manually
+     */
+    private fun showRecreateApiKeyDialog() {
+        val dialog = object : com.intellij.openapi.ui.DialogWrapper(true) {
+            init {
+                title = "Recreate IntelliJ API Key?"
+                init()
+            }
+
+            override fun createCenterPanel(): javax.swing.JComponent {
+                val panel = com.intellij.ui.components.JBPanel<com.intellij.ui.components.JBPanel<*>>(java.awt.BorderLayout())
+                panel.preferredSize = java.awt.Dimension(500, 150)
+
+                val messageLabel = com.intellij.ui.components.JBLabel(
+                    "<html>The 'IntelliJ IDEA Plugin' API key exists on the server but is not available locally.<br/><br/>" +
+                    "This means the credits endpoint cannot be used. You can:<br/>" +
+                    "• <b>Recreate</b> - Delete the existing key and create a new one<br/>" +
+                    "• <b>Enter Manually</b> - If you have the API key value, enter it manually<br/>" +
+                    "• <b>Cancel</b> - Do nothing for now</html>"
+                )
+                messageLabel.border = com.intellij.util.ui.JBUI.Borders.empty(10)
+                panel.add(messageLabel, java.awt.BorderLayout.CENTER)
+
+                return panel
+            }
+
+            override fun createActions(): Array<javax.swing.Action> {
+                val recreateAction = object : com.intellij.openapi.ui.DialogWrapper.DialogWrapperAction("Recreate") {
+                    override fun doAction(e: java.awt.event.ActionEvent) {
+                        close(1) // Custom exit code for recreate
+                    }
+                }
+
+                val enterManuallyAction = object : com.intellij.openapi.ui.DialogWrapper.DialogWrapperAction("Enter Manually") {
+                    override fun doAction(e: java.awt.event.ActionEvent) {
+                        close(2) // Custom exit code for manual entry
+                    }
+                }
+
+                return arrayOf(recreateAction, enterManuallyAction, cancelAction)
+            }
+        }
+
+        val result = dialog.showAndGet()
+        when (dialog.exitCode) {
+            1 -> recreateIntellijApiKey() // Recreate
+            2 -> {
+                val success = showManualApiKeyEntryDialog() // Enter manually
+                if (success) {
+                    // Don't refresh the table - the user manually entered the key for the existing server key
+                    // Just log that the manual entry was successful and refresh the status bar
+                    PluginLogger.Settings.info("Manual API key entry completed successfully - no server operations needed")
+                    refreshStatusBarWidget()
+                }
+            }
+            // 0 or any other value = Cancel (do nothing)
+        }
+    }
+
+    /**
+     * Show a dialog for manual API key entry
+     * @return true if API key was successfully entered and saved, false otherwise
+     */
+    private fun showManualApiKeyEntryDialog(): Boolean {
+        val apiKey = com.intellij.openapi.ui.Messages.showInputDialog(
+            "Enter your OpenRouter API key for the 'IntelliJ IDEA Plugin':\n\n" +
+            "This should be the actual API key value (starting with 'sk-or-v1-').\n" +
+            "You can find this in your OpenRouter dashboard if you saved it when the key was created.",
+            "Enter API Key Manually",
+            com.intellij.openapi.ui.Messages.getQuestionIcon()
+        )
+
+        if (!apiKey.isNullOrBlank()) {
+            // Validate the API key format
+            if (apiKey.startsWith("sk-or-v1-") && apiKey.length > 20) {
+                // Store the API key
+                settingsService.setApiKey(apiKey)
+                com.intellij.openapi.ui.Messages.showInfoMessage(
+                    "API key has been saved successfully. The plugin can now access OpenRouter credits information.\n\n" +
+                    "Note: The existing API key on the server has been preserved.",
+                    "API Key Saved"
+                )
+                PluginLogger.Settings.info("API key entered manually and saved - existing server key preserved")
+                return true
+            } else {
+                com.intellij.openapi.ui.Messages.showErrorDialog(
+                    "The entered API key doesn't appear to be valid. OpenRouter API keys should start with 'sk-or-v1-' and be longer than 20 characters.",
+                    "Invalid API Key Format"
+                )
+                return false
+            }
+        }
+        return false // User cancelled or entered empty key
+    }
+
+    /**
+     * Refresh the status bar widget to reflect updated connection status
+     */
+    private fun refreshStatusBarWidget() {
+        // Use invokeLater with proper modality state to avoid write-unsafe context errors
+        ApplicationManager.getApplication().invokeLater({
+            try {
+                // Get all open projects and refresh their status bar widgets
+                val projectManager = com.intellij.openapi.project.ProjectManager.getInstance()
+                projectManager.openProjects.forEach { project ->
+                    val statusBar = com.intellij.openapi.wm.WindowManager.getInstance().getStatusBar(project)
+                    val widget = statusBar?.getWidget(org.zhavoronkov.openrouter.statusbar.OpenRouterStatusBarWidget.ID)
+                        as? org.zhavoronkov.openrouter.statusbar.OpenRouterStatusBarWidget
+                    widget?.updateQuotaInfo()
+                    PluginLogger.Settings.debug("Refreshed status bar widget for project: ${project.name}")
+                }
+            } catch (e: Exception) {
+                PluginLogger.Settings.error("Error refreshing status bar widget: ${e.message}", e)
+            }
+        }, com.intellij.openapi.application.ModalityState.defaultModalityState())
     }
 }
 

@@ -11,7 +11,7 @@ import org.zhavoronkov.openrouter.icons.OpenRouterIcons
 import org.zhavoronkov.openrouter.models.ActivityResponse
 import org.zhavoronkov.openrouter.models.ApiKeysListResponse
 import org.zhavoronkov.openrouter.models.CreditsResponse
-import org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService
+// import org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService // TEMPORARILY COMMENTED OUT
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import java.awt.BorderLayout
@@ -20,6 +20,7 @@ import java.awt.Component
 import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.Font
+import java.time.LocalDate
 import java.util.Locale
 import javax.swing.Box
 import javax.swing.BoxLayout
@@ -35,16 +36,18 @@ class OpenRouterStatsPopup(private val project: Project) {
 
     private val openRouterService = OpenRouterService.getInstance()
     private val settingsService = OpenRouterSettingsService.getInstance()
-    private val trackingService = OpenRouterGenerationTrackingService.getInstance()
+    // private val trackingService = OpenRouterGenerationTrackingService.getInstance() // TEMPORARILY COMMENTED OUT
 
     private lateinit var tierLabel: JBLabel
     private lateinit var totalCreditsLabel: JBLabel
     private lateinit var creditsUsageLabel: JBLabel
     private lateinit var creditsRemainingLabel: JBLabel
-    private lateinit var recentCostLabel: JBLabel
-    private lateinit var recentTokensLabel: JBLabel
-    private lateinit var generationCountLabel: JBLabel
-    private lateinit var activitySummaryLabel: JBLabel
+    // TEMPORARILY COMMENTED OUT - TODO: Re-enable when local activity tracking is ready
+    // private lateinit var recentCostLabel: JBLabel
+    // private lateinit var recentTokensLabel: JBLabel
+    // private lateinit var generationCountLabel: JBLabel
+    private lateinit var activity24hLabel: JBLabel
+    private lateinit var activityWeekLabel: JBLabel
     private lateinit var activityModelsLabel: JBLabel
     private lateinit var progressBar: JProgressBar
     private lateinit var refreshButton: JButton
@@ -72,15 +75,17 @@ class OpenRouterStatsPopup(private val project: Project) {
         return JBPopupFactory.getInstance()
             .createComponentPopupBuilder(panel, null)
             .setTitle("OpenRouter Statistics")
-            .setResizable(false)
-            .setMovable(false)
+            .setResizable(true)
+            .setMovable(true)
             .setRequestFocus(true)
             .createPopup()
     }
 
     private fun createMainPanel(): JPanel {
         val mainPanel = JBPanel<JBPanel<*>>(BorderLayout()).apply {
-            preferredSize = Dimension(400, 400)
+            // Set minimum size but allow content to expand
+            preferredSize = Dimension(400, 300)
+            minimumSize = Dimension(400, 250)
             border = JBUI.Borders.empty(12)
         }
 
@@ -118,6 +123,8 @@ class OpenRouterStatsPopup(private val project: Project) {
         val statsPanel = JBPanel<JBPanel<*>>().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             border = JBUI.Borders.empty(12, 0)
+            minimumSize = Dimension(350, 200)
+            preferredSize = Dimension(350, 250)
         }
 
         // Account information
@@ -136,14 +143,18 @@ class OpenRouterStatsPopup(private val project: Project) {
             string = "Loading..."
         }
 
-        // Recent activity information
-        recentCostLabel = JBLabel("Recent Cost: Loading...")
-        recentTokensLabel = JBLabel("Recent Tokens: Loading...")
-        generationCountLabel = JBLabel("Tracked Calls: Loading...")
+        // Recent activity information - TEMPORARILY COMMENTED OUT
+        // recentCostLabel = JBLabel("Recent Cost: Loading...")
+        // recentTokensLabel = JBLabel("Recent Tokens: Loading...")
+        // generationCountLabel = JBLabel("Tracked Calls: Loading...")
 
         // Real OpenRouter activity data
-        activitySummaryLabel = JBLabel("Activity Summary: Loading...")
-        activityModelsLabel = JBLabel("Recent Models: Loading...")
+        activity24hLabel = JBLabel("Last 24 hours: Loading...")
+        activityWeekLabel = JBLabel("Last week: Loading...")
+        activityModelsLabel = JBLabel("Recent Models: Loading...").apply {
+            // Allow text wrapping for long model lists
+            putClientProperty("html.disable", false)
+        }
 
         statsPanel.add(tierLabel)
         statsPanel.add(Box.createVerticalStrut(8))
@@ -170,12 +181,16 @@ class OpenRouterStatsPopup(private val project: Project) {
         }
         statsPanel.add(recentLabel)
         statsPanel.add(Box.createVerticalStrut(4))
-        statsPanel.add(activitySummaryLabel)
+        statsPanel.add(activity24hLabel)
+        statsPanel.add(Box.createVerticalStrut(2))
+        statsPanel.add(activityWeekLabel)
         statsPanel.add(Box.createVerticalStrut(4))
         statsPanel.add(activityModelsLabel)
         statsPanel.add(Box.createVerticalStrut(8))
 
-        // Local tracking section
+        // Local tracking section - TEMPORARILY COMMENTED OUT
+        // TODO: Re-enable when local activity tracking is ready
+        /*
         val localLabel = JBLabel("Local Tracking").apply {
             font = font.deriveFont(Font.BOLD, 12f)
         }
@@ -186,6 +201,7 @@ class OpenRouterStatsPopup(private val project: Project) {
         statsPanel.add(recentTokensLabel)
         statsPanel.add(Box.createVerticalStrut(4))
         statsPanel.add(generationCountLabel)
+        */
 
         return statsPanel
     }
@@ -232,7 +248,7 @@ class OpenRouterStatsPopup(private val project: Project) {
                             updateWithApiKeysList(apiKeysResponse)
                             updateWithCredits(creditsResponse)
                             updateWithActivity(activityResponse)
-                            updateTrackingInfo()
+                            // updateTrackingInfo() // TEMPORARILY COMMENTED OUT - TODO: Re-enable when ready
                         } else {
                             showError()
                         }
@@ -247,11 +263,12 @@ class OpenRouterStatsPopup(private val project: Project) {
         totalCreditsLabel.text = "Total Credits: Loading..."
         creditsUsageLabel.text = "Credits Used: Loading..."
         creditsRemainingLabel.text = "Credits Remaining: Loading..."
-        activitySummaryLabel.text = "Activity Summary: Loading..."
+        activity24hLabel.text = "Last 24 hours: Loading..."
+        activityWeekLabel.text = "Last week: Loading..."
         activityModelsLabel.text = "Recent Models: Loading..."
-        recentCostLabel.text = "Recent Cost: Loading..."
-        recentTokensLabel.text = "Recent Tokens: Loading..."
-        generationCountLabel.text = "Tracked Calls: Loading..."
+        // recentCostLabel.text = "Recent Cost: Loading..." // TEMPORARILY COMMENTED OUT
+        // recentTokensLabel.text = "Recent Tokens: Loading..." // TEMPORARILY COMMENTED OUT
+        // generationCountLabel.text = "Tracked Calls: Loading..." // TEMPORARILY COMMENTED OUT
         progressBar.string = "Loading..."
         progressBar.isIndeterminate = true
         refreshButton.isEnabled = false
@@ -261,12 +278,14 @@ class OpenRouterStatsPopup(private val project: Project) {
         val enabledKeys = apiKeysResponse.data.filter { !it.disabled }
         tierLabel.text = "Account: ${enabledKeys.size} API Key${if (enabledKeys.size != 1) "s" else ""} Active"
 
-        // Update tracking information
-        updateTrackingInfo()
+        // Update tracking information - TEMPORARILY COMMENTED OUT
+        // updateTrackingInfo() // TODO: Re-enable when local activity tracking is ready
 
         refreshButton.isEnabled = true
     }
 
+    // TEMPORARILY COMMENTED OUT - TODO: Re-enable when local activity tracking is ready
+    /*
     private fun updateTrackingInfo() {
         val recentCost = trackingService.getTotalRecentCost(50)
         val recentTokens = trackingService.getTotalRecentTokens(50)
@@ -276,6 +295,7 @@ class OpenRouterStatsPopup(private val project: Project) {
         recentTokensLabel.text = "Recent Tokens: ${String.format(Locale.US, "%,d", recentTokens)} (last 50 calls)"
         generationCountLabel.text = "Tracked Calls: $generationCount total"
     }
+    */
 
     private fun updateWithCredits(creditsResponse: CreditsResponse) {
         val creditsData = creditsResponse.data
@@ -302,24 +322,73 @@ class OpenRouterStatsPopup(private val project: Project) {
 
     private fun updateWithActivity(activityResponse: ActivityResponse?) {
         if (activityResponse == null || activityResponse.data.isEmpty()) {
-            activitySummaryLabel.text = "Activity Summary: No recent activity"
+            activity24hLabel.text = "Last 24 hours: No recent activity"
+            activityWeekLabel.text = "Last week: No recent activity"
             activityModelsLabel.text = "Recent Models: None"
             return
         }
 
         val activities = activityResponse.data
-        val totalRequests = activities.sumOf { it.requests }
-        val totalUsage = activities.sumOf { it.usage }
-        val uniqueModels = activities.map { it.model }.distinct()
+        val today = LocalDate.now()
+        val yesterday = today.minusDays(1)
+        val weekAgo = today.minusDays(7)
 
-        activitySummaryLabel.text = "Activity Summary: $totalRequests requests, $${String.format(Locale.US, "%.4f", totalUsage)} spent"
+        // Filter activities by time periods
+        val last24h = activities.filter { activity ->
+            val activityDate = parseActivityDate(activity.date)
+            activityDate?.let { date ->
+                date.isEqual(today) || date.isEqual(yesterday)
+            } ?: false
+        }
 
-        val modelText = if (uniqueModels.size <= 3) {
-            uniqueModels.joinToString(", ")
-        } else {
-            "${uniqueModels.take(2).joinToString(", ")} and ${uniqueModels.size - 2} more"
+        val lastWeek = activities.filter { activity ->
+            val activityDate = parseActivityDate(activity.date)
+            activityDate?.let { date ->
+                date.isAfter(weekAgo) || date.isEqual(weekAgo)
+            } ?: false
+        }
+
+        // Calculate 24h stats
+        val requests24h = last24h.sumOf { it.requests }
+        val usage24h = last24h.sumOf { it.usage }
+        activity24hLabel.text = "Last 24 hours: $requests24h requests, $${String.format(Locale.US, "%.4f", usage24h)} spent"
+
+        // Calculate week stats
+        val requestsWeek = lastWeek.sumOf { it.requests }
+        val usageWeek = lastWeek.sumOf { it.usage }
+        activityWeekLabel.text = "Last week: $requestsWeek requests, $${String.format(Locale.US, "%.4f", usageWeek)} spent"
+
+        // Get unique models from last week with better display
+        val uniqueModels = lastWeek.map { it.model }.distinct().sorted()
+        val modelText = when {
+            uniqueModels.isEmpty() -> "None"
+            uniqueModels.size <= 5 -> uniqueModels.joinToString(", ")
+            else -> {
+                val displayModels = uniqueModels.take(4).joinToString(", ")
+                "<html>$displayModels<br/>and ${uniqueModels.size - 4} more models</html>"
+            }
         }
         activityModelsLabel.text = "Recent Models: $modelText"
+    }
+
+    /**
+     * Parse activity date which can be in format "YYYY-MM-DD" or "YYYY-MM-DD HH:MM:SS"
+     */
+    private fun parseActivityDate(dateString: String): LocalDate? {
+        return try {
+            // Try parsing as date only first
+            if (dateString.length == 10) {
+                LocalDate.parse(dateString)
+            } else {
+                // Extract just the date part from datetime string
+                val datePart = dateString.substring(0, 10)
+                LocalDate.parse(datePart)
+            }
+        } catch (e: Exception) {
+            // Log the problematic date format for debugging
+            println("Failed to parse activity date: '$dateString' - ${e.message}")
+            null
+        }
     }
 
     private fun showNotConfigured() {
@@ -327,11 +396,12 @@ class OpenRouterStatsPopup(private val project: Project) {
         totalCreditsLabel.text = "Total Credits: -"
         creditsUsageLabel.text = "Credits Used: -"
         creditsRemainingLabel.text = "Credits Remaining: -"
-        activitySummaryLabel.text = "Activity Summary: -"
+        activity24hLabel.text = "Last 24 hours: -"
+        activityWeekLabel.text = "Last week: -"
         activityModelsLabel.text = "Recent Models: -"
-        recentCostLabel.text = "Recent Cost: -"
-        recentTokensLabel.text = "Recent Tokens: -"
-        generationCountLabel.text = "Tracked Calls: -"
+        // recentCostLabel.text = "Recent Cost: -" // TEMPORARILY COMMENTED OUT
+        // recentTokensLabel.text = "Recent Tokens: -" // TEMPORARILY COMMENTED OUT
+        // generationCountLabel.text = "Tracked Calls: -" // TEMPORARILY COMMENTED OUT
         progressBar.value = 0
         progressBar.string = "Not configured"
         progressBar.isIndeterminate = false
@@ -343,11 +413,12 @@ class OpenRouterStatsPopup(private val project: Project) {
         totalCreditsLabel.text = "Total Credits: -"
         creditsUsageLabel.text = "Credits Used: -"
         creditsRemainingLabel.text = "Credits Remaining: -"
-        activitySummaryLabel.text = "Activity Summary: -"
+        activity24hLabel.text = "Last 24 hours: -"
+        activityWeekLabel.text = "Last week: -"
         activityModelsLabel.text = "Recent Models: -"
-        recentCostLabel.text = "Recent Cost: -"
-        recentTokensLabel.text = "Recent Tokens: -"
-        generationCountLabel.text = "Tracked Calls: -"
+        // recentCostLabel.text = "Recent Cost: -" // TEMPORARILY COMMENTED OUT
+        // recentTokensLabel.text = "Recent Tokens: -" // TEMPORARILY COMMENTED OUT
+        // generationCountLabel.text = "Tracked Calls: -" // TEMPORARILY COMMENTED OUT
         progressBar.value = 0
         progressBar.string = "Error"
         progressBar.isIndeterminate = false

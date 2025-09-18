@@ -70,7 +70,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         override fun getSeparatorAbove(value: PopupMenuItem): ListSeparator? {
             // Add separator only before "View Quota Usage" and before documentation items
             return when (value.text) {
-                "View Quota Usage" -> ListSeparator()
+                "Settings" -> ListSeparator()
                 "View OpenRouter Documentation..." -> ListSeparator()
                 else -> null
             }
@@ -112,15 +112,6 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
             )
         )
 
-        // Settings (direct action, no submenu)
-        items.add(
-            PopupMenuItem(
-                text = "Settings",
-                icon = AllIcons.General.Settings,
-                action = { openSettings() }
-            )
-        )
-
         // Authentication
         if (settingsService.isConfigured()) {
             items.add(
@@ -139,6 +130,15 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
                 )
             )
         }
+
+        // Settings (direct action, no submenu)
+        items.add(
+            PopupMenuItem(
+                text = "Settings",
+                icon = AllIcons.General.Settings,
+                action = { openSettings() }
+            )
+        )
 
         // Documentation
         items.add(
@@ -169,18 +169,21 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
     }
 
     private fun logout() {
-        val result = Messages.showYesNoDialog(
-            project,
-            "Are you sure you want to logout from OpenRouter.ai?\nThis will clear your API key.",
-            "Logout Confirmation",
-            Messages.getQuestionIcon()
-        )
+        // Defer dialog display to avoid focus issues with popup menus
+        ApplicationManager.getApplication().invokeLater {
+            val result = Messages.showYesNoDialog(
+                project,
+                "Are you sure you want to logout from OpenRouter.ai?\nThis will clear your API key.",
+                "Logout Confirmation",
+                Messages.getQuestionIcon()
+            )
 
-        if (result == Messages.YES) {
-            settingsService.setApiKey("")
-            settingsService.setProvisioningKey("")
-            updateConnectionStatus()
-            Messages.showInfoMessage(project, "Successfully logged out from OpenRouter.ai", "Logout")
+            if (result == Messages.YES) {
+                settingsService.setApiKey("")
+                settingsService.setProvisioningKey("")
+                updateConnectionStatus()
+                Messages.showInfoMessage(project, "Successfully logged out from OpenRouter.ai", "Logout")
+            }
         }
     }
 

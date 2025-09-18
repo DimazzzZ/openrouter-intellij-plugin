@@ -95,10 +95,14 @@ class ConnectionStatusTest {
             // ERROR should use error icon
             assertEquals(OpenRouterIcons.ERROR, ConnectionStatus.ERROR.icon)
 
-            // Other statuses should have valid icons
+            // NOT_CONFIGURED should use error icon
+            assertEquals(OpenRouterIcons.ERROR, ConnectionStatus.NOT_CONFIGURED.icon)
+
+            // OFFLINE should use error icon
+            assertEquals(OpenRouterIcons.ERROR, ConnectionStatus.OFFLINE.icon)
+
+            // CONNECTING should have valid icon
             assertNotNull(ConnectionStatus.CONNECTING.icon)
-            assertNotNull(ConnectionStatus.NOT_CONFIGURED.icon)
-            assertNotNull(ConnectionStatus.OFFLINE.icon)
         }
     }
 
