@@ -84,6 +84,11 @@ tasks {
         useJUnitPlatform()
     }
 
+    // Fix Gradle task dependency issue: classpathIndexCleanup should depend on processTestResources
+    named("classpathIndexCleanup") {
+        dependsOn("processTestResources")
+    }
+
     runIde {
         // Configure development IDE settings
         maxHeapSize = "2g"

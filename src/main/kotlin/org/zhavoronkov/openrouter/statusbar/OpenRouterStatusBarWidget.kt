@@ -13,6 +13,7 @@ import com.intellij.openapi.ui.popup.util.BaseListPopupStep
 import com.intellij.openapi.wm.StatusBar
 import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.impl.status.EditorBasedWidget
+import com.intellij.ui.awt.RelativePoint
 import com.intellij.util.Consumer
 import org.zhavoronkov.openrouter.models.ConnectionStatus
 import org.zhavoronkov.openrouter.services.OpenRouterService
@@ -36,6 +37,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
     companion object {
         const val ID = "OpenRouterStatusBar"
+        private const val POPUP_OFFSET_Y = 200 // Offset to position popup well above the status bar
     }
 
     override fun ID(): String = ID
@@ -56,7 +58,16 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
     private fun showPopupMenu(event: MouseEvent) {
         val popupStep = OpenRouterPopupStep()
         val popup = JBPopupFactory.getInstance().createListPopup(popupStep)
-        popup.showUnderneathOf(event.component)
+        
+        // Calculate position above the status bar widget instead of underneath
+        val component = event.component
+        val componentLocation = component.locationOnScreen
+        val popupLocation = java.awt.Point(
+            componentLocation.x,
+            componentLocation.y - POPUP_OFFSET_Y
+        )
+        
+        popup.show(RelativePoint.fromScreen(popupLocation))
     }
 
     private inner class OpenRouterPopupStep : BaseListPopupStep<PopupMenuItem>("OpenRouter", createMenuItems()) {
