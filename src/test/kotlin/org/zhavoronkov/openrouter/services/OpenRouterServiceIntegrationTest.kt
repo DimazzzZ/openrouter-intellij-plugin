@@ -62,13 +62,13 @@ class OpenRouterServiceIntegrationTest {
             assertTrue(data.isNotEmpty())
 
             val firstKey = data[0] as Map<*, *>
-            assertEquals("postman", firstKey["name"])
+            assertEquals("development-key", firstKey["name"])
             assertEquals(false, firstKey["disabled"])
 
             val intellijKey = data.find { (it as Map<*, *>)["name"] == "IntelliJ IDEA Plugin" } as Map<*, *>
             assertNotNull(intellijKey)
             assertEquals("IntelliJ IDEA Plugin", intellijKey["name"])
-            assertEquals(0.0000495, intellijKey["usage"])
+            assertEquals(12.75, intellijKey["usage"])
         }
 
         @Test

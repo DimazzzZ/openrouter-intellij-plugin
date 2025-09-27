@@ -22,6 +22,7 @@ import org.zhavoronkov.openrouter.models.QuotaInfo
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.io.IOException
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 
 /**
  * Service for interacting with OpenRouter API
@@ -47,11 +48,20 @@ import java.util.concurrent.CompletableFuture
 class OpenRouterService {
 
     private val gson = Gson()
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .build()
     private val settingsService = OpenRouterSettingsService.getInstance()
 
     companion object {
         private const val BASE_URL = "https://openrouter.ai/api/v1"
+        
+        // Timeout configuration constants
+        private const val CONNECT_TIMEOUT_SECONDS = 30L
+        private const val READ_TIMEOUT_SECONDS = 60L
+        private const val WRITE_TIMEOUT_SECONDS = 60L
 
         // Endpoints requiring API Key authentication (Bearer <api-key>)
         private const val CHAT_COMPLETIONS_ENDPOINT = "$BASE_URL/chat/completions"
