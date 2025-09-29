@@ -16,17 +16,14 @@ object RequestTranslator {
 
     /**
      * Converts OpenAI chat completion request to OpenRouter format
+     * SIMPLIFIED: No model name translation - pass through exactly as requested
      */
     fun translateChatCompletionRequest(
-        openAIRequest: OpenAIChatCompletionRequest,
-        openRouterModel: String? = null
+        openAIRequest: OpenAIChatCompletionRequest
     ): ChatCompletionRequest {
         PluginLogger.Service.debug("Translating OpenAI request to OpenRouter format")
-        PluginLogger.Service.debug("Original model: ${openAIRequest.model}")
-        PluginLogger.Service.debug("Target OpenRouter model: $openRouterModel")
-        
-        val targetModel = openRouterModel ?: mapOpenAIModelToOpenRouter(openAIRequest.model)
-        
+        PluginLogger.Service.debug("Model: ${openAIRequest.model} (no translation)")
+
         // Force non-streaming for compatibility with current proxy implementation
         // Some clients (AI Assistant) may set stream=true by default; we disable it here
         if (openAIRequest.stream == true) {
@@ -35,7 +32,7 @@ object RequestTranslator {
         val streamFlag = false
 
         return ChatCompletionRequest(
-            model = targetModel,
+            model = openAIRequest.model, // SIMPLIFIED: Use exact model name as requested
             messages = openAIRequest.messages.map { translateMessage(it) },
             temperature = openAIRequest.temperature ?: DEFAULT_TEMPERATURE,
             maxTokens = openAIRequest.max_tokens ?: DEFAULT_MAX_TOKENS,
@@ -58,65 +55,8 @@ object RequestTranslator {
         )
     }
 
-    /**
-     * Maps OpenAI model names to OpenRouter model names
-     * This provides intelligent model mapping for better compatibility
-     */
-    private fun mapOpenAIModelToOpenRouter(openAIModel: String): String {
-        return when {
-            // GPT-4 variants
-            openAIModel.startsWith("gpt-4") -> {
-                when {
-                    openAIModel.contains("gpt-4o-mini") -> "openai/gpt-4o-mini"
-                    openAIModel.contains("gpt-4o") -> "openai/gpt-4o"
-                    openAIModel.contains("turbo") -> "openai/gpt-4-turbo"
-                    openAIModel.contains("vision") -> "openai/gpt-4-vision-preview"
-                    openAIModel.contains("32k") -> "openai/gpt-4-32k"
-                    else -> "openai/gpt-4"
-                }
-            }
-            
-            // GPT-3.5 variants
-            openAIModel.startsWith("gpt-3.5") -> {
-                when {
-                    openAIModel.contains("turbo") -> "openai/gpt-3.5-turbo"
-                    openAIModel.contains("16k") -> "openai/gpt-3.5-turbo-16k"
-                    else -> "openai/gpt-3.5-turbo"
-                }
-            }
-            
-            // Claude variants
-            openAIModel.startsWith("claude") -> {
-                when {
-                    openAIModel.contains("3-5") -> "anthropic/claude-3.5-sonnet"
-                    openAIModel.contains("3") -> "anthropic/claude-3-sonnet"
-                    openAIModel.contains("2") -> "anthropic/claude-2"
-                    else -> "anthropic/claude-3.5-sonnet"
-                }
-            }
-            
-            // Gemini variants
-            openAIModel.startsWith("gemini") -> {
-                when {
-                    openAIModel.contains("pro") -> "google/gemini-pro"
-                    openAIModel.contains("ultra") -> "google/gemini-ultra"
-                    else -> "google/gemini-pro"
-                }
-            }
-            
-            // Default fallback - use the model as-is or default to GPT-3.5
-            else -> {
-                PluginLogger.Service.debug("Unknown model '$openAIModel', using as-is")
-                if (openAIModel.contains("/")) {
-                    // Already in OpenRouter format
-                    openAIModel
-                } else {
-                    // Default to a reliable model
-                    "openai/gpt-3.5-turbo"
-                }
-            }
-        }
-    }
+    // REMOVED: Model mapping logic eliminated for simplicity
+    // Models are now passed through exactly as requested
 
     /**
      * Validates that the translated request is valid for OpenRouter

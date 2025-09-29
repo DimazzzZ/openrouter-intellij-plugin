@@ -114,8 +114,11 @@ class ChatCompletionServlet(
                 return
             }
 
-            // Translate response to OpenAI format
-            val openAIResponse = ResponseTranslator.translateChatCompletionResponse(openRouterResponse)
+            // Translate response to OpenAI format (simplified - no model mapping)
+            val openAIResponse = ResponseTranslator.translateChatCompletionResponse(
+                openRouterResponse,
+                openAIRequest.model // Return exactly what was requested
+            )
             val openAIResponseJson = gson.toJson(openAIResponse)
             PluginLogger.Service.debug("[Chat] Translated OpenAI response: $openAIResponseJson")
 

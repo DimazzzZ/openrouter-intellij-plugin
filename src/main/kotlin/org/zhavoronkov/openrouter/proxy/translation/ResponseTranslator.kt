@@ -13,17 +13,20 @@ object ResponseTranslator {
 
     /**
      * Converts OpenRouter chat completion response to OpenAI format
+     * SIMPLIFIED: No model name translation - return exactly what was requested
      */
     fun translateChatCompletionResponse(
         openRouterResponse: ChatCompletionResponse,
+        requestedModel: String,
         requestId: String = generateRequestId()
     ): OpenAIChatCompletionResponse {
         PluginLogger.Service.debug("Translating OpenRouter response to OpenAI format")
-        
+        PluginLogger.Service.debug("Requested model: $requestedModel, OpenRouter model: ${openRouterResponse.model}")
+
         return OpenAIChatCompletionResponse(
             id = requestId,
             created = System.currentTimeMillis() / 1000,
-            model = mapOpenRouterModelToOpenAI(openRouterResponse.model ?: "unknown"),
+            model = requestedModel, // SIMPLIFIED: Return exactly what was requested
             choices = openRouterResponse.choices?.mapIndexed { index, choice ->
                 OpenAIChatChoice(
                     index = index,
@@ -48,7 +51,7 @@ object ResponseTranslator {
      * Converts OpenRouter providers response to OpenAI models format
      */
     fun translateModelsResponse(
-        providersResponse: ProvidersResponse
+        @Suppress("UNUSED_PARAMETER") providersResponse: ProvidersResponse
     ): OpenAIModelsResponse {
         PluginLogger.Service.debug("Translating OpenRouter providers to OpenAI models format")
 
@@ -135,33 +138,8 @@ object ResponseTranslator {
         )
     }
 
-    /**
-     * Maps OpenRouter model names back to OpenAI-compatible names
-     */
-    private fun mapOpenRouterModelToOpenAI(openRouterModel: String): String {
-        return when {
-            openRouterModel.contains("openai/gpt-4-turbo") -> "gpt-4-turbo"
-            openRouterModel.contains("openai/gpt-4-vision") -> "gpt-4-vision-preview"
-            openRouterModel.contains("openai/gpt-4-32k") -> "gpt-4-32k"
-            openRouterModel.contains("openai/gpt-4") -> "gpt-4"
-            openRouterModel.contains("openai/gpt-3.5-turbo-16k") -> "gpt-3.5-turbo-16k"
-            openRouterModel.contains("openai/gpt-3.5-turbo") -> "gpt-3.5-turbo"
-            openRouterModel.contains("anthropic/claude-3.5") -> "claude-3.5-sonnet"
-            openRouterModel.contains("anthropic/claude-3") -> "claude-3-sonnet"
-            openRouterModel.contains("anthropic/claude-2") -> "claude-2"
-            openRouterModel.contains("google/gemini-pro") -> "gemini-pro"
-            openRouterModel.contains("google/gemini-ultra") -> "gemini-ultra"
-            else -> {
-                // For unknown models, try to extract a reasonable name
-                val parts = openRouterModel.split("/")
-                if (parts.size >= 2) {
-                    parts[1] // Return the model part without provider
-                } else {
-                    openRouterModel
-                }
-            }
-        }
-    }
+    // REMOVED: Model mapping logic eliminated for simplicity
+    // Models are now returned exactly as requested
 
     /**
      * Extracts the owner/provider from OpenRouter model ID
