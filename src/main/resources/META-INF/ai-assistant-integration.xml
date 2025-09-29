@@ -1,0 +1,14 @@
+<!-- AI Assistant Integration Configuration -->
+<!-- This file is loaded only when the AI Assistant plugin (com.intellij.ml.llm) is available -->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Third Party AI Provider - main extension point for AI providers -->
+        <ml.llm.thirdPartyAIProvider implementation="org.zhavoronkov.openrouter.aiassistant.OpenRouterModelProvider"/>
+        
+        <!-- Chat Context Provider - provides context for AI conversations -->
+        <chatContextProvider implementation="org.zhavoronkov.openrouter.aiassistant.OpenRouterChatContextProvider"/>
+        
+        <!-- Preferable Model Provider - for model preferences -->
+        <ml.llm.preferableModelProvider implementation="org.zhavoronkov.openrouter.aiassistant.OpenRouterModelProvider"/>
+    </extensions>
+</idea-plugin>

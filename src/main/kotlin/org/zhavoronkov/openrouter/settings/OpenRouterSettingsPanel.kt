@@ -172,6 +172,8 @@ class OpenRouterSettingsPanel {
             )
             .addComponent(showCostsCheckBox, 1)
             .addVerticalGap(15)
+            .addComponent(createAIAssistantIntegrationPanel(), 1)
+            .addVerticalGap(15)
             .addComponent(createApiKeyTablePanel(), 1)
             // TODO: Future version - Providers list
             // .addVerticalGap(15)
@@ -199,6 +201,85 @@ class OpenRouterSettingsPanel {
         panel.add(helpLabel, BorderLayout.SOUTH)
 
         return panel
+    }
+
+    private fun createAIAssistantIntegrationPanel(): JPanel {
+        val panel = JPanel(BorderLayout())
+        
+        // Title
+        val titleLabel = JBLabel("AI Assistant Integration")
+        titleLabel.font = titleLabel.font.deriveFont(Font.BOLD, 14f)
+        titleLabel.border = JBUI.Borders.emptyBottom(8)
+        
+        val contentPanel = JPanel()
+        contentPanel.layout = javax.swing.BoxLayout(contentPanel, javax.swing.BoxLayout.Y_AXIS)
+        
+        // Integration status
+        val statusLabel = JBLabel()
+        statusLabel.border = JBUI.Borders.emptyBottom(5)
+        
+        // Information text
+        val infoLabel = JBLabel(
+            "<html>" +
+            "<b>AI Assistant Plugin Integration Available!</b><br/>" +
+            "When you have the JetBrains AI Assistant plugin installed, OpenRouter models will automatically<br/>" +
+            "appear in <b>Settings → Tools → AI Assistant → Models</b> as a provider option.<br/><br/>" +
+            "Simply configure your OpenRouter Provisioning Key above, and you'll be able to use<br/>" +
+            "400+ AI models through the AI Assistant interface.<br/>" +
+            "</html>"
+        )
+        infoLabel.border = JBUI.Borders.emptyBottom(8)
+        
+        // Status check
+        val aiAssistantInstalled = checkAIAssistantInstalled()
+        if (aiAssistantInstalled) {
+            statusLabel.text = "<html><span style='color: green;'>✓ AI Assistant plugin detected - Integration available!</span></html>"
+            statusLabel.foreground = JBColor.GREEN
+        } else {
+            statusLabel.text = "<html><span style='color: #888;'>ℹ AI Assistant plugin not detected</span></html>"
+            statusLabel.foreground = JBColor.GRAY
+        }
+        
+        // Learn more link
+        val learnMoreLabel = JBLabel(
+            "<html><small>" +
+            "Learn more about the <a href='https://plugins.jetbrains.com/plugin/22282-jetbrains-ai-assistant'>AI Assistant plugin</a>" +
+            "</small></html>"
+        )
+        learnMoreLabel.addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                if (e.source == learnMoreLabel) {
+                    BrowserUtil.browse("https://plugins.jetbrains.com/plugin/22282-jetbrains-ai-assistant")
+                }
+            }
+        })
+        
+        contentPanel.add(statusLabel)
+        contentPanel.add(infoLabel)
+        contentPanel.add(learnMoreLabel)
+        
+        panel.add(titleLabel, BorderLayout.NORTH)
+        panel.add(contentPanel, BorderLayout.CENTER)
+        
+        // Add a subtle border to make it stand out
+        panel.border = JBUI.Borders.compound(
+            JBUI.Borders.customLine(JBColor.GRAY, 1, 0, 0, 0), // Top border
+            JBUI.Borders.empty(10, 0, 10, 0) // Padding
+        )
+        
+        return panel
+    }
+    
+    private fun checkAIAssistantInstalled(): Boolean {
+        return try {
+            val pluginManager = com.intellij.ide.plugins.PluginManagerCore.getPlugins()
+            pluginManager.any { plugin -> 
+                plugin.pluginId.idString == "com.intellij.ml.llm" && plugin.isEnabled 
+            }
+        } catch (e: Exception) {
+            PluginLogger.Settings.debug("Could not check AI Assistant plugin status: ${e.message}")
+            false
+        }
     }
 
     private fun createApiKeyTablePanel(): JPanel {

@@ -46,6 +46,9 @@
     <!-- Product and plugin compatibility requirements.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
     <depends>com.intellij.modules.platform</depends>
+    
+    <!-- AI Assistant integration dependency (optional) -->
+    <depends optional="true" config-file="ai-assistant-integration.xml">com.intellij.ml.llm</depends>
 
 
 

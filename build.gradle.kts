@@ -32,7 +32,7 @@ dependencies {
 // Configure Gradle IntelliJ Plugin
 intellij {
     version.set("2023.2.5")
-    type.set("IC") // Target IDE Platform
+    type.set("IU") // Target IDE Platform - Ultimate for AI Assistant testing
 
     plugins.set(listOf(/* Plugin Dependencies */))
 }
