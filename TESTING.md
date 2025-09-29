@@ -44,6 +44,7 @@ src/test/kotlin/org/zhavoronkov/openrouter/
 ### Test Categories
 - **🔧 Unit Tests**: Core business logic and data models
 - **🌐 Integration Tests**: OpenRouter API communication
+- **🤖 Proxy Tests**: AI Assistant integration proxy server
 - **📋 Mock Tests**: Simulated API responses for reliability
 - **🚨 Error Tests**: Edge cases and failure scenarios
 
@@ -80,6 +81,23 @@ src/test/kotlin/org/zhavoronkov/openrouter/
 ./gradlew test --continue
 ```
 
+#### AI Assistant Integration Testing
+```bash
+# 🚀 Start development IDE with proxy server
+./gradlew runIde --no-daemon
+
+# 🧪 Test proxy server endpoints (manual scripts available)
+./scripts/test-proxy.sh          # Basic proxy functionality
+./scripts/test-chat.sh           # Chat completions endpoint  
+./scripts/test-model-mapping.sh  # Model name translation
+
+# 🔗 Test full AI Assistant integration
+# 1. Configure OpenRouter plugin in development IDE
+# 2. Start proxy server via status bar
+# 3. Configure AI Assistant to use localhost:8080
+# 4. Test chat completions through AI Assistant
+```
+
 ### Expected Output
 ```
 > Task :test
@@ -105,6 +123,14 @@ BUILD SUCCESSFUL in 4s
 - **API Endpoints**: List, create, delete API keys
 - **Error Scenarios**: 401 unauthorized, 404 not found, validation errors
 - **Response Parsing**: JSON deserialization and data validation
+
+### AI Assistant Integration Testing
+- **Proxy Server**: Start/stop lifecycle, port allocation, health checks
+- **API Endpoints**: OpenAI-compatible endpoint validation
+- **Request Translation**: OpenAI to OpenRouter format conversion
+- **Response Translation**: OpenRouter to OpenAI format conversion
+- **Model Mapping**: Automatic model name translation
+- **Error Handling**: Proxy error scenarios and fallbacks
 
 ## Test Infrastructure
 

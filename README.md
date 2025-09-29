@@ -4,16 +4,18 @@
 [![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.ai), providing access to 400+ AI models with usage monitoring and quota tracking.
+An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.ai), providing access to 400+ AI models with usage monitoring, quota tracking, and seamless JetBrains AI Assistant integration.
 
 ## Features
 
-**Status Bar Widget** - Real-time usage display with popup menu
-**API Key Management** - Secure provisioning key support with automatic API key creation
-**Usage Analytics** - Track token consumption, costs, and model performance
-**Real-time Monitoring** - Live connection status with color-coded indicators
-**Statistics Popup** - Detailed usage analytics in modal dialog
-**Settings Panel** - Configuration with validation and testing
+**🤖 AI Assistant Integration** - Use OpenRouter's 400+ models directly in JetBrains AI Assistant
+**📊 Status Bar Widget** - Real-time usage display with comprehensive popup menu
+**🔑 API Key Management** - Secure provisioning key support with automatic API key creation
+**📈 Usage Analytics** - Track token consumption, costs, and model performance
+**🔴 Real-time Monitoring** - Live connection status with color-coded indicators
+**📋 Statistics Popup** - Detailed usage analytics in modal dialog
+**⚙️ Settings Panel** - Configuration with validation and testing
+**🌐 Proxy Server** - Local OpenAI-compatible proxy for seamless integration
 
 ## Installation
 
@@ -35,6 +37,33 @@ An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.
 
 The plugin automatically creates and configures an API key when you provide a provisioning key.
 
+## 🤖 AI Assistant Integration
+
+**NEW**: Use OpenRouter's 400+ AI models directly in JetBrains AI Assistant!
+
+### Quick Start
+1. **Configure OpenRouter Plugin** (as above)
+2. **Start Proxy Server**: Click OpenRouter status bar icon → "Start AI Assistant Proxy"  
+3. **Configure AI Assistant**: Settings → Tools → AI Assistant → Models → Add "Other OpenAI-compatible service"
+   - **URL**: `http://localhost:8080` (or displayed port)
+   - **API Key**: Leave empty (handled by OpenRouter plugin)
+4. **Start Using**: Access 400+ models through AI Assistant's familiar interface
+
+### Supported Models
+- **OpenAI**: GPT-4, GPT-4 Turbo, GPT-3.5 Turbo
+- **Anthropic**: Claude 3 Opus, Claude 3 Sonnet, Claude 3 Haiku  
+- **Meta**: Llama 2 70B, Code Llama
+- **Google**: Gemini Pro, PaLM 2
+- **Mistral**: Mistral 7B, Mixtral 8x7B
+- **And 390+ more models from 40+ providers!**
+
+### Benefits
+- ✅ **Unified Interface** - Use AI Assistant's familiar chat interface
+- ✅ **Cost Control** - Transparent pricing and real-time usage monitoring  
+- ✅ **Model Switching** - Easy switching between different AI providers
+- ✅ **Local Proxy** - Secure localhost-only communication
+- ✅ **No Limits** - Access models beyond AI Assistant's default options
+
 ## Usage
 
 ### Status Bar Widget
@@ -43,8 +72,10 @@ The plugin automatically creates and configures an API key when you provide a pr
 - **Usage Display**: Current quota usage and cost information
 
 ### Popup Menu
+- **AI Assistant Integration**: Start/stop proxy server with status display
 - **View Quota Usage**: Detailed statistics and analytics
 - **Settings**: Direct access to plugin configuration
+- **Configuration Instructions**: Setup guide for AI Assistant integration
 - **Documentation**: Links to OpenRouter API documentation
 - **Logout**: Clear stored credentials
 

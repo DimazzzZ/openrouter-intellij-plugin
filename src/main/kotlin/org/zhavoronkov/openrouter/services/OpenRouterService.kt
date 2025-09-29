@@ -19,6 +19,7 @@ import org.zhavoronkov.openrouter.models.DeleteApiKeyResponse
 import org.zhavoronkov.openrouter.models.GenerationResponse
 import org.zhavoronkov.openrouter.models.KeyData
 import org.zhavoronkov.openrouter.models.KeyInfoResponse
+import org.zhavoronkov.openrouter.models.OpenRouterModelsResponse
 import org.zhavoronkov.openrouter.models.ProvidersResponse
 import org.zhavoronkov.openrouter.models.QuotaInfo
 import org.zhavoronkov.openrouter.utils.PluginLogger
@@ -76,6 +77,7 @@ class OpenRouterService {
 
         // Public endpoints (no authentication required)
         private const val PROVIDERS_ENDPOINT = "$BASE_URL/providers"
+        private const val MODELS_ENDPOINT = "$BASE_URL/models"
 
         fun getInstance(): OpenRouterService {
             return ApplicationManager.getApplication().getService(OpenRouterService::class.java)
@@ -493,6 +495,44 @@ class OpenRouterService {
                 null
             } catch (e: JsonSyntaxException) {
                 PluginLogger.Service.error("Error fetching activity - invalid JSON response", e)
+                null
+            }
+        }
+    }
+
+    /**
+     * Get list of available models from OpenRouter
+     * NOTE: This is a public endpoint that requires no authentication
+     */
+    fun getModels(): CompletableFuture<OpenRouterModelsResponse?> {
+        return CompletableFuture.supplyAsync {
+            try {
+                PluginLogger.Service.debug("Fetching models list from OpenRouter (public endpoint)")
+                PluginLogger.Service.debug("Making request to: $MODELS_ENDPOINT")
+
+                // Models endpoint is public - no authentication required
+                val request = Request.Builder()
+                    .url(MODELS_ENDPOINT)
+                    .addHeader("Content-Type", "application/json")
+                    .build()
+
+                val response = client.newCall(request).execute()
+                val responseBody = response.body?.string() ?: ""
+                PluginLogger.Service.debug("Models response: ${response.code} - ${responseBody.take(500)}...")
+
+                if (response.isSuccessful) {
+                    val modelsResponse = gson.fromJson(responseBody, OpenRouterModelsResponse::class.java)
+                    PluginLogger.Service.info("Successfully parsed models response: ${modelsResponse.data.size} models")
+                    modelsResponse
+                } else {
+                    PluginLogger.Service.warn("Failed to fetch models: ${response.code} - $responseBody")
+                    null
+                }
+            } catch (e: IOException) {
+                PluginLogger.Service.error("Error fetching models - network issue", e)
+                null
+            } catch (e: JsonSyntaxException) {
+                PluginLogger.Service.error("Error fetching models - invalid JSON response", e)
                 null
             }
         }

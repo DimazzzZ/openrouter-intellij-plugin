@@ -13,6 +13,7 @@ This guide covers development setup, building, testing, and contributing to the 
 - **ImageMagick** - For icon processing and optimization
 - **Docker** - For containerized testing environments
 - **Postman/Insomnia** - For API testing and development
+- **JetBrains AI Assistant Plugin** - For testing AI Assistant integration
 
 ### OpenRouter Account
 - **Free Account** - Sign up at [OpenRouter.ai](https://openrouter.ai)
@@ -157,13 +158,33 @@ openrouter-intellij-plugin/
 │   │   └── ShowUsageAction.kt       # Show usage statistics
 │   ├── 🎨 icons/                    # Icon definitions & resources
 │   │   └── OpenRouterIcons.kt       # Icon constants & loading
+│   ├── 🤖 integration/              # AI Assistant integration
+│   │   └── AIAssistantIntegrationHelper.kt # AI Assistant setup utilities
 │   ├── 📊 models/                   # Data models & DTOs
 │   │   ├── ConnectionStatus.kt      # Connection state enum
 │   │   └── OpenRouterModels.kt      # API response models
+│   ├── 🌐 proxy/                    # OpenAI-compatible proxy server
+│   │   ├── OpenRouterProxyServer.kt # Jetty-based HTTP server
+│   │   ├── CorsFilter.kt           # CORS filter for cross-origin requests
+│   │   ├── models/                 # Proxy-specific models
+│   │   │   └── OpenAIModels.kt     # OpenAI API compatibility models
+│   │   ├── servlets/               # HTTP request handlers
+│   │   │   ├── ChatCompletionServlet.kt # Chat completions endpoint
+│   │   │   ├── ModelsServlet.kt    # Models list endpoint
+│   │   │   ├── HealthCheckServlet.kt # Health check endpoint
+│   │   │   ├── RootServlet.kt      # Root endpoint handler
+│   │   │   ├── EnginesServlet.kt   # OpenAI engines compatibility
+│   │   │   └── OrganizationServlet.kt # Organization info endpoint
+│   │   └── translation/            # Request/response translation
+│   │       ├── RequestTranslator.kt # OpenAI to OpenRouter format
+│   │       └── ResponseTranslator.kt # OpenRouter to OpenAI format
 │   ├── ⚙️ services/                 # Core business logic
 │   │   ├── OpenRouterService.kt     # API communication service
 │   │   ├── OpenRouterSettingsService.kt # Settings persistence
+│   │   ├── OpenRouterProxyService.kt # AI Assistant proxy server management
 │   │   └── OpenRouterGenerationTrackingService.kt # Usage tracking
+│   ├── 🚀 startup/                  # Startup activities
+│   │   └── ProxyServerStartupActivity.kt # Auto-start proxy server
 │   ├── 🔧 settings/                 # Settings UI components
 │   │   ├── OpenRouterConfigurable.kt # Settings page configuration
 │   │   └── OpenRouterSettingsPanel.kt # Settings UI panel
@@ -213,6 +234,12 @@ openrouter-intellij-plugin/
   - Single source of truth for all configuration
   - Automatic migration and compatibility handling
 
+- **OpenRouterProxyService** - AI Assistant integration proxy
+  - Manages local HTTP proxy server (Jetty-based)
+  - Handles server lifecycle (start/stop/status)
+  - Automatic port allocation (8080-8090 range)
+  - OpenAI-compatible API endpoint exposure
+
 - **OpenRouterGenerationTrackingService** - Usage analytics
   - Tracks API calls and token usage
   - Maintains generation history and statistics
@@ -250,6 +277,63 @@ openrouter-intellij-plugin/
 - **OpenSettingsAction** - Direct access to plugin configuration
 - **Tools Menu Integration** - Native IntelliJ menu integration
 - **Status Bar Integration** - Seamless IDE status bar integration
+
+## 🤖 AI Assistant Integration
+
+### Proxy Server Architecture
+The plugin includes a local HTTP proxy server that enables JetBrains AI Assistant to access OpenRouter's 400+ models:
+
+- **Technology**: Eclipse Jetty 11 embedded HTTP server
+- **Port Range**: Auto-allocates ports 8080-8090
+- **Protocol**: OpenAI-compatible REST API
+- **Security**: Localhost-only (127.0.0.1), no external access
+- **Authentication**: Handled transparently via OpenRouter plugin
+
+### Supported Endpoints
+```
+GET  /health                    # Health check endpoint
+GET  /v1/models                 # List available models  
+POST /v1/chat/completions       # Chat completions (main AI endpoint)
+GET  /v1/engines               # OpenAI engines compatibility
+GET  /v1/organizations/org-*    # Organization info compatibility
+```
+
+### Request/Response Translation
+The proxy server translates between OpenAI and OpenRouter formats:
+
+**Request Translation** (`RequestTranslator.kt`):
+- Converts OpenAI chat completion requests to OpenRouter format
+- Maps model names (e.g., `gpt-4` → `openai/gpt-4`)
+- Handles authentication with stored OpenRouter API keys
+- Preserves all OpenAI request parameters
+
+**Response Translation** (`ResponseTranslator.kt`):
+- Converts OpenRouter responses to OpenAI-compatible format  
+- Maintains consistent response structure and timing
+- Handles error responses appropriately
+- Preserves usage statistics and metadata
+
+### Development Testing
+```bash
+# Start development IDE with proxy server
+./gradlew runIde --no-daemon
+
+# Test proxy endpoints directly
+curl http://localhost:8080/health
+curl http://localhost:8080/v1/models
+
+# Test chat completion (requires OpenRouter configuration)
+curl -X POST http://localhost:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"Hello"}]}'
+```
+
+### Integration Components
+- **OpenRouterProxyServer**: Jetty server management and configuration
+- **Servlet Classes**: Handle different endpoint types (chat, models, health)
+- **CorsFilter**: Enable cross-origin requests for web-based IDEs
+- **ProxyServerStartupActivity**: Auto-start proxy server on IDE startup
+- **AIAssistantIntegrationHelper**: Utilities for setup and configuration
 
 ## Development Guidelines
 

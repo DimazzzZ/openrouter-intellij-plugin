@@ -118,16 +118,50 @@ data class ProviderInfo(
     @SerializedName("status_page_url") val statusPageUrl: String?
 )
 
+// OpenRouter Models API Response
+data class OpenRouterModelsResponse(
+    val data: List<OpenRouterModelInfo>
+)
+
+data class OpenRouterModelInfo(
+    val id: String,
+    val name: String,
+    val created: Long,
+    val description: String? = null,
+    val architecture: ModelArchitecture? = null,
+    @SerializedName("top_provider") val topProvider: TopProvider? = null,
+    val pricing: ModelPricing? = null,
+    @SerializedName("context_length") val contextLength: Int? = null,
+    @SerializedName("per_request_limits") val perRequestLimits: Map<String, Any>? = null,
+    @SerializedName("supported_parameters") val supportedParameters: List<String>? = null
+)
+
+data class ModelArchitecture(
+    @SerializedName("input_modalities") val inputModalities: List<String>? = null,
+    @SerializedName("output_modalities") val outputModalities: List<String>? = null,
+    val tokenizer: String? = null,
+    @SerializedName("instruct_type") val instructType: String? = null
+)
+
+data class TopProvider(
+    @SerializedName("is_moderated") val isModerated: Boolean? = null,
+    @SerializedName("context_length") val contextLength: Int? = null,
+    @SerializedName("max_completion_tokens") val maxCompletionTokens: Int? = null
+)
+
+data class ModelPricing(
+    val prompt: String? = null,
+    val completion: String? = null,
+    val image: String? = null,
+    val request: String? = null
+)
+
+// Legacy model info for backward compatibility
 data class ModelInfo(
     val id: String,
     val name: String,
     val description: String? = null,
     val pricing: ModelPricing? = null
-)
-
-data class ModelPricing(
-    val prompt: Double? = null,
-    val completion: Double? = null
 )
 
 /**
