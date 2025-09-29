@@ -82,6 +82,7 @@
         <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterService"/>
         <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterSettingsService"/>
         <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService"/>
+        <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterProxyService"/>
         
         <!-- Settings -->
         <applicationConfigurable 
@@ -91,10 +92,13 @@
             displayName="OpenRouter"/>
         
         <!-- Status bar widget -->
-        <statusBarWidgetFactory 
+        <statusBarWidgetFactory
             implementation="org.zhavoronkov.openrouter.statusbar.OpenRouterStatusBarWidgetFactory"
             id="OpenRouterStatusBar"
             order="after Encoding"/>
+
+        <!-- Startup activity for proxy server -->
+        <postStartupActivity implementation="org.zhavoronkov.openrouter.startup.ProxyServerStartupActivity"/>
         
         <!-- Tool window - TEMPORARILY DISABLED -->
         <!--

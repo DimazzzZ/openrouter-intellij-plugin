@@ -165,6 +165,48 @@ data class ActivityData(
 )
 
 /**
+ * Chat completion request and response models
+ */
+data class ChatCompletionRequest(
+    val model: String,
+    val messages: List<ChatMessage>,
+    val temperature: Double? = null,
+    @SerializedName("max_tokens") val maxTokens: Int? = null,
+    @SerializedName("top_p") val topP: Double? = null,
+    @SerializedName("frequency_penalty") val frequencyPenalty: Double? = null,
+    @SerializedName("presence_penalty") val presencePenalty: Double? = null,
+    val stop: List<String>? = null,
+    val stream: Boolean? = false
+)
+
+data class ChatMessage(
+    val role: String, // "system", "user", "assistant"
+    val content: String,
+    val name: String? = null
+)
+
+data class ChatCompletionResponse(
+    val id: String? = null,
+    val `object`: String? = null,
+    val created: Long? = null,
+    val model: String? = null,
+    val choices: List<ChatChoice>? = null,
+    val usage: ChatUsage? = null
+)
+
+data class ChatChoice(
+    val index: Int? = null,
+    val message: ChatMessage? = null,
+    @SerializedName("finish_reason") val finishReason: String? = null
+)
+
+data class ChatUsage(
+    @SerializedName("prompt_tokens") val promptTokens: Int? = null,
+    @SerializedName("completion_tokens") val completionTokens: Int? = null,
+    @SerializedName("total_tokens") val totalTokens: Int? = null
+)
+
+/**
  * Settings data class
  */
 data class OpenRouterSettings(

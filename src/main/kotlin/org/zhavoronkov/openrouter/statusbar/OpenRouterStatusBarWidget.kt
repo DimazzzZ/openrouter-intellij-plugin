@@ -18,7 +18,9 @@ import com.intellij.util.Consumer
 import org.zhavoronkov.openrouter.models.ConnectionStatus
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.ui.OpenRouterStatsPopup
+import org.zhavoronkov.openrouter.integration.AIAssistantIntegrationHelper
 import java.awt.event.MouseEvent
 import java.util.Locale
 import javax.swing.Icon
@@ -30,6 +32,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
     private val openRouterService = OpenRouterService.getInstance()
     private val settingsService = OpenRouterSettingsService.getInstance()
+    private val proxyService = OpenRouterProxyService.getInstance()
 
     private var connectionStatus = ConnectionStatus.NOT_CONFIGURED
     private var currentText = "Status: Not Configured"
@@ -123,6 +126,42 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
             )
         )
 
+        // AI Assistant Integration
+        if (settingsService.isConfigured()) {
+            val proxyStatus = proxyService.getServerStatus()
+            if (proxyStatus.isRunning) {
+                items.add(
+                    PopupMenuItem(
+                        text = "AI Assistant Integration: Running (Port ${proxyStatus.port})",
+                        icon = AllIcons.Actions.Execute,
+                        action = { showAIAssistantInstructions() }
+                    )
+                )
+                items.add(
+                    PopupMenuItem(
+                        text = "Stop AI Assistant Proxy",
+                        icon = AllIcons.Actions.Suspend,
+                        action = { stopProxyServer() }
+                    )
+                )
+            } else {
+                items.add(
+                    PopupMenuItem(
+                        text = "AI Assistant Integration: Stopped",
+                        icon = AllIcons.Actions.Pause,
+                        action = { startProxyServer() }
+                    )
+                )
+                items.add(
+                    PopupMenuItem(
+                        text = "Start AI Assistant Proxy",
+                        icon = AllIcons.Actions.Execute,
+                        action = { startProxyServer() }
+                    )
+                )
+            }
+        }
+
         // Authentication
         if (settingsService.isConfigured()) {
             items.add(
@@ -141,6 +180,15 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
                 )
             )
         }
+
+        // AI Assistant Integration Wizard
+        items.add(
+            PopupMenuItem(
+                text = "AI Assistant Integration Wizard",
+                icon = AllIcons.Actions.IntentionBulb,
+                action = { showIntegrationWizard() }
+            )
+        )
 
         // Settings (direct action, no submenu)
         items.add(
@@ -210,6 +258,69 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
     private fun openFeedbackRepository() {
         BrowserUtil.browse("https://github.com/DimazzzZ/openrouter-intellij-plugin/issues")
+    }
+
+    private fun startProxyServer() {
+        ApplicationManager.getApplication().executeOnPooledThread {
+            proxyService.startServer().thenAccept { success ->
+                ApplicationManager.getApplication().invokeLater {
+                    if (success) {
+                        val status = proxyService.getServerStatus()
+                        Messages.showInfoMessage(
+                            project,
+                            "AI Assistant proxy server started successfully on port ${status.port}.\n\n" +
+                            "You can now configure AI Assistant to use: ${status.url}",
+                            "Proxy Server Started"
+                        )
+                    } else {
+                        Messages.showErrorDialog(
+                            project,
+                            "Failed to start AI Assistant proxy server. Please check the logs for details.",
+                            "Proxy Server Error"
+                        )
+                    }
+                    updateConnectionStatus()
+                }
+            }
+        }
+    }
+
+    private fun stopProxyServer() {
+        ApplicationManager.getApplication().executeOnPooledThread {
+            proxyService.stopServer().thenAccept { success ->
+                ApplicationManager.getApplication().invokeLater {
+                    if (success) {
+                        Messages.showInfoMessage(
+                            project,
+                            "AI Assistant proxy server stopped successfully.",
+                            "Proxy Server Stopped"
+                        )
+                    } else {
+                        Messages.showErrorDialog(
+                            project,
+                            "Failed to stop AI Assistant proxy server. Please check the logs for details.",
+                            "Proxy Server Error"
+                        )
+                    }
+                    updateConnectionStatus()
+                }
+            }
+        }
+    }
+
+    private fun showAIAssistantInstructions() {
+        ApplicationManager.getApplication().invokeLater {
+            val instructions = proxyService.getAIAssistantConfigurationInstructions()
+            Messages.showInfoMessage(
+                project,
+                instructions,
+                "AI Assistant Configuration"
+            )
+        }
+    }
+
+    private fun showIntegrationWizard() {
+        AIAssistantIntegrationHelper.showSetupWizard(project)
     }
 
     /**

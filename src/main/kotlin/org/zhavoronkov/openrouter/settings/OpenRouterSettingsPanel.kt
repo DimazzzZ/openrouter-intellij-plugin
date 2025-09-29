@@ -21,6 +21,7 @@ import org.zhavoronkov.openrouter.models.ApiKeyInfo
 import org.zhavoronkov.openrouter.models.ProviderInfo
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.Dimension
@@ -37,6 +38,7 @@ import javax.swing.Timer
 import javax.swing.JButton
 import javax.swing.JCheckBox
 import javax.swing.JPanel
+import javax.swing.BoxLayout
 import javax.swing.JSpinner
 import javax.swing.JTable
 import javax.swing.ListSelectionModel
@@ -123,6 +125,7 @@ class OpenRouterSettingsPanel {
     // private val providersTable = JBTable(providersTableModel)
     private val openRouterService = OpenRouterService.getInstance()
     private val settingsService = OpenRouterSettingsService.getInstance()
+    private val proxyService = OpenRouterProxyService.getInstance()
 
     companion object {
         private const val INTELLIJ_API_KEY_NAME = "IntelliJ IDEA Plugin"
@@ -173,6 +176,8 @@ class OpenRouterSettingsPanel {
             .addComponent(showCostsCheckBox, 1)
             .addVerticalGap(15)
             .addComponent(createApiKeyTablePanel(), 1)
+            .addVerticalGap(15)
+            .addComponent(createAIAssistantIntegrationPanel(), 1)
             // TODO: Future version - Providers list
             // .addVerticalGap(15)
             // .addComponent(createProvidersTablePanel(), 1)
@@ -261,6 +266,149 @@ class OpenRouterSettingsPanel {
         // Note: refreshApiKeys() will be called by the configurable after settings are loaded
 
         return panel
+    }
+
+    private fun createAIAssistantIntegrationPanel(): JPanel {
+        val panel = JPanel(BorderLayout())
+
+        // Add section label
+        val sectionLabel = JBLabel("AI Assistant Integration:")
+        sectionLabel.border = JBUI.Borders.emptyBottom(10)
+        panel.add(sectionLabel, BorderLayout.NORTH)
+
+        val contentPanel = JPanel()
+        contentPanel.layout = BoxLayout(contentPanel, BoxLayout.Y_AXIS)
+
+        // Status display
+        val statusPanel = JPanel(FlowLayout(FlowLayout.LEFT))
+        val statusLabel = JBLabel("Proxy Server Status: ")
+        val statusValueLabel = JBLabel()
+        updateProxyStatusLabel(statusValueLabel)
+        statusPanel.add(statusLabel)
+        statusPanel.add(statusValueLabel)
+        contentPanel.add(statusPanel)
+
+        // Control buttons
+        val buttonPanel = JPanel(FlowLayout(FlowLayout.LEFT))
+        val startButton = JButton("Start Proxy Server")
+        val stopButton = JButton("Stop Proxy Server")
+        val instructionsButton = JButton("Show Configuration Instructions")
+
+        startButton.addActionListener { startProxyServer(statusValueLabel, startButton, stopButton) }
+        stopButton.addActionListener { stopProxyServer(statusValueLabel, startButton, stopButton) }
+        instructionsButton.addActionListener { showConfigurationInstructions() }
+
+        buttonPanel.add(startButton)
+        buttonPanel.add(stopButton)
+        buttonPanel.add(instructionsButton)
+        contentPanel.add(buttonPanel)
+
+        // Update button states
+        updateProxyButtons(startButton, stopButton)
+
+        // Help text
+        val helpLabel = JBLabel(
+            "<html><small>The proxy server allows JetBrains AI Assistant to use OpenRouter models.<br/>" +
+            "Start the server and configure AI Assistant to connect to the provided URL.</small></html>"
+        )
+        helpLabel.border = JBUI.Borders.emptyTop(10)
+        contentPanel.add(helpLabel)
+
+        panel.add(contentPanel, BorderLayout.CENTER)
+
+        return panel
+    }
+
+    private fun updateProxyStatusLabel(statusLabel: JBLabel) {
+        val status = proxyService.getServerStatus()
+        if (status.isRunning) {
+            statusLabel.text = "Running on port ${status.port}"
+            statusLabel.foreground = JBColor.GREEN
+        } else {
+            statusLabel.text = "Stopped"
+            statusLabel.foreground = JBColor.RED
+        }
+    }
+
+    private fun updateProxyButtons(startButton: JButton, stopButton: JButton) {
+        val status = proxyService.getServerStatus()
+        val isConfigured = settingsService.isConfigured()
+
+        startButton.isEnabled = !status.isRunning && isConfigured
+        stopButton.isEnabled = status.isRunning
+
+        if (!isConfigured) {
+            startButton.toolTipText = "Configure OpenRouter first"
+        } else {
+            startButton.toolTipText = null
+        }
+    }
+
+    private fun startProxyServer(statusLabel: JBLabel, startButton: JButton, stopButton: JButton) {
+        if (!settingsService.isConfigured()) {
+            Messages.showErrorDialog(
+                "Please configure your Provisioning Key first.",
+                "Configuration Required"
+            )
+            return
+        }
+
+        startButton.isEnabled = false
+        startButton.text = "Starting..."
+
+        proxyService.startServer().thenAccept { success ->
+            ApplicationManager.getApplication().invokeLater {
+                if (success) {
+                    updateProxyStatusLabel(statusLabel)
+                    updateProxyButtons(startButton, stopButton)
+                    startButton.text = "Start Proxy Server"
+
+                    val status = proxyService.getServerStatus()
+                    Messages.showInfoMessage(
+                        "Proxy server started successfully on port ${status.port}.\n\n" +
+                        "You can now configure AI Assistant to use: ${status.url}",
+                        "Proxy Server Started"
+                    )
+                } else {
+                    startButton.isEnabled = true
+                    startButton.text = "Start Proxy Server"
+                    Messages.showErrorDialog(
+                        "Failed to start proxy server. Please check the logs for details.",
+                        "Proxy Server Error"
+                    )
+                }
+            }
+        }
+    }
+
+    private fun stopProxyServer(statusLabel: JBLabel, startButton: JButton, stopButton: JButton) {
+        stopButton.isEnabled = false
+        stopButton.text = "Stopping..."
+
+        proxyService.stopServer().thenAccept { success ->
+            ApplicationManager.getApplication().invokeLater {
+                updateProxyStatusLabel(statusLabel)
+                updateProxyButtons(startButton, stopButton)
+                stopButton.text = "Stop Proxy Server"
+
+                if (success) {
+                    Messages.showInfoMessage(
+                        "Proxy server stopped successfully.",
+                        "Proxy Server Stopped"
+                    )
+                } else {
+                    Messages.showErrorDialog(
+                        "Failed to stop proxy server. Please check the logs for details.",
+                        "Proxy Server Error"
+                    )
+                }
+            }
+        }
+    }
+
+    private fun showConfigurationInstructions() {
+        val instructions = proxyService.getAIAssistantConfigurationInstructions()
+        Messages.showInfoMessage(instructions, "AI Assistant Configuration")
     }
 
     // TODO: Future version - Providers list
