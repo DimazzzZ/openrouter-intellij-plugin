@@ -158,93 +158,13 @@ class OpenRouterService {
                     }
 
                     val trimmed = responseBody.trimStart()
-                    return@use try {
-                        if (contentType.contains("text/event-stream", ignoreCase = true) || trimmed.startsWith("data:")) {
-                            PluginLogger.Service.info("[OR] Detected streaming SSE response; aggregating chunks")
-                            aggregateSseToChatCompletion(responseBody)
-                        } else {
-                            val result = gson.fromJson(trimmed, ChatCompletionResponse::class.java)
-                            PluginLogger.Service.debug("[OR] Parsed ChatCompletionResponse successfully")
-                            result
-                        }
+                    try {
+                        val result = gson.fromJson(trimmed, ChatCompletionResponse::class.java)
+                        PluginLogger.Service.debug("[OR] Parsed ChatCompletionResponse successfully")
+                        return@use result
                     } catch (e: JsonSyntaxException) {
-                        if (trimmed.startsWith("data:")) {
-                            PluginLogger.Service.warn("[OR] JSON parse failed; attempting SSE aggregation fallback", e)
-                            aggregateSseToChatCompletion(responseBody)
-                        } else {
-                            PluginLogger.Service.error("[OR] Failed to parse chat completion response as JSON", e)
-                            null
-    /**
-     * Aggregate SSE (Server-Sent Events) streaming chat response into a single ChatCompletionResponse
-     */
-    private fun aggregateSseToChatCompletion(sse: String): ChatCompletionResponse? {
-        try {
-            val content = StringBuilder()
-            var model: String? = null
-            var finish: String? = null
-            var usage: org.zhavoronkov.openrouter.models.ChatUsage? = null
-
-            sse.lineSequence().forEach { lineRaw ->
-                val line = lineRaw.trim()
-                if (!line.startsWith("data:")) return@forEach
-                val payload = line.removePrefix("data:").trim()
-                if (payload.isEmpty() || payload == "[DONE]" || payload.equals("OPENROUTER PROCESSING", ignoreCase = true)) return@forEach
-                try {
-                    val json = com.google.gson.JsonParser.parseString(payload).asJsonObject
-                    if (json.has("model")) model = json.get("model").asString
-                    if (json.has("choices")) {
-                        val choices = json.getAsJsonArray("choices")
-                        if (choices.size() > 0) {
-                            val first = choices[0].asJsonObject
-                            if (first.has("delta")) {
-                                val delta = first.getAsJsonObject("delta")
-                                if (delta.has("content")) content.append(delta.get("content").asString)
-                                if (delta.has("role")) { /* ignore role in delta */ }
-                            }
-                            if (first.has("finish_reason") && !first.get("finish_reason").isJsonNull) {
-                                val fr = first.get("finish_reason").asString
-                                if (fr.isNotBlank()) finish = fr
-                            }
-                        }
-                    }
-                    if (json.has("usage")) {
-                        val u = json.getAsJsonObject("usage")
-                        usage = org.zhavoronkov.openrouter.models.ChatUsage(
-                            promptTokens = u.get("prompt_tokens")?.asInt,
-                            completionTokens = u.get("completion_tokens")?.asInt,
-                            totalTokens = u.get("total_tokens")?.asInt
-                        )
-                    }
-                } catch (e: Exception) {
-                    PluginLogger.Service.warn("[OR] Failed to parse SSE chunk: ${e.message}")
-                }
-            }
-
-            val message = org.zhavoronkov.openrouter.models.ChatMessage(
-                role = "assistant",
-                content = content.toString(),
-                name = null
-            )
-            val choice = org.zhavoronkov.openrouter.models.ChatChoice(
-                index = 0,
-                message = message,
-                finishReason = finish
-            )
-            return ChatCompletionResponse(
-                id = null,
-                `object` = "chat.completion",
-                created = System.currentTimeMillis() / 1000,
-                model = model,
-                choices = listOf(choice),
-                usage = usage
-            )
-        } catch (e: Exception) {
-            PluginLogger.Service.error("[OR] SSE aggregation failed: ${e.message}", e)
-            return null
-        }
-    }
-
-                        }
+                        PluginLogger.Service.error("[OR] Failed to parse chat completion response: $responseBody", e)
+                        return@use null
                     }
                 }
             } catch (e: IOException) {

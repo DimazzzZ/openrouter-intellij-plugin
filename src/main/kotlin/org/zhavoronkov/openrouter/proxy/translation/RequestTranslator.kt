@@ -67,6 +67,8 @@ object RequestTranslator {
             // GPT-4 variants
             openAIModel.startsWith("gpt-4") -> {
                 when {
+                    openAIModel.contains("gpt-4o-mini") -> "openai/gpt-4o-mini"
+                    openAIModel.contains("gpt-4o") -> "openai/gpt-4o"
                     openAIModel.contains("turbo") -> "openai/gpt-4-turbo"
                     openAIModel.contains("vision") -> "openai/gpt-4-vision-preview"
                     openAIModel.contains("32k") -> "openai/gpt-4-32k"
@@ -140,6 +142,8 @@ object RequestTranslator {
     fun getModelMappings(): Map<String, String> {
         return mapOf(
             "gpt-4" to "openai/gpt-4",
+            "gpt-4o" to "openai/gpt-4o",
+            "gpt-4o-mini" to "openai/gpt-4o-mini",
             "gpt-4-turbo" to "openai/gpt-4-turbo",
             "gpt-4-vision-preview" to "openai/gpt-4-vision-preview",
             "gpt-3.5-turbo" to "openai/gpt-3.5-turbo",
