@@ -16,23 +16,16 @@ object RequestTranslator {
 
     /**
      * Converts OpenAI chat completion request to OpenRouter format
-     * SIMPLIFIED: No model name translation - pass through exactly as requested
+     * Model names should already be normalized by the servlet before calling this
      */
     fun translateChatCompletionRequest(
         openAIRequest: OpenAIChatCompletionRequest
     ): ChatCompletionRequest {
         PluginLogger.Service.debug("Translating OpenAI request to OpenRouter format")
-        PluginLogger.Service.debug("Model: ${openAIRequest.model} (no translation)")
-
-        // Force non-streaming for compatibility with current proxy implementation
-        // Some clients (AI Assistant) may set stream=true by default; we disable it here
-        if (openAIRequest.stream == true) {
-            PluginLogger.Service.info("[Translate] Overriding stream=true to stream=false for compatibility")
-        }
-        val streamFlag = false
+        PluginLogger.Service.debug("Model: ${openAIRequest.model}, Stream: ${openAIRequest.stream}")
 
         return ChatCompletionRequest(
-            model = openAIRequest.model, // SIMPLIFIED: Use exact model name as requested
+            model = openAIRequest.model, // Model name should already be normalized (e.g., "openai/gpt-4")
             messages = openAIRequest.messages.map { translateMessage(it) },
             temperature = openAIRequest.temperature ?: DEFAULT_TEMPERATURE,
             maxTokens = openAIRequest.max_tokens ?: DEFAULT_MAX_TOKENS,
@@ -40,7 +33,7 @@ object RequestTranslator {
             frequencyPenalty = openAIRequest.frequency_penalty,
             presencePenalty = openAIRequest.presence_penalty,
             stop = openAIRequest.stop,
-            stream = streamFlag
+            stream = openAIRequest.stream ?: false // Pass through streaming flag as-is
         )
     }
 

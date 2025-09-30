@@ -34,25 +34,25 @@ class RequestTranslatorTest {
         assertEquals("Hello", result.messages[0].content)
         assertEquals(0.7, result.temperature)
         assertEquals(150, result.maxTokens)
-        assertEquals(false, result.stream, "Stream should be forced to false")
+        assertEquals(false, result.stream, "Stream flag should be passed through as-is")
     }
 
     @Test
-    fun `translateChatCompletionRequest should force stream to false when true`() {
+    fun `translateChatCompletionRequest should pass through stream flag when true`() {
         // Given
         val openAIRequest = OpenAIChatCompletionRequest(
             model = "gpt-4o",
             messages = listOf(
                 OpenAIChatMessage(role = "user", content = "Test")
             ),
-            stream = true // This should be overridden
+            stream = true // This should be passed through
         )
 
         // When
         val result = RequestTranslator.translateChatCompletionRequest(openAIRequest)
 
         // Then
-        assertEquals(false, result.stream, "Stream should be forced to false for compatibility")
+        assertEquals(true, result.stream, "Stream flag should be passed through as-is")
     }
 
     @Test
