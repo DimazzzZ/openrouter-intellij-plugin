@@ -88,46 +88,47 @@ class ModelsServlet(
     }
 
     private fun createCoreModelsResponse(): OpenAIModelsResponse {
-        // Return core OpenAI models that AI Assistant recognizes and supports
+        // Return core OpenAI models with FULL OpenRouter format (provider/model)
+        // This is critical - OpenRouter API requires full model names with provider prefix
         val coreModels = listOf(
             OpenAIModel(
-                id = "gpt-4",
+                id = "openai/gpt-4",
                 created = 1687882411,
                 owned_by = "openai",
                 permission = listOf(createDefaultPermission()),
-                root = "gpt-4",
+                root = "openai/gpt-4",
                 parent = null
             ),
             OpenAIModel(
-                id = "gpt-4-turbo",
+                id = "openai/gpt-4-turbo",
                 created = 1712361441,
                 owned_by = "openai",
                 permission = listOf(createDefaultPermission()),
-                root = "gpt-4-turbo",
+                root = "openai/gpt-4-turbo",
                 parent = null
             ),
             OpenAIModel(
-                id = "gpt-3.5-turbo",
+                id = "openai/gpt-3.5-turbo",
                 created = 1677610602,
                 owned_by = "openai",
                 permission = listOf(createDefaultPermission()),
-                root = "gpt-3.5-turbo",
+                root = "openai/gpt-3.5-turbo",
                 parent = null
             ),
             OpenAIModel(
-                id = "gpt-4o",
+                id = "openai/gpt-4o",
                 created = 1715367049,
                 owned_by = "openai",
                 permission = listOf(createDefaultPermission()),
-                root = "gpt-4o",
+                root = "openai/gpt-4o",
                 parent = null
             ),
             OpenAIModel(
-                id = "gpt-4o-mini",
+                id = "openai/gpt-4o-mini",
                 created = 1721172741,
                 owned_by = "openai",
                 permission = listOf(createDefaultPermission()),
-                root = "gpt-4o-mini",
+                root = "openai/gpt-4o-mini",
                 parent = null
             )
         )

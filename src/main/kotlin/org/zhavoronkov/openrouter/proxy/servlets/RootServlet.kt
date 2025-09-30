@@ -122,12 +122,14 @@ class RootServlet(
     }
 
     private fun createCoreModelsResponse(): Map<String, Any> {
+        // Return models with FULL OpenRouter format (provider/model)
+        // This is critical - OpenRouter API requires full model names with provider prefix
         val models = listOf(
-            createModel("gpt-4", "GPT-4"),
-            createModel("gpt-4-turbo", "GPT-4 Turbo"),
-            createModel("gpt-3.5-turbo", "GPT-3.5 Turbo"),
-            createModel("gpt-4o", "GPT-4o"),
-            createModel("gpt-4o-mini", "GPT-4o Mini")
+            createModel("openai/gpt-4", "GPT-4"),
+            createModel("openai/gpt-4-turbo", "GPT-4 Turbo"),
+            createModel("openai/gpt-3.5-turbo", "GPT-3.5 Turbo"),
+            createModel("openai/gpt-4o", "GPT-4o"),
+            createModel("openai/gpt-4o-mini", "GPT-4o Mini")
         )
 
         return mapOf(
