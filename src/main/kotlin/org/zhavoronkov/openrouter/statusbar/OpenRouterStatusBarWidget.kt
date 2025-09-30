@@ -20,7 +20,6 @@ import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.ui.OpenRouterStatsPopup
-import org.zhavoronkov.openrouter.integration.AIAssistantIntegrationHelper
 import java.awt.event.MouseEvent
 import java.util.Locale
 import javax.swing.Icon
@@ -40,7 +39,6 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
     companion object {
         const val ID = "OpenRouterStatusBar"
-        private const val POPUP_OFFSET_Y = 200 // Offset to position popup well above the status bar
     }
 
     override fun ID(): String = ID
@@ -61,16 +59,26 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
     private fun showPopupMenu(event: MouseEvent) {
         val popupStep = OpenRouterPopupStep()
         val popup = JBPopupFactory.getInstance().createListPopup(popupStep)
-        
-        // Calculate position above the status bar widget instead of underneath
+
+        // Position popup above the status bar widget
+        // Use the component from the event as the anchor
         val component = event.component
-        val componentLocation = component.locationOnScreen
-        val popupLocation = java.awt.Point(
-            componentLocation.x,
-            componentLocation.y - POPUP_OFFSET_Y
-        )
-        
-        popup.show(RelativePoint.fromScreen(popupLocation))
+
+        // Get the preferred size of the popup to calculate proper positioning
+        val popupContent = popup.content
+        val popupSize = popupContent.preferredSize
+
+        // Get component's screen location
+        val componentLocationOnScreen = component.locationOnScreen
+
+        // Calculate position: popup should appear above the component
+        // Position the popup's bottom-left corner at the component's top-left corner
+        val popupX = componentLocationOnScreen.x
+        val popupY = componentLocationOnScreen.y - popupSize.height
+
+        // Create the point and show the popup
+        val popupPoint = java.awt.Point(popupX, popupY)
+        popup.show(RelativePoint.fromScreen(popupPoint))
     }
 
     private inner class OpenRouterPopupStep : BaseListPopupStep<PopupMenuItem>("OpenRouter", createMenuItems()) {
@@ -126,41 +134,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
             )
         )
 
-        // AI Assistant Integration
-        if (settingsService.isConfigured()) {
-            val proxyStatus = proxyService.getServerStatus()
-            if (proxyStatus.isRunning) {
-                items.add(
-                    PopupMenuItem(
-                        text = "AI Assistant Integration: Running (Port ${proxyStatus.port})",
-                        icon = AllIcons.Actions.Execute,
-                        action = { showAIAssistantInstructions() }
-                    )
-                )
-                items.add(
-                    PopupMenuItem(
-                        text = "Stop AI Assistant Proxy",
-                        icon = AllIcons.Actions.Suspend,
-                        action = { stopProxyServer() }
-                    )
-                )
-            } else {
-                items.add(
-                    PopupMenuItem(
-                        text = "AI Assistant Integration: Stopped",
-                        icon = AllIcons.Actions.Pause,
-                        action = { startProxyServer() }
-                    )
-                )
-                items.add(
-                    PopupMenuItem(
-                        text = "Start AI Assistant Proxy",
-                        icon = AllIcons.Actions.Execute,
-                        action = { startProxyServer() }
-                    )
-                )
-            }
-        }
+
 
         // Authentication
         if (settingsService.isConfigured()) {
@@ -181,14 +155,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
             )
         }
 
-        // AI Assistant Integration Wizard
-        items.add(
-            PopupMenuItem(
-                text = "AI Assistant Integration Wizard",
-                icon = AllIcons.Actions.IntentionBulb,
-                action = { showIntegrationWizard() }
-            )
-        )
+
 
         // Settings (direct action, no submenu)
         items.add(
@@ -260,68 +227,9 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         BrowserUtil.browse("https://github.com/DimazzzZ/openrouter-intellij-plugin/issues")
     }
 
-    private fun startProxyServer() {
-        ApplicationManager.getApplication().executeOnPooledThread {
-            proxyService.startServer().thenAccept { success ->
-                ApplicationManager.getApplication().invokeLater {
-                    if (success) {
-                        val status = proxyService.getServerStatus()
-                        Messages.showInfoMessage(
-                            project,
-                            "AI Assistant proxy server started successfully on port ${status.port}.\n\n" +
-                            "You can now configure AI Assistant to use: ${status.url}",
-                            "Proxy Server Started"
-                        )
-                    } else {
-                        Messages.showErrorDialog(
-                            project,
-                            "Failed to start AI Assistant proxy server. Please check the logs for details.",
-                            "Proxy Server Error"
-                        )
-                    }
-                    updateConnectionStatus()
-                }
-            }
-        }
-    }
 
-    private fun stopProxyServer() {
-        ApplicationManager.getApplication().executeOnPooledThread {
-            proxyService.stopServer().thenAccept { success ->
-                ApplicationManager.getApplication().invokeLater {
-                    if (success) {
-                        Messages.showInfoMessage(
-                            project,
-                            "AI Assistant proxy server stopped successfully.",
-                            "Proxy Server Stopped"
-                        )
-                    } else {
-                        Messages.showErrorDialog(
-                            project,
-                            "Failed to stop AI Assistant proxy server. Please check the logs for details.",
-                            "Proxy Server Error"
-                        )
-                    }
-                    updateConnectionStatus()
-                }
-            }
-        }
-    }
 
-    private fun showAIAssistantInstructions() {
-        ApplicationManager.getApplication().invokeLater {
-            val instructions = proxyService.getAIAssistantConfigurationInstructions()
-            Messages.showInfoMessage(
-                project,
-                instructions,
-                "AI Assistant Configuration"
-            )
-        }
-    }
 
-    private fun showIntegrationWizard() {
-        AIAssistantIntegrationHelper.showSetupWizard(project)
-    }
 
     /**
      * Update the widget with current quota information
