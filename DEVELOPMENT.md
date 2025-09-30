@@ -132,6 +132,8 @@ pluginUntilBuild = 252.*      # IntelliJ 2025.2+
 ```
 
 ### Troubleshooting
+
+#### Common Build Issues
 ```bash
 # Configuration cache issues
 ./gradlew build --no-configuration-cache
@@ -141,6 +143,36 @@ pluginUntilBuild = 252.*      # IntelliJ 2025.2+
 
 # Check compatibility
 ./gradlew verifyPlugin --no-daemon
+
+# Test compilation issues
+./gradlew compileTestKotlin --info
+```
+
+#### API Key Issues
+- **401 Errors**: Ensure API key is configured in settings, not relying on Authorization headers
+- **Invalid Keys**: Use provisioning keys for quota data, API keys for chat completions
+- **Security**: Never commit real API keys - use placeholder values in tests and documentation
+
+#### Proxy Server Issues
+```bash
+# Check proxy server status
+curl http://localhost:8080/health
+
+# Test model endpoint
+curl http://localhost:8080/v1/models
+
+# Debug proxy logs
+# Enable debug logging: org.zhavoronkov.openrouter:DEBUG
+```
+
+#### Test Failures
+```bash
+# Run specific test categories
+./gradlew test --tests "*ChatCompletionServletTest*"
+./gradlew test --tests "*ApiKeyHandlingIntegrationTest*"
+
+# Check for real API keys in tests
+grep -r "sk-or-v1-" src/test/ --exclude-dir=mocks
 ```
 
 ## 🏗️ Project Architecture
@@ -334,6 +366,31 @@ curl -X POST http://localhost:8080/v1/chat/completions \
 - **CorsFilter**: Enable cross-origin requests for web-based IDEs
 - **ProxyServerStartupActivity**: Auto-start proxy server on IDE startup
 - **AIAssistantIntegrationHelper**: Utilities for setup and configuration
+
+### Recent Architecture Changes
+
+#### API Key Handling Fix (Major)
+**Problem**: Plugin was using invalid API key from AI Assistant's Authorization header ("raspberry", 9 chars)
+**Solution**: Modified servlets to use API key from `OpenRouterSettingsService.getInstance().getApiKey()`
+**Impact**: Resolved 401 Unauthorized errors in chat completions
+
+**Files Modified**:
+- `ChatCompletionServlet.kt` - Updated to use settings API key
+- `ModelsServlet.kt` - Consistent API key handling
+- Test files - Comprehensive test coverage for API key scenarios
+
+#### Model Name Normalization Removal
+**Rationale**: Simplified implementation by removing model name translation
+**Changes**:
+- Removed `MODEL_MAPPINGS` and `normalizeModelName()` function
+- Updated curated models list to use full OpenRouter names (e.g., `openai/gpt-4-turbo`)
+- Direct model name passthrough from AI Assistant to OpenRouter
+
+#### Security Enhancements
+**Cleanup**: Removed all real API keys from codebase
+**Files Affected**: Test files, documentation, mock data
+**Replacements**: All real keys replaced with secure placeholder values
+**Best Practices**: Added security guidelines and validation checks
 
 ## Development Guidelines
 

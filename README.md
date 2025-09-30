@@ -16,6 +16,9 @@ An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.
 **📋 Statistics Popup** - Detailed usage analytics in modal dialog
 **⚙️ Settings Panel** - Configuration with validation and testing
 **🌐 Proxy Server** - Local OpenAI-compatible proxy for seamless integration
+**🔒 Security** - Encrypted API key storage with localhost-only proxy access
+**🧪 Comprehensive Testing** - 145+ tests covering unit, integration, and E2E scenarios
+**🛠️ Developer-Friendly** - Extensive documentation and debugging capabilities
 
 ## Installation
 
@@ -79,6 +82,26 @@ The plugin automatically creates and configures an API key when you provide a pr
 - **Documentation**: Links to OpenRouter API documentation
 - **Logout**: Clear stored credentials
 
+## Architecture
+
+### Core Components
+- **Jetty Proxy Server** - Embedded HTTP server (ports 8080-8090) for AI Assistant integration
+- **OpenRouter API Client** - Handles authentication, quota tracking, and model access
+- **Settings Management** - Encrypted credential storage with validation
+- **Status Bar Integration** - Real-time monitoring with minimal UI footprint
+
+### API Key Handling
+The plugin uses a sophisticated API key management system:
+- **Provisioning Keys** - Primary authentication for quota/usage data
+- **API Keys** - Automatically created for chat completions
+- **Security** - All keys encrypted using IntelliJ's credential store
+- **Validation** - Real-time key testing and status verification
+
+### Recent Fixes
+- **401 Error Resolution** - Fixed API key handling to use settings instead of Authorization headers
+- **Model Name Compatibility** - Updated to use full OpenRouter model names (e.g., `openai/gpt-4-turbo`)
+- **Security Cleanup** - Removed all real API keys from codebase and documentation
+
 ## Compatibility
 
 **Supported IDEs**: IntelliJ IDEA, WebStorm, PyCharm, PhpStorm, RubyMine, CLion, Android Studio, GoLand, Rider
@@ -98,8 +121,21 @@ cd openrouter-intellij-plugin
 
 ### Testing
 ```bash
+# Run all tests (145+ tests)
 ./gradlew test
+
+# Run core functionality tests only
+./gradlew test --tests "*ChatCompletionServletTest*" --tests "*ApiKeyHandlingIntegrationTest*"
+
+# Run with development IDE for manual testing
+./gradlew runIde --no-daemon
 ```
+
+**Test Coverage**:
+- **Unit Tests** - 15 tests covering data models, settings, and business logic
+- **Integration Tests** - 8 tests for API key handling and proxy server functionality
+- **E2E Tests** - 122 tests for complete workflow validation (disabled by default)
+- **Security Tests** - Comprehensive validation of API key handling and encryption
 
 For detailed testing information, see [TESTING.md](TESTING.md).
 
