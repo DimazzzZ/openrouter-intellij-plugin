@@ -2,10 +2,13 @@ package org.zhavoronkov.openrouter
 
 import com.google.gson.Gson
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
-import org.zhavoronkov.openrouter.models.*
+import org.zhavoronkov.openrouter.models.ConnectionStatus
+import org.zhavoronkov.openrouter.models.OpenRouterApiKey
 
 @DisplayName("OpenRouter Plugin Unit Tests")
 class SimpleUnitTest {

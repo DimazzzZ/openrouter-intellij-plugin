@@ -33,6 +33,7 @@ class OpenRouterProxyServer {
         private const val MIN_PORT = 8080
         private const val MAX_PORT = 8090
         private const val LOCALHOST = "127.0.0.1"
+        private const val RESTART_DELAY_MS = 1000L
 
         // Singleton instance
         @Volatile
@@ -58,13 +59,14 @@ class OpenRouterProxyServer {
      */
     fun start(): CompletableFuture<Boolean> {
         return CompletableFuture.supplyAsync {
+            var port = -1
             try {
                 if (isRunning.get()) {
                     PluginLogger.Service.debug("Proxy server is already running on port $currentPort")
                     return@supplyAsync true
                 }
 
-                val port = findAvailablePort()
+                port = findAvailablePort()
                 if (port == -1) {
                     PluginLogger.Service.error("No available ports found in range $MIN_PORT-$MAX_PORT")
                     return@supplyAsync false
@@ -82,8 +84,20 @@ class OpenRouterProxyServer {
                 PluginLogger.Service.info("AI Assistant can connect to: http://$LOCALHOST:$port")
 
                 true
-            } catch (e: Exception) {
-                PluginLogger.Service.error("Failed to start proxy server", e)
+            } catch (e: java.net.BindException) {
+                PluginLogger.Service.error("Port $port is already in use", e)
+                isRunning.set(false)
+                false
+            } catch (e: java.io.IOException) {
+                PluginLogger.Service.error("IO error starting proxy server", e)
+                isRunning.set(false)
+                false
+            } catch (e: IllegalStateException) {
+                PluginLogger.Service.error("Server already running or in invalid state", e)
+                isRunning.set(false)
+                false
+            } catch (e: RuntimeException) {
+                PluginLogger.Service.error("Runtime error starting proxy server", e)
                 isRunning.set(false)
                 false
             }
@@ -109,8 +123,14 @@ class OpenRouterProxyServer {
 
                 PluginLogger.Service.info("OpenRouter proxy server stopped")
                 true
-            } catch (e: Exception) {
-                PluginLogger.Service.error("Failed to stop proxy server", e)
+            } catch (e: IllegalStateException) {
+                PluginLogger.Service.error("Server not running or in invalid state", e)
+                false
+            } catch (e: java.io.IOException) {
+                PluginLogger.Service.error("IO error stopping proxy server", e)
+                false
+            } catch (e: RuntimeException) {
+                PluginLogger.Service.error("Runtime error stopping proxy server", e)
                 false
             }
         }
@@ -123,7 +143,7 @@ class OpenRouterProxyServer {
         return stop().thenCompose { stopSuccess ->
             if (stopSuccess) {
                 // Wait a moment before restarting
-                Thread.sleep(1000)
+                Thread.sleep(RESTART_DELAY_MS)
                 start()
             } else {
                 CompletableFuture.completedFuture(false)
@@ -164,8 +184,17 @@ class OpenRouterProxyServer {
                 client.newCall(request).execute().use { response ->
                     response.isSuccessful
                 }
-            } catch (e: Exception) {
-                PluginLogger.Service.error("Proxy server connection test failed", e)
+            } catch (e: java.net.ConnectException) {
+                PluginLogger.Service.error("Connection refused during proxy test", e)
+                false
+            } catch (e: java.net.SocketTimeoutException) {
+                PluginLogger.Service.error("Connection timeout during proxy test", e)
+                false
+            } catch (e: java.io.IOException) {
+                PluginLogger.Service.error("IO error during proxy connection test", e)
+                false
+            } catch (e: RuntimeException) {
+                PluginLogger.Service.error("Runtime error during proxy connection test", e)
                 false
             }
         }
@@ -221,7 +250,11 @@ class OpenRouterProxyServer {
     private fun isPortAvailable(port: Int): Boolean {
         return try {
             ServerSocket(port).use { true }
-        } catch (e: Exception) {
+        } catch (e: java.net.BindException) {
+            PluginLogger.Service.debug("Port $port is not available (bind exception)")
+            false
+        } catch (e: java.io.IOException) {
+            PluginLogger.Service.debug("Port $port is not available (IO exception)")
             false
         }
     }

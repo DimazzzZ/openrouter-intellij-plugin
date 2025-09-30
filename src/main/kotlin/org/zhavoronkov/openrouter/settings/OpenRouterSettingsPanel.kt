@@ -3,11 +3,9 @@ package org.zhavoronkov.openrouter.settings
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.JBColor
 import com.intellij.ui.ToolbarDecorator
-
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
@@ -18,7 +16,6 @@ import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.JBUI
 import org.zhavoronkov.openrouter.models.ApiKeyInfo
-import org.zhavoronkov.openrouter.models.ProviderInfo
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
@@ -127,9 +124,17 @@ class OpenRouterSettingsPanel {
     private val settingsService = OpenRouterSettingsService.getInstance()
     private val proxyService = OpenRouterProxyService.getInstance()
 
+    // Helper classes for managing different aspects
+    private val apiKeyManager: ApiKeyManager
+    private val proxyServerManager: ProxyServerManager
+
     companion object {
         private const val INTELLIJ_API_KEY_NAME = "IntelliJ IDEA Plugin"
-        private var isCreatingApiKey = false // Flag to prevent multiple creation attempts
+        private const val DEFAULT_REFRESH_INTERVAL = 30
+        private const val MIN_REFRESH_INTERVAL = 10
+        private const val MAX_REFRESH_INTERVAL = 300
+        private const val REFRESH_INTERVAL_STEP = 10
+        private const val PROVISIONING_KEY_FIELD_COLUMNS = 30
     }
 
     init {
@@ -138,8 +143,12 @@ class OpenRouterSettingsPanel {
         PluginLogger.Settings.debug("Initializing OpenRouter Settings Panel")
         println("[OpenRouter] Settings panel initializing...") // Immediate console output
 
+        // Initialize helper classes
+        apiKeyManager = ApiKeyManager(settingsService, openRouterService, apiKeyTable, apiKeyTableModel)
+        proxyServerManager = ProxyServerManager(proxyService, settingsService)
+
         provisioningKeyField = JBPasswordField()
-        provisioningKeyField.columns = 30  // Reasonable width for provisioning keys
+        provisioningKeyField.columns = PROVISIONING_KEY_FIELD_COLUMNS
         provisioningKeyField.preferredSize = Dimension(300, provisioningKeyField.preferredSize.height)
 
         // TODO: Future version - Default model selection
@@ -148,7 +157,12 @@ class OpenRouterSettingsPanel {
 
         autoRefreshCheckBox = JBCheckBox("Auto-refresh quota information")
 
-        refreshIntervalSpinner = JSpinner(SpinnerNumberModel(300, 60, 3600, 60))
+        refreshIntervalSpinner = JSpinner(SpinnerNumberModel(
+            DEFAULT_REFRESH_INTERVAL,
+            MIN_REFRESH_INTERVAL,
+            MAX_REFRESH_INTERVAL,
+            REFRESH_INTERVAL_STEP
+        ))
 
         showCostsCheckBox = JBCheckBox("Show costs in status bar")
 
@@ -482,50 +496,7 @@ class OpenRouterSettingsPanel {
     // }
 
     private fun addApiKey() {
-        if (!settingsService.isConfigured()) {
-            Messages.showErrorDialog(
-                "Please configure your Provisioning Key first.",
-                "Configuration Required"
-            )
-            return
-        }
-
-        val label = Messages.showInputDialog(
-            "Enter a label for the new API key:",
-            "Create API Key",
-            Messages.getQuestionIcon()
-        )
-
-        if (label.isNullOrBlank()) {
-            return
-        }
-
-        val limitInput = Messages.showInputDialog(
-            "Enter credit limit (leave empty for unlimited):",
-            "Set Credit Limit",
-            Messages.getQuestionIcon()
-        )
-
-        val limit = if (limitInput.isNullOrBlank()) null else limitInput.toDoubleOrNull()
-
-        openRouterService.createApiKey(label, limit).thenAccept { response ->
-            ApplicationManager.getApplication().invokeLater({
-                if (response != null) {
-                    PluginLogger.Settings.debug("API key created successfully: ${response.data.label}")
-                    // Show the API key in a copyable dialog
-                    showApiKeyDialog(response.key, response.data.label)
-                    // Refresh the table to show the new key
-                    PluginLogger.Settings.debug("Refreshing table after API key creation")
-                    loadApiKeysWithoutAutoCreate()
-                } else {
-                    PluginLogger.Settings.warn("Failed to create API key - response was null")
-                    Messages.showErrorDialog(
-                        "Failed to create API key. Please check your Provisioning Key and try again.",
-                        "Creation Failed"
-                    )
-                }
-            }, com.intellij.openapi.application.ModalityState.defaultModalityState())
-        }
+        apiKeyManager.addApiKey()
     }
 
     /**
@@ -603,115 +574,11 @@ class OpenRouterSettingsPanel {
     }
 
     private fun removeApiKey() {
-        val selectedRow = apiKeyTable.selectedRow
-        if (selectedRow < 0) {
-            Messages.showErrorDialog(
-                "Please select an API key to remove.",
-                "No Selection"
-            )
-            return
-        }
-
-        val apiKey = apiKeyTableModel.getApiKeyAt(selectedRow)
-        if (apiKey == null) {
-            return
-        }
-
-        val result = Messages.showYesNoDialog(
-            "Are you sure you want to delete the API key '${apiKey.label}' (${apiKey.name})?\n" +
-                "This action cannot be undone.",
-            "Confirm Deletion",
-            Messages.getWarningIcon()
-        )
-
-        if (result == Messages.YES) {
-            PluginLogger.Settings.debug("User confirmed deletion of API key: ${apiKey.label}")
-            openRouterService.deleteApiKey(apiKey.hash).thenAccept { response ->
-                ApplicationManager.getApplication().invokeLater({
-                    PluginLogger.Settings.debug("Delete API key callback executed - response: ${if (response != null) "not null" else "null"}")
-                    if (response != null && response.deleted) {
-                        PluginLogger.Settings.debug("API key deleted successfully, refreshing table")
-                        Messages.showInfoMessage(
-                            "API Key '${apiKey.label}' has been deleted successfully.",
-                            "API Key Deleted"
-                        )
-                        loadApiKeysWithoutAutoCreate()
-                    } else {
-                        PluginLogger.Settings.warn("Failed to delete API key - response: $response")
-                        Messages.showErrorDialog(
-                            "Failed to delete API key. Please try again.",
-                            "Deletion Failed"
-                        )
-                    }
-                }, com.intellij.openapi.application.ModalityState.defaultModalityState())
-            }.exceptionally { throwable ->
-                PluginLogger.Settings.error("Exception during API key deletion", throwable)
-                ApplicationManager.getApplication().invokeLater({
-                    Messages.showErrorDialog(
-                        "Error occurred while deleting API key: ${throwable.message}",
-                        "Deletion Error"
-                    )
-                }, com.intellij.openapi.application.ModalityState.defaultModalityState())
-                null
-            }
-        }
+        apiKeyManager.removeApiKey()
     }
 
     fun refreshApiKeys() {
-        PluginLogger.Settings.debug("Refreshing API keys table")
-
-        // Check if provisioning key is available (either in panel or saved settings)
-        val currentProvisioningKey = getProvisioningKey()
-        val savedProvisioningKey = settingsService.getProvisioningKey()
-        val provisioningKey = if (currentProvisioningKey.isNotBlank()) currentProvisioningKey else savedProvisioningKey
-
-        PluginLogger.Settings.debug("Current provisioning key from panel: ${if (currentProvisioningKey.isNotBlank()) "[PRESENT]" else "[EMPTY]"}")
-        PluginLogger.Settings.debug("Saved provisioning key from settings: ${if (savedProvisioningKey.isNotBlank()) "[PRESENT]" else "[EMPTY]"}")
-        PluginLogger.Settings.debug("Using provisioning key: ${if (provisioningKey.isNotBlank()) "[PRESENT]" else "[EMPTY]"}")
-
-        if (provisioningKey.isBlank()) {
-            PluginLogger.Settings.debug("Provisioning key not configured, clearing table")
-            apiKeyTableModel.setApiKeys(emptyList())
-            return
-        }
-
-        PluginLogger.Settings.debug("Fetching API keys from OpenRouter with provisioning key: ${provisioningKey.take(10)}...")
-        openRouterService.getApiKeysList(provisioningKey).thenAccept { response ->
-            PluginLogger.Settings.debug("thenAccept callback executed - response is ${if (response != null) "not null" else "null"}")
-            PluginLogger.Settings.debug("About to call ApplicationManager.invokeLater")
-            ApplicationManager.getApplication().invokeLater({
-                PluginLogger.Settings.debug("invokeLater callback executed - starting UI update")
-                if (response != null) {
-                    val apiKeys = response.data
-                    PluginLogger.Settings.info("Successfully received ${apiKeys.size} API keys from OpenRouter")
-                    PluginLogger.Settings.debug("About to call apiKeyTableModel.setApiKeys with ${apiKeys.size} keys")
-                    apiKeyTableModel.setApiKeys(apiKeys)
-                    PluginLogger.Settings.debug("After setApiKeys - table row count: ${apiKeyTable.rowCount}")
-                    PluginLogger.Settings.debug("After setApiKeys - model row count: ${apiKeyTableModel.rowCount}")
-
-                    // Check if IntelliJ IDEA Plugin API key exists and handle creation
-                    ensureIntellijApiKeyExists(apiKeys)
-                } else {
-                    PluginLogger.Settings.warn("Failed to fetch API keys from OpenRouter - response was null")
-                    apiKeyTableModel.setApiKeys(emptyList())
-                    // Show user-friendly error message
-                    Messages.showWarningDialog(
-                        "Failed to load API keys. Please check your Provisioning Key and internet connection.",
-                        "Load Failed"
-                    )
-                }
-            }, com.intellij.openapi.application.ModalityState.any())
-        }.exceptionally { throwable ->
-            PluginLogger.Settings.error("Exception in getApiKeysList thenAccept callback", throwable)
-            ApplicationManager.getApplication().invokeLater({
-                apiKeyTableModel.setApiKeys(emptyList())
-                Messages.showErrorDialog(
-                    "Error loading API keys: ${throwable.message}",
-                    "Load Error"
-                )
-            }, com.intellij.openapi.application.ModalityState.defaultModalityState())
-            null
-        }
+        apiKeyManager.refreshApiKeys()
     }
 
     /**

@@ -2,7 +2,11 @@ package org.zhavoronkov.openrouter.proxy.translation
 
 import org.zhavoronkov.openrouter.models.ChatCompletionResponse
 import org.zhavoronkov.openrouter.models.ProvidersResponse
-import org.zhavoronkov.openrouter.proxy.models.*
+import org.zhavoronkov.openrouter.proxy.models.ChatCompletionRequest
+import org.zhavoronkov.openrouter.proxy.models.ChatCompletionResponse
+import org.zhavoronkov.openrouter.proxy.models.Choice
+import org.zhavoronkov.openrouter.proxy.models.Message
+import org.zhavoronkov.openrouter.proxy.models.Usage
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.util.*
 
