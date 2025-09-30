@@ -1,5 +1,6 @@
 package org.zhavoronkov.openrouter.settings
 
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBLabel
@@ -20,16 +21,21 @@ class ProxyServerManager(
     companion object {
         private const val STATUS_UPDATE_DELAY_MS = 1000
         private const val BUTTON_UPDATE_DELAY_MS = 500
+        private const val ICON_TEXT_GAP = 5
     }
 
     fun updateProxyStatusLabel(statusLabel: JBLabel) {
         val status = proxyService.getServerStatus()
         if (status.isRunning) {
+            statusLabel.icon = AllIcons.General.InspectionsOK
             statusLabel.text = "Running on port ${status.port}"
-            statusLabel.foreground = com.intellij.ui.JBColor.GREEN
+            statusLabel.foreground = com.intellij.util.ui.UIUtil.getLabelForeground()
+            statusLabel.iconTextGap = ICON_TEXT_GAP
         } else {
+            statusLabel.icon = AllIcons.General.BalloonInformation
             statusLabel.text = "Stopped"
-            statusLabel.foreground = com.intellij.ui.JBColor.RED
+            statusLabel.foreground = com.intellij.util.ui.UIUtil.getLabelForeground()
+            statusLabel.iconTextGap = ICON_TEXT_GAP
         }
     }
 

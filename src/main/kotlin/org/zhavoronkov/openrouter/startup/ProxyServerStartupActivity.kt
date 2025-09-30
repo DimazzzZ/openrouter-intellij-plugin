@@ -2,11 +2,9 @@ package org.zhavoronkov.openrouter.startup
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.startup.ProjectActivity
-import kotlinx.coroutines.delay
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.PluginLogger
-import org.zhavoronkov.openrouter.integration.AIAssistantIntegrationHelper
 
 /**
  * Startup activity to auto-start the proxy server when a project opens
@@ -62,10 +60,7 @@ class ProxyServerStartupActivity : ProjectActivity {
                 PluginLogger.Service.debug("OpenRouter not configured, skipping proxy server auto-start")
             }
 
-            // Check AI Assistant integration status and notify if needed
-            // Delay this check to avoid overwhelming the user during startup
-            kotlinx.coroutines.delay(5000) // Wait 5 seconds after startup
-            AIAssistantIntegrationHelper.checkAndNotifyIntegrationStatus(project)
+            // Note: AI Assistant integration check removed - plugin works independently
 
         } catch (e: Exception) {
             PluginLogger.Service.error("Error in OpenRouter startup activity", e)
