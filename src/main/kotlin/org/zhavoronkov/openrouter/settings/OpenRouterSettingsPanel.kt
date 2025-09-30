@@ -206,14 +206,14 @@ class OpenRouterSettingsPanel {
                     val toolbar = createApiKeysToolbar()
                     cell(toolbar.createPanel())
                         .resizableColumn()
-                    button("Refresh") { refreshApiKeys() }
+                    button("Refresh") { refreshApiKeysWithValidation() }
                 }.layout(RowLayout.PARENT_GRID)
 
-                row("") {
+                row {
                     scrollCell(apiKeyTable)
-                        .resizableColumn()
+                        .align(AlignX.FILL)
                         .align(AlignY.FILL)
-                }.resizableRow().layout(RowLayout.PARENT_GRID)
+                }.resizableRow()
 
                 row {
                     comment("Keys load automatically when Provisioning Key is configured.")
@@ -229,7 +229,7 @@ class OpenRouterSettingsPanel {
                 row("") {
                     button("Start Proxy Server") { startProxyServer() }
                     button("Stop Proxy Server") { stopProxyServer() }
-                    button("Show Configuration Instructions") { showConfigurationInstructions() }
+                    button("Enter API Key Manually") { enterApiKeyManually() }
                 }.layout(RowLayout.PARENT_GRID)
 
                 row {
@@ -267,53 +267,61 @@ class OpenRouterSettingsPanel {
     }
 
     private fun updateProxyStatus() {
-        val status = proxyService.getServerStatus()
-        if (status.isRunning) {
-            statusLabel.icon = AllIcons.General.InspectionsOK
-            statusLabel.text = "Running on port ${status.port}"
-        } else {
-            statusLabel.icon = AllIcons.General.BalloonInformation
-            statusLabel.text = "Stopped"
-        }
-        statusLabel.foreground = UIUtil.getLabelForeground()
+        proxyServerManager.updateProxyStatusLabel(statusLabel)
+        // Force UI repaint to show changes immediately
+        statusLabel.repaint()
+        statusLabel.revalidate()
+        panel.repaint()
     }
 
     private fun startProxyServer() {
-        proxyService.startServer().thenAccept { success ->
-            ApplicationManager.getApplication().invokeLater {
-                updateProxyStatus()
-                if (success) {
-                    val status = proxyService.getServerStatus()
-                    Messages.showInfoMessage(
-                        "Proxy server started successfully on port ${status.port}.\n\n" +
-                        "You can now configure AI Assistant to use: ${status.url}",
-                        "Proxy Server Started"
-                    )
-                } else {
+        if (!settingsService.isConfigured()) {
+            Messages.showErrorDialog(
+                "Please configure your Provisioning Key first.",
+                "Configuration Required"
+            )
+            return
+        }
+
+        ApplicationManager.getApplication().executeOnPooledThread {
+            try {
+                val success = proxyService.startServer().get()
+                ApplicationManager.getApplication().invokeLater({
+                    updateProxyStatus()
+                    if (!success) {
+                        Messages.showErrorDialog(
+                            "Failed to start proxy server. Check logs for details.",
+                            "Proxy Start Failed"
+                        )
+                    }
+                }, com.intellij.openapi.application.ModalityState.any())
+            } catch (e: Exception) {
+                ApplicationManager.getApplication().invokeLater({
+                    updateProxyStatus()
                     Messages.showErrorDialog(
-                        "Failed to start proxy server. Please check the logs for details.",
-                        "Proxy Server Error"
+                        "Failed to start proxy server: ${e.message}",
+                        "Proxy Start Failed"
                     )
-                }
+                }, com.intellij.openapi.application.ModalityState.any())
             }
         }
     }
 
     private fun stopProxyServer() {
-        proxyService.stopServer().thenAccept { success ->
-            ApplicationManager.getApplication().invokeLater {
-                updateProxyStatus()
-                if (success) {
-                    Messages.showInfoMessage(
-                        "Proxy server stopped successfully.",
-                        "Proxy Server Stopped"
-                    )
-                } else {
+        ApplicationManager.getApplication().executeOnPooledThread {
+            try {
+                proxyService.stopServer().get()
+                ApplicationManager.getApplication().invokeLater({
+                    updateProxyStatus()
+                }, com.intellij.openapi.application.ModalityState.any())
+            } catch (e: Exception) {
+                ApplicationManager.getApplication().invokeLater({
+                    updateProxyStatus()
                     Messages.showErrorDialog(
-                        "Failed to stop proxy server. Please check the logs for details.",
-                        "Proxy Server Error"
+                        "Failed to stop proxy server: ${e.message}",
+                        "Proxy Stop Failed"
                     )
-                }
+                }, com.intellij.openapi.application.ModalityState.any())
             }
         }
     }
@@ -331,13 +339,39 @@ class OpenRouterSettingsPanel {
         apiKeyManager.removeApiKey()
     }
 
+    private fun enterApiKeyManually() {
+        val apiKey = Messages.showInputDialog(
+            "Enter your OpenRouter API key:\n\n" +
+            "This should be the actual API key value (starting with 'sk-or-v1-').\n" +
+            "You can find this in your OpenRouter dashboard.",
+            "Enter API Key Manually",
+            Messages.getQuestionIcon()
+        )
 
-
-
-
-
+        if (!apiKey.isNullOrBlank()) {
+            // Validate the API key format
+            if (apiKey.startsWith("sk-or-v1-") && apiKey.length > 20) {
+                // Store the API key
+                settingsService.setApiKey(apiKey)
+                // Don't show success dialog or refresh table to avoid cascading dialogs
+                // The user can manually refresh if needed
+            } else {
+                Messages.showErrorDialog(
+                    "The entered API key doesn't appear to be valid. OpenRouter API keys should start with 'sk-or-v1-' and be longer than 20 characters.",
+                    "Invalid API Key Format"
+                )
+            }
+        }
+    }
 
     fun refreshApiKeys() {
+        // Use loadApiKeysWithoutAutoCreate to avoid triggering validation dialogs
+        // Only the manual "Refresh" button should trigger full validation
+        apiKeyManager.loadApiKeysWithoutAutoCreate()
+    }
+
+    fun refreshApiKeysWithValidation() {
+        // This method is for the manual "Refresh" button that should trigger validation
         apiKeyManager.refreshApiKeys()
     }
 
@@ -388,9 +422,9 @@ class OpenRouterSettingsPanel {
 
     fun setProvisioningKey(provisioningKey: String) {
         provisioningKeyField.text = provisioningKey
-        // Refresh tables when provisioning key is set
+        // Load API keys without triggering validation dialogs when setting provisioning key
         if (provisioningKey.isNotBlank()) {
-            refreshApiKeys()
+            apiKeyManager.loadApiKeysWithoutAutoCreate()
         }
     }
 
