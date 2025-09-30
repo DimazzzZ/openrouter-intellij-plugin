@@ -6,6 +6,7 @@ import org.zhavoronkov.openrouter.proxy.models.OpenAIModelsResponse
 import org.zhavoronkov.openrouter.proxy.models.OpenAIModel
 import org.zhavoronkov.openrouter.proxy.models.OpenAIPermission
 import org.zhavoronkov.openrouter.services.OpenRouterService
+import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import jakarta.servlet.http.HttpServlet
 import jakarta.servlet.http.HttpServletRequest
@@ -20,6 +21,8 @@ import java.util.concurrent.atomic.AtomicLong
 class ModelsServlet(
     private val openRouterService: OpenRouterService
 ) : HttpServlet() {
+
+    private val settingsService = OpenRouterSettingsService.getInstance()
 
     companion object {
         private const val REQUEST_TIMEOUT_SECONDS = 30L
@@ -88,50 +91,34 @@ class ModelsServlet(
     }
 
     private fun createCoreModelsResponse(): OpenAIModelsResponse {
-        // Return core OpenAI models with FULL OpenRouter format (provider/model)
+        // Return user's favorite models with FULL OpenRouter format (provider/model)
         // This is critical - OpenRouter API requires full model names with provider prefix
-        val coreModels = listOf(
+        var favoriteModelIds = settingsService.getFavoriteModels()
+
+        // If no favorites are set, ensure we have defaults
+        if (favoriteModelIds.isEmpty()) {
+            favoriteModelIds = listOf(
+                "openai/gpt-4o",
+                "openai/gpt-4o-mini",
+                "openai/gpt-4-turbo",
+                "openai/gpt-4",
+                "openai/gpt-3.5-turbo",
+                "anthropic/claude-3.5-sonnet",
+                "anthropic/claude-3-opus",
+                "anthropic/claude-3-haiku"
+            )
+        }
+
+        val coreModels = favoriteModelIds.map { modelId ->
             OpenAIModel(
-                id = "openai/gpt-4",
-                created = 1687882411,
-                owned_by = "openai",
+                id = modelId,
+                created = System.currentTimeMillis() / 1000, // Use current timestamp
+                owned_by = "openrouter", // Use generic "openrouter" to avoid display issues
                 permission = listOf(createDefaultPermission()),
-                root = "openai/gpt-4",
-                parent = null
-            ),
-            OpenAIModel(
-                id = "openai/gpt-4-turbo",
-                created = 1712361441,
-                owned_by = "openai",
-                permission = listOf(createDefaultPermission()),
-                root = "openai/gpt-4-turbo",
-                parent = null
-            ),
-            OpenAIModel(
-                id = "openai/gpt-3.5-turbo",
-                created = 1677610602,
-                owned_by = "openai",
-                permission = listOf(createDefaultPermission()),
-                root = "openai/gpt-3.5-turbo",
-                parent = null
-            ),
-            OpenAIModel(
-                id = "openai/gpt-4o",
-                created = 1715367049,
-                owned_by = "openai",
-                permission = listOf(createDefaultPermission()),
-                root = "openai/gpt-4o",
-                parent = null
-            ),
-            OpenAIModel(
-                id = "openai/gpt-4o-mini",
-                created = 1721172741,
-                owned_by = "openai",
-                permission = listOf(createDefaultPermission()),
-                root = "openai/gpt-4o-mini",
+                root = modelId,
                 parent = null
             )
-        )
+        }
 
         return OpenAIModelsResponse(
             `object` = "list",

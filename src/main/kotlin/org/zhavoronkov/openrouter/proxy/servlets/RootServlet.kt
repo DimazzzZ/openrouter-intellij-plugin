@@ -122,15 +122,14 @@ class RootServlet(
     }
 
     private fun createCoreModelsResponse(): Map<String, Any> {
-        // Return models with FULL OpenRouter format (provider/model)
+        // Return user's favorite models with FULL OpenRouter format (provider/model)
         // This is critical - OpenRouter API requires full model names with provider prefix
-        val models = listOf(
-            createModel("openai/gpt-4", "GPT-4"),
-            createModel("openai/gpt-4-turbo", "GPT-4 Turbo"),
-            createModel("openai/gpt-3.5-turbo", "GPT-3.5 Turbo"),
-            createModel("openai/gpt-4o", "GPT-4o"),
-            createModel("openai/gpt-4o-mini", "GPT-4o Mini")
-        )
+        val settingsService = org.zhavoronkov.openrouter.services.OpenRouterSettingsService.getInstance()
+        val favoriteModelIds = settingsService.getFavoriteModels()
+
+        val models = favoriteModelIds.map { modelId ->
+            createModel(modelId, modelId.substringAfter("/").replace("-", " ").replaceFirstChar { it.uppercase() })
+        }
 
         return mapOf(
             "object" to "list",

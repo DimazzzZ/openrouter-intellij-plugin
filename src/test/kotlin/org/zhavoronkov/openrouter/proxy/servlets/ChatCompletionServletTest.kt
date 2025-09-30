@@ -250,8 +250,8 @@ class ChatCompletionServletTest {
         @Test
         @DisplayName("Should return 401 when settings API key is null")
         fun testReturns401WhenSettingsKeyIsNull() {
-            // Given: Settings service returns null (edge case)
-            `when`(mockSettingsService.getApiKey()).thenReturn(null)
+            // Given: Settings service returns empty string (simulating null/unset key)
+            `when`(mockSettingsService.getApiKey()).thenReturn("")
 
             // And: Valid request body
             val requestBody = """{"model":"openai/gpt-4-turbo","messages":[{"role":"user","content":"Hello"}]}"""

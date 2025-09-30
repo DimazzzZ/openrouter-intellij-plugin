@@ -28,7 +28,7 @@ class ProxyServerManager(
         val status = proxyService.getServerStatus()
         if (status.isRunning) {
             statusLabel.icon = AllIcons.General.InspectionsOK
-            statusLabel.text = "Running on port ${status.port}"
+            statusLabel.text = "<html><b>Running:</b> <code>${status.url}</code></html>"
             statusLabel.foreground = com.intellij.util.ui.UIUtil.getLabelForeground()
             statusLabel.iconTextGap = ICON_TEXT_GAP
         } else {

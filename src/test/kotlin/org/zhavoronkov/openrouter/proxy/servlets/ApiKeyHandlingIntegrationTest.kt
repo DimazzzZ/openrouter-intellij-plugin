@@ -56,9 +56,23 @@ class ApiKeyHandlingIntegrationTest {
                     return
                 }
 
+                // Extract model name from request to preserve it in response
+                val modelName = try {
+                    val jsonStart = requestBody.indexOf("\"model\":")
+                    if (jsonStart != -1) {
+                        val valueStart = requestBody.indexOf("\"", jsonStart + 8) + 1
+                        val valueEnd = requestBody.indexOf("\"", valueStart)
+                        requestBody.substring(valueStart, valueEnd)
+                    } else {
+                        "openai/gpt-4-turbo" // fallback
+                    }
+                } catch (e: Exception) {
+                    "openai/gpt-4-turbo" // fallback
+                }
+
                 // Simulate successful processing
                 resp.status = HttpServletResponse.SC_OK
-                resp.writer.write("""{"id":"test-$requestId","object":"chat.completion","model":"openai/gpt-4-turbo","choices":[{"message":{"role":"assistant","content":"Integration test response"}}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}""")
+                resp.writer.write("""{"id":"test-$requestId","object":"chat.completion","model":"$modelName","choices":[{"message":{"role":"assistant","content":"Integration test response"}}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}""")
 
             } catch (e: Exception) {
                 resp.status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR

@@ -246,11 +246,33 @@ data class ChatUsage(
 data class OpenRouterSettings(
     var apiKey: String = "",
     var provisioningKey: String = "",
-    // TODO: Future version - Default model selection
-    // var defaultModel: String = "openai/gpt-4o",
     var autoRefresh: Boolean = true,
     var refreshInterval: Int = 300, // seconds
     var showCosts: Boolean = true,
     var trackGenerations: Boolean = true,
-    var maxTrackedGenerations: Int = 100
+    var maxTrackedGenerations: Int = 100,
+    var favoriteModels: MutableList<String> = getDefaultFavoriteModels()
 )
+
+/**
+ * Default favorite models for new installations
+ */
+private fun getDefaultFavoriteModels(): MutableList<String> {
+    return mutableListOf(
+        "openai/gpt-5",
+        "openai/gpt-4o",
+        "openai/gpt-4o-mini",
+        "openai/gpt-4-turbo",
+        "openai/gpt-4",
+        "anthropic/claude-sonnet-4.5",
+        "anthropic/claude-sonnet-4",
+        "anthropic/claude-3.5-sonnet",
+        "anthropic/claude-3-opus",
+        "anthropic/claude-3-haiku",
+        "google/gemini-2.5-pro",
+        "google/gemini-2.5-flash",
+        "meta-llama/llama-3.1-70b-instruct",
+        "mistralai/mixtral-8x7b-instruct",
+        "cohere/command-r-plus"
+    )
+}

@@ -220,20 +220,35 @@ class OpenRouterSettingsPanel {
                 }
             }
 
+            // Favorite Models group
+            group("Favorite Models") {
+                row {
+                    cell(FavoriteModelsPanel())
+                        .align(AlignX.FILL)
+                        .align(AlignY.FILL)
+                }.resizableRow()
+
+                row {
+                    comment("Manage your favorite models that will appear in AI Assistant. Only favorite models are shown to keep the list manageable.")
+                }
+            }
+
             // AI Assistant Integration group
             group("AI Assistant Integration") {
-                row("") {
+                row("Status:") {
                     cell(statusLabel)
                 }.layout(RowLayout.PARENT_GRID)
 
                 row("") {
                     button("Start Proxy Server") { startProxyServer() }
                     button("Stop Proxy Server") { stopProxyServer() }
+                    button("Copy URL") { copyProxyUrl() }
                     button("Enter API Key Manually") { enterApiKeyManually() }
                 }.layout(RowLayout.PARENT_GRID)
 
                 row {
-                    comment("Allows JetBrains AI Assistant and other tools to use OpenRouter models.")
+                    comment("Copy the URL above and paste it as the Base URL in AI Assistant settings:<br>" +
+                            "<b>Tools > AI Assistant > Models > Add Model > Custom OpenAI-compatible</b>")
                 }
             }
         }
@@ -323,6 +338,34 @@ class OpenRouterSettingsPanel {
                     )
                 }, com.intellij.openapi.application.ModalityState.any())
             }
+        }
+    }
+
+    private fun copyProxyUrl() {
+        val status = proxyService.getServerStatus()
+        if (status.isRunning && status.url != null) {
+            try {
+                val clipboard = Toolkit.getDefaultToolkit().systemClipboard
+                val stringSelection = java.awt.datatransfer.StringSelection(status.url)
+                clipboard.setContents(stringSelection, null)
+
+                Messages.showInfoMessage(
+                    "Proxy URL copied to clipboard: ${status.url}\n\n" +
+                    "Paste this as the Base URL in AI Assistant settings:\n" +
+                    "Tools > AI Assistant > Models > Add Model > Custom OpenAI-compatible",
+                    "URL Copied"
+                )
+            } catch (e: Exception) {
+                Messages.showErrorDialog(
+                    "Failed to copy URL to clipboard: ${e.message}",
+                    "Copy Failed"
+                )
+            }
+        } else {
+            Messages.showWarningDialog(
+                "Proxy server is not running. Please start the proxy server first.",
+                "Server Not Running"
+            )
         }
     }
 

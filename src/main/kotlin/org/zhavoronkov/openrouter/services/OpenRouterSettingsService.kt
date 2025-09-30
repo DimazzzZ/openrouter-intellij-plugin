@@ -114,4 +114,28 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
         val provisioningKey = getProvisioningKey()
         return provisioningKey.isNotBlank()
     }
+
+    // Favorite Models Management
+    fun getFavoriteModels(): List<String> {
+        return settings.favoriteModels.toList()
+    }
+
+    fun addFavoriteModel(modelId: String) {
+        if (!settings.favoriteModels.contains(modelId)) {
+            settings.favoriteModels.add(modelId)
+        }
+    }
+
+    fun removeFavoriteModel(modelId: String) {
+        settings.favoriteModels.remove(modelId)
+    }
+
+    fun setFavoriteModels(models: List<String>) {
+        settings.favoriteModels.clear()
+        settings.favoriteModels.addAll(models)
+    }
+
+    fun isFavoriteModel(modelId: String): Boolean {
+        return settings.favoriteModels.contains(modelId)
+    }
 }
