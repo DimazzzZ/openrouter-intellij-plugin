@@ -35,6 +35,10 @@ class ChatCompletionServlet(
         private const val AUTH_HEADER_PREFIX_LENGTH = 7
         private const val NANOSECONDS_TO_MILLISECONDS = 1_000_000L
         private const val OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+        // Request tracking for debugging duplicate requests
+        @Volatile
+        private var requestCounter = 0
     }
 
     private val gson = Gson()
@@ -46,11 +50,14 @@ class ChatCompletionServlet(
     private val settingsService = OpenRouterSettingsService.getInstance()
 
     override fun doPost(req: HttpServletRequest, resp: HttpServletResponse) {
-        val requestId = System.currentTimeMillis().toString().takeLast(6)
+        val requestId = (++requestCounter).toString().padStart(6, '0')
         val startNs = System.nanoTime()
+        val timestamp = System.currentTimeMillis()
 
         PluginLogger.Service.info("═══════════════════════════════════════════════════════")
-        PluginLogger.Service.info("[Chat-$requestId] NEW REQUEST RECEIVED")
+        PluginLogger.Service.info("[Chat-$requestId] NEW CHAT COMPLETION REQUEST RECEIVED")
+        PluginLogger.Service.info("[Chat-$requestId] Timestamp: $timestamp")
+        PluginLogger.Service.info("[Chat-$requestId] Total chat requests so far: $requestCounter")
         PluginLogger.Service.info("═══════════════════════════════════════════════════════")
 
         try {

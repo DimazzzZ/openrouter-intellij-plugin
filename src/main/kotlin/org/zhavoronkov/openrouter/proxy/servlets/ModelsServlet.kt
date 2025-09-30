@@ -32,14 +32,29 @@ class ModelsServlet(
         // Cache for full models list
         private val modelsCache = ConcurrentHashMap<String, OpenAIModelsResponse>()
         private val cacheTimestamp = AtomicLong(0)
+
+        // Request tracking for debugging duplicate requests
+        @Volatile
+        private var requestCounter = 0
     }
 
     private val gson = Gson()
 
     public override fun doGet(req: HttpServletRequest, resp: HttpServletResponse) {
+        val requestId = ++requestCounter
+        val timestamp = System.currentTimeMillis()
+
         try {
             val userAgent = req.getHeader("User-Agent") ?: "unknown"
-            PluginLogger.Service.debug("Models request received from ${req.remoteAddr}, User-Agent: $userAgent")
+            val requestURI = req.requestURI
+            val queryString = req.queryString
+
+            PluginLogger.Service.info("═══════════════════════════════════════════════════════")
+            PluginLogger.Service.info("[Models-$requestId] NEW /models REQUEST RECEIVED")
+            PluginLogger.Service.info("[Models-$requestId] URI: $requestURI${if (queryString != null) "?$queryString" else ""}")
+            PluginLogger.Service.info("[Models-$requestId] User-Agent: $userAgent")
+            PluginLogger.Service.info("[Models-$requestId] Remote Address: ${req.remoteAddr}")
+            PluginLogger.Service.info("═══════════════════════════════════════════════════════")
 
             // Log all headers for debugging AI Assistant integration
             val headers = req.headerNames.asSequence().associateWith { req.getHeader(it) }
@@ -72,13 +87,17 @@ class ModelsServlet(
             resp.contentType = "application/json"
             resp.status = HttpServletResponse.SC_OK
             resp.writer.write(gson.toJson(modelsResponse))
-            
+
         } catch (e: java.util.concurrent.TimeoutException) {
-            PluginLogger.Service.error("Models request timed out", e)
+            PluginLogger.Service.error("[Models-$requestId] ❌ Models request timed out", e)
             sendErrorResponse(resp, "Request timed out", HttpServletResponse.SC_REQUEST_TIMEOUT)
         } catch (e: Exception) {
-            PluginLogger.Service.error("Models request failed", e)
+            PluginLogger.Service.error("[Models-$requestId] ❌ Models request failed", e)
             sendErrorResponse(resp, "Internal server error: ${e.message}", HttpServletResponse.SC_INTERNAL_SERVER_ERROR)
+        } finally {
+            val duration = System.currentTimeMillis() - timestamp
+            PluginLogger.Service.info("[Models-$requestId] ✅ Models request completed in ${duration}ms")
+            PluginLogger.Service.info("═══════════════════════════════════════════════════════")
         }
     }
 

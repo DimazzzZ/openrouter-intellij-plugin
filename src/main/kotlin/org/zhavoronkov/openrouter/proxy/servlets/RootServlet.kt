@@ -24,12 +24,8 @@ class RootServlet(
 
             PluginLogger.Service.info("🧪 Root servlet - URI: '$requestURI', servletPath: '$servletPath', pathInfo: '$pathInfo'")
 
-            // Handle /models requests by creating a models response directly
-            if (requestURI == "/models" || servletPath == "/models") {
-                PluginLogger.Service.info("🧪 Root servlet handling /models request directly")
-                handleModelsRequest(req, resp)
-                return
-            }
+            // Note: /models requests are now handled exclusively by ModelsServlet
+            // This prevents duplicate endpoint handling and routing conflicts
 
             PluginLogger.Service.debug("Root endpoint called for non-models path")
 
@@ -88,30 +84,7 @@ class RootServlet(
         resp.status = HttpServletResponse.SC_OK
     }
 
-    private fun handleModelsRequest(req: HttpServletRequest, resp: HttpServletResponse) {
-        try {
-            PluginLogger.Service.info("🧪 Creating models response directly in RootServlet")
-
-            // Set response headers
-            resp.contentType = "application/json"
-            resp.setHeader("Access-Control-Allow-Origin", "*")
-            resp.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS")
-            resp.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
-            resp.setHeader("Access-Control-Max-Age", "3600")
-
-            // Create the same models response as ModelsServlet
-            val modelsResponse = createCoreModelsResponse()
-            resp.writer.write(gson.toJson(modelsResponse))
-
-            PluginLogger.Service.info("🧪 Models response sent successfully from RootServlet")
-
-        } catch (e: Exception) {
-            PluginLogger.Service.error("Error handling /models request in RootServlet", e)
-            resp.status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR
-            resp.contentType = "application/json"
-            resp.writer.write(gson.toJson(mapOf("error" to "Internal server error")))
-        }
-    }
+    // Note: handleModelsRequest method removed - /models is now handled exclusively by ModelsServlet
 
     private fun handleModelsOptions(req: HttpServletRequest, resp: HttpServletResponse) {
         resp.setHeader("Access-Control-Allow-Origin", "*")
@@ -121,48 +94,7 @@ class RootServlet(
         resp.status = HttpServletResponse.SC_OK
     }
 
-    private fun createCoreModelsResponse(): Map<String, Any> {
-        // Return user's favorite models with FULL OpenRouter format (provider/model)
-        // This is critical - OpenRouter API requires full model names with provider prefix
-        val settingsService = org.zhavoronkov.openrouter.services.OpenRouterSettingsService.getInstance()
-        val favoriteModelIds = settingsService.getFavoriteModels()
+    // Note: createCoreModelsResponse method removed - models are now handled exclusively by ModelsServlet
 
-        val models = favoriteModelIds.map { modelId ->
-            createModel(modelId, modelId.substringAfter("/").replace("-", " ").replaceFirstChar { it.uppercase() })
-        }
-
-        return mapOf(
-            "object" to "list",
-            "data" to models
-        )
-    }
-
-    private fun createModel(id: String, name: String): Map<String, Any?> {
-        return mapOf(
-            "id" to id,
-            "object" to "model",
-            "created" to 1687882411,
-            "owned_by" to "openai",
-            "permission" to listOf(createDefaultPermission()),
-            "root" to id,
-            "parent" to null
-        )
-    }
-
-    private fun createDefaultPermission(): Map<String, Any?> {
-        return mapOf(
-            "id" to "modelperm-${System.currentTimeMillis()}",
-            "object" to "model_permission",
-            "created" to 1687882411,
-            "allow_create_engine" to false,
-            "allow_sampling" to true,
-            "allow_logprobs" to true,
-            "allow_search_indices" to false,
-            "allow_view" to true,
-            "allow_fine_tuning" to false,
-            "organization" to "*",
-            "group" to null,
-            "is_blocking" to false
-        )
-    }
+    // Note: createModel and createDefaultPermission methods removed - models are now handled exclusively by ModelsServlet
 }
