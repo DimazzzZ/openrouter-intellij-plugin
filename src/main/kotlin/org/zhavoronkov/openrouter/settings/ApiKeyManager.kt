@@ -63,7 +63,7 @@ class ApiKeyManager(
             val apiKey = openRouterService.createApiKey(label).get()
             if (apiKey != null) {
                 PluginLogger.Settings.info("Successfully created API key with label: $label")
-                showApiKeyDialog(apiKey, label)
+                showApiKeyDialog(apiKey.key, label)
                 refreshApiKeys()
             } else {
                 Messages.showErrorDialog(
@@ -102,8 +102,8 @@ class ApiKeyManager(
 
         if (result == Messages.YES) {
             try {
-                val success = openRouterService.deleteApiKey(apiKey.id).get()
-                if (success) {
+                val deleteResponse = openRouterService.deleteApiKey(apiKey.hash).get()
+                if (deleteResponse?.deleted == true) {
                     PluginLogger.Settings.info("Successfully deleted API key: ${apiKey.name}")
                     apiKeyTableModel.removeApiKey(selectedRow)
                     Messages.showInfoMessage("API key deleted successfully.", "Success")
@@ -133,7 +133,8 @@ class ApiKeyManager(
         }
 
         try {
-            val apiKeys = openRouterService.getApiKeys().get()
+            val response = openRouterService.getApiKeysList(settingsService.getProvisioningKey()).get()
+            val apiKeys = response?.data
             if (apiKeys != null) {
                 PluginLogger.Settings.debug("Loaded ${apiKeys.size} API keys from OpenRouter")
                 apiKeyTableModel.setApiKeys(apiKeys)
@@ -158,7 +159,8 @@ class ApiKeyManager(
         }
 
         try {
-            val apiKeys = openRouterService.getApiKeys().get()
+            val response = openRouterService.getApiKeysList(settingsService.getProvisioningKey()).get()
+            val apiKeys = response?.data
             if (apiKeys != null) {
                 PluginLogger.Settings.debug("Loaded ${apiKeys.size} API keys from OpenRouter (no auto-create)")
                 apiKeyTableModel.setApiKeys(apiKeys)
@@ -197,7 +199,7 @@ class ApiKeyManager(
             val apiKey = openRouterService.createApiKey(INTELLIJ_API_KEY_NAME).get()
             if (apiKey != null) {
                 PluginLogger.Settings.info("Successfully created IntelliJ API key automatically")
-                settingsService.setApiKey(apiKey)
+                settingsService.setApiKey(apiKey.key)
                 refreshApiKeys()
             } else {
                 PluginLogger.Settings.error("Failed to create IntelliJ API key automatically")
@@ -217,8 +219,8 @@ class ApiKeyManager(
 
         if (existingIntellijApiKey != null) {
             try {
-                val deleteSuccess = openRouterService.deleteApiKey(existingIntellijApiKey.id).get()
-                if (!deleteSuccess) {
+                val deleteResponse = openRouterService.deleteApiKey(existingIntellijApiKey.hash).get()
+                if (deleteResponse?.deleted != true) {
                     PluginLogger.Settings.warn("Failed to delete existing IntelliJ API key")
                 }
             } catch (e: Exception) {
@@ -315,10 +317,12 @@ class ApiKeyManager(
             }
         }
 
-        val result = dialog.showAndGet()
-        when (result) {
-            1 -> recreateIntellijApiKey()
-            2 -> showManualApiKeyEntryDialog()
+        if (dialog.showAndGet()) {
+            val exitCode = dialog.exitCode
+            when (exitCode) {
+                1 -> recreateIntellijApiKey()
+                2 -> showManualApiKeyEntryDialog()
+            }
         }
     }
 

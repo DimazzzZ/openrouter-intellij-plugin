@@ -61,7 +61,7 @@ class ProxyServerManager(
 
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
-                val success = proxyService.startServer()
+                val success = proxyService.startServer().get()
                 ApplicationManager.getApplication().invokeLater({
                     if (success) {
                         PluginLogger.Settings.info("Proxy server started successfully")

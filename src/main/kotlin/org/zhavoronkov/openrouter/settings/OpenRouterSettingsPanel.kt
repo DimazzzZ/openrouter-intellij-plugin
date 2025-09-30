@@ -4,6 +4,7 @@ import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.JBColor
 import com.intellij.ui.ToolbarDecorator
 import com.intellij.ui.components.JBCheckBox
@@ -123,6 +124,9 @@ class OpenRouterSettingsPanel {
     private val openRouterService = OpenRouterService.getInstance()
     private val settingsService = OpenRouterSettingsService.getInstance()
     private val proxyService = OpenRouterProxyService.getInstance()
+
+    // State tracking
+    private var isCreatingApiKey = false
 
     // Helper classes for managing different aspects
     private val apiKeyManager: ApiKeyManager
