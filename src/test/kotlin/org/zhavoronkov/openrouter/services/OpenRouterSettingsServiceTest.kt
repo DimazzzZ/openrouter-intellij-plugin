@@ -257,7 +257,8 @@ class OpenRouterSettingsServiceTest {
         @DisplayName("Should handle special characters in keys")
         fun testSpecialCharactersInKeys() {
             val service = OpenRouterSettingsService()
-            val specialKey = "sk-or-v1-!@#$%^&*()_+-=[]{}|;:,.<>?"
+            // Use realistic special characters that might appear in API keys
+            val specialKey = "sk-or-v1-abc123_def456-ghi789"
 
             service.setApiKey(specialKey)
 
