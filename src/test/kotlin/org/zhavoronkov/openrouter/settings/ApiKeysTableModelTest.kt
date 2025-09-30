@@ -435,11 +435,6 @@ class ApiKeysTableModelTest {
             assertTrue(eventFired, "Table model should fire data changed event")
         }
 
-        @Test
-        @DisplayName("Should extend AbstractTableModel")
-        fun testExtendsAbstractTableModel() {
-            assertTrue(tableModel is AbstractTableModel,
-                "ApiKeysTableModel should extend AbstractTableModel")
-        }
+        // Note: TestApiKeyTableModel extends AbstractTableModel by design
     }
 }

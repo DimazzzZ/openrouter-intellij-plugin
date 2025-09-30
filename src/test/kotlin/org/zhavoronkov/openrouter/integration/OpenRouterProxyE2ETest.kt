@@ -279,8 +279,6 @@ class OpenRouterProxyE2ETest {
             println("\n🧪 Testing that only 1 request is sent (not 11 duplicates)...")
             println("   This test verifies the streaming fix is working")
 
-            val requestCount = AtomicInteger(0)
-
             val requestBody = """
                 {
                     "model": "openai/gpt-4o-mini",
@@ -330,7 +328,7 @@ class OpenRouterProxyE2ETest {
                 "openai/gpt-3.5-turbo" to "openai"
             )
 
-            testCases.forEach { (inputModel, expectedProvider) ->
+            testCases.forEach { (inputModel, _) ->
                 println("\n   Testing model: $inputModel")
 
                 val requestBody = """
@@ -522,7 +520,7 @@ class OpenRouterProxyE2ETest {
                 .addHeader("Authorization", "Bearer $apiKey")
                 .build()
 
-            var nonStreamingContent = ""
+            val nonStreamingContent: String
             httpClient.newCall(nonStreamingRequest).execute().use { response ->
                 assertEquals(200, response.code)
                 val body = response.body?.string()
