@@ -2,7 +2,11 @@ package org.zhavoronkov.openrouter.models
 
 import com.google.gson.Gson
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 
@@ -211,39 +215,38 @@ class OpenRouterModelsTest {
 
             assertEquals("", settings.apiKey)
             assertEquals("", settings.provisioningKey)
-            // TODO: Future version - Default model selection
-            // assertEquals("openai/gpt-4o", settings.defaultModel)
             assertTrue(settings.autoRefresh)
             assertEquals(300, settings.refreshInterval)
             assertTrue(settings.showCosts)
             assertTrue(settings.trackGenerations)
             assertEquals(100, settings.maxTrackedGenerations)
+            assertTrue(settings.favoriteModels.isNotEmpty(), "Should have default favorite models")
+            assertTrue(settings.favoriteModels.contains("openai/gpt-4o"), "Should include GPT-4o in defaults")
         }
 
         @Test
         @DisplayName("Should create OpenRouterSettings with custom values")
         fun testOpenRouterSettingsCustomValues() {
+            val customFavorites = mutableListOf("anthropic/claude-3.5-sonnet", "openai/gpt-4")
             val settings = OpenRouterSettings(
                 apiKey = "test-key",
                 provisioningKey = "test-prov-key",
-                // TODO: Future version - Default model selection
-                // defaultModel = "anthropic/claude-3",
                 autoRefresh = false,
                 refreshInterval = 600,
                 showCosts = false,
                 trackGenerations = false,
-                maxTrackedGenerations = 50
+                maxTrackedGenerations = 50,
+                favoriteModels = customFavorites
             )
 
             assertEquals("test-key", settings.apiKey)
             assertEquals("test-prov-key", settings.provisioningKey)
-            // TODO: Future version - Default model selection
-            // assertEquals("anthropic/claude-3", settings.defaultModel)
             assertFalse(settings.autoRefresh)
             assertEquals(600, settings.refreshInterval)
             assertFalse(settings.showCosts)
             assertFalse(settings.trackGenerations)
             assertEquals(50, settings.maxTrackedGenerations)
+            assertEquals(customFavorites, settings.favoriteModels)
         }
     }
 

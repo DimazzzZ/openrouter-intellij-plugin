@@ -1,47 +1,40 @@
 package org.zhavoronkov.openrouter.settings
 
+import com.intellij.icons.AllIcons
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
-import com.intellij.ui.JBColor
+import com.intellij.ui.AnActionButton
+import com.intellij.ui.SearchTextField
 import com.intellij.ui.ToolbarDecorator
-
-import com.intellij.ui.components.JBCheckBox
-import com.intellij.ui.components.JBLabel
-import com.intellij.ui.components.JBPanel
-import com.intellij.ui.components.JBPasswordField
-import com.intellij.ui.components.JBScrollPane
-import com.intellij.ui.components.JBTextField
+import com.intellij.ui.components.*
+import com.intellij.ui.dsl.builder.*
 import com.intellij.ui.table.JBTable
-import com.intellij.util.ui.FormBuilder
-import com.intellij.util.ui.JBUI
+import com.intellij.ui.OnePixelSplitter
+
+import com.intellij.ui.table.TableView
+import com.intellij.util.ui.UIUtil
+import com.intellij.util.ui.ColumnInfo
+import com.intellij.openapi.actionSystem.AnAction
+import com.intellij.openapi.actionSystem.AnActionEvent
 import org.zhavoronkov.openrouter.models.ApiKeyInfo
-import org.zhavoronkov.openrouter.models.ProviderInfo
+import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.Dimension
-import java.awt.FlowLayout
-import java.awt.Font
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
+import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.util.Locale
-import javax.swing.Action
-import javax.swing.JComponent
-import javax.swing.Timer
-import javax.swing.JButton
-import javax.swing.JCheckBox
-import javax.swing.JPanel
-import javax.swing.JSpinner
-import javax.swing.JTable
-import javax.swing.ListSelectionModel
-import javax.swing.SpinnerNumberModel
+import java.util.concurrent.TimeUnit
+import javax.swing.*
 import javax.swing.table.AbstractTableModel
+import javax.swing.table.TableRowSorter
 
 /**
  * Table model for API keys
@@ -105,316 +98,744 @@ class ApiKeyTableModel : AbstractTableModel() {
 }
 
 /**
- * Settings panel for OpenRouter configuration
+ * Table model for favorite models
+ */
+class FavoriteModelsTableModel : AbstractTableModel() {
+    private val columnNames = arrayOf("Model ID")
+    private val favoriteModels = mutableListOf<OpenRouterModelInfo>()
+
+    override fun getRowCount(): Int = favoriteModels.size
+    override fun getColumnCount(): Int = columnNames.size
+    override fun getColumnName(column: Int): String = columnNames[column]
+
+    override fun getValueAt(rowIndex: Int, columnIndex: Int): Any {
+        val model = favoriteModels[rowIndex]
+        return when (columnIndex) {
+            0 -> model.id
+            else -> ""
+        }
+    }
+
+    fun setFavoriteModels(models: List<OpenRouterModelInfo>) {
+        favoriteModels.clear()
+        favoriteModels.addAll(models)
+        fireTableDataChanged()
+    }
+
+    fun getFavoriteModels(): List<OpenRouterModelInfo> = favoriteModels.toList()
+
+    fun addModel(model: OpenRouterModelInfo) {
+        if (!favoriteModels.contains(model)) {
+            favoriteModels.add(model)
+            fireTableRowsInserted(favoriteModels.size - 1, favoriteModels.size - 1)
+        }
+    }
+
+    fun removeModel(index: Int) {
+        if (index >= 0 && index < favoriteModels.size) {
+            favoriteModels.removeAt(index)
+            fireTableRowsDeleted(index, index)
+        }
+    }
+
+    fun moveUp(index: Int) {
+        if (index > 0 && index < favoriteModels.size) {
+            val model = favoriteModels.removeAt(index)
+            favoriteModels.add(index - 1, model)
+            fireTableRowsUpdated(index - 1, index)
+        }
+    }
+
+    fun moveDown(index: Int) {
+        if (index >= 0 && index < favoriteModels.size - 1) {
+            val model = favoriteModels.removeAt(index)
+            favoriteModels.add(index + 1, model)
+            fireTableRowsUpdated(index, index + 1)
+        }
+    }
+}
+
+/**
+ * Table model for available models
+ */
+class AvailableModelsTableModel : AbstractTableModel() {
+    private val columnNames = arrayOf("Model ID")
+    private val availableModels = mutableListOf<OpenRouterModelInfo>()
+
+    override fun getRowCount(): Int = availableModels.size
+    override fun getColumnCount(): Int = columnNames.size
+    override fun getColumnName(column: Int): String = columnNames[column]
+
+    override fun getValueAt(rowIndex: Int, columnIndex: Int): Any {
+        val model = availableModels[rowIndex]
+        return when (columnIndex) {
+            0 -> model.id
+            else -> ""
+        }
+    }
+
+    fun setAvailableModels(models: List<OpenRouterModelInfo>) {
+        PluginLogger.Settings.debug("AvailableModelsTableModel.setAvailableModels called with ${models.size} models")
+
+        availableModels.clear()
+        availableModels.addAll(models)
+
+        PluginLogger.Settings.debug("AvailableModelsTableModel now has ${availableModels.size} models, firing table data changed")
+
+        fireTableDataChanged()
+    }
+
+    fun getModelAt(index: Int): OpenRouterModelInfo? {
+        return if (index >= 0 && index < availableModels.size) availableModels[index] else null
+    }
+
+    fun getAvailableModels(): List<OpenRouterModelInfo> = availableModels.toList()
+}
+
+/**
+ * Settings panel for OpenRouter configuration using IntelliJ UI DSL v2
  */
 class OpenRouterSettingsPanel {
 
     private val panel: JPanel
     private val provisioningKeyField: JBPasswordField
-    // TODO: Future version - Default model selection
-    // private val defaultModelField: JBTextField
     private val autoRefreshCheckBox: JBCheckBox
     private val refreshIntervalSpinner: JSpinner
     private val showCostsCheckBox: JBCheckBox
     private val apiKeyTableModel = ApiKeyTableModel()
     private val apiKeyTable = JBTable(apiKeyTableModel)
-    // TODO: Future version - Providers list
-    // private val providersTableModel = ProvidersTableModel()
-    // private val providersTable = JBTable(providersTableModel)
     private val openRouterService = OpenRouterService.getInstance()
     private val settingsService = OpenRouterSettingsService.getInstance()
+    private val proxyService = OpenRouterProxyService.getInstance()
+
+    // Favorite Models components
+    private val favoriteModelsTableModel = FavoriteModelsTableModel()
+    private val favoriteModelsTable = JBTable(favoriteModelsTableModel)
+    private val availableModelsTableModel = AvailableModelsTableModel()
+    private val availableModelsTable = JBTable(availableModelsTableModel)
+    private val searchTextField = SearchTextField()
+    private var allModels: List<OpenRouterModelInfo> = emptyList()
+
+    // API Keys panel
+    private val apiKeysPanel = JPanel(BorderLayout())
+
+    // Splitter and panels for favorite models
+    // false = horizontal split (side-by-side), true = vertical split (top/bottom)
+    private val favoriteModelsSplitter = OnePixelSplitter(false, 0.5f).apply {
+        preferredSize = Dimension(700, 400)
+    }
+    private val favoritesPanel = JPanel(BorderLayout())
+    private val availablePanel = JPanel(BorderLayout())
+    private lateinit var addToFavoritesButton: JButton
+    private lateinit var searchButton: JButton
+
+    // State tracking
+    private var isCreatingApiKey = false
+
+    // Helper classes for managing different aspects
+    private val apiKeyManager: ApiKeyManager
+    private val proxyServerManager: ProxyServerManager
+
+    // Status components for AI Assistant Integration
+    private val statusLabel = JBLabel()
+
+    // Action buttons for AI Assistant Integration
+    private lateinit var startServerButton: JButton
+    private lateinit var stopServerButton: JButton
+    private lateinit var copyUrlButton: JButton
 
     companion object {
         private const val INTELLIJ_API_KEY_NAME = "IntelliJ IDEA Plugin"
-        private var isCreatingApiKey = false // Flag to prevent multiple creation attempts
+        private const val DEFAULT_REFRESH_INTERVAL = 30
+        private const val MIN_REFRESH_INTERVAL = 10
+        private const val MAX_REFRESH_INTERVAL = 300
+        private const val REFRESH_INTERVAL_STEP = 10
+        private const val LABEL_COLUMN_WIDTH = 170
     }
 
     init {
         // Initialize logging configuration
         PluginLogger.logConfiguration()
-        PluginLogger.Settings.debug("Initializing OpenRouter Settings Panel")
-        println("[OpenRouter] Settings panel initializing...") // Immediate console output
 
-        provisioningKeyField = JBPasswordField()
-        provisioningKeyField.columns = 30  // Reasonable width for provisioning keys
-        provisioningKeyField.preferredSize = Dimension(300, provisioningKeyField.preferredSize.height)
+        val isHeadless = java.awt.GraphicsEnvironment.isHeadless()
+        PluginLogger.Settings.debug("OpenRouter Settings Panel INITIALIZED (headless: $isHeadless)")
 
-        // TODO: Future version - Default model selection
-        // defaultModelField = JBTextField("openai/gpt-4o")
-        // defaultModelField.columns = 18     // Reduced from 25 to be more responsive
+        // Initialize components
+        provisioningKeyField = JBPasswordField().apply {
+            columns = 32
+        }
 
         autoRefreshCheckBox = JBCheckBox("Auto-refresh quota information")
-
-        refreshIntervalSpinner = JSpinner(SpinnerNumberModel(300, 60, 3600, 60))
-
         showCostsCheckBox = JBCheckBox("Show costs in status bar")
 
-        panel = FormBuilder.createFormBuilder()
-            .addLabeledComponent(
-                JBLabel("Provisioning Key:"),
-                createProvisioningKeyPanel(),
-                1,
-                false
-            )
-            // TODO: Future version - Default model selection
-            // .addLabeledComponent(
-            //     JBLabel("Default Model:"),
-            //     defaultModelField,
-            //     1,
-            //     false
-            // )
-            .addComponent(autoRefreshCheckBox, 1)
-            .addLabeledComponent(
-                JBLabel("Refresh Interval (seconds):"),
-                refreshIntervalSpinner,
-                1,
-                false
-            )
-            .addComponent(showCostsCheckBox, 1)
-            .addVerticalGap(15)
-            .addComponent(createAIAssistantIntegrationPanel(), 1)
-            .addVerticalGap(15)
-            .addComponent(createApiKeyTablePanel(), 1)
-            // TODO: Future version - Providers list
-            // .addVerticalGap(15)
-            // .addComponent(createProvidersTablePanel(), 1)
-            .addComponentFillVertically(JPanel(), 0)
-            .panel
+        refreshIntervalSpinner = JSpinner(SpinnerNumberModel(
+            DEFAULT_REFRESH_INTERVAL,
+            MIN_REFRESH_INTERVAL,
+            MAX_REFRESH_INTERVAL,
+            REFRESH_INTERVAL_STEP
+        ))
 
-        panel.border = JBUI.Borders.empty(10)
+        // Configure API key table
+        apiKeyTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
+        apiKeyTable.autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
+        apiKeyTable.fillsViewportHeight = true
+
+        // Configure favorite models tables
+        configureFavoritesTable()
+        configureAvailableModelsTable()
+
+        // Setup API Keys panel
+        setupApiKeysPanel()
+
+        // Setup splitter and panels
+        setupFavoriteModelsSplitter()
+
+        // Configure search field
+        searchTextField.addDocumentListener(object : javax.swing.event.DocumentListener {
+            override fun insertUpdate(e: javax.swing.event.DocumentEvent?) {
+                PluginLogger.Settings.info("Search field insertUpdate triggered")
+                filterAvailableModels()
+            }
+            override fun removeUpdate(e: javax.swing.event.DocumentEvent?) {
+                PluginLogger.Settings.info("Search field removeUpdate triggered")
+                filterAvailableModels()
+            }
+            override fun changedUpdate(e: javax.swing.event.DocumentEvent?) {
+                PluginLogger.Settings.info("Search field changedUpdate triggered")
+                filterAvailableModels()
+            }
+        })
+
+        // Initialize helper classes
+        apiKeyManager = ApiKeyManager(settingsService, openRouterService, apiKeyTable, apiKeyTableModel)
+        proxyServerManager = ProxyServerManager(proxyService, settingsService)
+
+        // Create the main panel using UI DSL v2
+        panel = panel {
+            // Provisioning group
+            group("Provisioning") {
+                row("Provisioning Key:") {
+                    cell(provisioningKeyField)
+                        .resizableColumn()
+                        .columns(32)
+                    button("Paste") { pasteFromClipboard() }
+                }.layout(RowLayout.PARENT_GRID)
+
+                row {
+                    comment("Required for quota monitoring and API keys management.")
+                }
+
+                row {
+                    link("Get your key from OpenRouter Provisioning Keys") {
+                        BrowserUtil.browse("https://openrouter.ai/settings/provisioning-keys")
+                    }
+                }
+            }
+
+            // General Settings group
+            group("General Settings") {
+                row("Refresh interval (seconds):") {
+                    cell(refreshIntervalSpinner)
+                }.layout(RowLayout.PARENT_GRID)
+
+                row {
+                    cell(autoRefreshCheckBox)
+                    cell(showCostsCheckBox)
+                }.layout(RowLayout.PARENT_GRID)
+            }
+
+            // API Keys group
+            group("API Keys") {
+                row {
+                    comment("Keys load automatically when Provisioning Key is configured.")
+                }
+
+                row {
+                    cell(apiKeysPanel)
+                        .align(Align.FILL)
+                        .resizableColumn()
+                }.resizableRow()
+            }
+
+            // Favorite Models group
+            group("Favorite Models") {
+                row {
+                    comment("Manage your favorite models that will appear in AI Assistant. Only favorite models are shown to keep the list manageable.")
+                }
+
+                row {
+                    cell(favoriteModelsSplitter)
+                        .align(Align.FILL)
+                        .resizableColumn()
+                }.resizableRow()
+            }
+
+            // AI Assistant Integration group
+            group("AI Assistant Integration") {
+                row {
+                    cell(statusLabel)
+                }.layout(RowLayout.PARENT_GRID)
+
+                row {
+                    startServerButton = button("Start Proxy Server") { startProxyServer() }.component
+                    stopServerButton = button("Stop Proxy Server") { stopProxyServer() }.component
+                    copyUrlButton = button("Copy URL") { copyProxyUrl() }.component
+                }.layout(RowLayout.PARENT_GRID)
+
+                row {
+                    comment("Copy the URL above and paste it as the Base URL in AI Assistant settings: Tools > AI Assistant > Models > Add Model > Custom OpenAI-compatible")
+                }
+            }
+        }
 
         // Set up listeners
         autoRefreshCheckBox.addActionListener {
             refreshIntervalSpinner.isEnabled = autoRefreshCheckBox.isSelected
         }
+
+
+
+        // Set up keyboard shortcuts for favorites table
+        setupFavoritesKeyboardShortcuts()
+
+        // Load initial data
+        PluginLogger.Settings.debug("Loading initial data (favorite models and available models)")
+        loadFavoriteModels()
+        loadAvailableModels()
+
+        // Initialize status
+        updateProxyStatus()
     }
 
-    private fun createProvisioningKeyPanel(): JPanel {
-        val panel = JPanel(BorderLayout())
-        panel.add(provisioningKeyField, BorderLayout.CENTER)
-
-        val helpLabel = JBLabel(
-            "<html><small><b>Required for quota monitoring.</b> Get your provisioning key from " +
-                "<a href='https://openrouter.ai/settings/provisioning-keys'>" +
-                "openrouter.ai/settings/provisioning-keys</a></small></html>"
-        )
-        panel.add(helpLabel, BorderLayout.SOUTH)
-
-        return panel
+    private fun createFavoritesToolbar(): ToolbarDecorator {
+        return ToolbarDecorator.createDecorator(favoriteModelsTable)
+            .setRemoveAction { removeSelectedFavorites() }
+            .setMoveUpAction { moveFavoriteUp() }
+            .setMoveDownAction { moveFavoriteDown() }
+            .disableAddAction()
     }
 
-    private fun createAIAssistantIntegrationPanel(): JPanel {
-        val panel = JPanel(BorderLayout())
-        
-        // Title
-        val titleLabel = JBLabel("AI Assistant Integration")
-        titleLabel.font = titleLabel.font.deriveFont(Font.BOLD, 14f)
-        titleLabel.border = JBUI.Borders.emptyBottom(8)
-        
-        val contentPanel = JPanel()
-        contentPanel.layout = javax.swing.BoxLayout(contentPanel, javax.swing.BoxLayout.Y_AXIS)
-        
-        // Integration status
-        val statusLabel = JBLabel()
-        statusLabel.border = JBUI.Borders.emptyBottom(5)
-        
-        // Information text
-        val infoLabel = JBLabel(
-            "<html>" +
-            "<b>AI Assistant Plugin Integration Available!</b><br/>" +
-            "When you have the JetBrains AI Assistant plugin installed, OpenRouter models will automatically<br/>" +
-            "appear in <b>Settings → Tools → AI Assistant → Models</b> as a provider option.<br/><br/>" +
-            "Simply configure your OpenRouter Provisioning Key above, and you'll be able to use<br/>" +
-            "400+ AI models through the AI Assistant interface.<br/>" +
-            "</html>"
-        )
-        infoLabel.border = JBUI.Borders.emptyBottom(8)
-        
-        // Status check
-        val aiAssistantInstalled = checkAIAssistantInstalled()
-        if (aiAssistantInstalled) {
-            statusLabel.text = "<html><span style='color: green;'>✓ AI Assistant plugin detected - Integration available!</span></html>"
-            statusLabel.foreground = JBColor.GREEN
-        } else {
-            statusLabel.text = "<html><span style='color: #888;'>ℹ AI Assistant plugin not detected</span></html>"
-            statusLabel.foreground = JBColor.GRAY
+    private fun configureFavoritesTable() {
+        favoriteModelsTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION)
+        favoriteModelsTable.autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
+        favoriteModelsTable.fillsViewportHeight = true
+
+        // Only enable drag-and-drop if not in headless mode (e.g., during build)
+        if (!java.awt.GraphicsEnvironment.isHeadless()) {
+            favoriteModelsTable.dragEnabled = true
+            favoriteModelsTable.dropMode = DropMode.INSERT_ROWS
         }
-        
-        // Learn more link
-        val learnMoreLabel = JBLabel(
-            "<html><small>" +
-            "Learn more about the <a href='https://plugins.jetbrains.com/plugin/22282-jetbrains-ai-assistant'>AI Assistant plugin</a>" +
-            "</small></html>"
-        )
-        learnMoreLabel.addMouseListener(object : MouseAdapter() {
+
+        favoriteModelsTable.rowHeight = 28
+
+        // Set accessible name for screen readers
+        favoriteModelsTable.accessibleContext.accessibleName = "Favorites Table"
+        favoriteModelsTable.accessibleContext.accessibleDescription = "Table showing your favorite models on the right side. Use Alt+Up/Alt+Down to reorder, Delete to remove."
+
+        // Configure column widths: Model ID ~65%, Provider ~35%
+        setupFavoritesTableColumns()
+    }
+
+    private fun configureAvailableModelsTable() {
+        availableModelsTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION)
+        availableModelsTable.autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
+        availableModelsTable.fillsViewportHeight = true
+        availableModelsTable.rowHeight = 28
+
+        // Set accessible name for screen readers
+        availableModelsTable.accessibleContext.accessibleName = "Available Models Table"
+        availableModelsTable.accessibleContext.accessibleDescription = "Table showing all available models on the left side. Double-click, press Enter, or use Add to Favorites button to add models to your favorites."
+
+        // Enable sorting
+        val sorter = TableRowSorter(availableModelsTableModel)
+        availableModelsTable.rowSorter = sorter
+
+        // Configure column widths: Model ID ~40%, Name ~40%, Provider ~20%
+        setupAvailableModelsTableColumns()
+
+        // Add double-click listener and Enter key support
+        availableModelsTable.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
-                if (e.source == learnMoreLabel) {
-                    BrowserUtil.browse("https://plugins.jetbrains.com/plugin/22282-jetbrains-ai-assistant")
+                if (e.clickCount == 2) {
+                    addSelectedToFavorites()
                 }
             }
         })
-        
-        contentPanel.add(statusLabel)
-        contentPanel.add(infoLabel)
-        contentPanel.add(learnMoreLabel)
-        
-        panel.add(titleLabel, BorderLayout.NORTH)
-        panel.add(contentPanel, BorderLayout.CENTER)
-        
-        // Add a subtle border to make it stand out
-        panel.border = JBUI.Borders.compound(
-            JBUI.Borders.customLine(JBColor.GRAY, 1, 0, 0, 0), // Top border
-            JBUI.Borders.empty(10, 0, 10, 0) // Padding
-        )
-        
-        return panel
-    }
-    
-    private fun checkAIAssistantInstalled(): Boolean {
-        return try {
-            val pluginManager = com.intellij.ide.plugins.PluginManagerCore.getPlugins()
-            pluginManager.any { plugin -> 
-                plugin.pluginId.idString == "com.intellij.ml.llm" && plugin.isEnabled 
+
+        // Add Enter key support for adding to favorites
+        val inputMap = availableModelsTable.getInputMap(JComponent.WHEN_FOCUSED)
+        val actionMap = availableModelsTable.actionMap
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "addToFavorites")
+        actionMap.put("addToFavorites", object : AbstractAction() {
+            override fun actionPerformed(e: java.awt.event.ActionEvent?) {
+                addSelectedToFavorites()
             }
-        } catch (e: Exception) {
-            PluginLogger.Settings.debug("Could not check AI Assistant plugin status: ${e.message}")
-            false
+        })
+    }
+
+    private fun setupApiKeysPanel() {
+        // North: Toolbar with Add/Remove on left and Refresh on right
+        val toolbar = createApiKeysToolbarWithRefresh()
+        apiKeysPanel.add(toolbar, BorderLayout.NORTH)
+
+        // Center: API Keys table in scroll pane
+        val scrollPane = JScrollPane(apiKeyTable)
+        apiKeysPanel.add(scrollPane, BorderLayout.CENTER)
+    }
+
+    private fun createApiKeysToolbarWithRefresh(): JPanel {
+        // Create the main toolbar with Add/Remove
+        val decorator = ToolbarDecorator.createDecorator(apiKeyTable)
+            .setAddAction { addApiKey() }
+            .setRemoveAction { removeSelectedApiKey() }
+            .disableUpDownActions()
+
+        val toolbarPanel = decorator.createPanel()
+
+        // Create a wrapper panel to add Refresh button on the right
+        val wrapperPanel = JPanel(BorderLayout())
+        wrapperPanel.add(toolbarPanel, BorderLayout.CENTER)
+
+        // Add Refresh button on the right
+        val refreshButtonPanel = JPanel(BorderLayout())
+        val refreshButton = JButton("Refresh")
+        refreshButton.addActionListener { refreshApiKeysWithValidation() }
+        refreshButton.accessibleContext.accessibleName = "Refresh API Keys"
+        refreshButtonPanel.add(refreshButton, BorderLayout.EAST)
+        wrapperPanel.add(refreshButtonPanel, BorderLayout.EAST)
+
+        return wrapperPanel
+    }
+
+    private fun setupFavoriteModelsSplitter() {
+        // Configure splitter - 50/50 split
+        favoriteModelsSplitter.setHonorComponentsMinimumSize(true)
+        favoriteModelsSplitter.proportion = 0.5f
+
+        // Set minimum sizes for both panels to ensure they're visible
+        availablePanel.minimumSize = Dimension(250, 300)
+        favoritesPanel.minimumSize = Dimension(250, 300)
+
+        // Set preferred sizes to ensure proper initial layout - equal widths
+        availablePanel.preferredSize = Dimension(350, 400)
+        favoritesPanel.preferredSize = Dimension(350, 400)
+
+        // Setup left panel (Available models)
+        setupAvailableModelsPanel()
+
+        // Setup right panel (Favorites)
+        setupFavoritesPanel()
+
+        // Add panels to splitter - Available on left, Favorites on right
+        favoriteModelsSplitter.firstComponent = availablePanel
+        favoriteModelsSplitter.secondComponent = favoritesPanel
+
+        // Setup tab order: Search field → Available table → Add to Favorites → Favorites table → toolbar buttons
+        setupTabOrder()
+    }
+
+    private fun setupFavoritesPanel() {
+        // North: header with "Favorites" label - fixed height to match Available panel header
+        val headerPanel = JPanel(BorderLayout())
+        val favoritesLabel = JLabel("Favorites")
+        headerPanel.add(favoritesLabel, BorderLayout.WEST)
+
+        // Set fixed preferred height to match the Available panel's header (label + search field height)
+        // Search field is typically ~28-30px, so we set header to 32px for consistent alignment
+        headerPanel.preferredSize = Dimension(headerPanel.preferredSize.width, 32)
+        headerPanel.minimumSize = Dimension(0, 32)
+        headerPanel.maximumSize = Dimension(Int.MAX_VALUE, 32)
+
+        favoritesPanel.add(headerPanel, BorderLayout.NORTH)
+
+        // Center: ToolbarDecorator panel (includes table + toolbar)
+        // ToolbarDecorator.createPanel() returns a panel with the table and toolbar already combined
+        val toolbar = createFavoritesToolbar()
+        favoritesPanel.add(toolbar.createPanel(), BorderLayout.CENTER)
+    }
+
+    private fun setupAvailableModelsPanel() {
+        // North: header with "Available" label, search field, and Search button - fixed height
+        val headerPanel = JPanel(BorderLayout())
+        val availableLabel = JLabel("Available")
+        searchTextField.textEditor.emptyText.text = "Search models"
+        searchTextField.accessibleContext.accessibleName = "Search Available Models"
+        searchTextField.accessibleContext.accessibleDescription = "Filter available models by Model ID"
+
+        // Create a panel for search field + button
+        val searchPanel = JPanel(BorderLayout())
+        searchPanel.add(searchTextField, BorderLayout.CENTER)
+
+        searchButton = JButton("Search")
+        searchButton.accessibleContext.accessibleName = "Search models"
+        searchButton.addActionListener { filterAvailableModels() }
+        searchPanel.add(searchButton, BorderLayout.EAST)
+
+        // Prevent Enter key from closing Settings dialog
+        searchTextField.textEditor.registerKeyboardAction(
+            { filterAvailableModels() },
+            KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0),
+            JComponent.WHEN_FOCUSED
+        )
+
+        headerPanel.add(availableLabel, BorderLayout.WEST)
+        headerPanel.add(searchPanel, BorderLayout.EAST)
+
+        // Set fixed preferred height to match Favorites panel header
+        headerPanel.preferredSize = Dimension(headerPanel.preferredSize.width, 32)
+        headerPanel.minimumSize = Dimension(0, 32)
+        headerPanel.maximumSize = Dimension(Int.MAX_VALUE, 32)
+
+        availablePanel.add(headerPanel, BorderLayout.NORTH)
+
+        // Center: table with toolbar-style button at bottom
+        // Create a panel that combines the table and the "Add to Favorites" button
+        // This ensures both panels have the same structure: header + (table + buttons)
+        val tableWithButtonPanel = JPanel(BorderLayout())
+
+        // Table in center
+        val scrollPane = JScrollPane(availableModelsTable)
+        tableWithButtonPanel.add(scrollPane, BorderLayout.CENTER)
+
+        // "Add to Favorites" button at bottom (matching the toolbar height on Favorites side)
+        val buttonPanel = JPanel(BorderLayout())
+        addToFavoritesButton = JButton("Add to Favorites")
+        addToFavoritesButton.addActionListener { addSelectedToFavorites() }
+        addToFavoritesButton.accessibleContext.accessibleName = "Add to Favorites"
+        addToFavoritesButton.accessibleContext.accessibleDescription = "Add selected models from the available models table to your favorites"
+        addToFavoritesButton.isEnabled = false // Initially disabled
+        buttonPanel.add(addToFavoritesButton, BorderLayout.EAST)
+        tableWithButtonPanel.add(buttonPanel, BorderLayout.SOUTH)
+
+        availablePanel.add(tableWithButtonPanel, BorderLayout.CENTER)
+
+        // Add selection listener to enable/disable button
+        availableModelsTable.selectionModel.addListSelectionListener {
+            addToFavoritesButton.isEnabled = availableModelsTable.selectedRowCount > 0
+        }
+
+        // Note: Document listener for search field is already added in init block
+    }
+
+    private fun setupTabOrder() {
+        // Set up proper tab order: Search field → Search button → Available table → Add to Favorites → Favorites table
+        // The ToolbarDecorator buttons will be handled automatically
+        searchTextField.setNextFocusableComponent(searchButton)
+        searchButton.setNextFocusableComponent(availableModelsTable)
+        availableModelsTable.setNextFocusableComponent(addToFavoritesButton)
+        addToFavoritesButton.setNextFocusableComponent(favoriteModelsTable)
+        // Favorites table will naturally tab to its toolbar buttons
+    }
+
+    private fun setupFavoritesTableColumns() {
+        val columnModel = favoriteModelsTable.columnModel
+        if (columnModel.columnCount >= 1) {
+            // Single column - Model ID takes full width
+            columnModel.getColumn(0).minWidth = 100
         }
     }
 
-    private fun createApiKeyTablePanel(): JPanel {
-        val panel = JPanel(BorderLayout())
-
-        PluginLogger.Settings.debug("Creating API key table panel with JBTable")
-
-        // Add table label according to JetBrains guidelines
-        val tableLabel = JBLabel("API Keys List:")
-        tableLabel.border = JBUI.Borders.emptyBottom(5)
-        panel.add(tableLabel, BorderLayout.NORTH)
-
-        // Configure table for full-width layout
-        apiKeyTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
-        apiKeyTable.autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
-        apiKeyTable.fillsViewportHeight = true
-
-        // Set column widths for better proportions
-        apiKeyTable.columnModel.getColumn(0).preferredWidth = 120  // Label
-        apiKeyTable.columnModel.getColumn(1).preferredWidth = 150  // Name
-        apiKeyTable.columnModel.getColumn(2).preferredWidth = 80   // Usage
-        apiKeyTable.columnModel.getColumn(3).preferredWidth = 80   // Limit
-        apiKeyTable.columnModel.getColumn(4).preferredWidth = 70   // Status
-
-        PluginLogger.Settings.debug("API key table configured with model: ${apiKeyTable.model}")
-        PluginLogger.Settings.debug("Initial table row count: ${apiKeyTable.rowCount}")
-        PluginLogger.Settings.debug("Initial model row count: ${apiKeyTableModel.rowCount}")
-
-        // Create toolbar with add/remove buttons - full width
-        val tablePanel = ToolbarDecorator.createDecorator(apiKeyTable)
-            .setAddAction { addApiKey() }
-            .setRemoveAction { removeApiKey() }
-            .setAddActionName("Add API Key")
-            .setRemoveActionName("Remove API Key")
-            .setPreferredSize(Dimension(-1, 150))  // Full width, fixed height
-            .createPanel()
-
-        panel.add(tablePanel, BorderLayout.CENTER)
-
-        // Add refresh button and help text
-        val bottomPanel = JPanel(BorderLayout())
-
-        val buttonPanel = JPanel(FlowLayout(FlowLayout.RIGHT))
-        val refreshButton = JButton("Refresh API Keys")
-        refreshButton.addActionListener { refreshApiKeys() }
-        buttonPanel.add(refreshButton)
-        bottomPanel.add(buttonPanel, BorderLayout.NORTH)
-
-        val helpLabel = JBLabel(
-            "<html><small>Manage your API keys. Automatically loads when Provisioning Key is configured.</small></html>"
-        )
-        helpLabel.border = JBUI.Borders.emptyTop(5)
-        bottomPanel.add(helpLabel, BorderLayout.SOUTH)
-
-        panel.add(bottomPanel, BorderLayout.SOUTH)
-
-        // Reset the creation flag when panel is created
-        resetApiKeyCreationFlag()
-
-        // Note: refreshApiKeys() will be called by the configurable after settings are loaded
-
-        return panel
+    private fun setupAvailableModelsTableColumns() {
+        val columnModel = availableModelsTable.columnModel
+        if (columnModel.columnCount >= 1) {
+            // Single column - Model ID takes full width
+            columnModel.getColumn(0).minWidth = 100
+        }
     }
 
-    // TODO: Future version - Providers list
-    // private fun createProvidersTablePanel(): JPanel {
-    //     val panel = JPanel(BorderLayout())
-    //
-    //     // Add table label according to JetBrains guidelines
-    //     val tableLabel = JBLabel("Available Providers List:")
-    //     tableLabel.border = JBUI.Borders.emptyBottom(5)
-    //     panel.add(tableLabel, BorderLayout.NORTH)
-    //
-    //     // Configure providers table for full-width layout
-    //     providersTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
-    //     providersTable.autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
-    //     providersTable.fillsViewportHeight = true
-    //
-    //     // Set column widths for better proportions
-    //     providersTable.columnModel.getColumn(0).preferredWidth = 150  // Provider
-    //     providersTable.columnModel.getColumn(1).preferredWidth = 80   // Status
-    //     providersTable.columnModel.getColumn(2).preferredWidth = 120  // Privacy Policy
-    //     providersTable.columnModel.getColumn(3).preferredWidth = 120  // Terms of Service
-    //
-    //     // Add double-click listener to open links
-    //     providersTable.addMouseListener(object : MouseAdapter() {
-    //         override fun mouseClicked(e: MouseEvent) {
-    //             if (e.clickCount == 2) {
-    //                 val row = providersTable.rowAtPoint(e.point)
-    //                 val col = providersTable.columnAtPoint(e.point)
-    //                 if (row >= 0 && col >= 2) { // Privacy Policy or Terms columns
-    //                     val provider = providersTableModel.getProvider(row)
-    //                     if (provider != null) {
-    //                         val url = when (col) {
-    //                             2 -> provider.privacyPolicyUrl
-    //                             3 -> provider.termsOfServiceUrl
-    //                             else -> null
-    //                         }
-    //                         if (url != null) {
-    //                             BrowserUtil.browse(url)
-    //                         }
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     })
-    //
-    //     val scrollPane = JBScrollPane(providersTable)
-    //     scrollPane.preferredSize = Dimension(-1, 180)  // Full width, fixed height
-    //     panel.add(scrollPane, BorderLayout.CENTER)
-    //
-    //     // Add refresh button and help text
-    //     val bottomPanel = JPanel(BorderLayout())
-    //
-    //     val buttonPanel = JPanel(FlowLayout(FlowLayout.RIGHT))
-    //     val refreshButton = JButton("Refresh Providers")
-    //     refreshButton.addActionListener { loadProviders() }
-    //     buttonPanel.add(refreshButton)
-    //     bottomPanel.add(buttonPanel, BorderLayout.NORTH)
-    //
-    //     val helpLabel = JBLabel(
-    //         "<html><small>List of available AI providers on OpenRouter. Double-click on Privacy Policy or Terms to open links.</small></html>"
-    //     )
-    //     helpLabel.border = JBUI.Borders.emptyTop(5)
-    //     bottomPanel.add(helpLabel, BorderLayout.SOUTH)
-    //
-    //     panel.add(bottomPanel, BorderLayout.SOUTH)
-    //
-    //     // Auto-load providers when panel is created
-    //     loadProviders()
-    //
-    //     return panel
-    // }
+    private fun pasteFromClipboard() {
+        try {
+            val clipboard = Toolkit.getDefaultToolkit().systemClipboard
+            val data = clipboard.getData(java.awt.datatransfer.DataFlavor.stringFlavor) as? String
+            if (data != null) {
+                provisioningKeyField.text = data.trim()
+            }
+        } catch (e: Exception) {
+            PluginLogger.Settings.warn("Failed to paste from clipboard: ${e.message}")
+        }
+    }
 
-    private fun addApiKey() {
+    private fun updateProxyStatus() {
+        proxyServerManager.updateProxyStatusLabel(statusLabel)
+
+        // Update button states based on proxy status
+        val isRunning = proxyService.getServerStatus().isRunning
+        startServerButton.isEnabled = !isRunning
+        stopServerButton.isEnabled = isRunning
+        copyUrlButton.isEnabled = isRunning
+
+        // Force UI repaint to show changes immediately
+        statusLabel.repaint()
+        statusLabel.revalidate()
+        panel.repaint()
+    }
+
+    private fun loadFavoriteModels() {
+        val favoriteModelIds = settingsService.getFavoriteModels()
+        // Convert model IDs to OpenRouterModelInfo objects
+        val favoriteModels = favoriteModelIds.map { modelId ->
+            OpenRouterModelInfo(
+                id = modelId,
+                name = modelId,
+                created = System.currentTimeMillis() / 1000,
+                description = null,
+                architecture = null,
+                topProvider = null,
+                pricing = null,
+                contextLength = null,
+                perRequestLimits = null
+            )
+        }
+        favoriteModelsTableModel.setFavoriteModels(favoriteModels)
+    }
+
+    private fun loadAvailableModels() {
+        PluginLogger.Settings.debug("Starting to load models from OpenRouter")
+
+        try {
+            val future = openRouterService.getModels()
+            PluginLogger.Settings.debug("Created CompletableFuture for models request")
+
+            future.whenComplete { modelsResponse, throwable ->
+                if (throwable != null) {
+                    PluginLogger.Settings.error("Failed to load available models: ${throwable.message}", throwable)
+                } else {
+                    PluginLogger.Settings.debug("Received response with ${modelsResponse?.data?.size ?: 0} models")
+
+                    if (modelsResponse == null) {
+                        PluginLogger.Settings.error("Received null response from OpenRouter")
+                        return@whenComplete
+                    }
+
+                    ApplicationManager.getApplication().invokeLater({
+                        allModels = modelsResponse.data ?: emptyList()
+                        PluginLogger.Settings.info("Loaded ${allModels.size} models from OpenRouter")
+
+                        if (allModels.isNotEmpty()) {
+                            PluginLogger.Settings.debug("First few models: ${allModels.take(3).map { it.id }}")
+                        }
+
+                        filterAvailableModels()
+                    }, com.intellij.openapi.application.ModalityState.any())
+                }
+            }
+
+            PluginLogger.Settings.debug("CompletableFuture callbacks set up successfully")
+        } catch (e: Exception) {
+            PluginLogger.Settings.error("Exception in loadAvailableModels: ${e.message}", e)
+        }
+    }
+
+    private fun filterAvailableModels() {
+        // Use textEditor.text to get the actual text from the SearchTextField
+        val searchText = searchTextField.textEditor.text.lowercase()
+        PluginLogger.Settings.debug("Filtering models with search text: '$searchText', allModels.size=${allModels.size}")
+
+        if (allModels.isEmpty()) {
+            PluginLogger.Settings.warn("allModels is empty - no models to filter! Attempting to reload...")
+            // If models are empty, try to reload them
+            loadAvailableModels()
+            return
+        }
+
+        val filteredModels = if (searchText.isBlank()) {
+            PluginLogger.Settings.debug("Search text is blank, showing all ${allModels.size} models")
+            allModels
+        } else {
+            PluginLogger.Settings.debug("Filtering models by search text")
+            val filtered = allModels.filter { model ->
+                model.id.lowercase().contains(searchText)
+            }
+            PluginLogger.Settings.debug("Filtered ${filtered.size} models from ${allModels.size} total")
+            filtered
+        }
+
+        PluginLogger.Settings.debug("Setting ${filteredModels.size} models to table")
+        availableModelsTableModel.setAvailableModels(filteredModels)
+    }
+
+    private fun addSelectedToFavorites() {
+        val selectedRows = availableModelsTable.selectedRows
+        val favorites = favoriteModelsTableModel.getFavoriteModels().toMutableList()
+
+        for (row in selectedRows) {
+            val model = availableModelsTableModel.getModelAt(row)
+            if (model != null && !favorites.any { it.id == model.id }) {
+                favoriteModelsTableModel.addModel(model)
+                favorites.add(model)
+            }
+        }
+
+        // Save to settings (convert to model IDs)
+        val modelIds = favoriteModelsTableModel.getFavoriteModels().map { it.id }
+        settingsService.setFavoriteModels(modelIds)
+    }
+
+    private fun removeSelectedFavorites() {
+        val selectedRows = favoriteModelsTable.selectedRows.sortedDescending()
+        for (row in selectedRows) {
+            favoriteModelsTableModel.removeModel(row)
+        }
+
+        // Save to settings (convert to model IDs)
+        val modelIds = favoriteModelsTableModel.getFavoriteModels().map { it.id }
+        settingsService.setFavoriteModels(modelIds)
+    }
+
+    private fun moveFavoriteUp() {
+        val selectedRow = favoriteModelsTable.selectedRow
+        if (selectedRow > 0) {
+            favoriteModelsTableModel.moveUp(selectedRow)
+            favoriteModelsTable.setRowSelectionInterval(selectedRow - 1, selectedRow - 1)
+
+            // Save to settings (convert to model IDs)
+            val modelIds = favoriteModelsTableModel.getFavoriteModels().map { it.id }
+            settingsService.setFavoriteModels(modelIds)
+        }
+    }
+
+    private fun moveFavoriteDown() {
+        val selectedRow = favoriteModelsTable.selectedRow
+        if (selectedRow >= 0 && selectedRow < favoriteModelsTable.rowCount - 1) {
+            favoriteModelsTableModel.moveDown(selectedRow)
+            favoriteModelsTable.setRowSelectionInterval(selectedRow + 1, selectedRow + 1)
+
+            // Save to settings (convert to model IDs)
+            val modelIds = favoriteModelsTableModel.getFavoriteModels().map { it.id }
+            settingsService.setFavoriteModels(modelIds)
+        }
+    }
+
+    private fun setupFavoritesKeyboardShortcuts() {
+        val inputMap = favoriteModelsTable.getInputMap(JComponent.WHEN_FOCUSED)
+        val actionMap = favoriteModelsTable.actionMap
+
+        // Alt+Up for move up
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_UP, KeyEvent.ALT_DOWN_MASK), "moveUp")
+        actionMap.put("moveUp", object : AbstractAction() {
+            override fun actionPerformed(e: java.awt.event.ActionEvent?) {
+                moveFavoriteUp()
+            }
+        })
+
+        // Alt+Down for move down
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, KeyEvent.ALT_DOWN_MASK), "moveDown")
+        actionMap.put("moveDown", object : AbstractAction() {
+            override fun actionPerformed(e: java.awt.event.ActionEvent?) {
+                moveFavoriteDown()
+            }
+        })
+
+        // Delete for remove
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, 0), "remove")
+        actionMap.put("remove", object : AbstractAction() {
+            override fun actionPerformed(e: java.awt.event.ActionEvent?) {
+                removeSelectedFavorites()
+            }
+        })
+    }
+
+    private fun startProxyServer() {
         if (!settingsService.isConfigured()) {
             Messages.showErrorDialog(
                 "Please configure your Provisioning Key first.",
@@ -423,412 +844,106 @@ class OpenRouterSettingsPanel {
             return
         }
 
-        val label = Messages.showInputDialog(
-            "Enter a label for the new API key:",
-            "Create API Key",
-            Messages.getQuestionIcon()
-        )
-
-        if (label.isNullOrBlank()) {
-            return
-        }
-
-        val limitInput = Messages.showInputDialog(
-            "Enter credit limit (leave empty for unlimited):",
-            "Set Credit Limit",
-            Messages.getQuestionIcon()
-        )
-
-        val limit = if (limitInput.isNullOrBlank()) null else limitInput.toDoubleOrNull()
-
-        openRouterService.createApiKey(label, limit).thenAccept { response ->
-            ApplicationManager.getApplication().invokeLater({
-                if (response != null) {
-                    PluginLogger.Settings.debug("API key created successfully: ${response.data.label}")
-                    // Show the API key in a copyable dialog
-                    showApiKeyDialog(response.key, response.data.label)
-                    // Refresh the table to show the new key
-                    PluginLogger.Settings.debug("Refreshing table after API key creation")
-                    loadApiKeysWithoutAutoCreate()
-                } else {
-                    PluginLogger.Settings.warn("Failed to create API key - response was null")
+        ApplicationManager.getApplication().executeOnPooledThread {
+            try {
+                val success = proxyService.startServer().get()
+                ApplicationManager.getApplication().invokeLater({
+                    updateProxyStatus()
+                    if (!success) {
+                        Messages.showErrorDialog(
+                            "Failed to start proxy server. Check logs for details.",
+                            "Proxy Start Failed"
+                        )
+                    }
+                }, com.intellij.openapi.application.ModalityState.any())
+            } catch (e: Exception) {
+                ApplicationManager.getApplication().invokeLater({
+                    updateProxyStatus()
                     Messages.showErrorDialog(
-                        "Failed to create API key. Please check your Provisioning Key and try again.",
-                        "Creation Failed"
+                        "Failed to start proxy server: ${e.message}",
+                        "Proxy Start Failed"
                     )
-                }
-            }, com.intellij.openapi.application.ModalityState.defaultModalityState())
+                }, com.intellij.openapi.application.ModalityState.any())
+            }
         }
     }
 
-    /**
-     * Show a dialog with the newly created API key in a copyable format
-     */
-    private fun showApiKeyDialog(apiKey: String, label: String) {
-        PluginLogger.Settings.debug("Showing API key dialog for label: $label, key length: ${apiKey.length}")
-        val dialog = object : DialogWrapper(true) {
-            init {
-                title = "API Key Created Successfully"
-                init()
+    private fun stopProxyServer() {
+        ApplicationManager.getApplication().executeOnPooledThread {
+            try {
+                proxyService.stopServer().get()
+                ApplicationManager.getApplication().invokeLater({
+                    updateProxyStatus()
+                }, com.intellij.openapi.application.ModalityState.any())
+            } catch (e: Exception) {
+                ApplicationManager.getApplication().invokeLater({
+                    updateProxyStatus()
+                    Messages.showErrorDialog(
+                        "Failed to stop proxy server: ${e.message}",
+                        "Proxy Stop Failed"
+                    )
+                }, com.intellij.openapi.application.ModalityState.any())
             }
+        }
+    }
 
-            override fun createCenterPanel(): JComponent {
-                val panel = JBPanel<JBPanel<*>>(BorderLayout())
-                panel.preferredSize = Dimension(500, 200)
+    private fun copyProxyUrl() {
+        val status = proxyService.getServerStatus()
+        if (status.isRunning && status.url != null) {
+            try {
+                val clipboard = Toolkit.getDefaultToolkit().systemClipboard
+                val stringSelection = java.awt.datatransfer.StringSelection(status.url)
+                clipboard.setContents(stringSelection, null)
 
-                // Header message
-                val headerLabel = JBLabel("<html><b>Your new API key has been created!</b><br/>" +
-                    "Label: $label<br/><br/>" +
-                    "⚠️ <b>Important:</b> Copy this key now - it will not be shown again.</html>")
-                headerLabel.border = JBUI.Borders.empty(10)
-                panel.add(headerLabel, BorderLayout.NORTH)
-
-                // API key text field (read-only but copyable)
-                val keyField = JBTextField(apiKey)
-                keyField.isEditable = false
-                keyField.selectAll() // Pre-select the text for easy copying
-                keyField.border = JBUI.Borders.compound(
-                    JBUI.Borders.empty(10),
-                    JBUI.Borders.customLine(JBColor.GRAY, 1)
+                Messages.showInfoMessage(
+                    "Proxy URL copied to clipboard: ${status.url}\n\n" +
+                    "Paste this as the Base URL in AI Assistant settings:\n" +
+                    "Tools > AI Assistant > Models > Add Model > Custom OpenAI-compatible",
+                    "URL Copied"
                 )
-                keyField.font = Font(Font.MONOSPACED, Font.PLAIN, 12)
-                panel.add(keyField, BorderLayout.CENTER)
-
-                // Copy button
-                val copyButton = JButton("Copy to Clipboard")
-                copyButton.addActionListener {
-                    try {
-                        PluginLogger.Settings.debug("Copying API key to clipboard: ${apiKey.take(10)}...")
-                        val clipboard = Toolkit.getDefaultToolkit().systemClipboard
-                        val stringSelection = StringSelection(apiKey)
-                        clipboard.setContents(stringSelection, null)
-
-                        // Show brief confirmation
-                        copyButton.text = "Copied!"
-                        val timer = Timer(1500) {
-                            copyButton.text = "Copy to Clipboard"
-                        }
-                        timer.isRepeats = false
-                        timer.start()
-                        PluginLogger.Settings.debug("API key copied to clipboard successfully")
-                    } catch (e: Exception) {
-                        PluginLogger.Settings.error("Failed to copy API key to clipboard", e)
-                        Messages.showErrorDialog(
-                            "Failed to copy to clipboard: ${e.message}",
-                            "Copy Error"
-                        )
-                    }
-                }
-
-                val buttonPanel = JBPanel<JBPanel<*>>(FlowLayout())
-                buttonPanel.add(copyButton)
-                panel.add(buttonPanel, BorderLayout.SOUTH)
-
-                return panel
+            } catch (e: Exception) {
+                Messages.showErrorDialog(
+                    "Failed to copy URL to clipboard: ${e.message}",
+                    "Copy Failed"
+                )
             }
-
-            override fun createActions(): Array<Action> {
-                return arrayOf(okAction)
-            }
-        }
-
-        dialog.show()
-    }
-
-    private fun removeApiKey() {
-        val selectedRow = apiKeyTable.selectedRow
-        if (selectedRow < 0) {
-            Messages.showErrorDialog(
-                "Please select an API key to remove.",
-                "No Selection"
+        } else {
+            Messages.showWarningDialog(
+                "Proxy server is not running. Please start the proxy server first.",
+                "Server Not Running"
             )
-            return
-        }
-
-        val apiKey = apiKeyTableModel.getApiKeyAt(selectedRow)
-        if (apiKey == null) {
-            return
-        }
-
-        val result = Messages.showYesNoDialog(
-            "Are you sure you want to delete the API key '${apiKey.label}' (${apiKey.name})?\n" +
-                "This action cannot be undone.",
-            "Confirm Deletion",
-            Messages.getWarningIcon()
-        )
-
-        if (result == Messages.YES) {
-            PluginLogger.Settings.debug("User confirmed deletion of API key: ${apiKey.label}")
-            openRouterService.deleteApiKey(apiKey.hash).thenAccept { response ->
-                ApplicationManager.getApplication().invokeLater({
-                    PluginLogger.Settings.debug("Delete API key callback executed - response: ${if (response != null) "not null" else "null"}")
-                    if (response != null && response.deleted) {
-                        PluginLogger.Settings.debug("API key deleted successfully, refreshing table")
-                        Messages.showInfoMessage(
-                            "API Key '${apiKey.label}' has been deleted successfully.",
-                            "API Key Deleted"
-                        )
-                        loadApiKeysWithoutAutoCreate()
-                    } else {
-                        PluginLogger.Settings.warn("Failed to delete API key - response: $response")
-                        Messages.showErrorDialog(
-                            "Failed to delete API key. Please try again.",
-                            "Deletion Failed"
-                        )
-                    }
-                }, com.intellij.openapi.application.ModalityState.defaultModalityState())
-            }.exceptionally { throwable ->
-                PluginLogger.Settings.error("Exception during API key deletion", throwable)
-                ApplicationManager.getApplication().invokeLater({
-                    Messages.showErrorDialog(
-                        "Error occurred while deleting API key: ${throwable.message}",
-                        "Deletion Error"
-                    )
-                }, com.intellij.openapi.application.ModalityState.defaultModalityState())
-                null
-            }
         }
     }
+
+    private fun showConfigurationInstructions() {
+        val instructions = proxyService.getAIAssistantConfigurationInstructions()
+        Messages.showInfoMessage(instructions, "AI Assistant Configuration")
+    }
+
+    private fun addApiKey() {
+        apiKeyManager.addApiKey()
+    }
+
+    private fun removeSelectedApiKey() {
+        apiKeyManager.removeApiKey()
+    }
+
+
 
     fun refreshApiKeys() {
-        PluginLogger.Settings.debug("Refreshing API keys table")
-
-        // Check if provisioning key is available (either in panel or saved settings)
-        val currentProvisioningKey = getProvisioningKey()
-        val savedProvisioningKey = settingsService.getProvisioningKey()
-        val provisioningKey = if (currentProvisioningKey.isNotBlank()) currentProvisioningKey else savedProvisioningKey
-
-        PluginLogger.Settings.debug("Current provisioning key from panel: ${if (currentProvisioningKey.isNotBlank()) "[PRESENT]" else "[EMPTY]"}")
-        PluginLogger.Settings.debug("Saved provisioning key from settings: ${if (savedProvisioningKey.isNotBlank()) "[PRESENT]" else "[EMPTY]"}")
-        PluginLogger.Settings.debug("Using provisioning key: ${if (provisioningKey.isNotBlank()) "[PRESENT]" else "[EMPTY]"}")
-
-        if (provisioningKey.isBlank()) {
-            PluginLogger.Settings.debug("Provisioning key not configured, clearing table")
-            apiKeyTableModel.setApiKeys(emptyList())
-            return
-        }
-
-        PluginLogger.Settings.debug("Fetching API keys from OpenRouter with provisioning key: ${provisioningKey.take(10)}...")
-        openRouterService.getApiKeysList(provisioningKey).thenAccept { response ->
-            PluginLogger.Settings.debug("thenAccept callback executed - response is ${if (response != null) "not null" else "null"}")
-            PluginLogger.Settings.debug("About to call ApplicationManager.invokeLater")
-            ApplicationManager.getApplication().invokeLater({
-                PluginLogger.Settings.debug("invokeLater callback executed - starting UI update")
-                if (response != null) {
-                    val apiKeys = response.data
-                    PluginLogger.Settings.info("Successfully received ${apiKeys.size} API keys from OpenRouter")
-                    PluginLogger.Settings.debug("About to call apiKeyTableModel.setApiKeys with ${apiKeys.size} keys")
-                    apiKeyTableModel.setApiKeys(apiKeys)
-                    PluginLogger.Settings.debug("After setApiKeys - table row count: ${apiKeyTable.rowCount}")
-                    PluginLogger.Settings.debug("After setApiKeys - model row count: ${apiKeyTableModel.rowCount}")
-
-                    // Check if IntelliJ IDEA Plugin API key exists and handle creation
-                    ensureIntellijApiKeyExists(apiKeys)
-                } else {
-                    PluginLogger.Settings.warn("Failed to fetch API keys from OpenRouter - response was null")
-                    apiKeyTableModel.setApiKeys(emptyList())
-                    // Show user-friendly error message
-                    Messages.showWarningDialog(
-                        "Failed to load API keys. Please check your Provisioning Key and internet connection.",
-                        "Load Failed"
-                    )
-                }
-            }, com.intellij.openapi.application.ModalityState.any())
-        }.exceptionally { throwable ->
-            PluginLogger.Settings.error("Exception in getApiKeysList thenAccept callback", throwable)
-            ApplicationManager.getApplication().invokeLater({
-                apiKeyTableModel.setApiKeys(emptyList())
-                Messages.showErrorDialog(
-                    "Error loading API keys: ${throwable.message}",
-                    "Load Error"
-                )
-            }, com.intellij.openapi.application.ModalityState.defaultModalityState())
-            null
-        }
+        // Use loadApiKeysWithoutAutoCreate to avoid triggering validation dialogs
+        // Only the manual "Refresh" button should trigger full validation
+        apiKeyManager.loadApiKeysWithoutAutoCreate()
     }
 
-    /**
-     * Ensures that the IntelliJ IDEA Plugin API key exists, creating it only if necessary
-     */
-    private fun ensureIntellijApiKeyExists(currentApiKeys: List<ApiKeyInfo>) {
-        // First check: Do we have a stored API key that might be valid?
-        val storedApiKey = settingsService.getApiKey()
-        if (storedApiKey.isNotBlank()) {
-            PluginLogger.Settings.debug("Stored API key exists, assuming it's valid")
-            return
-        }
-
-        // Second check: Does the API key already exist on the server?
-        val existingIntellijApiKey = currentApiKeys.find { it.name == INTELLIJ_API_KEY_NAME }
-
-        if (existingIntellijApiKey != null) {
-            PluginLogger.Settings.debug("IntelliJ IDEA Plugin API key exists on server but not stored locally: ${existingIntellijApiKey.name}")
-            PluginLogger.Settings.warn("IntelliJ IDEA Plugin API key exists on server but the actual key value is not available. You may need to delete and recreate it.")
-
-            // Show a dialog asking if the user wants to recreate the key or enter manually
-            showRecreateApiKeyDialog()
-            return // API key exists on server but we can't get the actual key value
-        }
-
-        // Third check: Are we already in the process of creating one?
-        if (isCreatingApiKey) {
-            PluginLogger.Settings.debug("API key creation already in progress, skipping")
-            return
-        }
-
-        // Only now create the API key
-        PluginLogger.Settings.debug("No IntelliJ IDEA Plugin API key found, creating one...")
-        createIntellijApiKeyOnce()
+    fun refreshApiKeysWithValidation() {
+        // This method is for the manual "Refresh" button that should trigger validation
+        apiKeyManager.refreshApiKeys()
     }
 
-    private fun loadApiKeysWithoutAutoCreate() {
-        PluginLogger.Settings.debug("Loading API keys without auto-creation")
 
-        // Check if provisioning key is available (either in panel or saved settings)
-        val currentProvisioningKey = getProvisioningKey()
-        val savedProvisioningKey = settingsService.getProvisioningKey()
-        val provisioningKey = if (currentProvisioningKey.isNotBlank()) currentProvisioningKey else savedProvisioningKey
 
-        if (provisioningKey.isBlank()) {
-            PluginLogger.Settings.debug("Provisioning key not configured, clearing table")
-            apiKeyTableModel.setApiKeys(emptyList())
-            return
-        }
-
-        openRouterService.getApiKeysList(provisioningKey).thenAccept { response ->
-            PluginLogger.Settings.debug("refreshApiKeys thenAccept callback executed - response is ${if (response != null) "not null" else "null"}")
-            ApplicationManager.getApplication().invokeLater({
-                PluginLogger.Settings.debug("refreshApiKeys invokeLater callback executed")
-                if (response != null) {
-                    val apiKeys = response.data
-                    PluginLogger.Settings.info("Received ${apiKeys.size} API keys from OpenRouter")
-                    PluginLogger.Settings.debug("Setting API keys in table model: ${apiKeys.map { it.name }}")
-                    apiKeyTableModel.setApiKeys(apiKeys)
-                    PluginLogger.Settings.debug("Table model now has ${apiKeyTableModel.rowCount} rows")
-                    PluginLogger.Settings.debug("Table component row count: ${apiKeyTable.rowCount}")
-                } else {
-                    PluginLogger.Settings.warn("Failed to fetch API keys from OpenRouter")
-                    apiKeyTableModel.setApiKeys(emptyList())
-                }
-            }, com.intellij.openapi.application.ModalityState.any())
-        }.exceptionally { throwable ->
-            PluginLogger.Settings.error("Exception in refreshApiKeys thenAccept callback", throwable)
-            ApplicationManager.getApplication().invokeLater({
-                apiKeyTableModel.setApiKeys(emptyList())
-            }, com.intellij.openapi.application.ModalityState.defaultModalityState())
-            null
-        }
-    }
-
-    private fun createIntellijApiKeyOnce() {
-        // Set the flag to prevent multiple creation attempts
-        isCreatingApiKey = true
-
-        PluginLogger.Settings.debug("Attempting to create IntelliJ IDEA Plugin API key (once)")
-
-        val provisioningKey = getProvisioningKey()
-        if (provisioningKey.isBlank()) {
-            PluginLogger.Settings.warn("Cannot create API key: no provisioning key available")
-            isCreatingApiKey = false
-            return
-        }
-
-        openRouterService.createApiKey(INTELLIJ_API_KEY_NAME).thenAccept { response ->
-            ApplicationManager.getApplication().invokeLater({
-                try {
-                    if (response != null) {
-                        PluginLogger.Settings.info("Successfully created IntelliJ IDEA Plugin API key: ${response.data.name}")
-
-                        // Store the API key securely
-                        settingsService.setApiKey(response.key)
-
-                        // Show the API key creation dialog
-                        showApiKeyDialog(response.key, INTELLIJ_API_KEY_NAME)
-
-                        // Refresh the table to show the new key (but don't create another one)
-                        loadApiKeysWithoutAutoCreate()
-
-                        // Refresh the status bar to show the new connection status
-                        refreshStatusBarWidget()
-                    } else {
-                        PluginLogger.Settings.warn("Failed to create IntelliJ IDEA Plugin API key")
-                        Messages.showWarningDialog(
-                            "Failed to automatically create '$INTELLIJ_API_KEY_NAME' API key. " +
-                                "Please check your provisioning key and try again.",
-                            "Auto-creation Failed"
-                        )
-                    }
-                } finally {
-                    // Always reset the flag when done
-                    isCreatingApiKey = false
-                }
-            }, com.intellij.openapi.application.ModalityState.defaultModalityState())
-        }.exceptionally { throwable ->
-            ApplicationManager.getApplication().invokeLater({
-                PluginLogger.Settings.error("Error creating IntelliJ IDEA Plugin API key: ${throwable.message}")
-                isCreatingApiKey = false
-            }, com.intellij.openapi.application.ModalityState.defaultModalityState())
-            null
-        }
-    }
-
-    /**
-     * Recreates the IntelliJ IDEA Plugin API key by first deleting the existing one
-     */
-    private fun recreateIntellijApiKey() {
-        val currentApiKeys = apiKeyTableModel.getApiKeys()
-        val existingIntellijApiKey = currentApiKeys.find { it.name == INTELLIJ_API_KEY_NAME }
-
-        if (existingIntellijApiKey != null) {
-            PluginLogger.Settings.debug("Deleting existing IntelliJ IDEA Plugin API key before recreating")
-
-            val provisioningKey = getProvisioningKey()
-            if (provisioningKey.isBlank()) {
-                PluginLogger.Settings.warn("Cannot recreate API key: no provisioning key available")
-                return
-            }
-
-            openRouterService.deleteApiKey(existingIntellijApiKey.hash)
-                .thenAccept { deleteResponse ->
-                    ApplicationManager.getApplication().invokeLater({
-                        if (deleteResponse?.deleted == true) {
-                            PluginLogger.Settings.debug("Existing IntelliJ IDEA Plugin API key deleted, now creating new one")
-                            // Clear the stored API key
-                            settingsService.setApiKey("")
-                            // Create a new one
-                            createIntellijApiKeyOnce()
-                        } else {
-                            PluginLogger.Settings.error("Failed to delete existing IntelliJ IDEA Plugin API key")
-                            Messages.showErrorDialog(
-                                "Failed to delete the existing 'IntelliJ IDEA Plugin' API key. Please try again.",
-                                "Deletion Failed"
-                            )
-                        }
-                    }, com.intellij.openapi.application.ModalityState.defaultModalityState())
-                }
-                .exceptionally { throwable ->
-                    ApplicationManager.getApplication().invokeLater({
-                        PluginLogger.Settings.error("Error deleting existing IntelliJ IDEA Plugin API key: ${throwable.message}")
-                        Messages.showErrorDialog(
-                            "Error occurred while deleting the existing API key: ${throwable.message}",
-                            "Error"
-                        )
-                    }, com.intellij.openapi.application.ModalityState.defaultModalityState())
-                    null
-                }
-        } else {
-            // No existing key, just create a new one
-            createIntellijApiKeyOnce()
-        }
-    }
-
-    /**
-     * Reset the API key creation flag - useful when settings panel is reopened
-     */
-    private fun resetApiKeyCreationFlag() {
-        isCreatingApiKey = false
-        PluginLogger.Settings.debug("Reset API key creation flag")
-    }
+    // Public interface methods for the configurable
 
     // TODO: Future version - Providers list
     // /**
@@ -873,9 +988,9 @@ class OpenRouterSettingsPanel {
 
     fun setProvisioningKey(provisioningKey: String) {
         provisioningKeyField.text = provisioningKey
-        // Refresh tables when provisioning key is set
+        // Load API keys without triggering validation dialogs when setting provisioning key
         if (provisioningKey.isNotBlank()) {
-            refreshApiKeys()
+            apiKeyManager.loadApiKeysWithoutAutoCreate()
         }
     }
 
@@ -905,179 +1020,19 @@ class OpenRouterSettingsPanel {
         showCostsCheckBox.isSelected = show
     }
 
-    /**
-     * Show a dialog with options to recreate API key or enter manually
-     */
-    private fun showRecreateApiKeyDialog() {
-        val dialog = object : com.intellij.openapi.ui.DialogWrapper(true) {
-            init {
-                title = "Recreate IntelliJ API Key?"
-                init()
-            }
+    fun getFavoriteModels(): List<OpenRouterModelInfo> = favoriteModelsTableModel.getFavoriteModels()
 
-            override fun createCenterPanel(): javax.swing.JComponent {
-                val panel = com.intellij.ui.components.JBPanel<com.intellij.ui.components.JBPanel<*>>(java.awt.BorderLayout())
-                panel.preferredSize = java.awt.Dimension(500, 150)
-
-                val messageLabel = com.intellij.ui.components.JBLabel(
-                    "<html>The 'IntelliJ IDEA Plugin' API key exists on the server but is not available locally.<br/><br/>" +
-                    "This means the credits endpoint cannot be used. You can:<br/>" +
-                    "• <b>Recreate</b> - Delete the existing key and create a new one<br/>" +
-                    "• <b>Enter Manually</b> - If you have the API key value, enter it manually<br/>" +
-                    "• <b>Cancel</b> - Do nothing for now</html>"
-                )
-                messageLabel.border = com.intellij.util.ui.JBUI.Borders.empty(10)
-                panel.add(messageLabel, java.awt.BorderLayout.CENTER)
-
-                return panel
-            }
-
-            override fun createActions(): Array<javax.swing.Action> {
-                val recreateAction = object : com.intellij.openapi.ui.DialogWrapper.DialogWrapperAction("Recreate") {
-                    override fun doAction(e: java.awt.event.ActionEvent) {
-                        close(1) // Custom exit code for recreate
-                    }
-                }
-
-                val enterManuallyAction = object : com.intellij.openapi.ui.DialogWrapper.DialogWrapperAction("Enter Manually") {
-                    override fun doAction(e: java.awt.event.ActionEvent) {
-                        close(2) // Custom exit code for manual entry
-                    }
-                }
-
-                return arrayOf(recreateAction, enterManuallyAction, cancelAction)
-            }
-        }
-
-        val result = dialog.showAndGet()
-        when (dialog.exitCode) {
-            1 -> recreateIntellijApiKey() // Recreate
-            2 -> {
-                val success = showManualApiKeyEntryDialog() // Enter manually
-                if (success) {
-                    // Don't refresh the table - the user manually entered the key for the existing server key
-                    // Just log that the manual entry was successful and refresh the status bar
-                    PluginLogger.Settings.info("Manual API key entry completed successfully - no server operations needed")
-                    refreshStatusBarWidget()
-                }
-            }
-            // 0 or any other value = Cancel (do nothing)
-        }
+    fun setFavoriteModels(models: List<OpenRouterModelInfo>) {
+        favoriteModelsTableModel.setFavoriteModels(models)
     }
 
-    /**
-     * Show a dialog for manual API key entry
-     * @return true if API key was successfully entered and saved, false otherwise
-     */
-    private fun showManualApiKeyEntryDialog(): Boolean {
-        val apiKey = com.intellij.openapi.ui.Messages.showInputDialog(
-            "Enter your OpenRouter API key for the 'IntelliJ IDEA Plugin':\n\n" +
-            "This should be the actual API key value (starting with 'sk-or-v1-').\n" +
-            "You can find this in your OpenRouter dashboard if you saved it when the key was created.",
-            "Enter API Key Manually",
-            com.intellij.openapi.ui.Messages.getQuestionIcon()
-        )
-
-        if (!apiKey.isNullOrBlank()) {
-            // Validate the API key format
-            if (apiKey.startsWith("sk-or-v1-") && apiKey.length > 20) {
-                // Store the API key
-                settingsService.setApiKey(apiKey)
-                com.intellij.openapi.ui.Messages.showInfoMessage(
-                    "API key has been saved successfully. The plugin can now access OpenRouter credits information.\n\n" +
-                    "Note: The existing API key on the server has been preserved.",
-                    "API Key Saved"
-                )
-                PluginLogger.Settings.info("API key entered manually and saved - existing server key preserved")
-                return true
-            } else {
-                com.intellij.openapi.ui.Messages.showErrorDialog(
-                    "The entered API key doesn't appear to be valid. OpenRouter API keys should start with 'sk-or-v1-' and be longer than 20 characters.",
-                    "Invalid API Key Format"
-                )
-                return false
-            }
-        }
-        return false // User cancelled or entered empty key
+    fun isFavoriteModelsModified(): Boolean {
+        val currentFavoriteIds = favoriteModelsTableModel.getFavoriteModels().map { it.id }
+        val savedFavoriteIds = settingsService.getFavoriteModels()
+        return currentFavoriteIds != savedFavoriteIds
     }
 
-    /**
-     * Refresh the status bar widget to reflect updated connection status
-     */
-    private fun refreshStatusBarWidget() {
-        // Use invokeLater with proper modality state to avoid write-unsafe context errors
-        ApplicationManager.getApplication().invokeLater({
-            try {
-                // Get all open projects and refresh their status bar widgets
-                val projectManager = com.intellij.openapi.project.ProjectManager.getInstance()
-                projectManager.openProjects.forEach { project ->
-                    val statusBar = com.intellij.openapi.wm.WindowManager.getInstance().getStatusBar(project)
-                    val widget = statusBar?.getWidget(org.zhavoronkov.openrouter.statusbar.OpenRouterStatusBarWidget.ID)
-                        as? org.zhavoronkov.openrouter.statusbar.OpenRouterStatusBarWidget
-                    widget?.updateQuotaInfo()
-                    PluginLogger.Settings.debug("Refreshed status bar widget for project: ${project.name}")
-                }
-            } catch (e: Exception) {
-                PluginLogger.Settings.error("Error refreshing status bar widget: ${e.message}", e)
-            }
-        }, com.intellij.openapi.application.ModalityState.defaultModalityState())
-    }
 }
 
-// TODO: Future version - Providers list
-// /**
-//  * Table model for displaying OpenRouter providers
-//  */
-// class ProvidersTableModel : AbstractTableModel() {
-//     private var providers: List<ProviderInfo> = emptyList()
-//
-//     private val columnNames = arrayOf("Provider", "Status", "Privacy Policy", "Terms of Service")
-//
-//     override fun getRowCount(): Int = providers.size
-//
-//     override fun getColumnCount(): Int = columnNames.size
-//
-//     override fun getColumnName(column: Int): String = columnNames[column]
-//
-//     override fun getValueAt(rowIndex: Int, columnIndex: Int): Any {
-//         val provider = providers[rowIndex]
-//         return when (columnIndex) {
-//             0 -> provider.name
-//             1 -> "Available" // All providers in the list are available
-//             2 -> if (provider.privacyPolicyUrl != null) "View" else "-"
-//             3 -> if (provider.termsOfServiceUrl != null) "View" else "-"
-//             else -> ""
-//         }
-//     }
-//
-//     override fun isCellEditable(rowIndex: Int, columnIndex: Int): Boolean = false
-//
-//     fun setProviders(newProviders: List<ProviderInfo>) {
-//         PluginLogger.Settings.debug("ProvidersTableModel.setProviders called with ${newProviders.size} providers")
-//
-//         // Ensure we're on EDT for UI updates
-//         if (!ApplicationManager.getApplication().isDispatchThread) {
-//             PluginLogger.Settings.debug("Not on EDT, scheduling setProviders on EDT")
-//             ApplicationManager.getApplication().invokeLater({
-//                 setProviders(newProviders)
-//             }, com.intellij.openapi.application.ModalityState.defaultModalityState())
-//             return
-//         }
-//
-//         PluginLogger.Settings.debug("On EDT, updating providers table model")
-//         providers = newProviders
-//         PluginLogger.Settings.debug("ProvidersTableModel internal list now has ${providers.size} providers")
-//         fireTableDataChanged()
-//         PluginLogger.Settings.debug("fireTableDataChanged() called - providers table should now show ${providers.size} rows")
-//         PluginLogger.Settings.debug("Providers table model getRowCount() returns: ${getRowCount()}")
-//         PluginLogger.Settings.debug("First provider details: ${if (newProviders.isNotEmpty()) newProviders[0].name else "No providers"}")
-//     }
-//
-//     fun getProvider(rowIndex: Int): ProviderInfo? {
-//         return if (rowIndex >= 0 && rowIndex < providers.size) {
-//             providers[rowIndex]
-//         } else {
-//             null
-//         }
-//     }
-// }
+
+

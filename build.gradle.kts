@@ -16,6 +16,11 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.11.0")
     implementation("com.google.code.gson:gson:2.10.1")
 
+    // Embedded HTTP server for AI Assistant integration
+    implementation("org.eclipse.jetty:jetty-server:11.0.18")
+    implementation("org.eclipse.jetty:jetty-servlet:11.0.18")
+    implementation("jakarta.servlet:jakarta.servlet-api:5.0.0")
+
     // Test dependencies
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.2")
     testImplementation("org.junit.jupiter:junit-jupiter-params:5.9.2")
@@ -32,7 +37,7 @@ dependencies {
 // Configure Gradle IntelliJ Plugin
 intellij {
     version.set("2023.2.5")
-    type.set("IU") // Target IDE Platform - Ultimate for AI Assistant testing
+    type.set("IU") // Target IDE Platform - Ultimate Edition for AI Assistant support
 
     plugins.set(listOf(/* Plugin Dependencies */))
 }
@@ -93,16 +98,22 @@ tasks {
         // Configure development IDE settings
         maxHeapSize = "2g"
 
-        // Enable debug logging for your plugin
-        // systemProperty("idea.log.debug.categories", "org.zhavoronkov.openrouter")
-        systemProperty("openrouter.debug", "false")
-
-        // Optional: Start with a clean environment
-        // systemProperty("idea.config.path", "${project.buildDir}/idea-config")
-        // systemProperty("idea.system.path", "${project.buildDir}/idea-system")
+        // Enable debug logging for development
+        systemProperty("openrouter.debug", "true")
+        systemProperty("idea.log.debug.categories", "org.zhavoronkov.openrouter")
 
         // Optional: Auto-reload plugin on changes
         autoReloadPlugins.set(true)
+    }
+
+    // Task for testing with production-like settings (no debug logging)
+    register<org.jetbrains.intellij.tasks.RunIdeTask>("runIdeProduction") {
+        group = "intellij"
+        description = "Run IDE with production-like settings (no debug logging)"
+
+        maxHeapSize = "2g"
+        systemProperty("openrouter.debug", "false")
+        autoReloadPlugins.set(false)
     }
 
     // Configure Detekt reports
