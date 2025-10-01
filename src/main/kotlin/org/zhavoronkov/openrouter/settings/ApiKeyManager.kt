@@ -1,11 +1,16 @@
 package org.zhavoronkov.openrouter.settings
 
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.ui.components.JBTextField
+import com.intellij.ui.dsl.builder.*
+import com.intellij.ui.dsl.gridLayout.HorizontalAlign
+import com.intellij.ui.layout.ComponentPredicate
 import com.intellij.util.ui.JBUI
 import org.zhavoronkov.openrouter.models.ApiKeyInfo
 import org.zhavoronkov.openrouter.services.OpenRouterService
@@ -14,7 +19,9 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.Toolkit
+import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
+import java.awt.event.KeyEvent
 import javax.swing.*
 
 /**
@@ -122,10 +129,15 @@ class ApiKeyManager(
     }
 
     fun refreshApiKeys() {
-        PluginLogger.Settings.debug("Refreshing API keys table")
+        PluginLogger.Settings.info("========================================")
+        PluginLogger.Settings.info("REFRESH BUTTON CLICKED - refreshApiKeys() called")
+        PluginLogger.Settings.info("========================================")
+        println("========================================")
+        println("REFRESH BUTTON CLICKED - refreshApiKeys() called")
+        println("========================================")
 
         if (!settingsService.isConfigured()) {
-            PluginLogger.Settings.debug("Not configured, clearing API keys table")
+            PluginLogger.Settings.info("Not configured, clearing API keys table")
             apiKeyTableModel.setApiKeys(emptyList())
             return
         }
@@ -134,7 +146,7 @@ class ApiKeyManager(
             val response = openRouterService.getApiKeysList(settingsService.getProvisioningKey()).get()
             val apiKeys = response?.data
             if (apiKeys != null) {
-                PluginLogger.Settings.debug("Loaded ${apiKeys.size} API keys from OpenRouter")
+                PluginLogger.Settings.info("Loaded ${apiKeys.size} API keys from OpenRouter")
                 apiKeyTableModel.setApiKeys(apiKeys)
                 ensureIntellijApiKeyExists(apiKeys)
             } else {
@@ -176,17 +188,20 @@ class ApiKeyManager(
         val storedApiKey = settingsService.getApiKey()
         val existingIntellijApiKey = currentApiKeys.find { it.name == INTELLIJ_API_KEY_NAME }
 
+        PluginLogger.Settings.debug("ensureIntellijApiKeyExists: storedApiKey.length=${storedApiKey.length}, storedApiKey.isEmpty=${storedApiKey.isEmpty()}")
+        PluginLogger.Settings.debug("ensureIntellijApiKeyExists: existingIntellijApiKey=${existingIntellijApiKey?.name ?: "null"}")
+
         if (existingIntellijApiKey != null && storedApiKey.isNotEmpty()) {
-            PluginLogger.Settings.debug("IntelliJ API key exists and is stored locally")
+            PluginLogger.Settings.debug("IntelliJ API key exists and is stored locally - no action needed")
             return
         }
 
         if (existingIntellijApiKey == null && !isCreatingApiKey) {
             PluginLogger.Settings.info("IntelliJ API key not found, creating automatically")
             createIntellijApiKeyOnce()
-        } else if (existingIntellijApiKey != null && storedApiKey.isEmpty()) {
-            PluginLogger.Settings.warn("IntelliJ API key exists remotely but not stored locally")
-            showRecreateApiKeyDialog()
+        } else if (existingIntellijApiKey != null && storedApiKey.isEmpty() && !isCreatingApiKey) {
+            PluginLogger.Settings.info("IntelliJ API key exists remotely but not stored locally - regenerating silently")
+            recreateIntellijApiKeySilently()
         }
     }
 
@@ -201,11 +216,11 @@ class ApiKeyManager(
                 refreshApiKeys()
             } else {
                 PluginLogger.Settings.error("Failed to create IntelliJ API key automatically")
-                showRecreateApiKeyDialog()
+                // No longer showing dialog - just log the error
             }
         } catch (e: Exception) {
             PluginLogger.Settings.error("Exception creating IntelliJ API key: ${e.message}", e)
-            showRecreateApiKeyDialog()
+            // No longer showing dialog - just log the error
         } finally {
             isCreatingApiKey = false
         }
@@ -227,6 +242,64 @@ class ApiKeyManager(
         }
 
         createIntellijApiKeyOnce()
+    }
+
+    /**
+     * Silently regenerate the IntelliJ API key without showing any dialogs.
+     * This is used when the key exists remotely but is not stored locally.
+     */
+    private fun recreateIntellijApiKeySilently() {
+        if (isCreatingApiKey) {
+            PluginLogger.Settings.debug("Already creating API key, skipping silent regeneration")
+            return
+        }
+
+        isCreatingApiKey = true
+        PluginLogger.Settings.info("Starting silent regeneration of IntelliJ API key")
+
+        try {
+            val currentApiKeys = apiKeyTableModel.getApiKeys()
+            val existingIntellijApiKey = currentApiKeys.find { it.name == INTELLIJ_API_KEY_NAME }
+
+            // Delete existing key if found
+            if (existingIntellijApiKey != null) {
+                try {
+                    PluginLogger.Settings.debug("Deleting existing remote IntelliJ API key")
+                    val deleteResponse = openRouterService.deleteApiKey(existingIntellijApiKey.hash).get()
+                    if (deleteResponse?.deleted != true) {
+                        PluginLogger.Settings.error("Failed to delete existing IntelliJ API key during silent regeneration")
+                        return
+                    }
+                    PluginLogger.Settings.debug("Successfully deleted existing remote IntelliJ API key")
+                } catch (e: Exception) {
+                    PluginLogger.Settings.error("Exception deleting existing IntelliJ API key during silent regeneration: ${e.message}", e)
+                    return
+                }
+            }
+
+            // Create new key
+            try {
+                PluginLogger.Settings.debug("Creating new IntelliJ API key")
+                val apiKey = openRouterService.createApiKey(INTELLIJ_API_KEY_NAME).get()
+                if (apiKey != null) {
+                    PluginLogger.Settings.info("Successfully created new IntelliJ API key during silent regeneration")
+                    settingsService.setApiKey(apiKey.key)
+
+                    // Verify the key was saved
+                    val retrievedKey = settingsService.getApiKey()
+                    PluginLogger.Settings.info("Verified saved API key length: ${retrievedKey.length}")
+
+                    refreshStatusBarWidget()
+                    refreshApiKeys()
+                } else {
+                    PluginLogger.Settings.error("Failed to create new IntelliJ API key during silent regeneration")
+                }
+            } catch (e: Exception) {
+                PluginLogger.Settings.error("Exception creating new IntelliJ API key during silent regeneration: ${e.message}", e)
+            }
+        } finally {
+            isCreatingApiKey = false
+        }
     }
 
     private fun recreateIntellijApiKeyWithResult() {
@@ -320,59 +393,67 @@ class ApiKeyManager(
     private fun showNewApiKeyDialog(apiKey: String) {
         PluginLogger.Settings.debug("Showing new API key dialog, key length: ${apiKey.length}")
         val dialog = object : DialogWrapper(true) {
+            private val keyField = com.intellij.ui.components.JBPasswordField().apply {
+                text = apiKey
+                isEditable = false
+                columns = 40
+                addFocusListener(object : java.awt.event.FocusAdapter() {
+                    override fun focusGained(e: java.awt.event.FocusEvent?) {
+                        selectAll()
+                    }
+                })
+            }
+
             init {
                 title = "New API Key Created"
                 init()
             }
 
             override fun createCenterPanel(): JComponent {
-                val panel = JBPanel<JBPanel<*>>(BorderLayout())
-                panel.preferredSize = Dimension(550, 220)
+                return panel {
+                    // Success message
+                    row {
+                        label("<html><b>New API Key Created Successfully!</b><br>" +
+                                "Label: $INTELLIJ_API_KEY_NAME<br>" +
+                                "Preview: ${apiKey.take(API_KEY_PREVIEW_LENGTH)}...</html>")
+                    }.bottomGap(BottomGap.SMALL)
 
-                // Top message
-                val infoLabel = JBLabel(
-                    "<html><b>New API Key Created Successfully!</b><br><br>" +
-                            "Label: $INTELLIJ_API_KEY_NAME<br>" +
-                            "Preview: ${apiKey.take(API_KEY_PREVIEW_LENGTH)}...<br><br></html>"
-                )
-                panel.add(infoLabel, BorderLayout.NORTH)
+                    // API Key field with Copy button
+                    row("API Key:") {
+                        cell(keyField)
+                            .align(AlignX.FILL)
+                            .resizableColumn()
 
-                // Center panel with password field and copy button
-                val centerPanel = JPanel(BorderLayout())
-                centerPanel.border = JBUI.Borders.empty(10, 0)
+                        button("Copy") {
+                            val clipboard = Toolkit.getDefaultToolkit().systemClipboard
+                            clipboard.setContents(StringSelection(apiKey), null)
 
-                val keyField = com.intellij.ui.components.JBPasswordField()
-                keyField.text = apiKey
-                keyField.isEditable = false
-                keyField.addFocusListener(object : java.awt.event.FocusAdapter() {
-                    override fun focusGained(e: java.awt.event.FocusEvent?) {
-                        keyField.selectAll()
-                    }
-                })
+                            // Visual feedback
+                            val btn = it.source as? JButton
+                            btn?.let { button ->
+                                val originalText = button.text
+                                button.text = "Copied!"
+                                javax.swing.Timer(2000) {
+                                    button.text = originalText
+                                }.apply {
+                                    isRepeats = false
+                                    start()
+                                }
+                            }
+                        }
+                    }.bottomGap(BottomGap.SMALL)
 
-                val copyButton = JButton("Copy")
-                copyButton.addActionListener {
-                    val clipboard = Toolkit.getDefaultToolkit().systemClipboard
-                    clipboard.setContents(StringSelection(apiKey), null)
-                    copyButton.text = "Copied!"
-                    javax.swing.Timer(2000) { copyButton.text = "Copy" }.apply {
-                        isRepeats = false
-                        start()
+                    // Warning notice
+                    row {
+                        label("<html>⚠ <b>Important:</b> This key is shown only once. Copy and store it securely.</html>")
+                            .applyToComponent {
+                                foreground = com.intellij.ui.JBColor.namedColor(
+                                    "Label.infoForeground",
+                                    com.intellij.ui.JBColor(0x808080, 0x8C8C8C)
+                                )
+                            }
                     }
                 }
-
-                centerPanel.add(keyField, BorderLayout.CENTER)
-                centerPanel.add(copyButton, BorderLayout.EAST)
-                panel.add(centerPanel, BorderLayout.CENTER)
-
-                // Bottom warning
-                val warningLabel = JBLabel(
-                    "<html><b>⚠ Important:</b> This key is shown only once. Copy and store it securely.</html>"
-                )
-                warningLabel.foreground = com.intellij.ui.JBColor.ORANGE
-                panel.add(warningLabel, BorderLayout.SOUTH)
-
-                return panel
             }
 
             override fun createActions(): Array<Action> {
@@ -391,118 +472,7 @@ class ApiKeyManager(
         dialog.show()
     }
 
-    private fun showRecreateApiKeyDialog() {
-        val dialog = object : DialogWrapper(true) {
-            private val regenerateRadio = JRadioButton("Regenerate (delete the old key and create a new one automatically)", true)
-            private val manualRadio = JRadioButton("Enter key manually")
-            private val manualKeyField = com.intellij.ui.components.JBPasswordField()
-            private val manualKeyPanel = JPanel(BorderLayout())
-            private val errorLabel = JBLabel("")
-
-            init {
-                title = "API Key Already Exists"
-                init()
-            }
-
-            override fun createCenterPanel(): JComponent {
-                val panel = JBPanel<JBPanel<*>>(BorderLayout())
-                panel.preferredSize = Dimension(550, 250)
-
-                // Message at top
-                val message = JBLabel(
-                    "<html><b>The 'IntelliJ IDEA Plugin' API key already exists</b><br><br>" +
-                            "The API key exists on OpenRouter but is not stored locally.<br>" +
-                            "Choose how you would like to proceed:</html>"
-                )
-                panel.add(message, BorderLayout.NORTH)
-
-                // Radio buttons and manual entry panel
-                val centerPanel = JPanel()
-                centerPanel.layout = BoxLayout(centerPanel, BoxLayout.Y_AXIS)
-                centerPanel.border = JBUI.Borders.empty(10, 0)
-
-                // Group radio buttons
-                val buttonGroup = ButtonGroup()
-                buttonGroup.add(regenerateRadio)
-                buttonGroup.add(manualRadio)
-
-                centerPanel.add(regenerateRadio)
-                centerPanel.add(Box.createVerticalStrut(10))
-                centerPanel.add(manualRadio)
-                centerPanel.add(Box.createVerticalStrut(10))
-
-                // Manual entry panel (initially hidden)
-                manualKeyPanel.border = JBUI.Borders.emptyLeft(25)
-                val manualLabel = JBLabel("API Key:")
-                manualKeyField.emptyText.text = "sk-or-v1-..."
-                manualKeyPanel.add(manualLabel, BorderLayout.WEST)
-                manualKeyPanel.add(manualKeyField, BorderLayout.CENTER)
-                manualKeyPanel.isVisible = false
-                centerPanel.add(manualKeyPanel)
-
-                // Error label
-                errorLabel.foreground = com.intellij.ui.JBColor.RED
-                centerPanel.add(Box.createVerticalStrut(5))
-                centerPanel.add(errorLabel)
-
-                // Radio button listeners
-                regenerateRadio.addActionListener {
-                    manualKeyPanel.isVisible = false
-                    errorLabel.text = ""
-                }
-                manualRadio.addActionListener {
-                    manualKeyPanel.isVisible = true
-                    errorLabel.text = ""
-                }
-
-                panel.add(centerPanel, BorderLayout.CENTER)
-                return panel
-            }
-
-            override fun createActions(): Array<Action> {
-                val continueAction = object : DialogWrapperAction("Continue") {
-                    init {
-                        putValue(DEFAULT_ACTION, true)
-                    }
-
-                    override fun doAction(e: java.awt.event.ActionEvent) {
-                        if (regenerateRadio.isSelected) {
-                            close(DialogWrapper.OK_EXIT_CODE)
-                        } else {
-                            // Validate manual entry
-                            val apiKey = String(manualKeyField.password)
-                            if (apiKey.isBlank()) {
-                                errorLabel.text = "Please enter an API key"
-                                return
-                            }
-                            if (!apiKey.startsWith("sk-or-v1-") || apiKey.length < 20) {
-                                errorLabel.text = "Invalid API key format. Must start with 'sk-or-v1-' and be at least 20 characters."
-                                return
-                            }
-                            close(2) // Manual entry exit code
-                        }
-                    }
-                }
-
-                return arrayOf(continueAction, cancelAction)
-            }
-
-            fun getManualApiKey(): String = String(manualKeyField.password)
-        }
-
-        if (dialog.showAndGet()) {
-            val exitCode = dialog.exitCode
-            when (exitCode) {
-                DialogWrapper.OK_EXIT_CODE -> recreateIntellijApiKeyWithResult()
-                2 -> {
-                    val apiKey = dialog.getManualApiKey()
-                    settingsService.setApiKey(apiKey)
-                    PluginLogger.Settings.info("API key entered manually and saved")
-                    refreshStatusBarWidget()
-                }
-            }
-        }
-    }
+    // Removed complex dialog - now using silent regeneration
 
 
 

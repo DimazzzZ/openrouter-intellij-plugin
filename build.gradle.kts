@@ -98,16 +98,22 @@ tasks {
         // Configure development IDE settings
         maxHeapSize = "2g"
 
-        // Enable debug logging for your plugin
-        // systemProperty("idea.log.debug.categories", "org.zhavoronkov.openrouter")
-        systemProperty("openrouter.debug", "false")
-
-        // Optional: Start with a clean environment
-        // systemProperty("idea.config.path", "${project.buildDir}/idea-config")
-        // systemProperty("idea.system.path", "${project.buildDir}/idea-system")
+        // Enable debug logging for development
+        systemProperty("openrouter.debug", "true")
+        systemProperty("idea.log.debug.categories", "org.zhavoronkov.openrouter")
 
         // Optional: Auto-reload plugin on changes
         autoReloadPlugins.set(true)
+    }
+
+    // Task for testing with production-like settings (no debug logging)
+    register<org.jetbrains.intellij.tasks.RunIdeTask>("runIdeProduction") {
+        group = "intellij"
+        description = "Run IDE with production-like settings (no debug logging)"
+
+        maxHeapSize = "2g"
+        systemProperty("openrouter.debug", "false")
+        autoReloadPlugins.set(false)
     }
 
     // Configure Detekt reports

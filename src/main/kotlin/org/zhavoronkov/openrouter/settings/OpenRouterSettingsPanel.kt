@@ -175,8 +175,13 @@ class AvailableModelsTableModel : AbstractTableModel() {
     }
 
     fun setAvailableModels(models: List<OpenRouterModelInfo>) {
+        PluginLogger.Settings.debug("AvailableModelsTableModel.setAvailableModels called with ${models.size} models")
+
         availableModels.clear()
         availableModels.addAll(models)
+
+        PluginLogger.Settings.debug("AvailableModelsTableModel now has ${availableModels.size} models, firing table data changed")
+
         fireTableDataChanged()
     }
 
@@ -251,7 +256,9 @@ class OpenRouterSettingsPanel {
     init {
         // Initialize logging configuration
         PluginLogger.logConfiguration()
-        PluginLogger.Settings.debug("Initializing OpenRouter Settings Panel")
+
+        val isHeadless = java.awt.GraphicsEnvironment.isHeadless()
+        PluginLogger.Settings.debug("OpenRouter Settings Panel INITIALIZED (headless: $isHeadless)")
 
         // Initialize components
         provisioningKeyField = JBPasswordField().apply {
@@ -285,9 +292,18 @@ class OpenRouterSettingsPanel {
 
         // Configure search field
         searchTextField.addDocumentListener(object : javax.swing.event.DocumentListener {
-            override fun insertUpdate(e: javax.swing.event.DocumentEvent?) = filterAvailableModels()
-            override fun removeUpdate(e: javax.swing.event.DocumentEvent?) = filterAvailableModels()
-            override fun changedUpdate(e: javax.swing.event.DocumentEvent?) = filterAvailableModels()
+            override fun insertUpdate(e: javax.swing.event.DocumentEvent?) {
+                PluginLogger.Settings.info("Search field insertUpdate triggered")
+                filterAvailableModels()
+            }
+            override fun removeUpdate(e: javax.swing.event.DocumentEvent?) {
+                PluginLogger.Settings.info("Search field removeUpdate triggered")
+                filterAvailableModels()
+            }
+            override fun changedUpdate(e: javax.swing.event.DocumentEvent?) {
+                PluginLogger.Settings.info("Search field changedUpdate triggered")
+                filterAvailableModels()
+            }
         })
 
         // Initialize helper classes
@@ -383,6 +399,7 @@ class OpenRouterSettingsPanel {
         setupFavoritesKeyboardShortcuts()
 
         // Load initial data
+        PluginLogger.Settings.debug("Loading initial data (favorite models and available models)")
         loadFavoriteModels()
         loadAvailableModels()
 
@@ -402,8 +419,13 @@ class OpenRouterSettingsPanel {
         favoriteModelsTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION)
         favoriteModelsTable.autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
         favoriteModelsTable.fillsViewportHeight = true
-        favoriteModelsTable.dragEnabled = true
-        favoriteModelsTable.dropMode = DropMode.INSERT_ROWS
+
+        // Only enable drag-and-drop if not in headless mode (e.g., during build)
+        if (!java.awt.GraphicsEnvironment.isHeadless()) {
+            favoriteModelsTable.dragEnabled = true
+            favoriteModelsTable.dropMode = DropMode.INSERT_ROWS
+        }
+
         favoriteModelsTable.rowHeight = 28
 
         // Set accessible name for screen readers
@@ -592,12 +614,7 @@ class OpenRouterSettingsPanel {
             addToFavoritesButton.isEnabled = availableModelsTable.selectedRowCount > 0
         }
 
-        // Setup search functionality
-        searchTextField.addDocumentListener(object : javax.swing.event.DocumentListener {
-            override fun insertUpdate(e: javax.swing.event.DocumentEvent?) = filterAvailableModels()
-            override fun removeUpdate(e: javax.swing.event.DocumentEvent?) = filterAvailableModels()
-            override fun changedUpdate(e: javax.swing.event.DocumentEvent?) = filterAvailableModels()
-        })
+        // Note: Document listener for search field is already added in init block
     }
 
     private fun setupTabOrder() {
@@ -673,26 +690,67 @@ class OpenRouterSettingsPanel {
     }
 
     private fun loadAvailableModels() {
-        openRouterService.getModels().thenAccept { modelsResponse ->
-            ApplicationManager.getApplication().invokeLater {
-                allModels = modelsResponse?.data ?: emptyList()
-                filterAvailableModels()
+        PluginLogger.Settings.debug("Starting to load models from OpenRouter")
+
+        try {
+            val future = openRouterService.getModels()
+            PluginLogger.Settings.debug("Created CompletableFuture for models request")
+
+            future.whenComplete { modelsResponse, throwable ->
+                if (throwable != null) {
+                    PluginLogger.Settings.error("Failed to load available models: ${throwable.message}", throwable)
+                } else {
+                    PluginLogger.Settings.debug("Received response with ${modelsResponse?.data?.size ?: 0} models")
+
+                    if (modelsResponse == null) {
+                        PluginLogger.Settings.error("Received null response from OpenRouter")
+                        return@whenComplete
+                    }
+
+                    ApplicationManager.getApplication().invokeLater({
+                        allModels = modelsResponse.data ?: emptyList()
+                        PluginLogger.Settings.info("Loaded ${allModels.size} models from OpenRouter")
+
+                        if (allModels.isNotEmpty()) {
+                            PluginLogger.Settings.debug("First few models: ${allModels.take(3).map { it.id }}")
+                        }
+
+                        filterAvailableModels()
+                    }, com.intellij.openapi.application.ModalityState.any())
+                }
             }
-        }.exceptionally { throwable ->
-            PluginLogger.Settings.warn("Failed to load available models: ${throwable.message}")
-            null
+
+            PluginLogger.Settings.debug("CompletableFuture callbacks set up successfully")
+        } catch (e: Exception) {
+            PluginLogger.Settings.error("Exception in loadAvailableModels: ${e.message}", e)
         }
     }
 
     private fun filterAvailableModels() {
-        val searchText = searchTextField.text.lowercase()
+        // Use textEditor.text to get the actual text from the SearchTextField
+        val searchText = searchTextField.textEditor.text.lowercase()
+        PluginLogger.Settings.debug("Filtering models with search text: '$searchText', allModels.size=${allModels.size}")
+
+        if (allModels.isEmpty()) {
+            PluginLogger.Settings.warn("allModels is empty - no models to filter! Attempting to reload...")
+            // If models are empty, try to reload them
+            loadAvailableModels()
+            return
+        }
+
         val filteredModels = if (searchText.isBlank()) {
+            PluginLogger.Settings.debug("Search text is blank, showing all ${allModels.size} models")
             allModels
         } else {
-            allModels.filter { model ->
+            PluginLogger.Settings.debug("Filtering models by search text")
+            val filtered = allModels.filter { model ->
                 model.id.lowercase().contains(searchText)
             }
+            PluginLogger.Settings.debug("Filtered ${filtered.size} models from ${allModels.size} total")
+            filtered
         }
+
+        PluginLogger.Settings.debug("Setting ${filteredModels.size} models to table")
         availableModelsTableModel.setAvailableModels(filteredModels)
     }
 
