@@ -211,8 +211,21 @@ class ApiKeyManager(
         try {
             val apiKey = openRouterService.createApiKey(INTELLIJ_API_KEY_NAME).get()
             if (apiKey != null) {
-                PluginLogger.Settings.info("Successfully created IntelliJ API key automatically")
+                PluginLogger.Settings.info("Successfully created IntelliJ API key automatically: ${apiKey.key.take(20)}...")
+                PluginLogger.Settings.info("About to save new API key to settings (automatic creation)...")
+
                 settingsService.setApiKey(apiKey.key)
+
+                // Verify the key was saved
+                val savedKey = settingsService.getApiKey()
+                PluginLogger.Settings.info("Verification (automatic): saved key length=${savedKey.length}, matches=${savedKey == apiKey.key}")
+
+                if (savedKey != apiKey.key) {
+                    PluginLogger.Settings.error("CRITICAL: API key was not saved correctly during automatic creation!")
+                    PluginLogger.Settings.error("Expected: ${apiKey.key.take(20)}...")
+                    PluginLogger.Settings.error("Got: ${savedKey.take(20)}...")
+                }
+
                 refreshApiKeys()
             } else {
                 PluginLogger.Settings.error("Failed to create IntelliJ API key automatically")
@@ -282,12 +295,20 @@ class ApiKeyManager(
                 PluginLogger.Settings.debug("Creating new IntelliJ API key")
                 val apiKey = openRouterService.createApiKey(INTELLIJ_API_KEY_NAME).get()
                 if (apiKey != null) {
-                    PluginLogger.Settings.info("Successfully created new IntelliJ API key during silent regeneration")
+                    PluginLogger.Settings.info("Successfully created new IntelliJ API key during silent regeneration: ${apiKey.key.take(20)}...")
+                    PluginLogger.Settings.info("About to save new API key to settings (silent regeneration)...")
+
                     settingsService.setApiKey(apiKey.key)
 
                     // Verify the key was saved
                     val retrievedKey = settingsService.getApiKey()
-                    PluginLogger.Settings.info("Verified saved API key length: ${retrievedKey.length}")
+                    PluginLogger.Settings.info("Verified saved API key length: ${retrievedKey.length}, matches=${retrievedKey == apiKey.key}")
+
+                    if (retrievedKey != apiKey.key) {
+                        PluginLogger.Settings.error("CRITICAL: API key was not saved correctly during silent regeneration!")
+                        PluginLogger.Settings.error("Expected: ${apiKey.key.take(20)}...")
+                        PluginLogger.Settings.error("Got: ${retrievedKey.take(20)}...")
+                    }
 
                     refreshStatusBarWidget()
                     refreshApiKeys()
@@ -325,8 +346,21 @@ class ApiKeyManager(
         try {
             val apiKey = openRouterService.createApiKey(INTELLIJ_API_KEY_NAME).get()
             if (apiKey != null) {
-                PluginLogger.Settings.info("Successfully recreated IntelliJ API key")
+                PluginLogger.Settings.info("Successfully recreated IntelliJ API key: ${apiKey.key.take(20)}...")
+                PluginLogger.Settings.info("About to save new API key to settings...")
+
                 settingsService.setApiKey(apiKey.key)
+
+                // Verify the key was saved correctly
+                val savedKey = settingsService.getApiKey()
+                PluginLogger.Settings.info("Verification: saved key length=${savedKey.length}, matches=${savedKey == apiKey.key}")
+
+                if (savedKey != apiKey.key) {
+                    PluginLogger.Settings.error("CRITICAL: API key was not saved correctly!")
+                    PluginLogger.Settings.error("Expected: ${apiKey.key.take(20)}...")
+                    PluginLogger.Settings.error("Got: ${savedKey.take(20)}...")
+                }
+
                 showNewApiKeyDialog(apiKey.key)
                 refreshApiKeys()
             } else {

@@ -304,9 +304,31 @@ Tests are designed to run in continuous integration environments:
 
 ---
 
+## 🐛 Debugging Test Failures
+
+For comprehensive debugging information, see [DEBUGGING.md](DEBUGGING.md):
+- **Log Analysis**: How to read and interpret plugin logs
+- **Common Issues**: Solutions for frequent problems
+- **Debug Logging**: Enabling detailed logging for troubleshooting
+- **Production Debugging**: Debugging in production environments
+
+### Quick Debug Commands
+```bash
+# Debug test failures with detailed output
+./gradlew test --info --tests "*ChatCompletionServletTest*"
+
+# Debug API key handling specifically
+./gradlew test --debug --tests "*ApiKeyHandlingIntegrationTest*"
+
+# Monitor logs during development testing
+tail -f ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log | grep "OpenRouter"
+```
+
 ## 📚 Resources
 
+- **Debugging Guide**: [DEBUGGING.md](DEBUGGING.md) - Comprehensive debugging procedures
 - **Development Setup**: [DEVELOPMENT.md](DEVELOPMENT.md) - Complete development guide
 - **Plugin Architecture**: [DEVELOPMENT.md#project-architecture](DEVELOPMENT.md#project-architecture) - Code organization
+- **Production Logging**: [docs/PRODUCTION_LOGGING.md](docs/PRODUCTION_LOGGING.md) - Production debugging guide
 - **API Documentation**: [OpenRouter API Docs](https://openrouter.ai/docs) - External API reference
 - **IntelliJ Testing**: [IntelliJ Platform Testing](https://plugins.jetbrains.com/docs/intellij/testing-plugins.html) - Platform testing guide

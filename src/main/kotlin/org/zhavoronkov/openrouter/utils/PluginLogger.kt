@@ -94,6 +94,19 @@ object PluginLogger {
                 settingsLogger.info("[$PLUGIN_NAME][DEBUG] $message", throwable)
             }
         }
+
+        /**
+         * Production-safe logging for troubleshooting.
+         * Always logs important events regardless of debug mode.
+         */
+        fun production(message: String) {
+            val logMessage = "[$PLUGIN_NAME][PROD] $message"
+            settingsLogger.info(logMessage)
+            // Also print to console for immediate visibility during development
+            if (debugEnabled) {
+                println(logMessage)
+            }
+        }
     }
     
     /**

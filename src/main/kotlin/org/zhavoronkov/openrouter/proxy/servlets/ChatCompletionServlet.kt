@@ -74,6 +74,9 @@ class ChatCompletionServlet(
 
             PluginLogger.Service.info("[Chat-$requestId] 🔑 Using API key from plugin settings: ${apiKey.take(20)}... (length: ${apiKey.length})")
 
+            // Production-safe logging - always log key prefix for troubleshooting
+            PluginLogger.Service.info("[Chat-$requestId] 🔑 API key prefix: ${apiKey.take(15)}...")
+
             val openAIRequest = parseAndValidateRequest(req, resp, requestId) ?: return
 
             PluginLogger.Service.info("[Chat-$requestId] 📝 Model: '${openAIRequest.model}'")
@@ -143,7 +146,7 @@ class ChatCompletionServlet(
                 .post(jsonBody.toRequestBody("application/json".toMediaType()))
                 .addHeader("Authorization", "Bearer $apiKey")
                 .addHeader("Content-Type", "application/json")
-                .addHeader("HTTP-Referer", "https://github.com/openrouter-intellij-plugin")
+                .addHeader("HTTP-Referer", "https://github.com/DimazzzZ/openrouter-intellij-plugin")
                 .addHeader("X-Title", "OpenRouter IntelliJ Plugin")
                 .build()
 
@@ -151,11 +154,14 @@ class ChatCompletionServlet(
             httpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     val errorBody = response.body?.string() ?: "Unknown error"
-                    PluginLogger.Service.error("[Chat-$requestId] ❌ OpenRouter returned error: ${response.code}")
+                    // Production logging - always log errors for troubleshooting
+                    PluginLogger.Service.error("[Chat-$requestId] ❌ OpenRouter API Error: ${response.code}")
                     PluginLogger.Service.error("[Chat-$requestId] ❌ Error details: $errorBody")
                     PluginLogger.Service.error("[Chat-$requestId] ❌ Request URL: ${request.url}")
-                    PluginLogger.Service.error("[Chat-$requestId] ❌ Request body: ${jsonBody.take(500)}")
-                    PluginLogger.Service.error("[Chat-$requestId] ❌ API key length: ${apiKey.length}, prefix: ${apiKey.take(15)}...")
+                    PluginLogger.Service.error("[Chat-$requestId] ❌ API key prefix: ${apiKey.take(15)}... (length: ${apiKey.length})")
+
+                    // Debug-only detailed logging
+                    PluginLogger.Service.debug("[Chat-$requestId] ❌ Full request body: ${jsonBody.take(500)}")
                     writer.write("data: ${gson.toJson(mapOf("error" to mapOf("message" to errorBody)))}\n\n")
                     writer.flush()
                     return
@@ -310,7 +316,7 @@ class ChatCompletionServlet(
             .post(jsonBody.toRequestBody("application/json".toMediaType()))
             .addHeader("Authorization", "Bearer $apiKey")
             .addHeader("Content-Type", "application/json")
-            .addHeader("HTTP-Referer", "https://github.com/openrouter-intellij-plugin")
+            .addHeader("HTTP-Referer", "https://github.com/DimazzzZ/openrouter-intellij-plugin")
             .addHeader("X-Title", "OpenRouter IntelliJ Plugin")
             .build()
 
