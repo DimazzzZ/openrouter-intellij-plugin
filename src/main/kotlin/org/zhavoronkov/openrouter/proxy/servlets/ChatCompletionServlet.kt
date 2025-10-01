@@ -20,6 +20,7 @@ import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import java.io.BufferedReader
 import java.util.concurrent.TimeUnit
+import java.security.MessageDigest
 
 /**
  * Servlet that provides OpenAI-compatible /v1/chat/completions endpoint
@@ -39,6 +40,10 @@ class ChatCompletionServlet(
         // Request tracking for debugging duplicate requests
         @Volatile
         private var requestCounter = 0
+
+        // Request deduplication tracking
+        private val recentRequests = mutableMapOf<String, Long>()
+        private const val DUPLICATE_WINDOW_MS = 5000L // 5 second window
     }
 
     private val gson = Gson()
@@ -63,6 +68,28 @@ class ChatCompletionServlet(
         try {
             logRequestDiagnostics(req, requestId)
 
+            // Check for duplicate requests
+            val requestBody = req.reader.readText()
+            val requestHash = generateRequestHash(requestBody, req.remoteAddr)
+            val currentTime = System.currentTimeMillis()
+
+            synchronized(recentRequests) {
+                // Clean old entries
+                recentRequests.entries.removeIf { currentTime - it.value > DUPLICATE_WINDOW_MS }
+
+                // Check for duplicate
+                if (recentRequests.containsKey(requestHash)) {
+                    val timeSinceFirst = currentTime - recentRequests[requestHash]!!
+                    PluginLogger.Service.warn("[Chat-$requestId] 🚨 DUPLICATE REQUEST DETECTED!")
+                    PluginLogger.Service.warn("[Chat-$requestId] 🚨 Time since first request: ${timeSinceFirst}ms")
+                    PluginLogger.Service.warn("[Chat-$requestId] 🚨 Request hash: $requestHash")
+                    PluginLogger.Service.warn("[Chat-$requestId] 🚨 Remote address: ${req.remoteAddr}")
+                    PluginLogger.Service.warn("[Chat-$requestId] 🚨 User-Agent: ${req.getHeader("User-Agent")}")
+                } else {
+                    recentRequests[requestHash] = currentTime
+                }
+            }
+
             // Use the API key from OpenRouter plugin settings, not from the request
             // AI Assistant should be configured with empty API key field
             val apiKey = settingsService.getApiKey()
@@ -77,7 +104,7 @@ class ChatCompletionServlet(
             // Production-safe logging - always log key prefix for troubleshooting
             PluginLogger.Service.info("[Chat-$requestId] 🔑 API key prefix: ${apiKey.take(15)}...")
 
-            val openAIRequest = parseAndValidateRequest(req, resp, requestId) ?: return
+            val openAIRequest = parseRequestBody(requestBody, resp, requestId) ?: return
 
             PluginLogger.Service.info("[Chat-$requestId] 📝 Model: '${openAIRequest.model}'")
 
@@ -254,38 +281,7 @@ class ChatCompletionServlet(
         return apiKey
     }
 
-    private fun parseAndValidateRequest(req: HttpServletRequest, resp: HttpServletResponse, requestId: String): OpenAIChatCompletionRequest? {
-        val rawBody = req.reader.use(BufferedReader::readText)
-        if (rawBody.isBlank()) {
-            PluginLogger.Service.warn("[Chat-$requestId] Empty request body")
-            sendErrorResponse(resp, "Empty request body", HttpServletResponse.SC_BAD_REQUEST)
-            return null
-        }
 
-        val bodyPreview = if (rawBody.length > BODY_PREVIEW_MAX_LENGTH) {
-            rawBody.take(BODY_PREVIEW_MAX_LENGTH) + "…(truncated)"
-        } else {
-            rawBody
-        }
-        PluginLogger.Service.debug("[Chat-$requestId] Raw request body: $bodyPreview")
-
-        val openAIRequest = try {
-            gson.fromJson<OpenAIChatCompletionRequest>(rawBody, OpenAIChatCompletionRequest::class.java)
-        } catch (e: JsonSyntaxException) {
-            PluginLogger.Service.error("[Chat-$requestId] Invalid JSON in request: ${e.message}", e)
-            sendErrorResponse(resp, "Invalid JSON format", HttpServletResponse.SC_BAD_REQUEST)
-            return null
-        }
-
-        if (openAIRequest.model.isBlank() || openAIRequest.messages.isEmpty()) {
-            PluginLogger.Service.warn("[Chat-$requestId] Missing required fields: model and messages")
-            sendErrorResponse(resp, "Missing required fields: model and messages", HttpServletResponse.SC_BAD_REQUEST)
-            return null
-        }
-
-        PluginLogger.Service.info("[Chat-$requestId] Processing request for model: ${openAIRequest.model} with ${openAIRequest.messages.size} messages, stream=${openAIRequest.stream}")
-        return openAIRequest
-    }
 
     private fun translateRequest(openAIRequest: OpenAIChatCompletionRequest, resp: HttpServletResponse, requestId: String): ChatCompletionRequest? {
         val openRouterRequest = RequestTranslator.translateChatCompletionRequest(openAIRequest)
@@ -389,6 +385,38 @@ class ChatCompletionServlet(
             )
         )
         resp.writer.write(gson.toJson(errorResponse))
+    }
+
+    /**
+     * Generate a hash for request deduplication based on content and source
+     */
+    private fun generateRequestHash(requestBody: String, remoteAddr: String): String {
+        val content = "$requestBody|$remoteAddr"
+        val digest = MessageDigest.getInstance("SHA-256")
+        val hashBytes = digest.digest(content.toByteArray())
+        return hashBytes.joinToString("") { "%02x".format(it) }.take(16) // First 16 chars of SHA-256
+    }
+
+    /**
+     * Parse request body from string instead of reading from request again
+     */
+    private fun parseRequestBody(requestBody: String, resp: HttpServletResponse, requestId: String): OpenAIChatCompletionRequest? {
+        return try {
+            val openAIRequest = gson.fromJson(requestBody, OpenAIChatCompletionRequest::class.java)
+
+            if (openAIRequest.messages.isNullOrEmpty()) {
+                PluginLogger.Service.error("[Chat-$requestId] Request validation failed: messages cannot be null or empty")
+                sendErrorResponse(resp, "Messages cannot be null or empty", HttpServletResponse.SC_BAD_REQUEST)
+                return null
+            }
+
+            PluginLogger.Service.info("[Chat-$requestId] Processing request for model: ${openAIRequest.model} with ${openAIRequest.messages.size} messages, stream=${openAIRequest.stream}")
+            openAIRequest
+        } catch (e: JsonSyntaxException) {
+            PluginLogger.Service.error("[Chat-$requestId] Failed to parse request JSON: ${e.message}", e)
+            sendErrorResponse(resp, "Invalid JSON format", HttpServletResponse.SC_BAD_REQUEST)
+            null
+        }
     }
 }
 

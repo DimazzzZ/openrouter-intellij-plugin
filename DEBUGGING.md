@@ -189,6 +189,32 @@ Got: sk-or-v1-42c6cb...
    find ~ -name "openrouter.xml" 2>/dev/null
    ```
 
+### **5. Duplicate Request Issues**
+
+**Symptoms:**
+```
+[Chat-000096] Incoming POST /v1/chat/completions
+[Chat-000097] Incoming POST /v1/chat/completions  ← Same timestamp!
+🚨 DUPLICATE REQUEST DETECTED!
+🚨 Time since first request: 1ms
+```
+
+**Debugging Steps:**
+1. Check for duplicate request warnings:
+   ```bash
+   grep "🚨 DUPLICATE REQUEST" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+   ```
+2. Monitor request patterns:
+   ```bash
+   grep -E "\[Chat-[0-9]+\] Incoming POST" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log | tail -20
+   ```
+
+**Possible Causes:**
+- AI Assistant client double-submitting requests
+- Network layer duplication
+- User double-clicking or rapid interactions
+- Client-side retry logic issues
+
 ## 🔧 Development Debugging
 
 ### Console Debugging
