@@ -306,7 +306,7 @@ class OpenRouterSettingsPanel {
                 }.layout(RowLayout.PARENT_GRID)
 
                 row {
-                    comment("Required for quota monitoring.")
+                    comment("Required for quota monitoring and API keys management.")
                 }
 
                 row {
@@ -513,10 +513,17 @@ class OpenRouterSettingsPanel {
     }
 
     private fun setupFavoritesPanel() {
-        // North: header with "Favorites" label
+        // North: header with "Favorites" label - fixed height to match Available panel header
         val headerPanel = JPanel(BorderLayout())
         val favoritesLabel = JLabel("Favorites")
         headerPanel.add(favoritesLabel, BorderLayout.WEST)
+
+        // Set fixed preferred height to match the Available panel's header (label + search field height)
+        // Search field is typically ~28-30px, so we set header to 32px for consistent alignment
+        headerPanel.preferredSize = Dimension(headerPanel.preferredSize.width, 32)
+        headerPanel.minimumSize = Dimension(0, 32)
+        headerPanel.maximumSize = Dimension(Int.MAX_VALUE, 32)
+
         favoritesPanel.add(headerPanel, BorderLayout.NORTH)
 
         // Center: ToolbarDecorator panel (includes table + toolbar)
@@ -526,7 +533,7 @@ class OpenRouterSettingsPanel {
     }
 
     private fun setupAvailableModelsPanel() {
-        // North: header with "Available" label, search field, and Search button
+        // North: header with "Available" label, search field, and Search button - fixed height
         val headerPanel = JPanel(BorderLayout())
         val availableLabel = JLabel("Available")
         searchTextField.textEditor.emptyText.text = "Search models"
@@ -551,13 +558,24 @@ class OpenRouterSettingsPanel {
 
         headerPanel.add(availableLabel, BorderLayout.WEST)
         headerPanel.add(searchPanel, BorderLayout.EAST)
+
+        // Set fixed preferred height to match Favorites panel header
+        headerPanel.preferredSize = Dimension(headerPanel.preferredSize.width, 32)
+        headerPanel.minimumSize = Dimension(0, 32)
+        headerPanel.maximumSize = Dimension(Int.MAX_VALUE, 32)
+
         availablePanel.add(headerPanel, BorderLayout.NORTH)
 
-        // Center: scrollable table
-        val scrollPane = JScrollPane(availableModelsTable)
-        availablePanel.add(scrollPane, BorderLayout.CENTER)
+        // Center: table with toolbar-style button at bottom
+        // Create a panel that combines the table and the "Add to Favorites" button
+        // This ensures both panels have the same structure: header + (table + buttons)
+        val tableWithButtonPanel = JPanel(BorderLayout())
 
-        // South: "Add to Favorites" button
+        // Table in center
+        val scrollPane = JScrollPane(availableModelsTable)
+        tableWithButtonPanel.add(scrollPane, BorderLayout.CENTER)
+
+        // "Add to Favorites" button at bottom (matching the toolbar height on Favorites side)
         val buttonPanel = JPanel(BorderLayout())
         addToFavoritesButton = JButton("Add to Favorites")
         addToFavoritesButton.addActionListener { addSelectedToFavorites() }
@@ -565,7 +583,9 @@ class OpenRouterSettingsPanel {
         addToFavoritesButton.accessibleContext.accessibleDescription = "Add selected models from the available models table to your favorites"
         addToFavoritesButton.isEnabled = false // Initially disabled
         buttonPanel.add(addToFavoritesButton, BorderLayout.EAST)
-        availablePanel.add(buttonPanel, BorderLayout.SOUTH)
+        tableWithButtonPanel.add(buttonPanel, BorderLayout.SOUTH)
+
+        availablePanel.add(tableWithButtonPanel, BorderLayout.CENTER)
 
         // Add selection listener to enable/disable button
         availableModelsTable.selectionModel.addListSelectionListener {
