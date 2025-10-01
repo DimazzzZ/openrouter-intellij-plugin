@@ -3,39 +3,38 @@ package org.zhavoronkov.openrouter.settings
 import com.intellij.icons.AllIcons
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.ui.Messages
-import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.AnActionButton
+import com.intellij.ui.SearchTextField
 import com.intellij.ui.ToolbarDecorator
-import com.intellij.ui.components.JBCheckBox
-import com.intellij.ui.components.JBLabel
-import com.intellij.ui.components.JBPasswordField
-import com.intellij.ui.components.JBScrollPane
-import com.intellij.ui.components.JBTextField
+import com.intellij.ui.components.*
 import com.intellij.ui.dsl.builder.*
 import com.intellij.ui.table.JBTable
+import com.intellij.ui.OnePixelSplitter
+
+import com.intellij.ui.table.TableView
 import com.intellij.util.ui.UIUtil
+import com.intellij.util.ui.ColumnInfo
+import com.intellij.openapi.actionSystem.AnAction
+import com.intellij.openapi.actionSystem.AnActionEvent
 import org.zhavoronkov.openrouter.models.ApiKeyInfo
+import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import java.awt.BorderLayout
+import java.awt.Dimension
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
+import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.util.Locale
-import javax.swing.Action
-import javax.swing.JComponent
-import javax.swing.Timer
-import javax.swing.JButton
-import javax.swing.JPanel
-import javax.swing.JSpinner
-import javax.swing.JTable
-import javax.swing.ListSelectionModel
-import javax.swing.SpinnerNumberModel
+import java.util.concurrent.TimeUnit
+import javax.swing.*
 import javax.swing.table.AbstractTableModel
+import javax.swing.table.TableRowSorter
 
 /**
  * Table model for API keys
@@ -99,6 +98,96 @@ class ApiKeyTableModel : AbstractTableModel() {
 }
 
 /**
+ * Table model for favorite models
+ */
+class FavoriteModelsTableModel : AbstractTableModel() {
+    private val columnNames = arrayOf("Model ID")
+    private val favoriteModels = mutableListOf<OpenRouterModelInfo>()
+
+    override fun getRowCount(): Int = favoriteModels.size
+    override fun getColumnCount(): Int = columnNames.size
+    override fun getColumnName(column: Int): String = columnNames[column]
+
+    override fun getValueAt(rowIndex: Int, columnIndex: Int): Any {
+        val model = favoriteModels[rowIndex]
+        return when (columnIndex) {
+            0 -> model.id
+            else -> ""
+        }
+    }
+
+    fun setFavoriteModels(models: List<OpenRouterModelInfo>) {
+        favoriteModels.clear()
+        favoriteModels.addAll(models)
+        fireTableDataChanged()
+    }
+
+    fun getFavoriteModels(): List<OpenRouterModelInfo> = favoriteModels.toList()
+
+    fun addModel(model: OpenRouterModelInfo) {
+        if (!favoriteModels.contains(model)) {
+            favoriteModels.add(model)
+            fireTableRowsInserted(favoriteModels.size - 1, favoriteModels.size - 1)
+        }
+    }
+
+    fun removeModel(index: Int) {
+        if (index >= 0 && index < favoriteModels.size) {
+            favoriteModels.removeAt(index)
+            fireTableRowsDeleted(index, index)
+        }
+    }
+
+    fun moveUp(index: Int) {
+        if (index > 0 && index < favoriteModels.size) {
+            val model = favoriteModels.removeAt(index)
+            favoriteModels.add(index - 1, model)
+            fireTableRowsUpdated(index - 1, index)
+        }
+    }
+
+    fun moveDown(index: Int) {
+        if (index >= 0 && index < favoriteModels.size - 1) {
+            val model = favoriteModels.removeAt(index)
+            favoriteModels.add(index + 1, model)
+            fireTableRowsUpdated(index, index + 1)
+        }
+    }
+}
+
+/**
+ * Table model for available models
+ */
+class AvailableModelsTableModel : AbstractTableModel() {
+    private val columnNames = arrayOf("Model ID")
+    private val availableModels = mutableListOf<OpenRouterModelInfo>()
+
+    override fun getRowCount(): Int = availableModels.size
+    override fun getColumnCount(): Int = columnNames.size
+    override fun getColumnName(column: Int): String = columnNames[column]
+
+    override fun getValueAt(rowIndex: Int, columnIndex: Int): Any {
+        val model = availableModels[rowIndex]
+        return when (columnIndex) {
+            0 -> model.id
+            else -> ""
+        }
+    }
+
+    fun setAvailableModels(models: List<OpenRouterModelInfo>) {
+        availableModels.clear()
+        availableModels.addAll(models)
+        fireTableDataChanged()
+    }
+
+    fun getModelAt(index: Int): OpenRouterModelInfo? {
+        return if (index >= 0 && index < availableModels.size) availableModels[index] else null
+    }
+
+    fun getAvailableModels(): List<OpenRouterModelInfo> = availableModels.toList()
+}
+
+/**
  * Settings panel for OpenRouter configuration using IntelliJ UI DSL v2
  */
 class OpenRouterSettingsPanel {
@@ -114,6 +203,27 @@ class OpenRouterSettingsPanel {
     private val settingsService = OpenRouterSettingsService.getInstance()
     private val proxyService = OpenRouterProxyService.getInstance()
 
+    // Favorite Models components
+    private val favoriteModelsTableModel = FavoriteModelsTableModel()
+    private val favoriteModelsTable = JBTable(favoriteModelsTableModel)
+    private val availableModelsTableModel = AvailableModelsTableModel()
+    private val availableModelsTable = JBTable(availableModelsTableModel)
+    private val searchTextField = SearchTextField()
+    private var allModels: List<OpenRouterModelInfo> = emptyList()
+
+    // API Keys panel
+    private val apiKeysPanel = JPanel(BorderLayout())
+
+    // Splitter and panels for favorite models
+    // false = horizontal split (side-by-side), true = vertical split (top/bottom)
+    private val favoriteModelsSplitter = OnePixelSplitter(false, 0.5f).apply {
+        preferredSize = Dimension(700, 400)
+    }
+    private val favoritesPanel = JPanel(BorderLayout())
+    private val availablePanel = JPanel(BorderLayout())
+    private lateinit var addToFavoritesButton: JButton
+    private lateinit var searchButton: JButton
+
     // State tracking
     private var isCreatingApiKey = false
 
@@ -123,6 +233,11 @@ class OpenRouterSettingsPanel {
 
     // Status components for AI Assistant Integration
     private val statusLabel = JBLabel()
+
+    // Action buttons for AI Assistant Integration
+    private lateinit var startServerButton: JButton
+    private lateinit var stopServerButton: JButton
+    private lateinit var copyUrlButton: JButton
 
     companion object {
         private const val INTELLIJ_API_KEY_NAME = "IntelliJ IDEA Plugin"
@@ -137,7 +252,6 @@ class OpenRouterSettingsPanel {
         // Initialize logging configuration
         PluginLogger.logConfiguration()
         PluginLogger.Settings.debug("Initializing OpenRouter Settings Panel")
-        println("[OpenRouter] Settings panel initializing...") // Immediate console output
 
         // Initialize components
         provisioningKeyField = JBPasswordField().apply {
@@ -145,6 +259,7 @@ class OpenRouterSettingsPanel {
         }
 
         autoRefreshCheckBox = JBCheckBox("Auto-refresh quota information")
+        showCostsCheckBox = JBCheckBox("Show costs in status bar")
 
         refreshIntervalSpinner = JSpinner(SpinnerNumberModel(
             DEFAULT_REFRESH_INTERVAL,
@@ -153,12 +268,27 @@ class OpenRouterSettingsPanel {
             REFRESH_INTERVAL_STEP
         ))
 
-        showCostsCheckBox = JBCheckBox("Show costs in status bar")
-
         // Configure API key table
         apiKeyTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
         apiKeyTable.autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
         apiKeyTable.fillsViewportHeight = true
+
+        // Configure favorite models tables
+        configureFavoritesTable()
+        configureAvailableModelsTable()
+
+        // Setup API Keys panel
+        setupApiKeysPanel()
+
+        // Setup splitter and panels
+        setupFavoriteModelsSplitter()
+
+        // Configure search field
+        searchTextField.addDocumentListener(object : javax.swing.event.DocumentListener {
+            override fun insertUpdate(e: javax.swing.event.DocumentEvent?) = filterAvailableModels()
+            override fun removeUpdate(e: javax.swing.event.DocumentEvent?) = filterAvailableModels()
+            override fun changedUpdate(e: javax.swing.event.DocumentEvent?) = filterAvailableModels()
+        })
 
         // Initialize helper classes
         apiKeyManager = ApiKeyManager(settingsService, openRouterService, apiKeyTable, apiKeyTableModel)
@@ -171,6 +301,7 @@ class OpenRouterSettingsPanel {
                 row("Provisioning Key:") {
                     cell(provisioningKeyField)
                         .resizableColumn()
+                        .columns(32)
                     button("Paste") { pasteFromClipboard() }
                 }.layout(RowLayout.PARENT_GRID)
 
@@ -179,12 +310,9 @@ class OpenRouterSettingsPanel {
                 }
 
                 row {
-                    comment("Get your key from <a href=\"https://openrouter.ai/settings/provisioning-keys\">OpenRouter Provisioning Keys</a>")
-                        .component.addMouseListener(object : MouseAdapter() {
-                            override fun mouseClicked(e: MouseEvent) {
-                                BrowserUtil.browse("https://openrouter.ai/settings/provisioning-keys")
-                            }
-                        })
+                    link("Get your key from OpenRouter Provisioning Keys") {
+                        BrowserUtil.browse("https://openrouter.ai/settings/provisioning-keys")
+                    }
                 }
             }
 
@@ -194,7 +322,7 @@ class OpenRouterSettingsPanel {
                     cell(refreshIntervalSpinner)
                 }.layout(RowLayout.PARENT_GRID)
 
-                row("") {
+                row {
                     cell(autoRefreshCheckBox)
                     cell(showCostsCheckBox)
                 }.layout(RowLayout.PARENT_GRID)
@@ -202,53 +330,44 @@ class OpenRouterSettingsPanel {
 
             // API Keys group
             group("API Keys") {
-                row("") {
-                    val toolbar = createApiKeysToolbar()
-                    cell(toolbar.createPanel())
-                        .resizableColumn()
-                    button("Refresh") { refreshApiKeysWithValidation() }
-                }.layout(RowLayout.PARENT_GRID)
-
-                row {
-                    scrollCell(apiKeyTable)
-                        .align(AlignX.FILL)
-                        .align(AlignY.FILL)
-                }.resizableRow()
-
                 row {
                     comment("Keys load automatically when Provisioning Key is configured.")
                 }
+
+                row {
+                    cell(apiKeysPanel)
+                        .align(Align.FILL)
+                        .resizableColumn()
+                }.resizableRow()
             }
 
             // Favorite Models group
             group("Favorite Models") {
                 row {
-                    cell(FavoriteModelsPanel())
-                        .align(AlignX.FILL)
-                        .align(AlignY.FILL)
-                }.resizableRow()
-
-                row {
                     comment("Manage your favorite models that will appear in AI Assistant. Only favorite models are shown to keep the list manageable.")
                 }
+
+                row {
+                    cell(favoriteModelsSplitter)
+                        .align(Align.FILL)
+                        .resizableColumn()
+                }.resizableRow()
             }
 
             // AI Assistant Integration group
             group("AI Assistant Integration") {
-                row("Status:") {
+                row {
                     cell(statusLabel)
                 }.layout(RowLayout.PARENT_GRID)
 
-                row("") {
-                    button("Start Proxy Server") { startProxyServer() }
-                    button("Stop Proxy Server") { stopProxyServer() }
-                    button("Copy URL") { copyProxyUrl() }
-                    button("Enter API Key Manually") { enterApiKeyManually() }
+                row {
+                    startServerButton = button("Start Proxy Server") { startProxyServer() }.component
+                    stopServerButton = button("Stop Proxy Server") { stopProxyServer() }.component
+                    copyUrlButton = button("Copy URL") { copyProxyUrl() }.component
                 }.layout(RowLayout.PARENT_GRID)
 
                 row {
-                    comment("Copy the URL above and paste it as the Base URL in AI Assistant settings:<br>" +
-                            "<b>Tools > AI Assistant > Models > Add Model > Custom OpenAI-compatible</b>")
+                    comment("Copy the URL above and paste it as the Base URL in AI Assistant settings: Tools > AI Assistant > Models > Add Model > Custom OpenAI-compatible")
                 }
             }
         }
@@ -258,15 +377,233 @@ class OpenRouterSettingsPanel {
             refreshIntervalSpinner.isEnabled = autoRefreshCheckBox.isSelected
         }
 
+
+
+        // Set up keyboard shortcuts for favorites table
+        setupFavoritesKeyboardShortcuts()
+
+        // Load initial data
+        loadFavoriteModels()
+        loadAvailableModels()
+
         // Initialize status
         updateProxyStatus()
     }
 
-    private fun createApiKeysToolbar(): ToolbarDecorator {
-        return ToolbarDecorator.createDecorator(apiKeyTable)
+    private fun createFavoritesToolbar(): ToolbarDecorator {
+        return ToolbarDecorator.createDecorator(favoriteModelsTable)
+            .setRemoveAction { removeSelectedFavorites() }
+            .setMoveUpAction { moveFavoriteUp() }
+            .setMoveDownAction { moveFavoriteDown() }
+            .disableAddAction()
+    }
+
+    private fun configureFavoritesTable() {
+        favoriteModelsTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION)
+        favoriteModelsTable.autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
+        favoriteModelsTable.fillsViewportHeight = true
+        favoriteModelsTable.dragEnabled = true
+        favoriteModelsTable.dropMode = DropMode.INSERT_ROWS
+        favoriteModelsTable.rowHeight = 28
+
+        // Set accessible name for screen readers
+        favoriteModelsTable.accessibleContext.accessibleName = "Favorites Table"
+        favoriteModelsTable.accessibleContext.accessibleDescription = "Table showing your favorite models on the right side. Use Alt+Up/Alt+Down to reorder, Delete to remove."
+
+        // Configure column widths: Model ID ~65%, Provider ~35%
+        setupFavoritesTableColumns()
+    }
+
+    private fun configureAvailableModelsTable() {
+        availableModelsTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION)
+        availableModelsTable.autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
+        availableModelsTable.fillsViewportHeight = true
+        availableModelsTable.rowHeight = 28
+
+        // Set accessible name for screen readers
+        availableModelsTable.accessibleContext.accessibleName = "Available Models Table"
+        availableModelsTable.accessibleContext.accessibleDescription = "Table showing all available models on the left side. Double-click, press Enter, or use Add to Favorites button to add models to your favorites."
+
+        // Enable sorting
+        val sorter = TableRowSorter(availableModelsTableModel)
+        availableModelsTable.rowSorter = sorter
+
+        // Configure column widths: Model ID ~40%, Name ~40%, Provider ~20%
+        setupAvailableModelsTableColumns()
+
+        // Add double-click listener and Enter key support
+        availableModelsTable.addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                if (e.clickCount == 2) {
+                    addSelectedToFavorites()
+                }
+            }
+        })
+
+        // Add Enter key support for adding to favorites
+        val inputMap = availableModelsTable.getInputMap(JComponent.WHEN_FOCUSED)
+        val actionMap = availableModelsTable.actionMap
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "addToFavorites")
+        actionMap.put("addToFavorites", object : AbstractAction() {
+            override fun actionPerformed(e: java.awt.event.ActionEvent?) {
+                addSelectedToFavorites()
+            }
+        })
+    }
+
+    private fun setupApiKeysPanel() {
+        // North: Toolbar with Add/Remove on left and Refresh on right
+        val toolbar = createApiKeysToolbarWithRefresh()
+        apiKeysPanel.add(toolbar, BorderLayout.NORTH)
+
+        // Center: API Keys table in scroll pane
+        val scrollPane = JScrollPane(apiKeyTable)
+        apiKeysPanel.add(scrollPane, BorderLayout.CENTER)
+    }
+
+    private fun createApiKeysToolbarWithRefresh(): JPanel {
+        // Create the main toolbar with Add/Remove
+        val decorator = ToolbarDecorator.createDecorator(apiKeyTable)
             .setAddAction { addApiKey() }
             .setRemoveAction { removeSelectedApiKey() }
             .disableUpDownActions()
+
+        val toolbarPanel = decorator.createPanel()
+
+        // Create a wrapper panel to add Refresh button on the right
+        val wrapperPanel = JPanel(BorderLayout())
+        wrapperPanel.add(toolbarPanel, BorderLayout.CENTER)
+
+        // Add Refresh button on the right
+        val refreshButtonPanel = JPanel(BorderLayout())
+        val refreshButton = JButton("Refresh")
+        refreshButton.addActionListener { refreshApiKeysWithValidation() }
+        refreshButton.accessibleContext.accessibleName = "Refresh API Keys"
+        refreshButtonPanel.add(refreshButton, BorderLayout.EAST)
+        wrapperPanel.add(refreshButtonPanel, BorderLayout.EAST)
+
+        return wrapperPanel
+    }
+
+    private fun setupFavoriteModelsSplitter() {
+        // Configure splitter - 50/50 split
+        favoriteModelsSplitter.setHonorComponentsMinimumSize(true)
+        favoriteModelsSplitter.proportion = 0.5f
+
+        // Set minimum sizes for both panels to ensure they're visible
+        availablePanel.minimumSize = Dimension(250, 300)
+        favoritesPanel.minimumSize = Dimension(250, 300)
+
+        // Set preferred sizes to ensure proper initial layout - equal widths
+        availablePanel.preferredSize = Dimension(350, 400)
+        favoritesPanel.preferredSize = Dimension(350, 400)
+
+        // Setup left panel (Available models)
+        setupAvailableModelsPanel()
+
+        // Setup right panel (Favorites)
+        setupFavoritesPanel()
+
+        // Add panels to splitter - Available on left, Favorites on right
+        favoriteModelsSplitter.firstComponent = availablePanel
+        favoriteModelsSplitter.secondComponent = favoritesPanel
+
+        // Setup tab order: Search field → Available table → Add to Favorites → Favorites table → toolbar buttons
+        setupTabOrder()
+    }
+
+    private fun setupFavoritesPanel() {
+        // North: header with "Favorites" label
+        val headerPanel = JPanel(BorderLayout())
+        val favoritesLabel = JLabel("Favorites")
+        headerPanel.add(favoritesLabel, BorderLayout.WEST)
+        favoritesPanel.add(headerPanel, BorderLayout.NORTH)
+
+        // Center: ToolbarDecorator panel (includes table + toolbar)
+        // ToolbarDecorator.createPanel() returns a panel with the table and toolbar already combined
+        val toolbar = createFavoritesToolbar()
+        favoritesPanel.add(toolbar.createPanel(), BorderLayout.CENTER)
+    }
+
+    private fun setupAvailableModelsPanel() {
+        // North: header with "Available" label, search field, and Search button
+        val headerPanel = JPanel(BorderLayout())
+        val availableLabel = JLabel("Available")
+        searchTextField.textEditor.emptyText.text = "Search models"
+        searchTextField.accessibleContext.accessibleName = "Search Available Models"
+        searchTextField.accessibleContext.accessibleDescription = "Filter available models by Model ID"
+
+        // Create a panel for search field + button
+        val searchPanel = JPanel(BorderLayout())
+        searchPanel.add(searchTextField, BorderLayout.CENTER)
+
+        searchButton = JButton("Search")
+        searchButton.accessibleContext.accessibleName = "Search models"
+        searchButton.addActionListener { filterAvailableModels() }
+        searchPanel.add(searchButton, BorderLayout.EAST)
+
+        // Prevent Enter key from closing Settings dialog
+        searchTextField.textEditor.registerKeyboardAction(
+            { filterAvailableModels() },
+            KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0),
+            JComponent.WHEN_FOCUSED
+        )
+
+        headerPanel.add(availableLabel, BorderLayout.WEST)
+        headerPanel.add(searchPanel, BorderLayout.EAST)
+        availablePanel.add(headerPanel, BorderLayout.NORTH)
+
+        // Center: scrollable table
+        val scrollPane = JScrollPane(availableModelsTable)
+        availablePanel.add(scrollPane, BorderLayout.CENTER)
+
+        // South: "Add to Favorites" button
+        val buttonPanel = JPanel(BorderLayout())
+        addToFavoritesButton = JButton("Add to Favorites")
+        addToFavoritesButton.addActionListener { addSelectedToFavorites() }
+        addToFavoritesButton.accessibleContext.accessibleName = "Add to Favorites"
+        addToFavoritesButton.accessibleContext.accessibleDescription = "Add selected models from the available models table to your favorites"
+        addToFavoritesButton.isEnabled = false // Initially disabled
+        buttonPanel.add(addToFavoritesButton, BorderLayout.EAST)
+        availablePanel.add(buttonPanel, BorderLayout.SOUTH)
+
+        // Add selection listener to enable/disable button
+        availableModelsTable.selectionModel.addListSelectionListener {
+            addToFavoritesButton.isEnabled = availableModelsTable.selectedRowCount > 0
+        }
+
+        // Setup search functionality
+        searchTextField.addDocumentListener(object : javax.swing.event.DocumentListener {
+            override fun insertUpdate(e: javax.swing.event.DocumentEvent?) = filterAvailableModels()
+            override fun removeUpdate(e: javax.swing.event.DocumentEvent?) = filterAvailableModels()
+            override fun changedUpdate(e: javax.swing.event.DocumentEvent?) = filterAvailableModels()
+        })
+    }
+
+    private fun setupTabOrder() {
+        // Set up proper tab order: Search field → Search button → Available table → Add to Favorites → Favorites table
+        // The ToolbarDecorator buttons will be handled automatically
+        searchTextField.setNextFocusableComponent(searchButton)
+        searchButton.setNextFocusableComponent(availableModelsTable)
+        availableModelsTable.setNextFocusableComponent(addToFavoritesButton)
+        addToFavoritesButton.setNextFocusableComponent(favoriteModelsTable)
+        // Favorites table will naturally tab to its toolbar buttons
+    }
+
+    private fun setupFavoritesTableColumns() {
+        val columnModel = favoriteModelsTable.columnModel
+        if (columnModel.columnCount >= 1) {
+            // Single column - Model ID takes full width
+            columnModel.getColumn(0).minWidth = 100
+        }
+    }
+
+    private fun setupAvailableModelsTableColumns() {
+        val columnModel = availableModelsTable.columnModel
+        if (columnModel.columnCount >= 1) {
+            // Single column - Model ID takes full width
+            columnModel.getColumn(0).minWidth = 100
+        }
     }
 
     private fun pasteFromClipboard() {
@@ -283,10 +620,141 @@ class OpenRouterSettingsPanel {
 
     private fun updateProxyStatus() {
         proxyServerManager.updateProxyStatusLabel(statusLabel)
+
+        // Update button states based on proxy status
+        val isRunning = proxyService.getServerStatus().isRunning
+        startServerButton.isEnabled = !isRunning
+        stopServerButton.isEnabled = isRunning
+        copyUrlButton.isEnabled = isRunning
+
         // Force UI repaint to show changes immediately
         statusLabel.repaint()
         statusLabel.revalidate()
         panel.repaint()
+    }
+
+    private fun loadFavoriteModels() {
+        val favoriteModelIds = settingsService.getFavoriteModels()
+        // Convert model IDs to OpenRouterModelInfo objects
+        val favoriteModels = favoriteModelIds.map { modelId ->
+            OpenRouterModelInfo(
+                id = modelId,
+                name = modelId,
+                created = System.currentTimeMillis() / 1000,
+                description = null,
+                architecture = null,
+                topProvider = null,
+                pricing = null,
+                contextLength = null,
+                perRequestLimits = null
+            )
+        }
+        favoriteModelsTableModel.setFavoriteModels(favoriteModels)
+    }
+
+    private fun loadAvailableModels() {
+        openRouterService.getModels().thenAccept { modelsResponse ->
+            ApplicationManager.getApplication().invokeLater {
+                allModels = modelsResponse?.data ?: emptyList()
+                filterAvailableModels()
+            }
+        }.exceptionally { throwable ->
+            PluginLogger.Settings.warn("Failed to load available models: ${throwable.message}")
+            null
+        }
+    }
+
+    private fun filterAvailableModels() {
+        val searchText = searchTextField.text.lowercase()
+        val filteredModels = if (searchText.isBlank()) {
+            allModels
+        } else {
+            allModels.filter { model ->
+                model.id.lowercase().contains(searchText)
+            }
+        }
+        availableModelsTableModel.setAvailableModels(filteredModels)
+    }
+
+    private fun addSelectedToFavorites() {
+        val selectedRows = availableModelsTable.selectedRows
+        val favorites = favoriteModelsTableModel.getFavoriteModels().toMutableList()
+
+        for (row in selectedRows) {
+            val model = availableModelsTableModel.getModelAt(row)
+            if (model != null && !favorites.any { it.id == model.id }) {
+                favoriteModelsTableModel.addModel(model)
+                favorites.add(model)
+            }
+        }
+
+        // Save to settings (convert to model IDs)
+        val modelIds = favoriteModelsTableModel.getFavoriteModels().map { it.id }
+        settingsService.setFavoriteModels(modelIds)
+    }
+
+    private fun removeSelectedFavorites() {
+        val selectedRows = favoriteModelsTable.selectedRows.sortedDescending()
+        for (row in selectedRows) {
+            favoriteModelsTableModel.removeModel(row)
+        }
+
+        // Save to settings (convert to model IDs)
+        val modelIds = favoriteModelsTableModel.getFavoriteModels().map { it.id }
+        settingsService.setFavoriteModels(modelIds)
+    }
+
+    private fun moveFavoriteUp() {
+        val selectedRow = favoriteModelsTable.selectedRow
+        if (selectedRow > 0) {
+            favoriteModelsTableModel.moveUp(selectedRow)
+            favoriteModelsTable.setRowSelectionInterval(selectedRow - 1, selectedRow - 1)
+
+            // Save to settings (convert to model IDs)
+            val modelIds = favoriteModelsTableModel.getFavoriteModels().map { it.id }
+            settingsService.setFavoriteModels(modelIds)
+        }
+    }
+
+    private fun moveFavoriteDown() {
+        val selectedRow = favoriteModelsTable.selectedRow
+        if (selectedRow >= 0 && selectedRow < favoriteModelsTable.rowCount - 1) {
+            favoriteModelsTableModel.moveDown(selectedRow)
+            favoriteModelsTable.setRowSelectionInterval(selectedRow + 1, selectedRow + 1)
+
+            // Save to settings (convert to model IDs)
+            val modelIds = favoriteModelsTableModel.getFavoriteModels().map { it.id }
+            settingsService.setFavoriteModels(modelIds)
+        }
+    }
+
+    private fun setupFavoritesKeyboardShortcuts() {
+        val inputMap = favoriteModelsTable.getInputMap(JComponent.WHEN_FOCUSED)
+        val actionMap = favoriteModelsTable.actionMap
+
+        // Alt+Up for move up
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_UP, KeyEvent.ALT_DOWN_MASK), "moveUp")
+        actionMap.put("moveUp", object : AbstractAction() {
+            override fun actionPerformed(e: java.awt.event.ActionEvent?) {
+                moveFavoriteUp()
+            }
+        })
+
+        // Alt+Down for move down
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, KeyEvent.ALT_DOWN_MASK), "moveDown")
+        actionMap.put("moveDown", object : AbstractAction() {
+            override fun actionPerformed(e: java.awt.event.ActionEvent?) {
+                moveFavoriteDown()
+            }
+        })
+
+        // Delete for remove
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, 0), "remove")
+        actionMap.put("remove", object : AbstractAction() {
+            override fun actionPerformed(e: java.awt.event.ActionEvent?) {
+                removeSelectedFavorites()
+            }
+        })
     }
 
     private fun startProxyServer() {
@@ -382,30 +850,7 @@ class OpenRouterSettingsPanel {
         apiKeyManager.removeApiKey()
     }
 
-    private fun enterApiKeyManually() {
-        val apiKey = Messages.showInputDialog(
-            "Enter your OpenRouter API key:\n\n" +
-            "This should be the actual API key value (starting with 'sk-or-v1-').\n" +
-            "You can find this in your OpenRouter dashboard.",
-            "Enter API Key Manually",
-            Messages.getQuestionIcon()
-        )
 
-        if (!apiKey.isNullOrBlank()) {
-            // Validate the API key format
-            if (apiKey.startsWith("sk-or-v1-") && apiKey.length > 20) {
-                // Store the API key
-                settingsService.setApiKey(apiKey)
-                // Don't show success dialog or refresh table to avoid cascading dialogs
-                // The user can manually refresh if needed
-            } else {
-                Messages.showErrorDialog(
-                    "The entered API key doesn't appear to be valid. OpenRouter API keys should start with 'sk-or-v1-' and be longer than 20 characters.",
-                    "Invalid API Key Format"
-                )
-            }
-        }
-    }
 
     fun refreshApiKeys() {
         // Use loadApiKeysWithoutAutoCreate to avoid triggering validation dialogs
@@ -495,6 +940,18 @@ class OpenRouterSettingsPanel {
 
     fun setShowCosts(show: Boolean) {
         showCostsCheckBox.isSelected = show
+    }
+
+    fun getFavoriteModels(): List<OpenRouterModelInfo> = favoriteModelsTableModel.getFavoriteModels()
+
+    fun setFavoriteModels(models: List<OpenRouterModelInfo>) {
+        favoriteModelsTableModel.setFavoriteModels(models)
+    }
+
+    fun isFavoriteModelsModified(): Boolean {
+        val currentFavoriteIds = favoriteModelsTableModel.getFavoriteModels().map { it.id }
+        val savedFavoriteIds = settingsService.getFavoriteModels()
+        return currentFavoriteIds != savedFavoriteIds
     }
 
 }
