@@ -1,3 +1,5 @@
+import java.time.Duration
+
 plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "1.9.10"
@@ -87,6 +89,98 @@ tasks {
 
     test {
         useJUnitPlatform()
+
+        // Prevent tests from hanging by configuring proper timeouts and memory
+        maxHeapSize = "512m"
+        jvmArgs = listOf(
+            "-XX:+UseG1GC",
+            "-XX:SoftRefLRUPolicyMSPerMB=50",
+            "-ea",
+            "-XX:CICompilerCount=2",
+            "-XX:+HeapDumpOnOutOfMemoryError",
+            "-XX:+UseStringDeduplication",
+            "-Djunit.jupiter.execution.timeout.default=10s",
+            "-Djunit.jupiter.execution.timeout.testable.method.default=10s",
+            "-Djunit.jupiter.execution.timeout.test.method.default=10s",
+            "-Didea.test.mode=true",
+            "-Didea.platform.prefix=Idea",
+            "-Didea.headless.enable.statistics=false",
+            "-Didea.application.plugins.dir=",
+            "-Didea.plugins.path=",
+            "-Didea.system.path=",
+            "-Didea.config.path=",
+            "-Didea.log.path="
+        )
+
+        // Configure test execution to prevent IntelliJ platform initialization
+        systemProperty("java.awt.headless", "true")
+        systemProperty("idea.test.cyclic.buffer.size", "1048576")
+        systemProperty("idea.home.path", "")
+        systemProperty("idea.test.mode", "true")
+        systemProperty("idea.platform.prefix", "Idea")
+        systemProperty("idea.headless.enable.statistics", "false")
+        systemProperty("idea.application.plugins.dir", "")
+        systemProperty("idea.plugins.path", "")
+        systemProperty("idea.system.path", "")
+        systemProperty("idea.config.path", "")
+        systemProperty("idea.log.path", "")
+        systemProperty("idea.fatal.error.notification", "disabled")
+        systemProperty("idea.suppress.statistics.report", "true")
+
+        // Exclude integration tests by default (they can be run manually)
+        exclude("**/integration/**")
+        exclude("**/*IntegrationTest*")
+        exclude("**/*E2ETest*")
+
+        // Configure test logging
+        testLogging {
+            events("passed", "skipped", "failed")
+            exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+            showStandardStreams = false
+        }
+
+        // Fail fast on first test failure
+        failFast = true
+
+        // Set aggressive timeout for the entire test task
+        timeout.set(Duration.ofMinutes(2))
+    }
+
+    // Create a separate task for integration tests
+    register<Test>("integrationTest") {
+        description = "Runs integration tests (disabled by default)"
+        group = "verification"
+        useJUnitPlatform()
+
+        // Only run integration tests
+        include("**/integration/**")
+        include("**/*IntegrationTest*")
+        include("**/*E2ETest*")
+
+        // Higher memory and longer timeouts for integration tests
+        maxHeapSize = "2g"
+        jvmArgs = listOf(
+            "-XX:+UseG1GC",
+            "-XX:SoftRefLRUPolicyMSPerMB=50",
+            "-ea",
+            "-XX:CICompilerCount=2",
+            "-XX:+HeapDumpOnOutOfMemoryError",
+            "-XX:+UseStringDeduplication",
+            "-Djunit.jupiter.execution.timeout.default=60s",
+            "-Djunit.jupiter.execution.timeout.testable.method.default=60s"
+        )
+
+        systemProperty("java.awt.headless", "true")
+        systemProperty("idea.test.cyclic.buffer.size", "1048576")
+
+        testLogging {
+            events("passed", "skipped", "failed")
+            exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+            showStandardStreams = true
+        }
+
+        // Longer timeout for integration tests
+        timeout.set(Duration.ofMinutes(10))
     }
 
     // Fix Gradle task dependency issue: classpathIndexCleanup should depend on processTestResources

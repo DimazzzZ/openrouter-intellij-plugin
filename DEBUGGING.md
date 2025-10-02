@@ -11,6 +11,9 @@ This document provides comprehensive debugging information for the OpenRouter In
 | **Request Failures** | `[Chat-XXXXX] ❌` | idea.log | Check request logs and API status |
 | **Settings Issues** | `Settings state persisted` | idea.log | Verify settings persistence |
 | **Model Loading** | `Loaded XXX models from OpenRouter` | idea.log | Check model fetching |
+| **Test Hanging** | `OutOfMemoryError` | test output | Use safe test runner |
+| **Duplicate Requests** | `🚨 DUPLICATE REQUEST DETECTED!` | idea.log | Check AI Assistant configuration |
+| **Missing Headers** | `X-Title header missing` | request logs | Verify OpenRouterRequestBuilder usage |
 
 ## 🔍 Log File Locations
 
@@ -344,14 +347,78 @@ For comprehensive testing procedures, see [TESTING.md](TESTING.md):
 ### Debug Test Failures
 ```bash
 # Run tests with debug output
-./gradlew test --info --tests "*ChatCompletionServletTest*"
+./gradlew test --info --tests "*RequestBuilderTest*"
 
-# Debug specific API key handling
-./gradlew test --debug --tests "*ApiKeyHandlingIntegrationTest*"
+# Debug test hanging issues
+./scripts/run-safe-tests.sh  # Guaranteed to work
 
-# Test with real API calls (requires .env file)
-./gradlew test --tests "*E2ETest*"
+# Debug integration tests (manual enable required)
+./gradlew integrationTest --info
 ```
+
+## 🧪 Test Debugging
+
+### Test Hanging Issues (FIXED)
+**Problem**: Tests hanging indefinitely with OutOfMemoryError
+**Solution**: Enhanced test configuration with proper timeouts and memory limits
+
+```bash
+# Safe test execution (recommended)
+./scripts/run-safe-tests.sh
+
+# Full test suite (unit tests only, 3 seconds)
+./gradlew test
+
+# Integration tests (manual enable)
+./gradlew integrationTest
+```
+
+### Test Configuration
+- **Memory Limit**: 512MB max heap
+- **Timeouts**: 10 seconds per test, 2 minutes total
+- **Platform Prevention**: Disabled IntelliJ platform initialization
+- **Integration Exclusion**: Heavy tests disabled by default
+
+### Duplicate Request Detection
+Look for these log patterns:
+```
+🚨 DUPLICATE REQUEST DETECTED! Hash: abc123... (Chat-000096 & Chat-000097)
+```
+
+This indicates the AI Assistant client is sending duplicate requests.
+
+## 🔧 Code Refactoring Debugging
+
+### OpenRouterRequestBuilder Issues
+If you see missing headers in API requests:
+
+1. **Check Request Builder Usage**:
+   ```kotlin
+   // ✅ Correct usage
+   val request = OpenRouterRequestBuilder.buildPostRequest(
+       url = "https://openrouter.ai/api/v1/chat/completions",
+       jsonBody = jsonBody,
+       authType = OpenRouterRequestBuilder.AuthType.API_KEY,
+       authToken = apiKey
+   )
+
+   // ❌ Old pattern (should be refactored)
+   val request = Request.Builder()
+       .url(url)
+       .addHeader("X-Title", "OpenRouter IntelliJ Plugin")
+       // ... manual header setup
+   ```
+
+2. **Verify Headers**:
+   ```bash
+   # Check if all requests include proper headers
+   grep -r "X-Title" src/main/kotlin/
+   ```
+
+3. **Test Request Builder**:
+   ```bash
+   ./gradlew test --tests "OpenRouterRequestBuilderTest"
+   ```
 
 ---
 

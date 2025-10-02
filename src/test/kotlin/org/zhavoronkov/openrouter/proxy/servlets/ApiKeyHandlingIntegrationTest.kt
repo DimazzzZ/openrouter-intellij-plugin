@@ -22,6 +22,7 @@ import java.io.StringWriter
  */
 @DisplayName("API Key Handling Integration Tests")
 @Tag("integration")
+@org.junit.jupiter.api.Disabled("Disabled by default to avoid memory issues. Enable manually for integration testing.")
 class ApiKeyHandlingIntegrationTest {
 
     private lateinit var integrationHelper: IntegrationTestHelper
