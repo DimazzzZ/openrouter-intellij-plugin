@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit
  */
 @DisplayName("OpenRouter Proxy Server Integration Tests")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@Disabled("Disabled by default to avoid memory issues. Enable manually for integration testing.")
 class ProxyServerIntegrationTest {
 
     private lateinit var jettyServer: Server

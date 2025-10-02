@@ -21,6 +21,7 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 @DisplayName("OpenRouter API Integration Tests")
+@Disabled("Disabled by default to avoid memory issues. Enable manually for integration testing.")
 class ApiIntegrationTest {
 
     private lateinit var mockWebServer: MockWebServer

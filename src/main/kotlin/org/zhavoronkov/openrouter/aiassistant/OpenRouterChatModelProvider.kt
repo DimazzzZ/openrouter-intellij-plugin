@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.intellij.openapi.diagnostic.Logger
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.PluginLogger
@@ -125,12 +126,12 @@ class OpenRouterChatModelProvider {
     
     private fun makeOpenRouterRequest(requestBody: String): ChatResponse? {
         return try {
-            val request = okhttp3.Request.Builder()
-                .url("https://openrouter.ai/api/v1/chat/completions")
-                .post(requestBody.toRequestBody("application/json".toMediaType()))
-                .addHeader("Authorization", "Bearer ${settingsService.getApiKey()}")
-                .addHeader("Content-Type", "application/json")
-                .build()
+            val request = OpenRouterRequestBuilder.buildPostRequest(
+                url = "https://openrouter.ai/api/v1/chat/completions",
+                jsonBody = requestBody,
+                authType = OpenRouterRequestBuilder.AuthType.API_KEY,
+                authToken = settingsService.getApiKey()
+            )
             
             val client = okhttp3.OkHttpClient.Builder()
                 .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)

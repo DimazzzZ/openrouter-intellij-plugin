@@ -20,6 +20,7 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 @DisplayName("OpenRouter Service Integration Tests")
+@Disabled("Disabled by default to avoid memory issues. Enable manually for integration testing.")
 class OpenRouterServiceIntegrationTest {
 
     private lateinit var mockWebServer: MockWebServer

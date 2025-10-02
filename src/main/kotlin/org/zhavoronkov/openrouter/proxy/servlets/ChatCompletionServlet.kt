@@ -14,6 +14,7 @@ import org.zhavoronkov.openrouter.proxy.translation.RequestTranslator
 import org.zhavoronkov.openrouter.proxy.translation.ResponseTranslator
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import jakarta.servlet.http.HttpServlet
 import jakarta.servlet.http.HttpServletRequest
@@ -168,14 +169,12 @@ class ChatCompletionServlet(
             PluginLogger.Service.debug("[Chat-$requestId] Streaming request body: ${jsonBody.take(500)}...")
 
             // Create HTTP request to OpenRouter
-            val request = Request.Builder()
-                .url(OPENROUTER_API_URL)
-                .post(jsonBody.toRequestBody("application/json".toMediaType()))
-                .addHeader("Authorization", "Bearer $apiKey")
-                .addHeader("Content-Type", "application/json")
-                .addHeader("HTTP-Referer", "https://github.com/DimazzzZ/openrouter-intellij-plugin")
-                .addHeader("X-Title", "OpenRouter IntelliJ Plugin")
-                .build()
+            val request = OpenRouterRequestBuilder.buildPostRequest(
+                url = OPENROUTER_API_URL,
+                jsonBody = jsonBody,
+                authType = OpenRouterRequestBuilder.AuthType.API_KEY,
+                authToken = apiKey
+            )
 
             // Execute streaming request
             httpClient.newCall(request).execute().use { response ->
@@ -307,14 +306,12 @@ class ChatCompletionServlet(
 
         // Create HTTP request directly with the provided API key
         val jsonBody = gson.toJson(openRouterRequest)
-        val request = Request.Builder()
-            .url(OPENROUTER_API_URL)
-            .post(jsonBody.toRequestBody("application/json".toMediaType()))
-            .addHeader("Authorization", "Bearer $apiKey")
-            .addHeader("Content-Type", "application/json")
-            .addHeader("HTTP-Referer", "https://github.com/DimazzzZ/openrouter-intellij-plugin")
-            .addHeader("X-Title", "OpenRouter IntelliJ Plugin")
-            .build()
+        val request = OpenRouterRequestBuilder.buildPostRequest(
+            url = OPENROUTER_API_URL,
+            jsonBody = jsonBody,
+            authType = OpenRouterRequestBuilder.AuthType.API_KEY,
+            authToken = apiKey
+        )
 
         try {
             httpClient.newCall(request).execute().use { response ->

@@ -3,6 +3,7 @@ package org.zhavoronkov.openrouter.aiassistant
 import com.intellij.openapi.project.Project
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.utils.PluginLogger
 
 /**
@@ -143,19 +144,7 @@ class OpenRouterSmartChatEndpointProvider {
      * Gets provider-specific headers for API requests
      */
     fun getHeaders(): Map<String, String> {
-        val headers = mutableMapOf<String, String>()
-        headers["Content-Type"] = "application/json"
-        
-        val apiKey = getApiKey()
-        if (apiKey != null) {
-            headers["Authorization"] = "Bearer $apiKey"
-        }
-        
-        // OpenRouter-specific headers
-        headers["HTTP-Referer"] = "https://github.com/DimazzzZ/openrouter-intellij-plugin"
-        headers["X-Title"] = "OpenRouter IntelliJ Plugin"
-        
-        return headers
+        return OpenRouterRequestBuilder.getStandardHeaders(authToken = getApiKey())
     }
     
     /**

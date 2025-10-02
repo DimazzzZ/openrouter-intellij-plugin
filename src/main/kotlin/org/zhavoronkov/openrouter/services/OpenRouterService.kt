@@ -22,6 +22,7 @@ import org.zhavoronkov.openrouter.models.KeyInfoResponse
 import org.zhavoronkov.openrouter.models.OpenRouterModelsResponse
 import org.zhavoronkov.openrouter.models.ProvidersResponse
 import org.zhavoronkov.openrouter.models.QuotaInfo
+import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.io.IOException
 import java.util.concurrent.CompletableFuture
@@ -90,11 +91,11 @@ class OpenRouterService {
     fun getGenerationStats(generationId: String): CompletableFuture<GenerationResponse?> {
         return CompletableFuture.supplyAsync {
             try {
-                val request = Request.Builder()
-                    .url("$GENERATION_ENDPOINT?id=$generationId")
-                    .addHeader("Authorization", "Bearer ${settingsService.getApiKey()}")
-                    .addHeader("Content-Type", "application/json")
-                    .build()
+                val request = OpenRouterRequestBuilder.buildGetRequest(
+                    url = "$GENERATION_ENDPOINT?id=$generationId",
+                    authType = OpenRouterRequestBuilder.AuthType.API_KEY,
+                    authToken = settingsService.getApiKey()
+                )
 
                 client.newCall(request).execute().use { response ->
                     if (response.isSuccessful) {
@@ -140,12 +141,12 @@ class OpenRouterService {
                 PluginLogger.Service.debug("[OR] Headers: Authorization=Bearer ${apiKey.take(8)}…(redacted), Content-Type=application/json")
                 PluginLogger.Service.debug("[OR] Outgoing JSON: ${jsonBody.take(8000)}${if (jsonBody.length > 8000) "…(truncated)" else ""}")
 
-                val httpRequest = Request.Builder()
-                    .url(CHAT_COMPLETIONS_ENDPOINT)
-                    .post(requestBody)
-                    .addHeader("Authorization", "Bearer $apiKey")
-                    .addHeader("Content-Type", "application/json")
-                    .build()
+                val httpRequest = OpenRouterRequestBuilder.buildPostRequest(
+                    url = CHAT_COMPLETIONS_ENDPOINT,
+                    jsonBody = jsonBody,
+                    authType = OpenRouterRequestBuilder.AuthType.API_KEY,
+                    authToken = apiKey
+                )
 
                 client.newCall(httpRequest).execute().use { response ->
                     val responseBody = response.body?.string() ?: ""
@@ -185,7 +186,7 @@ class OpenRouterService {
     fun testConnection(): CompletableFuture<Boolean> {
         return CompletableFuture.supplyAsync {
             try {
-                val requestBody = gson.toJson(
+                val jsonBody = gson.toJson(
                     mapOf(
                         "model" to "openai/gpt-3.5-turbo",
                         "messages" to listOf(
@@ -193,14 +194,14 @@ class OpenRouterService {
                         ),
                         "max_tokens" to 1
                     )
-                ).toRequestBody("application/json".toMediaType())
+                )
 
-                val request = Request.Builder()
-                    .url(CHAT_COMPLETIONS_ENDPOINT)
-                    .post(requestBody)
-                    .addHeader("Authorization", "Bearer ${settingsService.getApiKey()}")
-                    .addHeader("Content-Type", "application/json")
-                    .build()
+                val request = OpenRouterRequestBuilder.buildPostRequest(
+                    url = CHAT_COMPLETIONS_ENDPOINT,
+                    jsonBody = jsonBody,
+                    authType = OpenRouterRequestBuilder.AuthType.API_KEY,
+                    authToken = settingsService.getApiKey()
+                )
 
                 client.newCall(request).execute().use { response ->
                     response.isSuccessful
@@ -235,11 +236,11 @@ class OpenRouterService {
                 )
                 PluginLogger.Service.debug("Making request to: $API_KEYS_ENDPOINT")
 
-                val request = Request.Builder()
-                    .url(API_KEYS_ENDPOINT)
-                    .addHeader("Authorization", "Bearer $provisioningKey")
-                    .addHeader("Content-Type", "application/json")
-                    .build()
+                val request = OpenRouterRequestBuilder.buildGetRequest(
+                    url = API_KEYS_ENDPOINT,
+                    authType = OpenRouterRequestBuilder.AuthType.PROVISIONING_KEY,
+                    authToken = provisioningKey
+                )
 
                 client.newCall(request).execute().use { response ->
                     val responseBody = response.body?.string() ?: ""
@@ -337,12 +338,12 @@ class OpenRouterService {
                 PluginLogger.Service.debug("Making POST request to: $API_KEYS_ENDPOINT")
                 PluginLogger.Service.debug("Request body: $json")
 
-                val request = Request.Builder()
-                    .url(API_KEYS_ENDPOINT)
-                    .addHeader("Authorization", "Bearer $provisioningKey")
-                    .addHeader("Content-Type", "application/json")
-                    .post(json.toRequestBody("application/json".toMediaType()))
-                    .build()
+                val request = OpenRouterRequestBuilder.buildPostRequest(
+                    url = API_KEYS_ENDPOINT,
+                    jsonBody = json,
+                    authType = OpenRouterRequestBuilder.AuthType.PROVISIONING_KEY,
+                    authToken = provisioningKey
+                )
 
                 client.newCall(request).execute().use { response ->
                     val responseBody = response.body?.string() ?: ""
@@ -381,12 +382,11 @@ class OpenRouterService {
         return CompletableFuture.supplyAsync {
             try {
                 // API key deletion requires provisioning key and uses hash in URL
-                val request = Request.Builder()
-                    .url("$API_KEYS_ENDPOINT/$keyHash")
-                    .addHeader("Authorization", "Bearer ${settingsService.getProvisioningKey()}")
-                    .addHeader("Content-Type", "application/json")
-                    .delete()
-                    .build()
+                val request = OpenRouterRequestBuilder.buildDeleteRequest(
+                    url = "$API_KEYS_ENDPOINT/$keyHash",
+                    authType = OpenRouterRequestBuilder.AuthType.PROVISIONING_KEY,
+                    authToken = settingsService.getProvisioningKey()
+                )
 
                 PluginLogger.Service.debug("Deleting API key with hash: $keyHash")
 
@@ -428,11 +428,11 @@ class OpenRouterService {
                 PluginLogger.Service.debug("Fetching credits from OpenRouter with provisioning key: ${provisioningKey.take(10)}...")
                 PluginLogger.Service.debug("Making request to: $CREDITS_ENDPOINT")
 
-                val request = Request.Builder()
-                    .url(CREDITS_ENDPOINT)
-                    .addHeader("Authorization", "Bearer $provisioningKey")
-                    .addHeader("Content-Type", "application/json")
-                    .build()
+                val request = OpenRouterRequestBuilder.buildGetRequest(
+                    url = CREDITS_ENDPOINT,
+                    authType = OpenRouterRequestBuilder.AuthType.PROVISIONING_KEY,
+                    authToken = provisioningKey
+                )
 
                 val response = client.newCall(request).execute()
                 val responseBody = response.body?.string() ?: ""
@@ -472,11 +472,11 @@ class OpenRouterService {
                 PluginLogger.Service.debug("Fetching activity from OpenRouter with provisioning key: ${provisioningKey.take(10)}...")
                 PluginLogger.Service.debug("Making request to: $ACTIVITY_ENDPOINT")
 
-                val request = Request.Builder()
-                    .url(ACTIVITY_ENDPOINT)
-                    .addHeader("Authorization", "Bearer $provisioningKey")
-                    .addHeader("Content-Type", "application/json")
-                    .build()
+                val request = OpenRouterRequestBuilder.buildGetRequest(
+                    url = ACTIVITY_ENDPOINT,
+                    authType = OpenRouterRequestBuilder.AuthType.PROVISIONING_KEY,
+                    authToken = provisioningKey
+                )
 
                 val response = client.newCall(request).execute()
                 val responseBody = response.body?.string() ?: ""
@@ -511,10 +511,10 @@ class OpenRouterService {
                 PluginLogger.Service.debug("Making request to: $MODELS_ENDPOINT")
 
                 // Models endpoint is public - no authentication required
-                val request = Request.Builder()
-                    .url(MODELS_ENDPOINT)
-                    .addHeader("Content-Type", "application/json")
-                    .build()
+                val request = OpenRouterRequestBuilder.buildGetRequest(
+                    url = MODELS_ENDPOINT,
+                    authType = OpenRouterRequestBuilder.AuthType.NONE
+                )
 
                 val response = client.newCall(request).execute()
                 val responseBody = response.body?.string() ?: ""
@@ -549,10 +549,10 @@ class OpenRouterService {
                 PluginLogger.Service.debug("Making request to: $PROVIDERS_ENDPOINT")
 
                 // Providers endpoint is public - no authentication required
-                val request = Request.Builder()
-                    .url(PROVIDERS_ENDPOINT)
-                    .addHeader("Content-Type", "application/json")
-                    .build()
+                val request = OpenRouterRequestBuilder.buildGetRequest(
+                    url = PROVIDERS_ENDPOINT,
+                    authType = OpenRouterRequestBuilder.AuthType.NONE
+                )
 
                 val response = client.newCall(request).execute()
                 val responseBody = response.body?.string() ?: ""
