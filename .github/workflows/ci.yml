@@ -78,7 +78,7 @@ jobs:
                 issue_number: context.issue.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: '⚠️ **Detekt found code quality issues**\n\nPlease check the Detekt reports in the CI artifacts for details.'
+                body: 'ℹ️ **Detekt found code quality suggestions**\n\nThese are recommendations, not blockers. Check the Detekt reports in the CI artifacts for details.'
               });
             }
           } catch (error) {
