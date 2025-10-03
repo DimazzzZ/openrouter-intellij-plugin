@@ -88,11 +88,18 @@
         <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterProxyService"/>
         
         <!-- Settings -->
-        <applicationConfigurable 
-            parentId="tools" 
+        <applicationConfigurable
+            parentId="tools"
             instance="org.zhavoronkov.openrouter.settings.OpenRouterConfigurable"
             id="org.zhavoronkov.openrouter.settings.OpenRouterConfigurable"
             displayName="OpenRouter"/>
+
+        <!-- Favorite Models sub-page -->
+        <applicationConfigurable
+            parentId="org.zhavoronkov.openrouter.settings.OpenRouterConfigurable"
+            instance="org.zhavoronkov.openrouter.settings.FavoriteModelsConfigurable"
+            id="org.zhavoronkov.openrouter.settings.FavoriteModelsConfigurable"
+            displayName="Favorite Models"/>
         
         <!-- Status bar widget -->
         <statusBarWidgetFactory

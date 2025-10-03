@@ -28,22 +28,6 @@ class OpenRouterConfigurable : Configurable {
         panel.setAutoRefresh(settingsService.isAutoRefreshEnabled())
         panel.setRefreshInterval(settingsService.getRefreshInterval())
         panel.setShowCosts(settingsService.shouldShowCosts())
-        // Convert favorite model IDs to model objects
-        val favoriteModelIds = settingsService.getFavoriteModels()
-        val favoriteModels = favoriteModelIds.map { modelId ->
-            org.zhavoronkov.openrouter.models.OpenRouterModelInfo(
-                id = modelId,
-                name = modelId,
-                created = System.currentTimeMillis() / 1000,
-                description = null,
-                architecture = null,
-                topProvider = null,
-                pricing = null,
-                contextLength = null,
-                perRequestLimits = null
-            )
-        }
-        panel.setFavoriteModels(favoriteModels)
 
         // Now refresh API keys with the loaded provisioning key
         panel.refreshApiKeys()
@@ -59,8 +43,7 @@ class OpenRouterConfigurable : Configurable {
             // panel.getDefaultModel() != settingsService.getDefaultModel() ||
             panel.isAutoRefreshEnabled() != settingsService.isAutoRefreshEnabled() ||
             panel.getRefreshInterval() != settingsService.getRefreshInterval() ||
-            panel.shouldShowCosts() != settingsService.shouldShowCosts() ||
-            panel.isFavoriteModelsModified()
+            panel.shouldShowCosts() != settingsService.shouldShowCosts()
     }
 
     override fun apply() {
@@ -76,9 +59,6 @@ class OpenRouterConfigurable : Configurable {
         settingsService.setAutoRefresh(panel.isAutoRefreshEnabled())
         settingsService.setRefreshInterval(panel.getRefreshInterval())
         settingsService.setShowCosts(panel.shouldShowCosts())
-        // Convert favorite models to model IDs for storage
-        val favoriteModelIds = panel.getFavoriteModels().map { it.id }
-        settingsService.setFavoriteModels(favoriteModelIds)
 
         // Refresh API keys table if provisioning key changed
         if (oldProvisioningKey != newProvisioningKey) {
@@ -103,22 +83,6 @@ class OpenRouterConfigurable : Configurable {
         panel.setAutoRefresh(settingsService.isAutoRefreshEnabled())
         panel.setRefreshInterval(settingsService.getRefreshInterval())
         panel.setShowCosts(settingsService.shouldShowCosts())
-        // Convert favorite model IDs to model objects
-        val favoriteModelIds = settingsService.getFavoriteModels()
-        val favoriteModels = favoriteModelIds.map { modelId ->
-            org.zhavoronkov.openrouter.models.OpenRouterModelInfo(
-                id = modelId,
-                name = modelId,
-                created = System.currentTimeMillis() / 1000,
-                description = null,
-                architecture = null,
-                topProvider = null,
-                pricing = null,
-                contextLength = null,
-                perRequestLimits = null
-            )
-        }
-        panel.setFavoriteModels(favoriteModels)
         panel.refreshApiKeys() // Refresh API keys when resetting
     }
 
