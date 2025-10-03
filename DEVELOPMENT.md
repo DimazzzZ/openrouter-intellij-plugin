@@ -570,29 +570,56 @@ val service = FavoriteModelsService(mockSettings)
 
 ### Updating "What's New" Notification
 
-When releasing a new version, update the notification system to inform users about new features:
+When releasing a new version (e.g., 0.2.0 → 0.3.0), update the notification system to inform users about new features.
 
-#### 1. Update Version Number
+**The notification will automatically show to users who upgrade from a previous version, but NOT to fresh installs.**
 
-Edit `WhatsNewNotificationActivity.kt`:
+---
+
+#### **Complete Checklist for New Release**
+
+Use this checklist when preparing a new version release:
+
+- [ ] **1. Update version in WhatsNewNotificationActivity.kt**
+- [ ] **2. Update notification message in WhatsNewNotificationActivity.kt**
+- [ ] **3. Update plugin.xml change-notes (add new version at top, keep history)**
+- [ ] **4. Update CHANGELOG.md (add new version at top)**
+- [ ] **5. Update plugin version in build.gradle.kts**
+- [ ] **6. Test notification with simulated upgrade**
+- [ ] **7. Verify fresh install doesn't show notification**
+- [ ] **8. Build and verify plugin**
+
+---
+
+#### **1. Update Version Number**
+
+**File:** `src/main/kotlin/org/zhavoronkov/openrouter/startup/WhatsNewNotificationActivity.kt`
+
 ```kotlin
 companion object {
-    private const val CURRENT_VERSION = "0.3.0"  // Update this
+    private const val CURRENT_VERSION = "0.3.0"  // ← Update this to new version
     private const val CHANGELOG_URL = "https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/CHANGELOG.md"
 }
 ```
 
-#### 2. Update Notification Message
+**Example:** When releasing 0.3.0, change `"0.2.0"` to `"0.3.0"`
 
-Edit the `showWhatsNewNotification()` method:
+---
+
+#### **2. Update Notification Message**
+
+**File:** `src/main/kotlin/org/zhavoronkov/openrouter/startup/WhatsNewNotificationActivity.kt`
+
+Edit the `showWhatsNewNotification()` method to highlight the most important new features:
+
 ```kotlin
 .createNotification(
     "OpenRouter Plugin Updated to v$CURRENT_VERSION",
     """
     <b>🎉 New Features:</b><br/>
-    • <b>Your New Feature 1</b> - Brief description<br/>
-    • <b>Your New Feature 2</b> - Brief description<br/>
-    • <b>Improvements</b> - What was improved<br/>
+    • <b>Your New Feature 1</b> - Brief description (one line)<br/>
+    • <b>Your New Feature 2</b> - Brief description (one line)<br/>
+    • <b>Improvements</b> - What was improved (one line)<br/>
     <br/>
     Click below to explore the new features!
     """.trimIndent(),
@@ -600,36 +627,66 @@ Edit the `showWhatsNewNotification()` method:
 )
 ```
 
-#### 3. Update plugin.xml Change Notes
+**Guidelines:**
+- Keep it concise - max 3-4 bullet points
+- Use `<b>` tags for feature names
+- Each line should be one sentence
+- Focus on user-facing features, not technical details
+- Use emoji sparingly (🎉 for major features, ⭐ for favorites, 🐛 for fixes)
 
-**IMPORTANT**: Add new version at the top, keep previous versions for history!
+**Example for 0.3.0:**
+```kotlin
+"""
+<b>🎉 New Features:</b><br/>
+• <b>Model Search</b> - Quickly find models by name or provider<br/>
+• <b>Cost Tracking</b> - Real-time cost estimates for generations<br/>
+• <b>Performance</b> - 50% faster API response times<br/>
+<br/>
+Click below to explore the new features!
+""".trimIndent()
+```
 
-Edit `src/main/resources/META-INF/plugin.xml`:
+---
+
+#### **3. Update plugin.xml Change Notes**
+
+**File:** `src/main/resources/META-INF/plugin.xml`
+
+**⚠️ IMPORTANT:** Add new version at the **top**, keep all previous versions for history!
+
 ```xml
 <change-notes><![CDATA[
     <h3>🎉 Version 0.3.0 - Your Release Title (2025-XX-XX)</h3>
     <p><strong>New Features:</strong></p>
     <ul>
-        <li><strong>Feature 1</strong> - Description</li>
-        <li><strong>Feature 2</strong> - Description</li>
+        <li><strong>Feature 1</strong> - Detailed description</li>
+        <li><strong>Feature 2</strong> - Detailed description</li>
+        <li><strong>Feature 3</strong> - Detailed description</li>
     </ul>
 
     <p><strong>Improvements:</strong></p>
     <ul>
-        <li>Improvement 1</li>
-        <li>Improvement 2</li>
+        <li>Improvement 1 - What changed</li>
+        <li>Improvement 2 - What changed</li>
+    </ul>
+
+    <p><strong>Bug Fixes:</strong></p>
+    <ul>
+        <li>Fixed issue with X</li>
+        <li>Fixed issue with Y</li>
     </ul>
 
     <p><a href="https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/docs/AI_ASSISTANT_SETUP.md">AI Assistant Setup</a> | <a href="https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/CHANGELOG.md">Full Changelog</a></p>
 
     <hr/>
 
-    <!-- Keep previous version history below -->
+    <!-- Keep ALL previous version history below - DO NOT DELETE -->
     <h3>Version 0.2.0 - Major Update (2025-10-03)</h3>
     <p><strong>New Features:</strong></p>
     <ul>
-        <li><strong>🤖 AI Assistant Proxy</strong> - Local OpenAI-compatible proxy server</li>
+        <li><strong>🤖 AI Assistant Proxy</strong> - Local OpenAI-compatible proxy server to connect JetBrains AI Assistant with OpenRouter's 400+ models</li>
         <li><strong>⭐ Favorite Models</strong> - Manage and organize your preferred AI models</li>
+        <li><strong>🌐 Custom Server Support</strong> - Configure AI Assistant to use OpenRouter via custom model connection</li>
     </ul>
     <!-- ... rest of 0.2.0 notes ... -->
 
@@ -640,45 +697,262 @@ Edit `src/main/resources/META-INF/plugin.xml`:
 ]]></change-notes>
 ```
 
-#### 4. Update CHANGELOG.md
+**Guidelines:**
+- More detailed than notification message
+- Include all features, improvements, and bug fixes
+- Use proper HTML formatting
+- Keep previous versions intact (users can see full history)
+- Add date in format: `(YYYY-MM-DD)`
 
-Add a new version section at the top of `CHANGELOG.md`:
+---
+
+#### **4. Update CHANGELOG.md**
+
+**File:** `CHANGELOG.md`
+
+Add a new version section at the **top** of the file:
+
 ```markdown
 ## [0.3.0] - 2025-XX-XX
 
 ### 🎉 Major Features
-- Feature descriptions...
+- **Feature 1** - Detailed description with technical details
+- **Feature 2** - Detailed description with technical details
 
 ### ✨ Enhancements
-- Enhancement descriptions...
+- Enhancement 1 - What improved and why
+- Enhancement 2 - What improved and why
 
 ### 🐛 Bug Fixes
-- Bug fix descriptions...
+- Fixed issue #123 - Description of the fix
+- Fixed issue #456 - Description of the fix
+
+### 🔧 Technical Changes
+- Internal refactoring details
+- Dependency updates
+- Performance improvements
+
+### 📚 Documentation
+- Updated setup guide
+- Added troubleshooting section
+
+---
+
+## [0.2.0] - 2025-10-03
+<!-- Keep all previous versions below -->
 ```
 
-#### 5. How It Works
+**Guidelines:**
+- Most detailed changelog (include everything)
+- Reference issue numbers if applicable
+- Include technical changes and internal improvements
+- Use emoji for section headers
+- Keep all previous versions
 
-- **First Install**: No notification shown, version is silently set
-- **Update**: Notification appears once on first project open after update
-- **Subsequent Opens**: No notification (already seen this version)
-- **Next Update**: Process repeats for new version
+---
 
-#### 6. Testing the Notification
+#### **5. Update Plugin Version**
 
-To test the notification locally:
+**File:** `build.gradle.kts`
 
-1. Build and run the plugin in development IDE
-2. Manually change `lastSeenVersion` in settings to a different version
-3. Restart the IDE or open a new project
-4. Notification should appear
-
-Or use this test code:
 ```kotlin
-// In any action or test
-val settings = OpenRouterSettingsService.getInstance().getState()
-settings.lastSeenVersion = "0.1.0"  // Simulate old version
-// Restart IDE to see notification
+version = "0.3.0"  // ← Update this
 ```
+
+---
+
+#### **6. Test the Notification**
+
+Before releasing, test that the notification works correctly:
+
+##### **Test Upgrade Scenario (Should Show Notification)**
+
+1. **Simulate upgrade from previous version:**
+
+   Edit `src/main/kotlin/org/zhavoronkov/openrouter/models/OpenRouterModels.kt`:
+   ```kotlin
+   var lastSeenVersion: String = "0.2.0"  // Simulate user on previous version
+   ```
+
+2. **Run development IDE:**
+   ```bash
+   ./gradlew clean runIde
+   ```
+
+3. **Open any project** - notification should appear
+
+4. **Verify:**
+   - [ ] Notification appears in bottom-right corner
+   - [ ] Shows correct version number (0.3.0)
+   - [ ] Shows correct features
+   - [ ] "Open Settings" button works
+   - [ ] "View Changelog" button opens browser
+   - [ ] Console shows: `"Showing What's New notification for version 0.3.0 (last seen: 0.2.0)"`
+
+5. **Revert the test change:**
+   ```kotlin
+   var lastSeenVersion: String = ""  // Back to default
+   ```
+
+##### **Test Fresh Install (Should NOT Show Notification)**
+
+1. **Ensure default is empty:**
+   ```kotlin
+   var lastSeenVersion: String = ""  // Default for fresh installs
+   ```
+
+2. **Run development IDE:**
+   ```bash
+   ./gradlew clean runIde
+   ```
+
+3. **Open any project** - notification should NOT appear
+
+4. **Verify:**
+   - [ ] No notification shown
+   - [ ] Console shows: `"First install detected, setting version to 0.3.0"`
+
+---
+
+#### **7. Build and Verify**
+
+```bash
+# Clean build
+./gradlew clean
+
+# Run tests
+./gradlew test
+
+# Build plugin
+./gradlew buildPlugin
+
+# Verify plugin builds successfully
+ls -lh build/distributions/
+```
+
+**Expected output:**
+```
+openrouter-intellij-plugin-0.3.0.zip
+```
+
+---
+
+#### **8. Release Checklist**
+
+Before publishing the new version:
+
+- [ ] All tests pass (`./gradlew test`)
+- [ ] Plugin builds successfully (`./gradlew buildPlugin`)
+- [ ] Version updated in `WhatsNewNotificationActivity.kt`
+- [ ] Notification message updated with new features
+- [ ] `plugin.xml` change-notes updated (new version at top, history preserved)
+- [ ] `CHANGELOG.md` updated (new version at top)
+- [ ] `build.gradle.kts` version updated
+- [ ] Tested upgrade scenario (notification appears)
+- [ ] Tested fresh install (no notification)
+- [ ] `lastSeenVersion` default is `""` (not a test value)
+- [ ] No test/debug code left in production files
+- [ ] Documentation updated if needed
+
+---
+
+#### **How It Works in Production**
+
+**For users upgrading from 0.2.0 to 0.3.0:**
+1. User has `lastSeenVersion = "0.2.0"` stored in their settings
+2. Plugin updates to 0.3.0
+3. On next IDE startup, `WhatsNewNotificationActivity` runs
+4. Detects `lastSeenVersion ("0.2.0") != CURRENT_VERSION ("0.3.0")`
+5. Shows notification with new features
+6. Updates `lastSeenVersion` to `"0.3.0"`
+7. User won't see notification again until next version
+
+**For fresh installs:**
+1. User installs plugin for first time
+2. `lastSeenVersion = ""` (empty, default value)
+3. On first IDE startup, `WhatsNewNotificationActivity` runs
+4. Detects empty `lastSeenVersion`
+5. Silently sets `lastSeenVersion = "0.3.0"` (no notification)
+6. User won't see notification (good UX - they didn't upgrade)
+
+---
+
+#### **Example: Complete Release Process for 0.3.0**
+
+Here's a complete example of updating from 0.2.0 to 0.3.0:
+
+**1. WhatsNewNotificationActivity.kt:**
+```kotlin
+companion object {
+    private const val CURRENT_VERSION = "0.3.0"  // Changed from "0.2.0"
+    // ...
+}
+
+// In showWhatsNewNotification():
+.createNotification(
+    "OpenRouter Plugin Updated to v0.3.0",  // Updated version
+    """
+    <b>🎉 New Features:</b><br/>
+    • <b>Model Search</b> - Find models instantly by name or provider<br/>
+    • <b>Cost Tracking</b> - Real-time cost estimates<br/>
+    • <b>Performance</b> - 50% faster response times<br/>
+    """.trimIndent(),
+    // ...
+)
+```
+
+**2. plugin.xml (add at top of change-notes):**
+```xml
+<h3>🎉 Version 0.3.0 - Enhanced Features (2025-11-15)</h3>
+<p><strong>New Features:</strong></p>
+<ul>
+    <li><strong>Model Search</strong> - Instant search across 400+ models</li>
+    <li><strong>Cost Tracking</strong> - Real-time cost estimates for all generations</li>
+</ul>
+<!-- ... -->
+<hr/>
+<!-- Keep 0.2.0 and 0.1.0 below -->
+```
+
+**3. CHANGELOG.md (add at top):**
+```markdown
+## [0.3.0] - 2025-11-15
+
+### 🎉 Major Features
+- **Model Search** - Instant search with fuzzy matching across all 400+ models
+- **Cost Tracking** - Real-time cost estimates with detailed breakdown
+
+### ✨ Enhancements
+- Improved API response time by 50%
+- Enhanced error messages with actionable suggestions
+
+### 🐛 Bug Fixes
+- Fixed proxy server port conflict on Windows
+- Fixed favorite models not persisting after IDE restart
+```
+
+**4. build.gradle.kts:**
+```kotlin
+version = "0.3.0"  // Changed from "0.2.0"
+```
+
+**5. Test, build, and release!**
+
+---
+
+### Summary
+
+The "What's New" notification system:
+- ✅ **Automatically shows** to users upgrading from previous versions
+- ✅ **Never shows** to fresh installs (good UX)
+- ✅ **Shows only once** per version
+- ✅ **Non-intrusive** balloon notification
+- ✅ **Actionable** with Settings and Changelog links
+- ✅ **Easy to update** for each release
+
+Follow the checklist above for each new version release to ensure users are properly informed about new features!
+
+---
 
 ## Debugging
 
