@@ -38,9 +38,14 @@ class ApiKeyManager(
         private const val INTELLIJ_API_KEY_NAME = "IntelliJ IDEA Plugin"
         private const val API_KEY_LABEL_PREFIX = "IntelliJ Plugin"
         private const val API_KEY_PREVIEW_LENGTH = 10
+        private const val CACHE_DURATION_MS = 60000L // 1 minute cache for API keys
     }
 
     private var isCreatingApiKey = false
+
+    // Cache for API keys to avoid redundant API calls during settings dialog initialization
+    private var cachedApiKeys: List<ApiKeyInfo>? = null
+    private var cacheTimestamp: Long = 0L
 
     fun addApiKey() {
         if (!settingsService.isConfigured()) {
@@ -128,60 +133,78 @@ class ApiKeyManager(
         }
     }
 
-    fun refreshApiKeys() {
+    fun refreshApiKeys(forceRefresh: Boolean = true) {
         PluginLogger.Settings.info("========================================")
-        PluginLogger.Settings.info("REFRESH BUTTON CLICKED - refreshApiKeys() called")
+        PluginLogger.Settings.info("REFRESH BUTTON CLICKED - refreshApiKeys() called (forceRefresh: $forceRefresh)")
         PluginLogger.Settings.info("========================================")
         println("========================================")
-        println("REFRESH BUTTON CLICKED - refreshApiKeys() called")
+        println("REFRESH BUTTON CLICKED - refreshApiKeys() called (forceRefresh: $forceRefresh)")
         println("========================================")
 
+        loadApiKeysInternal(forceRefresh)
+    }
+
+    private fun loadApiKeysInternal(forceRefresh: Boolean) {
         if (!settingsService.isConfigured()) {
-            PluginLogger.Settings.info("Not configured, clearing API keys table")
+            PluginLogger.Settings.debug("Not configured, clearing API keys table and cache")
             apiKeyTableModel.setApiKeys(emptyList())
+            clearCache()
             return
         }
 
+        // Check cache first (unless force refresh)
+        if (!forceRefresh) {
+            val now = System.currentTimeMillis()
+            val cacheAge = now - cacheTimestamp
+            val isCacheValid = cachedApiKeys != null && cacheAge < CACHE_DURATION_MS
+
+            if (isCacheValid) {
+                PluginLogger.Settings.debug("Using cached API keys (${cachedApiKeys?.size} keys, age: ${cacheAge}ms)")
+                apiKeyTableModel.setApiKeys(cachedApiKeys!!)
+                return
+            } else if (cachedApiKeys != null) {
+                PluginLogger.Settings.debug("Cache expired (age: ${cacheAge}ms > ${CACHE_DURATION_MS}ms), fetching fresh data")
+            }
+        } else {
+            PluginLogger.Settings.debug("Force refresh requested, bypassing cache")
+        }
+
+        // Fetch from API
         try {
             val response = openRouterService.getApiKeysList(settingsService.getProvisioningKey()).get()
             val apiKeys = response?.data
             if (apiKeys != null) {
                 PluginLogger.Settings.info("Loaded ${apiKeys.size} API keys from OpenRouter")
+
+                // Update cache
+                cachedApiKeys = apiKeys
+                cacheTimestamp = System.currentTimeMillis()
+                PluginLogger.Settings.debug("Updated API keys cache (${apiKeys.size} keys)")
+
                 apiKeyTableModel.setApiKeys(apiKeys)
                 ensureIntellijApiKeyExists(apiKeys)
             } else {
                 PluginLogger.Settings.warn("Failed to load API keys - received null response")
                 apiKeyTableModel.setApiKeys(emptyList())
+                clearCache()
             }
         } catch (e: Exception) {
             PluginLogger.Settings.error("Failed to refresh API keys: ${e.message}", e)
             apiKeyTableModel.setApiKeys(emptyList())
+            clearCache()
         }
     }
 
+    fun clearCache() {
+        PluginLogger.Settings.debug("Clearing API keys cache")
+        cachedApiKeys = null
+        cacheTimestamp = 0L
+    }
+
     fun loadApiKeysWithoutAutoCreate() {
-        PluginLogger.Settings.debug("Loading API keys without auto-creation")
-
-        if (!settingsService.isConfigured()) {
-            PluginLogger.Settings.debug("Not configured, clearing API keys table")
-            apiKeyTableModel.setApiKeys(emptyList())
-            return
-        }
-
-        try {
-            val response = openRouterService.getApiKeysList(settingsService.getProvisioningKey()).get()
-            val apiKeys = response?.data
-            if (apiKeys != null) {
-                PluginLogger.Settings.debug("Loaded ${apiKeys.size} API keys from OpenRouter (no auto-create)")
-                apiKeyTableModel.setApiKeys(apiKeys)
-            } else {
-                PluginLogger.Settings.warn("Failed to load API keys - received null response")
-                apiKeyTableModel.setApiKeys(emptyList())
-            }
-        } catch (e: Exception) {
-            PluginLogger.Settings.error("Failed to load API keys: ${e.message}", e)
-            apiKeyTableModel.setApiKeys(emptyList())
-        }
+        PluginLogger.Settings.debug("Loading API keys without auto-creation (will use cache if available)")
+        // Use cached data if available (don't force refresh)
+        loadApiKeysInternal(forceRefresh = false)
     }
 
     fun ensureIntellijApiKeyExists(currentApiKeys: List<ApiKeyInfo>) {

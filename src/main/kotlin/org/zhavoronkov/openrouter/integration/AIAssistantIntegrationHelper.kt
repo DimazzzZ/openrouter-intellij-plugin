@@ -5,6 +5,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
+import org.zhavoronkov.openrouter.proxy.OpenRouterProxyServer
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.PluginLogger
@@ -107,16 +108,17 @@ object AIAssistantIntegrationHelper {
                 IntegrationStatus.PROXY_SERVER_NOT_RUNNING -> {
                     val proxyService = OpenRouterProxyService.getInstance()
                     val serverStatus = proxyService.getServerStatus()
-                    
+                    val defaultUrl = OpenRouterProxyServer.buildProxyUrl(8080)
+
                     """
                     OpenRouter is configured but the proxy server is not running.
-                    
+
                     Current status: ${if (serverStatus.isRunning) "Running on port ${serverStatus.port}" else "Stopped"}
-                    
+
                     To complete the integration:
                     1. Start the proxy server (click "Start Proxy Server" below)
-                    2. Configure AI Assistant with the proxy URL: ${serverStatus.url ?: "http://localhost:8080"}
-                    
+                    2. Configure AI Assistant with the proxy URL: ${serverStatus.url ?: defaultUrl}
+
                     Would you like to start the proxy server now?
                     """.trimIndent()
                 }

@@ -34,6 +34,7 @@ class OpenRouterProxyServer {
         private const val MAX_PORT = 8090
         private const val LOCALHOST = "127.0.0.1"
         private const val RESTART_DELAY_MS = 1000L
+        private const val API_BASE_PATH = "/v1/"
 
         // Singleton instance
         @Volatile
@@ -43,6 +44,13 @@ class OpenRouterProxyServer {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: OpenRouterProxyServer().also { INSTANCE = it }
             }
+        }
+
+        /**
+         * Constructs the full proxy URL with /v1/ path
+         */
+        fun buildProxyUrl(port: Int): String {
+            return "http://$LOCALHOST:$port$API_BASE_PATH"
         }
     }
 
@@ -80,8 +88,8 @@ class OpenRouterProxyServer {
                 currentPort = port
                 isRunning.set(true)
 
-                PluginLogger.Service.info("OpenRouter proxy server started on http://$LOCALHOST:$port")
-                PluginLogger.Service.info("AI Assistant can connect to: http://$LOCALHOST:$port")
+                PluginLogger.Service.info("OpenRouter proxy server started on http://$LOCALHOST:$port/v1/")
+                PluginLogger.Service.info("AI Assistant can connect to: http://$LOCALHOST:$port/v1/")
 
                 true
             } catch (e: java.net.BindException) {
@@ -158,7 +166,7 @@ class OpenRouterProxyServer {
         return ProxyServerStatus(
             isRunning = isRunning.get(),
             port = if (isRunning.get()) currentPort else null,
-            url = if (isRunning.get()) "http://$LOCALHOST:$currentPort" else null,
+            url = if (isRunning.get()) buildProxyUrl(currentPort) else null,
             isConfigured = settingsService.isConfigured()
         )
     }

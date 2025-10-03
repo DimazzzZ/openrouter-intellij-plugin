@@ -3,6 +3,7 @@ package org.zhavoronkov.openrouter.settings
 import com.intellij.icons.AllIcons
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.AnActionButton
 import com.intellij.ui.ToolbarDecorator
@@ -232,7 +233,7 @@ class OpenRouterSettingsPanel {
                 }.layout(RowLayout.PARENT_GRID)
 
                 row {
-                    comment("Copy the URL above and paste it as the Base URL in AI Assistant settings: Tools > AI Assistant > Models > Add Model > Custom OpenAI-compatible")
+                    comment("Copy the URL above and paste it as the Base URL in AI Assistant settings: Tools > AI Assistant > Models > Add Model > Custom OpenAI-compatible. This proxy service can also be used with any other 3rd-party service to which you can add OpenAI-compatible server URL!")
                 }
             }
         }
@@ -299,27 +300,79 @@ class OpenRouterSettingsPanel {
     }
 
     private fun refreshApiKeysWithValidation() {
-        apiKeyManager.refreshApiKeys()
+        // User clicked "Refresh" button - force refresh to bypass cache
+        apiKeyManager.refreshApiKeys(forceRefresh = true)
     }
 
-    fun refreshApiKeys() {
-        apiKeyManager.refreshApiKeys()
+    fun refreshApiKeys(forceRefresh: Boolean = true) {
+        // Called from OpenRouterConfigurable - allow specifying forceRefresh
+        apiKeyManager.refreshApiKeys(forceRefresh)
     }
 
     private fun startProxyServer() {
-        proxyService.startServer()
-        updateProxyStatus()
+        if (!settingsService.isConfigured()) {
+            Messages.showErrorDialog(
+                "Please configure your Provisioning Key first.",
+                "Configuration Required"
+            )
+            return
+        }
+
+        startServerButton.isEnabled = false
+        startServerButton.text = "Starting..."
+
+        proxyService.startServer().thenAccept { success ->
+            ApplicationManager.getApplication().invokeLater({
+                if (success) {
+                    PluginLogger.Settings.info("Proxy server started successfully")
+                } else {
+                    PluginLogger.Settings.error("Failed to start proxy server")
+                    Messages.showErrorDialog(
+                        "Failed to start proxy server. Check logs for details.",
+                        "Proxy Start Failed"
+                    )
+                }
+                updateProxyStatus()
+            }, com.intellij.openapi.application.ModalityState.any())
+        }.exceptionally { throwable ->
+            ApplicationManager.getApplication().invokeLater({
+                PluginLogger.Settings.error("Exception starting proxy server: ${throwable.message}", throwable)
+                Messages.showErrorDialog(
+                    "Failed to start proxy server: ${throwable.message}",
+                    "Proxy Start Failed"
+                )
+                updateProxyStatus()
+            }, com.intellij.openapi.application.ModalityState.any())
+            null
+        }
     }
 
     private fun stopProxyServer() {
-        proxyService.stopServer()
-        updateProxyStatus()
+        stopServerButton.isEnabled = false
+        stopServerButton.text = "Stopping..."
+
+        proxyService.stopServer().thenAccept { success ->
+            ApplicationManager.getApplication().invokeLater({
+                if (success) {
+                    PluginLogger.Settings.info("Proxy server stopped successfully")
+                } else {
+                    PluginLogger.Settings.warn("Failed to stop proxy server")
+                }
+                updateProxyStatus()
+            }, com.intellij.openapi.application.ModalityState.any())
+        }.exceptionally { throwable ->
+            ApplicationManager.getApplication().invokeLater({
+                PluginLogger.Settings.error("Exception stopping proxy server: ${throwable.message}", throwable)
+                updateProxyStatus()
+            }, com.intellij.openapi.application.ModalityState.any())
+            null
+        }
     }
 
     private fun copyProxyUrl() {
         val status = proxyService.getServerStatus()
-        val url = if (status.isRunning) {
-            status.url ?: "http://localhost:${status.port}"
+        val url = if (status.isRunning && status.url != null) {
+            status.url
         } else {
             "Server not running"
         }
@@ -332,16 +385,31 @@ class OpenRouterSettingsPanel {
 
     private fun updateProxyStatus() {
         val status = proxyService.getServerStatus()
+        val isConfigured = settingsService.isConfigured()
 
-        statusLabel.text = if (status.isRunning) {
-            "Status: Running on port ${status.port}"
+        // Update status label with icon
+        if (status.isRunning && status.url != null) {
+            statusLabel.icon = AllIcons.General.InspectionsOK
+            statusLabel.text = "Running - ${status.url}"
+            statusLabel.iconTextGap = 5
         } else {
-            "Status: Stopped"
+            statusLabel.icon = AllIcons.General.BalloonInformation
+            statusLabel.text = "Stopped"
+            statusLabel.iconTextGap = 5
         }
 
-        startServerButton.isEnabled = !status.isRunning
+        // Update button states
+        startServerButton.isEnabled = !status.isRunning && isConfigured
         stopServerButton.isEnabled = status.isRunning
         copyUrlButton.isEnabled = status.isRunning
+
+        // Update button text
+        if (!isConfigured) {
+            startServerButton.text = "Start Proxy Server (Configure First)"
+        } else {
+            startServerButton.text = "Start Proxy Server"
+        }
+        stopServerButton.text = "Stop Proxy Server"
 
         // Force UI update
         statusLabel.repaint()

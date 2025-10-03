@@ -76,6 +76,10 @@ class FavoriteModelsSettingsPanel : Disposable {
     // Modified state tracking
     private var initialFavorites: List<String> = emptyList()
 
+    // Status labels (need to be updated dynamically)
+    private var availableStatusLabel: javax.swing.JLabel? = null
+    private var favoritesStatusLabel: javax.swing.JLabel? = null
+
     init {
         checkProvisioningKey()
         setupTables()
@@ -175,9 +179,10 @@ class FavoriteModelsSettingsPanel : Disposable {
             }.resizableRow().topGap(TopGap.SMALL)
 
             row {
-                comment(getAvailableModelsStatusText())
+                label(getAvailableModelsStatusText())
                     .applyToComponent {
                         name = "availableStatusLabel"
+                        availableStatusLabel = this
                     }
             }.topGap(TopGap.SMALL)
         }
@@ -242,8 +247,8 @@ class FavoriteModelsSettingsPanel : Disposable {
 
             row {
                 val decorator = ToolbarDecorator.createDecorator(favoriteTable)
-                    .setAddAction { addSelectedToFavorites() }
-                    .setRemoveAction { removeSelectedFromFavorites() }
+                    .disableAddAction()
+                    .disableRemoveAction()
                     .setMoveUpAction { moveFavoriteUp() }
                     .setMoveDownAction { moveFavoriteDown() }
                     .setPreferredSize(Dimension(300, 250))
@@ -254,9 +259,10 @@ class FavoriteModelsSettingsPanel : Disposable {
             }.resizableRow().topGap(TopGap.SMALL)
 
             row {
-                comment(getFavoritesStatusText())
+                label(getFavoritesStatusText())
                     .applyToComponent {
                         name = "favoritesStatusLabel"
+                        favoritesStatusLabel = this
                     }
             }.topGap(TopGap.SMALL)
         }
@@ -489,6 +495,9 @@ class FavoriteModelsSettingsPanel : Disposable {
 
         PluginLogger.Settings.debug("Filtered models: ${availableToAdd.size} available (from ${allAvailableModels.size} total)")
         availableTableModel.items = availableToAdd
+
+        // Update status label
+        updateStatusLabels()
     }
 
     /**
@@ -501,6 +510,9 @@ class FavoriteModelsSettingsPanel : Disposable {
                 ?: OpenRouterModelInfo(id = id, name = id, created = 0L) // Unavailable model
         }
         favoriteTableModel.items = favoriteModels
+
+        // Update status label
+        updateStatusLabels()
     }
 
     /**
@@ -512,6 +524,9 @@ class FavoriteModelsSettingsPanel : Disposable {
             availableModels.find { it.id == favorite.id } ?: favorite
         }
         favoriteTableModel.items = updatedFavorites
+
+        // Update status label
+        updateStatusLabels()
     }
 
     /**
@@ -636,6 +651,9 @@ class FavoriteModelsSettingsPanel : Disposable {
     private fun showErrorState() {
         // Keep previous data if available, just show error message
         PluginLogger.Settings.warn("Error state: $loadError")
+
+        // Update status label to show error
+        updateStatusLabels()
     }
 
     /**
@@ -661,6 +679,14 @@ class FavoriteModelsSettingsPanel : Disposable {
             favoriteTableModel.rowCount == 0 -> "No favorites yet. Select models on the left and click 'Add'"
             else -> "${favoriteTableModel.rowCount} favorite models"
         }
+    }
+
+    /**
+     * Update status labels with current state
+     */
+    private fun updateStatusLabels() {
+        availableStatusLabel?.text = getAvailableModelsStatusText()
+        favoritesStatusLabel?.text = getFavoritesStatusText()
     }
 
     /**
