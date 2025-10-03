@@ -1,0 +1,241 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.2.0)'
+        required: true
+        type: string
+      publish_to_marketplace:
+        description: 'Publish to JetBrains Marketplace'
+        required: true
+        type: boolean
+        default: true
+
+jobs:
+  validate-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.extract-version.outputs.version }}
+      is_prerelease: ${{ steps.extract-version.outputs.is_prerelease }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Extract version
+      id: extract-version
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          VERSION="${{ github.event.inputs.version }}"
+        else
+          VERSION="${{ github.ref_name }}"
+          VERSION=${VERSION#v}  # Remove 'v' prefix if present
+        fi
+        
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        
+        # Check if this is a prerelease (contains alpha, beta, rc)
+        if [[ $VERSION =~ (alpha|beta|rc) ]]; then
+          echo "is_prerelease=true" >> $GITHUB_OUTPUT
+        else
+          echo "is_prerelease=false" >> $GITHUB_OUTPUT
+        fi
+        
+        echo "Release version: $VERSION"
+        echo "Is prerelease: $(echo $VERSION | grep -E '(alpha|beta|rc)' && echo 'true' || echo 'false')"
+
+  build-and-test:
+    needs: validate-version
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Java JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+    
+    - name: Setup Gradle
+      uses: gradle/gradle-build-action@v2
+      with:
+        gradle-version: '8.2.1'
+    
+    - name: Update version in gradle.properties
+      run: |
+        ./gradlew updateVersion -PnewVersion=${{ needs.validate-version.outputs.version }}
+    
+    - name: Build plugin
+      run: ./gradlew buildPlugin
+    
+    - name: Run tests
+      run: ./gradlew test
+    
+    - name: Run Detekt
+      run: ./gradlew detekt
+    
+    - name: Run Plugin Verifier
+      run: ./gradlew runPluginVerifier
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: plugin-artifact
+        path: build/distributions/*.zip
+        retention-days: 30
+
+  create-release:
+    needs: [validate-version, build-and-test]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch full history for changelog generation
+    
+    - name: Setup Java JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+    
+    - name: Setup Gradle
+      uses: gradle/gradle-build-action@v2
+      with:
+        gradle-version: '8.2.1'
+    
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: plugin-artifact
+        path: build/distributions/
+    
+    - name: Generate changelog
+      id: changelog
+      run: |
+        # Extract changes since last tag
+        LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        if [ -z "$LAST_TAG" ]; then
+          CHANGELOG="Initial release"
+        else
+          CHANGELOG=$(git log --pretty=format:"- %s" $LAST_TAG..HEAD | head -20)
+        fi
+        
+        # Save changelog to file for GitHub release
+        echo "## What's Changed" > changelog.md
+        echo "" >> changelog.md
+        if [ "$CHANGELOG" = "Initial release" ]; then
+          echo "Initial release of the OpenRouter IntelliJ Plugin" >> changelog.md
+        else
+          echo "$CHANGELOG" >> changelog.md
+        fi
+        echo "" >> changelog.md
+        echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${LAST_TAG}...v${{ needs.validate-version.outputs.version }}" >> changelog.md
+        
+        # Set output for use in release creation
+        echo "changelog<<EOF" >> $GITHUB_OUTPUT
+        cat changelog.md >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ needs.validate-version.outputs.version }}
+        name: Release ${{ needs.validate-version.outputs.version }}
+        body: ${{ steps.changelog.outputs.changelog }}
+        prerelease: ${{ needs.validate-version.outputs.is_prerelease }}
+        files: build/distributions/*.zip
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-to-marketplace:
+    needs: [validate-version, build-and-test, create-release]
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_to_marketplace == 'true')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Java JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+    
+    - name: Setup Gradle
+      uses: gradle/gradle-build-action@v2
+      with:
+        gradle-version: '8.2.1'
+    
+    - name: Update version in gradle.properties
+      run: |
+        ./gradlew updateVersion -PnewVersion=${{ needs.validate-version.outputs.version }}
+    
+    - name: Sign and publish plugin to JetBrains Marketplace
+      run: ./gradlew signPlugin publishPlugin
+      env:
+        CERTIFICATE_CHAIN: ${{ secrets.CERTIFICATE_CHAIN }}
+        PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+        PRIVATE_KEY_PASSWORD: ${{ secrets.PRIVATE_KEY_PASSWORD }}
+        PUBLISH_TOKEN: ${{ secrets.PUBLISH_TOKEN }}
+    
+    - name: Comment on release with marketplace link
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const release = await github.rest.repos.getReleaseByTag({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            tag: 'v${{ needs.validate-version.outputs.version }}'
+          });
+          
+          await github.rest.issues.createComment({
+            issue_number: release.data.id,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: '🎉 **Plugin Published!**\n\nThe plugin has been successfully published to the JetBrains Marketplace.\n\n📦 [View on Marketplace](https://plugins.jetbrains.com/plugin/org.zhavoronkov.openrouter)'
+          });
+
+  update-documentation:
+    needs: [validate-version, publish-to-marketplace]
+    runs-on: ubuntu-latest
+    if: always() && needs.publish-to-marketplace.result == 'success'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Update README badges
+      run: |
+        # Update version badge in README.md
+        sed -i "s/version-[0-9.]*/version-${{ needs.validate-version.outputs.version }}/g" README.md
+        
+        # Update changelog reference
+        echo "## [${{ needs.validate-version.outputs.version }}] - $(date +%Y-%m-%d)" >> TEMP_CHANGELOG.md
+        echo "" >> TEMP_CHANGELOG.md
+        cat changelog.md >> TEMP_CHANGELOG.md
+        echo "" >> TEMP_CHANGELOG.md
+        cat CHANGELOG.md >> TEMP_CHANGELOG.md
+        mv TEMP_CHANGELOG.md CHANGELOG.md
+    
+    - name: Commit documentation updates
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add README.md CHANGELOG.md
+        git commit -m "docs: update documentation for release ${{ needs.validate-version.outputs.version }}" || exit 0
+        git push

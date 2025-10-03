@@ -1,0 +1,205 @@
+name: Workflow Validation
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/**'
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+
+jobs:
+  validate-workflows:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Validate workflow syntax
+      run: |
+        echo "🔍 Validating GitHub Actions workflow files..."
+        
+        # Check for basic YAML syntax errors
+        for workflow in .github/workflows/*.yml; do
+          echo "Checking $workflow..."
+          # Basic validation - if this step passes, YAML syntax is correct
+          python3 -c "
+        import yaml
+        import sys
+        
+        try:
+            with open('$workflow', 'r') as f:
+                yaml.safe_load(f)
+            print('✅ $workflow is valid')
+        except yaml.YAMLError as e:
+            print('❌ $workflow has YAML syntax errors:')
+            print(e)
+            sys.exit(1)
+        except Exception as e:
+            print('❌ Error reading $workflow:')
+            print(e)
+            sys.exit(1)
+        "
+        done
+    
+    - name: Check required secrets documentation
+      run: |
+        echo "📋 Required GitHub Secrets for this project:"
+        echo ""
+        echo "For Release Workflow:"
+        echo "  - CERTIFICATE_CHAIN: Plugin signing certificate chain"
+        echo "  - PRIVATE_KEY: Plugin signing private key"
+        echo "  - PRIVATE_KEY_PASSWORD: Password for the private key"
+        echo "  - PUBLISH_TOKEN: JetBrains Marketplace publish token"
+        echo ""
+        echo "Optional Secrets:"
+        echo "  - OPENROUTER_TEST_API_KEY: For integration tests (recommended)"
+        echo ""
+        echo "ℹ️  Add these secrets in GitHub repository settings under:"
+        echo "   Settings → Secrets and variables → Actions"
+    
+    - name: Validate Dependabot configuration
+      run: |
+        echo "🔍 Validating Dependabot configuration..."
+        
+        python3 -c "
+        import yaml
+        import sys
+        
+        try:
+            with open('.github/dependabot.yml', 'r') as f:
+                config = yaml.safe_load(f)
+            
+            # Basic validation
+            if 'version' not in config or config['version'] != 2:
+                print('❌ Dependabot config missing version 2')
+                sys.exit(1)
+            
+            if 'updates' not in config:
+                print('❌ Dependabot config missing updates section')
+                sys.exit(1)
+            
+            ecosystems = [update.get('package-ecosystem') for update in config['updates']]
+            if 'gradle' not in ecosystems:
+                print('❌ Gradle ecosystem not configured in Dependabot')
+                sys.exit(1)
+            
+            if 'github-actions' not in ecosystems:
+                print('❌ GitHub Actions ecosystem not configured in Dependabot')
+                sys.exit(1)
+            
+            print('✅ Dependabot configuration is valid')
+            
+        except Exception as e:
+            print('❌ Error validating Dependabot config:')
+            print(e)
+            sys.exit(1)
+        "
+    
+    - name: Generate workflow documentation
+      run: |
+        cat > GITHUB_ACTIONS_SETUP.md << 'EOF'
+        # GitHub Actions Setup Guide
+        
+        This repository includes a comprehensive GitHub Actions CI/CD setup optimized for the free tier.
+        
+        ## Workflows Overview
+        
+        ### 1. CI (`ci.yml`)
+        - **Triggers**: Push to main/develop, PRs to main/develop
+        - **Features**: Build verification, unit tests, Detekt analysis, SARIF reporting
+        - **Free tier usage**: ~5-10 minutes per run
+        
+        ### 2. Extended Tests (`extended-tests.yml`)
+        - **Triggers**: Push to main, ready PRs, weekly schedule
+        - **Features**: Integration tests, plugin verification across IntelliJ versions, performance monitoring
+        - **Free tier usage**: ~15-25 minutes per run (skips draft PRs to save minutes)
+        
+        ### 3. Release (`release.yml`)
+        - **Triggers**: Git tags starting with 'v', manual workflow dispatch
+        - **Features**: Automated building, signing, marketplace publishing, GitHub releases
+        - **Free tier usage**: ~10-15 minutes per release
+        
+        ### 4. PR Automation (`pr-automation.yml`)
+        - **Triggers**: PR events
+        - **Features**: Auto-labeling, conditional CI, validation comments, conventional commit checks
+        - **Free tier usage**: ~2-5 minutes per PR
+        
+        ### 5. Workflow Validation (`workflow-validation.yml`)
+        - **Triggers**: Workflow file changes, manual dispatch
+        - **Features**: Syntax validation, configuration checks, documentation
+        - **Free tier usage**: ~1-2 minutes per run
+        
+        ## Required Secrets
+        
+        Add these in GitHub repository Settings → Secrets and variables → Actions:
+        
+        ### For Plugin Publishing
+        - `CERTIFICATE_CHAIN`: Plugin signing certificate chain (PEM format)
+        - `PRIVATE_KEY`: Plugin signing private key (PEM format)  
+        - `PRIVATE_KEY_PASSWORD`: Password for the private key
+        - `PUBLISH_TOKEN`: JetBrains Marketplace publish token
+        
+        ### Optional (Recommended)
+        - `OPENROUTER_TEST_API_KEY`: For integration tests
+        
+        ## Free Tier Optimization
+        
+        The workflows are optimized for GitHub's free tier:
+        - **Public repo**: Unlimited minutes
+        - **Private repo**: Designed to stay within 2,000 minutes/month
+        - **Caching**: Aggressive dependency and build caching
+        - **Conditional execution**: Skip expensive jobs for draft PRs
+        - **Linux runners only**: Avoid 2x/10x minute multipliers
+        
+        ## Usage Tips
+        
+        1. **Draft PRs**: Use draft PRs to skip expensive CI while developing
+        2. **Labels**: Apply 'performance' label to trigger extended performance tests
+        3. **Integration tests**: Auto-triggered for core component changes
+        4. **Releases**: Create tags like `v1.2.3` or use manual workflow dispatch
+        5. **Dependencies**: Dependabot creates weekly update PRs with proper grouping
+        
+        ## Monitoring
+        
+        - Check Actions tab for workflow runs and usage
+        - Monitor plugin size in performance test comments
+        - Review Detekt reports in Security tab (SARIF uploads)
+        - Weekly dependency updates from Dependabot
+        
+        EOF
+        
+        echo "✅ Generated GITHUB_ACTIONS_SETUP.md with comprehensive documentation"
+    
+    - name: Summary
+      run: |
+        echo ""
+        echo "🎉 GitHub Actions Setup Complete!"
+        echo ""
+        echo "✅ Created workflows:"
+        echo "   - CI (build, test, code quality)"
+        echo "   - Extended Tests (integration, plugin verification)"
+        echo "   - Release (automated publishing)"
+        echo "   - PR Automation (labeling, conditional CI)"
+        echo "   - Workflow Validation"
+        echo ""
+        echo "✅ Configured:"
+        echo "   - Dependabot for dependency updates"
+        echo "   - Comprehensive caching strategy"
+        echo "   - Free tier optimization"
+        echo "   - Security reporting (SARIF)"
+        echo ""
+        echo "📚 Next steps:"
+        echo "   1. Add required secrets in repository settings"
+        echo "   2. Create first PR to test the workflows"
+        echo "   3. Review generated GITHUB_ACTIONS_SETUP.md"
+        echo ""
+        echo "💡 All workflows are designed for GitHub's free tier!"
+
+    - name: Upload documentation
+      uses: actions/upload-artifact@v3
+      with:
+        name: github-actions-documentation
+        path: GITHUB_ACTIONS_SETUP.md

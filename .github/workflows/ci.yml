@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Java JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+    
+    - name: Setup Gradle
+      uses: gradle/gradle-build-action@v2
+      with:
+        gradle-version: '8.2.1'
+    
+    - name: Cache IntelliJ dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.gradle/caches/modules-2/files-2.1/com.jetbrains.intellij.idea
+          ~/.gradle/caches/modules-2/files-2.1/com.jetbrains
+        key: ${{ runner.os }}-intellij-${{ hashFiles('build.gradle.kts') }}
+        restore-keys: |
+          ${{ runner.os }}-intellij-
+    
+    - name: Build plugin
+      run: ./gradlew build -x test -x detekt
+    
+    - name: Run unit tests
+      run: ./gradlew test
+      
+    - name: Run Detekt analysis
+      run: ./gradlew detekt
+      continue-on-error: true  # Don't fail CI if Detekt finds issues
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results
+        path: build/reports/tests/test/
+    
+    - name: Upload Detekt SARIF
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: build/reports/detekt/detekt.sarif
+    
+    - name: Upload Detekt reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: detekt-reports
+        path: build/reports/detekt/
+    
+    - name: Comment PR with Detekt results
+      uses: actions/github-script@v6
+      if: github.event_name == 'pull_request' && always()
+      with:
+        script: |
+          const fs = require('fs');
+          try {
+            const detektReport = fs.readFileSync('build/reports/detekt/detekt.txt', 'utf8');
+            if (detektReport.includes('Build failed with 1 exception')) {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: '⚠️ **Detekt found code quality issues**\n\nPlease check the Detekt reports in the CI artifacts for details.'
+              });
+            }
+          } catch (error) {
+            console.log('No Detekt report found or error reading it:', error.message);
+          }
