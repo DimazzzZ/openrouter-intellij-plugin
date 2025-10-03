@@ -294,55 +294,75 @@ class ApiKeyManager(
         PluginLogger.Settings.info("Starting silent regeneration of IntelliJ API key")
 
         try {
-            val currentApiKeys = apiKeyTableModel.getApiKeys()
-            val existingIntellijApiKey = currentApiKeys.find { it.name == INTELLIJ_API_KEY_NAME }
-
-            // Delete existing key if found
-            if (existingIntellijApiKey != null) {
-                try {
-                    PluginLogger.Settings.debug("Deleting existing remote IntelliJ API key")
-                    val deleteResponse = openRouterService.deleteApiKey(existingIntellijApiKey.hash).get()
-                    if (deleteResponse?.deleted != true) {
-                        PluginLogger.Settings.error("Failed to delete existing IntelliJ API key during silent regeneration")
-                        return
-                    }
-                    PluginLogger.Settings.debug("Successfully deleted existing remote IntelliJ API key")
-                } catch (e: Exception) {
-                    PluginLogger.Settings.error("Exception deleting existing IntelliJ API key during silent regeneration: ${e.message}", e)
-                    return
-                }
-            }
-
-            // Create new key
-            try {
-                PluginLogger.Settings.debug("Creating new IntelliJ API key")
-                val apiKey = openRouterService.createApiKey(INTELLIJ_API_KEY_NAME).get()
-                if (apiKey != null) {
-                    PluginLogger.Settings.info("Successfully created new IntelliJ API key during silent regeneration: ${apiKey.key.take(20)}...")
-                    PluginLogger.Settings.info("About to save new API key to settings (silent regeneration)...")
-
-                    settingsService.setApiKey(apiKey.key)
-
-                    // Verify the key was saved
-                    val retrievedKey = settingsService.getApiKey()
-                    PluginLogger.Settings.info("Verified saved API key length: ${retrievedKey.length}, matches=${retrievedKey == apiKey.key}")
-
-                    if (retrievedKey != apiKey.key) {
-                        PluginLogger.Settings.error("CRITICAL: API key was not saved correctly during silent regeneration!")
-                        PluginLogger.Settings.error("Expected: ${apiKey.key.take(20)}...")
-                        PluginLogger.Settings.error("Got: ${retrievedKey.take(20)}...")
-                    }
-
-                    refreshStatusBarWidget()
-                    refreshApiKeys()
-                } else {
-                    PluginLogger.Settings.error("Failed to create new IntelliJ API key during silent regeneration")
-                }
-            } catch (e: Exception) {
-                PluginLogger.Settings.error("Exception creating new IntelliJ API key during silent regeneration: ${e.message}", e)
-            }
+            deleteExistingIntellijApiKeySilently()
+            createNewIntellijApiKeySilently()
         } finally {
             isCreatingApiKey = false
+        }
+    }
+
+    /**
+     * Delete existing IntelliJ API key silently if it exists
+     */
+    private fun deleteExistingIntellijApiKeySilently() {
+        val currentApiKeys = apiKeyTableModel.getApiKeys()
+        val existingIntellijApiKey = currentApiKeys.find { it.name == INTELLIJ_API_KEY_NAME }
+
+        if (existingIntellijApiKey == null) {
+            return
+        }
+
+        try {
+            PluginLogger.Settings.debug("Deleting existing remote IntelliJ API key")
+            val deleteResponse = openRouterService.deleteApiKey(existingIntellijApiKey.hash).get()
+            if (deleteResponse?.deleted != true) {
+                PluginLogger.Settings.error("Failed to delete existing IntelliJ API key during silent regeneration")
+                return
+            }
+            PluginLogger.Settings.debug("Successfully deleted existing remote IntelliJ API key")
+        } catch (e: Exception) {
+            PluginLogger.Settings.error("Exception deleting existing IntelliJ API key during silent regeneration: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Create new IntelliJ API key silently
+     */
+    private fun createNewIntellijApiKeySilently() {
+        try {
+            PluginLogger.Settings.debug("Creating new IntelliJ API key")
+            val apiKey = openRouterService.createApiKey(INTELLIJ_API_KEY_NAME).get()
+
+            if (apiKey == null) {
+                PluginLogger.Settings.error("Failed to create new IntelliJ API key during silent regeneration")
+                return
+            }
+
+            saveAndVerifyApiKey(apiKey.key)
+            refreshStatusBarWidget()
+            refreshApiKeys()
+        } catch (e: Exception) {
+            PluginLogger.Settings.error("Exception creating new IntelliJ API key during silent regeneration: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Save API key and verify it was saved correctly
+     */
+    private fun saveAndVerifyApiKey(key: String) {
+        PluginLogger.Settings.info("Successfully created new IntelliJ API key during silent regeneration: ${key.take(20)}...")
+        PluginLogger.Settings.info("About to save new API key to settings (silent regeneration)...")
+
+        settingsService.setApiKey(key)
+
+        // Verify the key was saved
+        val retrievedKey = settingsService.getApiKey()
+        PluginLogger.Settings.info("Verified saved API key length: ${retrievedKey.length}, matches=${retrievedKey == key}")
+
+        if (retrievedKey != key) {
+            PluginLogger.Settings.error("CRITICAL: API key was not saved correctly during silent regeneration!")
+            PluginLogger.Settings.error("Expected: ${key.take(20)}...")
+            PluginLogger.Settings.error("Got: ${retrievedKey.take(20)}...")
         }
     }
 

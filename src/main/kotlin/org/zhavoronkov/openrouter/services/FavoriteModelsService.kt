@@ -119,14 +119,20 @@ class FavoriteModelsService {
      */
     fun reorderFavorites(fromIndex: Int, toIndex: Int) {
         val currentFavorites = settingsService.getFavoriteModels().toMutableList()
-        if (fromIndex < 0 || fromIndex >= currentFavorites.size ||
-            toIndex < 0 || toIndex >= currentFavorites.size) {
+        if (!areIndicesValid(fromIndex, toIndex, currentFavorites.size)) {
             return
         }
 
         val model = currentFavorites.removeAt(fromIndex)
         currentFavorites.add(toIndex, model)
         settingsService.setFavoriteModels(currentFavorites)
+    }
+
+    /**
+     * Validates that the given indices are within valid bounds
+     */
+    private fun areIndicesValid(fromIndex: Int, toIndex: Int, listSize: Int): Boolean {
+        return fromIndex in 0 until listSize && toIndex in 0 until listSize
     }
 
     /**

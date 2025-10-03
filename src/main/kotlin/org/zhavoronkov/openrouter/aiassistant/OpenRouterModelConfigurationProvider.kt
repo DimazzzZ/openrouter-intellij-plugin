@@ -121,36 +121,50 @@ class OpenRouterModelConfigurationProvider {
      */
     fun validateModelConfiguration(modelId: String): ValidationResult {
         return try {
-            if (!isConfigured()) {
-                ValidationResult(
-                    isValid = false,
-                    message = "OpenRouter not configured. ${getConfigurationInstructions()}"
-                )
-            } else {
-                val model = modelProvider.getModel(modelId)
-                if (model != null) {
-                    // Test the connection
-                    val testResult = modelProvider.testConnection()
-                    if (testResult) {
-                        ValidationResult(isValid = true, message = "Model configuration is valid")
-                    } else {
-                        ValidationResult(
-                            isValid = false, 
-                            message = "Connection test failed. Please check your API key."
-                        )
-                    }
-                } else {
-                    ValidationResult(
-                        isValid = false,
-                        message = "Model '$modelId' is not available through OpenRouter"
-                    )
-                }
-            }
+            validateConfiguration(modelId)
         } catch (e: Exception) {
             PluginLogger.Service.error("Error validating model configuration", e)
             ValidationResult(
                 isValid = false,
                 message = "Validation error: ${e.message}"
+            )
+        }
+    }
+
+    /**
+     * Perform the actual validation logic
+     */
+    private fun validateConfiguration(modelId: String): ValidationResult {
+        if (!isConfigured()) {
+            return ValidationResult(
+                isValid = false,
+                message = "OpenRouter not configured. ${getConfigurationInstructions()}"
+            )
+        }
+
+        val model = modelProvider.getModel(modelId)
+        if (model == null) {
+            return ValidationResult(
+                isValid = false,
+                message = "Model '$modelId' is not available through OpenRouter"
+            )
+        }
+
+        return validateConnection()
+    }
+
+    /**
+     * Validate the connection to OpenRouter
+     */
+    private fun validateConnection(): ValidationResult {
+        val testResult = modelProvider.testConnection()
+
+        return if (testResult) {
+            ValidationResult(isValid = true, message = "Model configuration is valid")
+        } else {
+            ValidationResult(
+                isValid = false,
+                message = "Connection test failed. Please check your API key."
             )
         }
     }
