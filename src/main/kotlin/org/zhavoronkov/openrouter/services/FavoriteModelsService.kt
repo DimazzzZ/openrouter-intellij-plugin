@@ -12,7 +12,10 @@ import java.util.concurrent.TimeUnit
  * Service for managing favorite models with caching and API interaction
  */
 @Service
-class FavoriteModelsService {
+class FavoriteModelsService(
+    private val settingsService: OpenRouterSettingsService? = null,
+    private val openRouterService: OpenRouterService? = null
+) {
 
     companion object {
         private const val CACHE_DURATION_MS = 300000L // 5 minutes
@@ -25,8 +28,12 @@ class FavoriteModelsService {
 
     private var cachedModels: List<OpenRouterModelInfo>? = null
     private var cacheTimestamp: Long = 0L
-    private val settingsService = OpenRouterSettingsService.getInstance()
-    private val openRouterService = OpenRouterService.getInstance()
+    private val settings: OpenRouterSettingsService by lazy {
+        settingsService ?: OpenRouterSettingsService.getInstance()
+    }
+    private val routerService: OpenRouterService by lazy {
+        openRouterService ?: OpenRouterService.getInstance()
+    }
 
     /**
      * Get all available models from OpenRouter API with caching
@@ -43,7 +50,7 @@ class FavoriteModelsService {
         }
 
         PluginLogger.Service.debug("Fetching models from API (forceRefresh: $forceRefresh)")
-        return openRouterService.getModels()
+        return routerService.getModels()
             .orTimeout(API_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .thenApply { response: OpenRouterModelsResponse? ->
                 if (response?.data != null) {
@@ -67,7 +74,7 @@ class FavoriteModelsService {
      * @return List of favorite model info objects
      */
     fun getFavoriteModels(): List<OpenRouterModelInfo> {
-        val favoriteIds = settingsService.getFavoriteModels()
+        val favoriteIds = settings.getFavoriteModels()
         return favoriteIds.map { modelId ->
             // Try to find full model info from cache, otherwise create minimal object
             cachedModels?.find { it.id == modelId } ?: createMinimalModelInfo(modelId)
@@ -80,7 +87,7 @@ class FavoriteModelsService {
      */
     fun setFavoriteModels(models: List<OpenRouterModelInfo>) {
         val modelIds = models.map { it.id }
-        settingsService.setFavoriteModels(modelIds)
+        settings.setFavoriteModels(modelIds)
     }
 
     /**
@@ -89,12 +96,12 @@ class FavoriteModelsService {
      * @return true if added, false if already exists
      */
     fun addFavoriteModel(model: OpenRouterModelInfo): Boolean {
-        val currentFavorites = settingsService.getFavoriteModels().toMutableList()
+        val currentFavorites = settings.getFavoriteModels().toMutableList()
         if (currentFavorites.contains(model.id)) {
             return false
         }
         currentFavorites.add(model.id)
-        settingsService.setFavoriteModels(currentFavorites)
+        settings.setFavoriteModels(currentFavorites)
         return true
     }
 
@@ -104,10 +111,10 @@ class FavoriteModelsService {
      * @return true if removed, false if not found
      */
     fun removeFavoriteModel(modelId: String): Boolean {
-        val currentFavorites = settingsService.getFavoriteModels().toMutableList()
+        val currentFavorites = settings.getFavoriteModels().toMutableList()
         val removed = currentFavorites.remove(modelId)
         if (removed) {
-            settingsService.setFavoriteModels(currentFavorites)
+            settings.setFavoriteModels(currentFavorites)
         }
         return removed
     }
@@ -118,14 +125,14 @@ class FavoriteModelsService {
      * @param toIndex Target index
      */
     fun reorderFavorites(fromIndex: Int, toIndex: Int) {
-        val currentFavorites = settingsService.getFavoriteModels().toMutableList()
+        val currentFavorites = settings.getFavoriteModels().toMutableList()
         if (!areIndicesValid(fromIndex, toIndex, currentFavorites.size)) {
             return
         }
 
         val model = currentFavorites.removeAt(fromIndex)
         currentFavorites.add(toIndex, model)
-        settingsService.setFavoriteModels(currentFavorites)
+        settings.setFavoriteModels(currentFavorites)
     }
 
     /**
@@ -141,14 +148,14 @@ class FavoriteModelsService {
      * @return true if model is favorited
      */
     fun isFavorite(modelId: String): Boolean {
-        return settingsService.isFavoriteModel(modelId)
+        return settings.isFavoriteModel(modelId)
     }
 
     /**
      * Clear all favorites
      */
     fun clearAllFavorites() {
-        settingsService.setFavoriteModels(emptyList())
+        settings.setFavoriteModels(emptyList())
     }
 
     /**

@@ -66,72 +66,92 @@ class OpenRouterSmartChatEndpointProvider {
      */
     fun getAvailableModels(project: Project?): List<ChatEndpointModel> {
         PluginLogger.Settings.debug("Getting available OpenRouter models for AI Assistant")
-        
+
         if (!settingsService.isConfigured()) {
             PluginLogger.Settings.debug("OpenRouter not configured, returning empty model list")
             return emptyList()
         }
-        
-        // Return a curated list of popular OpenRouter models
+
+        return getCuratedModelList()
+    }
+
+    /**
+     * Returns a curated list of popular OpenRouter models
+     */
+    private fun getCuratedModelList(): List<ChatEndpointModel> {
         return listOf(
-            ChatEndpointModel(
-                id = "openai/gpt-4o",
-                name = "GPT-4o",
-                description = "OpenAI's most advanced model",
-                provider = PROVIDER_NAME,
-                contextLength = 128000,
-                supportsStreaming = true
-            ),
-            ChatEndpointModel(
-                id = "openai/gpt-4o-mini",
-                name = "GPT-4o Mini",
-                description = "Fast and cost-effective GPT-4 model",
-                provider = PROVIDER_NAME,
-                contextLength = 128000,
-                supportsStreaming = true
-            ),
-            ChatEndpointModel(
-                id = "anthropic/claude-3-sonnet",
-                name = "Claude 3 Sonnet",
-                description = "Anthropic's balanced model",
-                provider = PROVIDER_NAME,
-                contextLength = 200000,
-                supportsStreaming = true
-            ),
-            ChatEndpointModel(
-                id = "anthropic/claude-3-haiku",
-                name = "Claude 3 Haiku",
-                description = "Fast and efficient Claude model",
-                provider = PROVIDER_NAME,
-                contextLength = 200000,
-                supportsStreaming = true
-            ),
-            ChatEndpointModel(
-                id = "google/gemini-pro",
-                name = "Gemini Pro",
-                description = "Google's advanced language model",
-                provider = PROVIDER_NAME,
-                contextLength = 30720,
-                supportsStreaming = true
-            ),
-            ChatEndpointModel(
-                id = "meta-llama/llama-3.1-8b-instruct",
-                name = "Llama 3.1 8B Instruct",
-                description = "Meta's open-source instruction model",
-                provider = PROVIDER_NAME,
-                contextLength = 131072,
-                supportsStreaming = true
-            ),
-            ChatEndpointModel(
-                id = "mistralai/mistral-7b-instruct",
-                name = "Mistral 7B Instruct",
-                description = "Mistral's instruction-following model",
-                provider = PROVIDER_NAME,
-                contextLength = 32768,
-                supportsStreaming = true
-            )
+            createGPT4oModel(),
+            createGPT4oMiniModel(),
+            createClaude3SonnetModel(),
+            createClaude3HaikuModel(),
+            createGeminiProModel(),
+            createLlama31Model(),
+            createMistral7BModel()
         )
     }
+
+    private fun createGPT4oModel() = ChatEndpointModel(
+        id = "openai/gpt-4o",
+        name = "GPT-4o",
+        description = "OpenAI's most advanced model",
+        provider = PROVIDER_NAME,
+        contextLength = 128000,
+        supportsStreaming = true
+    )
+
+    private fun createGPT4oMiniModel() = ChatEndpointModel(
+        id = "openai/gpt-4o-mini",
+        name = "GPT-4o Mini",
+        description = "Fast and cost-effective GPT-4 model",
+        provider = PROVIDER_NAME,
+        contextLength = 128000,
+        supportsStreaming = true
+    )
+
+    private fun createClaude3SonnetModel() = ChatEndpointModel(
+        id = "anthropic/claude-3-sonnet",
+        name = "Claude 3 Sonnet",
+        description = "Anthropic's balanced model",
+        provider = PROVIDER_NAME,
+        contextLength = 200000,
+        supportsStreaming = true
+    )
+
+    private fun createClaude3HaikuModel() = ChatEndpointModel(
+        id = "anthropic/claude-3-haiku",
+        name = "Claude 3 Haiku",
+        description = "Fast and efficient Claude model",
+        provider = PROVIDER_NAME,
+        contextLength = 200000,
+        supportsStreaming = true
+    )
+
+    private fun createGeminiProModel() = ChatEndpointModel(
+        id = "google/gemini-pro",
+        name = "Gemini Pro",
+        description = "Google's advanced language model",
+        provider = PROVIDER_NAME,
+        contextLength = 30720,
+        supportsStreaming = true
+    )
+
+    private fun createLlama31Model() = ChatEndpointModel(
+        id = "meta-llama/llama-3.1-8b-instruct",
+        name = "Llama 3.1 8B Instruct",
+        description = "Meta's open-source instruction model",
+        provider = PROVIDER_NAME,
+        contextLength = 131072,
+        supportsStreaming = true
+    )
+
+    private fun createMistral7BModel() = ChatEndpointModel(
+        id = "mistralai/mistral-7b-instruct",
+        name = "Mistral 7B Instruct",
+        description = "Mistral's instruction-following model",
+        provider = PROVIDER_NAME,
+        contextLength = 32768,
+        supportsStreaming = true
+    )
     
     /**
      * Gets the default model for this provider

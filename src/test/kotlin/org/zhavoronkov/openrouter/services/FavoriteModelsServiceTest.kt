@@ -5,24 +5,43 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.mockito.Mockito.*
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 
 /**
  * Tests for FavoriteModelsService
+ *
+ * Note: These tests use a direct instance of FavoriteModelsService with a mocked
+ * OpenRouterSettingsService to avoid IntelliJ Platform initialization requirements.
  */
 @DisplayName("Favorite Models Service Tests")
 class FavoriteModelsServiceTest {
 
     private lateinit var service: FavoriteModelsService
-    private lateinit var settingsService: OpenRouterSettingsService
+    private lateinit var mockSettingsService: OpenRouterSettingsService
+    private val favoriteModelsStorage = mutableListOf<String>()
 
     @BeforeEach
     fun setup() {
-        service = FavoriteModelsService.getInstance()
-        settingsService = OpenRouterSettingsService.getInstance()
-        
-        // Clear favorites before each test
-        settingsService.setFavoriteModels(emptyList())
+        // Create mock settings service
+        mockSettingsService = mock(OpenRouterSettingsService::class.java)
+
+        // Setup mock behavior to use in-memory storage
+        favoriteModelsStorage.clear()
+        `when`(mockSettingsService.getFavoriteModels()).thenAnswer { favoriteModelsStorage.toList() }
+        doAnswer { invocation ->
+            val models = invocation.getArgument<List<String>>(0)
+            favoriteModelsStorage.clear()
+            favoriteModelsStorage.addAll(models)
+            null
+        }.`when`(mockSettingsService).setFavoriteModels(anyList())
+        `when`(mockSettingsService.isFavoriteModel(anyString())).thenAnswer { invocation ->
+            val modelId = invocation.getArgument<String>(0)
+            favoriteModelsStorage.contains(modelId)
+        }
+
+        // Create service instance with mocked settings
+        service = FavoriteModelsService(mockSettingsService)
         service.clearCache()
     }
 
@@ -145,10 +164,10 @@ class FavoriteModelsServiceTest {
                 createTestModel("openai/gpt-4"),
                 createTestModel("anthropic/claude-3")
             )
-            
+
             service.setFavoriteModels(models)
-            
-            val savedIds = settingsService.getFavoriteModels()
+
+            val savedIds = mockSettingsService.getFavoriteModels()
             assertEquals(2, savedIds.size, "Should have 2 saved favorites")
             assertTrue(savedIds.contains("openai/gpt-4"), "Should contain gpt-4")
             assertTrue(savedIds.contains("anthropic/claude-3"), "Should contain claude-3")
@@ -156,10 +175,10 @@ class FavoriteModelsServiceTest {
 
         @Test
         fun `should load favorites from settings`() {
-            settingsService.setFavoriteModels(listOf("openai/gpt-4", "anthropic/claude-3"))
-            
+            mockSettingsService.setFavoriteModels(listOf("openai/gpt-4", "anthropic/claude-3"))
+
             val favorites = service.getFavoriteModels()
-            
+
             assertEquals(2, favorites.size, "Should load 2 favorites")
             assertEquals("openai/gpt-4", favorites[0].id, "First should be gpt-4")
             assertEquals("anthropic/claude-3", favorites[1].id, "Second should be claude-3")

@@ -22,7 +22,10 @@ import java.awt.Toolkit
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
 import java.awt.event.KeyEvent
-import javax.swing.*
+import javax.swing.Action
+import javax.swing.JButton
+import javax.swing.JComponent
+import javax.swing.JTable
 
 /**
  * Handles API key management operations for OpenRouter settings

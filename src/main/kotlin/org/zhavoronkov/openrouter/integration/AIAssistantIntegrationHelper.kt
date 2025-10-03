@@ -80,80 +80,14 @@ object AIAssistantIntegrationHelper {
     fun showSetupWizard(project: Project?) {
         ApplicationManager.getApplication().invokeLater {
             val status = getIntegrationStatus()
-            val message = when (status) {
-                IntegrationStatus.AI_ASSISTANT_NOT_AVAILABLE -> {
-                    """
-                    JetBrains AI Assistant plugin is not installed or enabled.
-                    
-                    To use OpenRouter with AI Assistant:
-                    1. Install the "AI Assistant" plugin from the JetBrains Marketplace
-                    2. Enable the plugin and restart your IDE
-                    3. Return to OpenRouter settings to complete the integration
-                    
-                    Would you like to open the plugin marketplace?
-                    """.trimIndent()
-                }
-                IntegrationStatus.OPENROUTER_NOT_CONFIGURED -> {
-                    """
-                    OpenRouter is not configured yet.
-                    
-                    To complete the integration:
-                    1. Configure your OpenRouter Provisioning Key
-                    2. Start the proxy server
-                    3. Configure AI Assistant to use the proxy URL
-                    
-                    Would you like to open OpenRouter settings?
-                    """.trimIndent()
-                }
-                IntegrationStatus.PROXY_SERVER_NOT_RUNNING -> {
-                    val proxyService = OpenRouterProxyService.getInstance()
-                    val serverStatus = proxyService.getServerStatus()
-                    val defaultUrl = OpenRouterProxyServer.buildProxyUrl(8080)
-
-                    """
-                    OpenRouter is configured but the proxy server is not running.
-
-                    Current status: ${if (serverStatus.isRunning) "Running on port ${serverStatus.port}" else "Stopped"}
-
-                    To complete the integration:
-                    1. Start the proxy server (click "Start Proxy Server" below)
-                    2. Configure AI Assistant with the proxy URL: ${serverStatus.url ?: defaultUrl}
-
-                    Would you like to start the proxy server now?
-                    """.trimIndent()
-                }
-                IntegrationStatus.READY -> {
-                    val proxyService = OpenRouterProxyService.getInstance()
-                    val serverStatus = proxyService.getServerStatus()
-                    
-                    """
-                    ✅ Integration is ready!
-                    
-                    Proxy server is running on: ${serverStatus.url}
-                    AI Assistant plugin: ${getAIAssistantVersion() ?: "Installed"}
-                    
-                    To configure AI Assistant:
-                    1. Go to Settings > Tools > AI Assistant > Models
-                    2. Add "Other OpenAI-compatible service"
-                    3. Set URL to: ${serverStatus.url}
-                    4. Leave API key empty
-                    5. Test connection and apply
-                    
-                    Would you like to see detailed configuration instructions?
-                    """.trimIndent()
-                }
-            }
+            val message = getWizardMessage(status)
+            val yesButtonText = getYesButtonText(status)
 
             val result = Messages.showYesNoDialog(
                 project,
                 message,
                 "OpenRouter AI Assistant Integration",
-                when (status) {
-                    IntegrationStatus.AI_ASSISTANT_NOT_AVAILABLE -> "Open Marketplace"
-                    IntegrationStatus.OPENROUTER_NOT_CONFIGURED -> "Open Settings"
-                    IntegrationStatus.PROXY_SERVER_NOT_RUNNING -> "Start Proxy"
-                    IntegrationStatus.READY -> "Show Instructions"
-                },
+                yesButtonText,
                 "Cancel",
                 Messages.getInformationIcon()
             )
@@ -161,6 +95,107 @@ object AIAssistantIntegrationHelper {
             if (result == Messages.YES) {
                 handleWizardAction(project, status)
             }
+        }
+    }
+
+    /**
+     * Get the wizard message based on integration status
+     */
+    private fun getWizardMessage(status: IntegrationStatus): String {
+        return when (status) {
+            IntegrationStatus.AI_ASSISTANT_NOT_AVAILABLE -> getAIAssistantNotAvailableMessage()
+            IntegrationStatus.OPENROUTER_NOT_CONFIGURED -> getOpenRouterNotConfiguredMessage()
+            IntegrationStatus.PROXY_SERVER_NOT_RUNNING -> getProxyServerNotRunningMessage()
+            IntegrationStatus.READY -> getIntegrationReadyMessage()
+        }
+    }
+
+    /**
+     * Get message when AI Assistant is not available
+     */
+    private fun getAIAssistantNotAvailableMessage(): String {
+        return """
+            JetBrains AI Assistant plugin is not installed or enabled.
+
+            To use OpenRouter with AI Assistant:
+            1. Install the "AI Assistant" plugin from the JetBrains Marketplace
+            2. Enable the plugin and restart your IDE
+            3. Return to OpenRouter settings to complete the integration
+
+            Would you like to open the plugin marketplace?
+        """.trimIndent()
+    }
+
+    /**
+     * Get message when OpenRouter is not configured
+     */
+    private fun getOpenRouterNotConfiguredMessage(): String {
+        return """
+            OpenRouter is not configured yet.
+
+            To complete the integration:
+            1. Configure your OpenRouter Provisioning Key
+            2. Start the proxy server
+            3. Configure AI Assistant to use the proxy URL
+
+            Would you like to open OpenRouter settings?
+        """.trimIndent()
+    }
+
+    /**
+     * Get message when proxy server is not running
+     */
+    private fun getProxyServerNotRunningMessage(): String {
+        val proxyService = OpenRouterProxyService.getInstance()
+        val serverStatus = proxyService.getServerStatus()
+        val defaultUrl = OpenRouterProxyServer.buildProxyUrl(8080)
+
+        return """
+            OpenRouter is configured but the proxy server is not running.
+
+            Current status: ${if (serverStatus.isRunning) "Running on port ${serverStatus.port}" else "Stopped"}
+
+            To complete the integration:
+            1. Start the proxy server (click "Start Proxy Server" below)
+            2. Configure AI Assistant with the proxy URL: ${serverStatus.url ?: defaultUrl}
+
+            Would you like to start the proxy server now?
+        """.trimIndent()
+    }
+
+    /**
+     * Get message when integration is ready
+     */
+    private fun getIntegrationReadyMessage(): String {
+        val proxyService = OpenRouterProxyService.getInstance()
+        val serverStatus = proxyService.getServerStatus()
+
+        return """
+            ✅ Integration is ready!
+
+            Proxy server is running on: ${serverStatus.url}
+            AI Assistant plugin: ${getAIAssistantVersion() ?: "Installed"}
+
+            To configure AI Assistant:
+            1. Go to Settings > Tools > AI Assistant > Models
+            2. Add "Other OpenAI-compatible service"
+            3. Set URL to: ${serverStatus.url}
+            4. Leave API key empty
+            5. Test connection and apply
+
+            Would you like to see detailed configuration instructions?
+        """.trimIndent()
+    }
+
+    /**
+     * Get the yes button text based on integration status
+     */
+    private fun getYesButtonText(status: IntegrationStatus): String {
+        return when (status) {
+            IntegrationStatus.AI_ASSISTANT_NOT_AVAILABLE -> "Open Marketplace"
+            IntegrationStatus.OPENROUTER_NOT_CONFIGURED -> "Open Settings"
+            IntegrationStatus.PROXY_SERVER_NOT_RUNNING -> "Start Proxy"
+            IntegrationStatus.READY -> "Show Instructions"
         }
     }
 
