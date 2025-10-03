@@ -1,4 +1,4 @@
-package org.zhavoronkov.openrouter.settings
+package org.zhavoronkov.openrouter.services
 
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
@@ -6,8 +6,6 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
-import org.zhavoronkov.openrouter.services.FavoriteModelsService
-import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 
 /**
  * Tests for FavoriteModelsService
