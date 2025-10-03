@@ -251,7 +251,8 @@ data class OpenRouterSettings(
     var showCosts: Boolean = true,
     var trackGenerations: Boolean = true,
     var maxTrackedGenerations: Int = 100,
-    var favoriteModels: MutableList<String> = getDefaultFavoriteModels()
+    var favoriteModels: MutableList<String> = getDefaultFavoriteModels(),
+    var lastSeenVersion: String = "" // Track last seen version for "What's New" notifications
 )
 
 /**

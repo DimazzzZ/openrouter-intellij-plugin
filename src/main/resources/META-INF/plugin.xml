@@ -14,14 +14,15 @@
          Simple HTML elements (text formatting, paragraphs, and lists) can be added inside this element.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-description -->
     <description><![CDATA[
-    <p><strong>OpenRouter IntelliJ Plugin</strong> - Comprehensive integration with <a href="https://openrouter.ai">OpenRouter.ai</a> for accessing 400+ AI models with advanced usage monitoring and quota tracking.</p>
+    <p><strong>OpenRouter IntelliJ Plugin</strong> - Comprehensive integration with <a href="https://openrouter.ai">OpenRouter.ai</a> for accessing 400+ AI models with advanced usage monitoring, quota tracking, and AI Assistant proxy support.</p>
 
     <h3>Key Features</h3>
     <ul>
+        <li><strong>AI Assistant Proxy</strong> - Local OpenAI-compatible proxy to connect JetBrains AI Assistant with OpenRouter's 400+ models</li>
         <li><strong>Interactive Status Bar Widget</strong> - Real-time usage display with comprehensive popup menu</li>
         <li><strong>Advanced API Key Management</strong> - Secure provisioning key support with automatic API key creation</li>
         <li><strong>Detailed Usage Analytics</strong> - Track token consumption, costs, and model performance</li>
-        <li><strong>Multi-Model Support</strong> - Access to 400+ AI models through OpenRouter's unified API</li>
+        <li><strong>Favorite Models</strong> - Quick access to your preferred AI models</li>
         <li><strong>Real-time Monitoring</strong> - Live connection status with color-coded indicators</li>
         <li><strong>Comprehensive Settings</strong> - Easy configuration with validation and testing</li>
     </ul>
@@ -31,33 +32,57 @@
         <li>Get your Provisioning Key from <a href="https://openrouter.ai/settings/provisioning-keys">OpenRouter Provisioning Keys</a></li>
         <li>Configure in <strong>Settings → Tools → OpenRouter</strong></li>
         <li>Click the status bar widget to access all features</li>
+        <li>(Optional) Configure AI Assistant to use OpenRouter via custom server - <a href="https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/docs/AI_ASSISTANT_SETUP.md">Setup Guide</a></li>
     </ol>
 
     <h3>Perfect For</h3>
     <ul>
-        <li>Developers using AI models for code assistance</li>
-        <li>Teams monitoring AI usage and costs</li>
-        <li>Anyone wanting easy access to multiple AI providers</li>
+        <li>Developers using AI models for code assistance via AI Assistant</li>
+        <li>Teams monitoring AI usage and costs across multiple models</li>
+        <li>Anyone wanting access to 400+ AI models from 40+ providers</li>
     </ul>
 
-    <p><em>This is an unofficial plugin and is not affiliated with OpenRouter.ai.</em></p>
+    <p><em>This is an unofficial plugin and is not affiliated with OpenRouter.ai or JetBrains.</em></p>
   ]]></description>
 
     <!-- Product and plugin compatibility requirements.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
     <depends>com.intellij.modules.platform</depends>
-    
-    <!-- AI Assistant integration dependency (optional) -->
-    <depends optional="true" config-file="ai-assistant-integration.xml">com.intellij.ml.llm</depends>
 
+    <!--
+         AI Assistant Integration Note:
+         This plugin provides a local proxy server for AI Assistant integration.
+         No plugin dependency is needed - AI Assistant connects via custom server configuration.
+         See docs/AI_ASSISTANT_SETUP.md for setup instructions.
+    -->
 
 
     <!-- Change notes for this version -->
     <change-notes><![CDATA[
-        <h3>🎉 Initial Release (v0.1.0)</h3>
+        <h3>🎉 Version 0.2.0 - OpenRouter models support for 3rd-party AI Assistants (2025-10-03)</h3>
+        <p><strong>New Features:</strong></p>
+        <ul>
+            <li><strong>🤖 AI Assistant Proxy</strong> - Local OpenAI-compatible proxy server to connect JetBrains AI Assistant with OpenRouter's 400+ models</li>
+            <li><strong>⭐ Favorite Models</strong> - Manage and organize your preferred AI models</li>
+            <li><strong>🌐 Custom Server Support</strong> - Configure AI Assistant to use OpenRouter via custom model connection</li>
+        </ul>
+
+        <p><strong>Improvements:</strong></p>
+        <ul>
+            <li><strong>207+ Tests</strong> - Comprehensive test coverage with 100% pass rate</li>
+            <li><strong>Zero Critical Code Smells</strong> - Enhanced code quality and maintainability</li>
+            <li><strong>Better Performance</strong> - API key caching and optimized request handling</li>
+            <li><strong>Modern UI</strong> - Updated to IntelliJ UI DSL v2</li>
+        </ul>
+
+        <p><a href="https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/docs/AI_ASSISTANT_SETUP.md">AI Assistant Setup Guide</a> | <a href="https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/CHANGELOG.md">Full Changelog</a></p>
+
+        <hr/>
+
+        <h3>Version 0.1.0 - Initial Release (2025-09-18)</h3>
         <p>First beta release of the OpenRouter IntelliJ Plugin with comprehensive OpenRouter.ai integration.</p>
 
-        <h4>Key Features</h4>
+        <p><strong>Key Features:</strong></p>
         <ul>
             <li><strong>Interactive Status Bar Widget</strong> - Real-time usage display with comprehensive popup menu</li>
             <li><strong>Advanced API Key Management</strong> - Provisioning key support with automatic API key creation</li>
@@ -67,20 +92,23 @@
             <li><strong>Multi-IDE Support</strong> - Works across all JetBrains IDEs (2023.2+)</li>
         </ul>
 
-        <h4>Technical Highlights</h4>
+        <p><strong>Technical Highlights:</strong></p>
         <ul>
             <li>Secure credential storage using IntelliJ's built-in storage</li>
             <li>Asynchronous API operations for smooth user experience</li>
             <li>Comprehensive error handling and user feedback</li>
             <li>22 passing tests ensuring reliability</li>
         </ul>
-
-        <p>Get started by adding your OpenRouter Provisioning Key in <strong>Settings → Tools → OpenRouter</strong></p>
     ]]></change-notes>
 
     <!-- Extension points defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
+        <!-- Notification group for plugin updates and announcements -->
+        <notificationGroup id="OpenRouter Updates"
+                           displayType="BALLOON"
+                           isLogByDefault="true"/>
+
         <!-- Application-level services -->
         <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterService"/>
         <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterSettingsService"/>
@@ -107,8 +135,9 @@
             id="OpenRouterStatusBar"
             order="after Encoding"/>
 
-        <!-- Startup activity for proxy server -->
+        <!-- Startup activities -->
         <postStartupActivity implementation="org.zhavoronkov.openrouter.startup.ProxyServerStartupActivity"/>
+        <postStartupActivity implementation="org.zhavoronkov.openrouter.startup.WhatsNewNotificationActivity"/>
         
         <!-- Tool window - TEMPORARILY DISABLED -->
         <!--

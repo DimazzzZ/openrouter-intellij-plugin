@@ -5,6 +5,112 @@ All notable changes to the OpenRouter IntelliJ Plugin will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2025-10-03
+
+### 🎉 Major Features
+
+#### 🤖 AI Assistant Integration
+- **Local Proxy Server** - Embedded Jetty-based OpenAI-compatible proxy server (ports 8080-8090)
+- **Custom Model Connection** - Allows JetBrains AI Assistant to connect to OpenRouter via custom server configuration
+- **400+ Models Access** - Use OpenRouter's entire model catalog in AI Assistant through proxy
+- **OpenAI Compatibility Layer** - Complete OpenAI API compatibility for seamless integration
+- **CORS Support** - Proper cross-origin request handling for web-based integrations
+- **Manual Configuration** - Requires setting up custom model/server in AI Assistant settings
+
+#### ⭐ Favorite Models Management
+- **Favorites Panel** - Dedicated UI for managing favorite AI models
+- **Quick Access** - Fast selection of preferred models
+- **Drag & Drop Reordering** - Intuitive model organization
+- **Persistent Storage** - Favorites saved across IDE sessions
+- **Dual-Panel UI** - Available models and favorites side-by-side
+
+### ✨ Enhancements
+
+#### 🔑 API Key Management
+- **API Key Caching** - Reduced redundant API calls for better performance
+- **Silent Regeneration** - Automatic "IntelliJ IDEA Plugin" key recreation when needed
+- **Enhanced Validation** - Improved key verification during creation and updates
+- **Better Error Handling** - More informative error messages and logging
+
+#### 🎨 UI/UX Improvements
+- **IntelliJ UI DSL v2** - Modern UI components with better layout management
+- **ApiKeyManager & ProxyServerManager** - Dedicated managers for cleaner code separation
+- **Improved Status Updates** - Real-time proxy server state display
+- **Better Popup Positioning** - Status bar popup now appears above widget
+- **Consistent Panel Heights** - Aligned UI components for better visual consistency
+
+#### 🔧 Technical Improvements
+- **OpenRouterRequestBuilder** - Centralized HTTP request construction (eliminated 12+ duplicate header patterns)
+- **Duplicate Request Detection** - Request hash generation to prevent duplicate processing
+- **Model Name Passthrough** - Simplified model handling by removing unnecessary mapping logic
+- **HTTP Client Timeouts** - Proper timeout configuration for better reliability
+- **Enhanced Logging** - Production-safe logging with configurable debug levels
+
+### 🧪 Testing & Quality
+
+#### 📊 Test Coverage
+- **207+ Tests** - Expanded from 22 to 207+ comprehensive tests (100% pass rate)
+- **FavoriteModelsService Tests** - 11 new tests for favorites management
+- **Encryption Tests** - 10 tests covering secure credential storage
+- **Integration Tests** - 50+ tests for API communication and proxy server
+- **Request Builder Tests** - 12 tests validating refactored HTTP request construction
+- **Dependency Injection** - Made services testable with optional constructor parameters
+
+#### 🔍 Code Quality
+- **Zero Critical Code Smells** - Fixed all 7 critical detekt issues
+  - ComplexCondition: 1 fixed
+  - NestedBlockDepth: 3 fixed
+  - LongMethod: 3 fixed
+- **Safe Refactoring Process** - Documented 11-step refactoring methodology
+- **Extract Method Pattern** - Reduced method complexity across codebase
+- **Early Returns** - Reduced nesting depth from 5+ to 2-3 levels
+- **Wildcard Import Cleanup** - Replaced with specific imports
+
+#### ⚙️ CI/CD
+- **GitHub Actions Workflows** - Automated CI, extended tests, PR automation
+- **Detekt Integration** - Automated code quality checks on PRs
+- **Release Management** - Automated release workflow
+
+### 🐛 Bug Fixes
+- **API Key Handling** - Fixed invalid API key usage from AI Assistant Authorization header
+- **Memory Issues** - Disabled integration tests by default to prevent memory exhaustion
+- **Test Hanging** - Improved timeout and memory settings for test execution
+- **Proxy URL Handling** - Enhanced URL generation and clipboard copy functionality
+- **Settings Persistence** - Streamlined settings save/load operations
+
+### 📚 Documentation
+- **Comprehensive Guides** - Added DEBUGGING.md, DEVELOPMENT.md, TESTING.md
+- **Code Quality Guide** - Detekt usage and refactoring best practices
+- **AI Assistant Setup** - Step-by-step integration instructions
+- **Architecture Documentation** - Detailed component descriptions and diagrams
+- **Troubleshooting Sections** - Common issues and solutions
+
+### 🔄 Refactoring
+- **ChatCompletionServlet** - Extracted 13 helper methods, reduced from 83 to 22 lines
+- **FavoriteModelsService** - Added dependency injection for testability
+- **OpenRouterSettingsPanel** - Migrated to UI DSL v2 with manager classes
+- **Request/Response Translation** - Simplified model name handling
+- **Settings Panel Layout** - Improved component organization and alignment
+
+### 🏗️ Architecture Changes
+- **Service-Oriented Refactoring** - Better separation of concerns
+- **Manager Pattern** - Dedicated managers for API keys and proxy server
+- **Builder Pattern** - Centralized request building with OpenRouterRequestBuilder
+- **Lazy Initialization** - Improved service initialization patterns
+
+### 🔒 Security
+- **Production-Safe Logging** - Removed all real API keys from codebase
+- **Localhost-Only Proxy** - Proxy server bound to 127.0.0.1 only
+- **Enhanced Encryption** - Comprehensive encryption tests and validation
+
+### 📋 Requirements
+- **Java**: JDK 17 or higher (unchanged)
+- **Platform**: Windows, macOS, Linux (unchanged)
+- **IntelliJ Platform**: 2023.2+ (unchanged)
+- **Optional**: JetBrains AI Assistant plugin for AI integration
+
+---
+
 ## [0.1.0] - 2025-09-18
 
 ### 🎉 Initial Release

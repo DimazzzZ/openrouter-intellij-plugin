@@ -8,14 +8,14 @@ An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.
 
 ## Features
 
-- **🤖 AI Assistant Integration** - Use OpenRouter's 400+ models directly in JetBrains AI Assistant
+- **🤖 AI Assistant Proxy** - Local proxy server to connect JetBrains AI Assistant with OpenRouter's 400+ models
 - **📊 Status Bar Widget** - Real-time usage display with comprehensive popup menu
 - **🔑 API Key Management** - Secure provisioning key support with automatic API key creation
 - **📈 Usage Analytics** - Track token consumption, costs, and model performance
 - **🔴 Real-time Monitoring** - Live connection status with color-coded indicators
 - **📋 Statistics Popup** - Detailed usage analytics in modal dialog
 - **⚙️ Settings Panel** - Configuration with validation and testing
-- **🌐 Proxy Server** - Local OpenAI-compatible proxy for seamless integration
+- **🌐 OpenAI Compatibility** - Full OpenAI API compatibility layer for custom integrations
 - **🔒 Security** - Encrypted API key storage with localhost-only proxy access
 - **🧪 Comprehensive Testing** - 207+ tests covering unit, integration, and E2E scenarios
 - **🛠️ Developer-Friendly** - Extensive documentation and debugging capabilities
@@ -44,15 +44,19 @@ The plugin automatically creates and configures an API key when you provide a pr
 
 ## 🤖 AI Assistant Integration
 
-**NEW**: Use OpenRouter's 400+ AI models directly in JetBrains AI Assistant!
+**NEW**: Connect JetBrains AI Assistant to OpenRouter's 400+ AI models using the plugin's local proxy server!
 
 ### Quick Start
 1. **Configure OpenRouter Plugin** (as above)
-2. **Start Proxy Server**: Click OpenRouter status bar icon → "Start AI Assistant Proxy"  
-3. **Configure AI Assistant**: Settings → Tools → AI Assistant → Models → Add "Other OpenAI-compatible service"
-   - **URL**: `http://localhost:8080` (or displayed port)
-   - **API Key**: Leave empty (handled by OpenRouter plugin)
-4. **Start Using**: Access 400+ models through AI Assistant's familiar interface
+2. **Start Proxy Server**: The server starts automatically when you configure your Provisioning Key
+3. **Configure AI Assistant**: Settings → Tools → AI Assistant → Models → Add custom model
+   - **Provider**: Custom
+   - **Server URL**: Copy from OpenRouter settings (e.g., `http://127.0.0.1:8080`)
+   - **API Key**: Any text (not validated by proxy)
+   - **Model**: Choose from OpenRouter's model catalog
+4. **Start Using**: Access 400+ models through AI Assistant
+
+📖 **[Complete Setup Guide](docs/AI_ASSISTANT_SETUP.md)** - Step-by-step instructions with screenshot placeholders
 
 ### Supported Models
 - **OpenAI**: GPT-4, GPT-4 Turbo, GPT-3.5 Turbo

@@ -566,6 +566,120 @@ val mockSettings = mock(OpenRouterSettingsService::class.java)
 val service = FavoriteModelsService(mockSettings)
 ```
 
+## Release Management
+
+### Updating "What's New" Notification
+
+When releasing a new version, update the notification system to inform users about new features:
+
+#### 1. Update Version Number
+
+Edit `WhatsNewNotificationActivity.kt`:
+```kotlin
+companion object {
+    private const val CURRENT_VERSION = "0.3.0"  // Update this
+    private const val CHANGELOG_URL = "https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/CHANGELOG.md"
+}
+```
+
+#### 2. Update Notification Message
+
+Edit the `showWhatsNewNotification()` method:
+```kotlin
+.createNotification(
+    "OpenRouter Plugin Updated to v$CURRENT_VERSION",
+    """
+    <b>🎉 New Features:</b><br/>
+    • <b>Your New Feature 1</b> - Brief description<br/>
+    • <b>Your New Feature 2</b> - Brief description<br/>
+    • <b>Improvements</b> - What was improved<br/>
+    <br/>
+    Click below to explore the new features!
+    """.trimIndent(),
+    NotificationType.INFORMATION
+)
+```
+
+#### 3. Update plugin.xml Change Notes
+
+**IMPORTANT**: Add new version at the top, keep previous versions for history!
+
+Edit `src/main/resources/META-INF/plugin.xml`:
+```xml
+<change-notes><![CDATA[
+    <h3>🎉 Version 0.3.0 - Your Release Title (2025-XX-XX)</h3>
+    <p><strong>New Features:</strong></p>
+    <ul>
+        <li><strong>Feature 1</strong> - Description</li>
+        <li><strong>Feature 2</strong> - Description</li>
+    </ul>
+
+    <p><strong>Improvements:</strong></p>
+    <ul>
+        <li>Improvement 1</li>
+        <li>Improvement 2</li>
+    </ul>
+
+    <p><a href="https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/docs/AI_ASSISTANT_SETUP.md">AI Assistant Setup</a> | <a href="https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/CHANGELOG.md">Full Changelog</a></p>
+
+    <hr/>
+
+    <!-- Keep previous version history below -->
+    <h3>Version 0.2.0 - Major Update (2025-10-03)</h3>
+    <p><strong>New Features:</strong></p>
+    <ul>
+        <li><strong>🤖 AI Assistant Proxy</strong> - Local OpenAI-compatible proxy server</li>
+        <li><strong>⭐ Favorite Models</strong> - Manage and organize your preferred AI models</li>
+    </ul>
+    <!-- ... rest of 0.2.0 notes ... -->
+
+    <hr/>
+
+    <h3>Version 0.1.0 - Initial Release (2025-09-18)</h3>
+    <!-- ... 0.1.0 notes ... -->
+]]></change-notes>
+```
+
+#### 4. Update CHANGELOG.md
+
+Add a new version section at the top of `CHANGELOG.md`:
+```markdown
+## [0.3.0] - 2025-XX-XX
+
+### 🎉 Major Features
+- Feature descriptions...
+
+### ✨ Enhancements
+- Enhancement descriptions...
+
+### 🐛 Bug Fixes
+- Bug fix descriptions...
+```
+
+#### 5. How It Works
+
+- **First Install**: No notification shown, version is silently set
+- **Update**: Notification appears once on first project open after update
+- **Subsequent Opens**: No notification (already seen this version)
+- **Next Update**: Process repeats for new version
+
+#### 6. Testing the Notification
+
+To test the notification locally:
+
+1. Build and run the plugin in development IDE
+2. Manually change `lastSeenVersion` in settings to a different version
+3. Restart the IDE or open a new project
+4. Notification should appear
+
+Or use this test code:
+```kotlin
+// In any action or test
+val settings = OpenRouterSettingsService.getInstance().getState()
+settings.lastSeenVersion = "0.1.0"  // Simulate old version
+// Restart IDE to see notification
+```
+
 ## Debugging
 
 ### Enable Debug Logging
