@@ -3,6 +3,7 @@ package org.zhavoronkov.openrouter.settings
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.SearchTextField
@@ -388,39 +389,46 @@ class FavoriteModelsSettingsPanel : Disposable {
     private fun loadInitialData() {
         if (!keyPresent) return
 
+        PluginLogger.Settings.debug("Starting initial data load...")
         isLoading = true
         loadError = null
         loadingPanel.startLoading()
 
-        ApplicationManager.getApplication().executeOnPooledThread {
-            favoriteModelsService.getAvailableModels(forceRefresh = false)
-                .thenAccept { models ->
-                    ApplicationManager.getApplication().invokeLater {
-                        isLoading = false
-                        loadingPanel.stopLoading()
+        // getAvailableModels() already returns a CompletableFuture that executes asynchronously
+        favoriteModelsService.getAvailableModels(forceRefresh = false)
+            .thenAccept { models ->
+                PluginLogger.Settings.debug("Received models from service: ${models?.size ?: 0}")
+                ApplicationManager.getApplication().invokeLater({
+                    PluginLogger.Settings.debug("EDT callback executing...")
+                    isLoading = false
+                    loadingPanel.stopLoading()
 
-                        if (models != null) {
-                            allAvailableModels = models
-                            filterAvailableModels()
-                            loadFavorites()
-                            initialFavorites = getCurrentFavoriteIds()
-                        } else {
-                            loadError = "Failed to load models from API"
-                            showErrorState()
-                        }
-                    }
-                }
-                .exceptionally { throwable ->
-                    ApplicationManager.getApplication().invokeLater {
-                        isLoading = false
-                        loadingPanel.stopLoading()
-                        loadError = "Error loading models: ${throwable.message}"
+                    if (models != null) {
+                        PluginLogger.Settings.debug("Loading ${models.size} models into UI")
+                        allAvailableModels = models
+                        PluginLogger.Settings.debug("Set allAvailableModels, now calling filterAvailableModels()")
+                        filterAvailableModels()
+                        PluginLogger.Settings.debug("After filterAvailableModels(), table has ${availableTableModel.rowCount} rows")
+                        loadFavorites()
+                        initialFavorites = getCurrentFavoriteIds()
+                        PluginLogger.Settings.debug("Initial data load complete")
+                    } else {
+                        loadError = "Failed to load models from API"
                         showErrorState()
-                        PluginLogger.Settings.error("Failed to load models", throwable)
+                        PluginLogger.Settings.warn("Models response was null")
                     }
-                    null
-                }
-        }
+                }, ModalityState.any())
+            }
+            .exceptionally { throwable ->
+                ApplicationManager.getApplication().invokeLater({
+                    isLoading = false
+                    loadingPanel.stopLoading()
+                    loadError = "Error loading models: ${throwable.message}"
+                    showErrorState()
+                    PluginLogger.Settings.error("Failed to load models", throwable)
+                }, ModalityState.any())
+                null
+            }
     }
 
     /**
@@ -433,33 +441,32 @@ class FavoriteModelsSettingsPanel : Disposable {
         loadError = null
         loadingPanel.startLoading()
 
-        ApplicationManager.getApplication().executeOnPooledThread {
-            favoriteModelsService.getAvailableModels(forceRefresh = true)
-                .thenAccept { models ->
-                    ApplicationManager.getApplication().invokeLater {
-                        isLoading = false
-                        loadingPanel.stopLoading()
+        // getAvailableModels() already returns a CompletableFuture that executes asynchronously
+        favoriteModelsService.getAvailableModels(forceRefresh = true)
+            .thenAccept { models ->
+                ApplicationManager.getApplication().invokeLater({
+                    isLoading = false
+                    loadingPanel.stopLoading()
 
-                        if (models != null) {
-                            allAvailableModels = models
-                            filterAvailableModels()
-                            updateFavoriteAvailability(models)
-                        } else {
-                            loadError = "Failed to refresh models"
-                            showErrorState()
-                        }
+                    if (models != null) {
+                        allAvailableModels = models
+                        filterAvailableModels()
+                        updateFavoriteAvailability(models)
+                    } else {
+                        loadError = "Failed to refresh models"
+                        showErrorState()
                     }
-                }
-                .exceptionally { throwable ->
-                    ApplicationManager.getApplication().invokeLater {
-                        isLoading = false
-                        loadingPanel.stopLoading()
-                        loadError = "Error refreshing models: ${throwable.message}"
-                        PluginLogger.Settings.error("Failed to refresh models", throwable)
-                    }
-                    null
-                }
-        }
+                }, ModalityState.any())
+            }
+            .exceptionally { throwable ->
+                ApplicationManager.getApplication().invokeLater({
+                    isLoading = false
+                    loadingPanel.stopLoading()
+                    loadError = "Error refreshing models: ${throwable.message}"
+                    PluginLogger.Settings.error("Failed to refresh models", throwable)
+                }, ModalityState.any())
+                null
+            }
     }
 
     /**
@@ -472,7 +479,7 @@ class FavoriteModelsSettingsPanel : Disposable {
         } else {
             allAvailableModels.filter { model ->
                 model.id.contains(searchText, ignoreCase = true) ||
-                        model.name?.contains(searchText, ignoreCase = true) == true
+                        model.name.contains(searchText, ignoreCase = true)
             }
         }
 
@@ -480,6 +487,7 @@ class FavoriteModelsSettingsPanel : Disposable {
         val favoriteIds = getCurrentFavoriteIds().toSet()
         val availableToAdd = filteredAvailableModels.filter { it.id !in favoriteIds }
 
+        PluginLogger.Settings.debug("Filtered models: ${availableToAdd.size} available (from ${allAvailableModels.size} total)")
         availableTableModel.items = availableToAdd
     }
 
