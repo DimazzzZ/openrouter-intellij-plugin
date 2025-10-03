@@ -422,4 +422,72 @@ If you see missing headers in API requests:
 
 ---
 
+## 🔍 Code Quality and Static Analysis
+
+### Running Detekt
+
+Detekt is a static code analysis tool for Kotlin that helps identify code smells:
+
+```bash
+# Run full detekt analysis
+./gradlew detekt --console=plain
+
+# Check for specific issue types
+./gradlew detekt --console=plain 2>&1 | grep "ComplexCondition\|NestedBlockDepth\|LongMethod"
+
+# Count issues by type
+./gradlew detekt --console=plain 2>&1 | grep -oE "\[.*\]$" | sort | uniq -c | sort -rn
+
+# Check specific file
+./gradlew detekt --console=plain 2>&1 | grep "FileName.kt"
+```
+
+### Code Quality Metrics
+
+**Current Status** (as of October 2025):
+- Total detekt issues: ~1,413
+- Critical code smells: 0 ✅
+- ComplexCondition: 0 ✅
+- NestedBlockDepth: 0 ✅
+- LongMethod: 0 ✅
+- Test pass rate: 100% (207/207 tests)
+
+**Acceptable Issues**:
+- SwallowedException: 5 (all have proper logging)
+- MagicNumber: ~800 (mostly UI constants and test data)
+- TooManyFunctions: Some (acceptable for service classes)
+
+### Verifying Refactoring Success
+
+After refactoring code to fix detekt warnings, verify the changes:
+
+```bash
+# 1. Check if the specific issue is fixed
+./gradlew detekt --console=plain 2>&1 | grep "FileName.kt:LineNumber"
+
+# 2. Verify no new issues were introduced
+./gradlew detekt --console=plain 2>&1 | grep "FileName.kt" | wc -l
+
+# 3. Run tests to ensure no regressions
+./gradlew test --tests "*FileNameTest*" --console=plain
+
+# 4. Check compilation
+./gradlew compileKotlin --console=plain
+
+# 5. Run all tests
+./gradlew test --console=plain 2>&1 | grep "tests completed"
+```
+
+### Refactoring Validation Checklist
+
+After each refactoring:
+- [ ] Code compiles without errors
+- [ ] All tests pass (207/207)
+- [ ] Detekt issue is resolved
+- [ ] No new detekt issues introduced
+- [ ] Code is more readable
+- [ ] Functionality unchanged
+
+---
+
 **💡 Pro Tip**: Enable debug logging temporarily when troubleshooting, then disable it to avoid log file bloat in production.

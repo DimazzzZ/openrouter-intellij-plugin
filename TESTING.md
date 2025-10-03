@@ -4,26 +4,31 @@ This document describes the testing infrastructure and procedures for the OpenRo
 
 ## 📊 Test Overview
 
-The plugin features a comprehensive test suite with 159+ tests ensuring reliability and stability:
+The plugin features a comprehensive test suite with 207+ tests ensuring reliability and stability:
 
 | Test Suite | Tests | Coverage | Focus Area |
 |------------|-------|----------|------------|
 | **Unit Tests** | 109 | Core functionality, data models | Business logic |
 | **Integration Tests** | 50+ | API communication, servlet logic | External integration |
 | **Request Builder Tests** | 12 | HTTP request construction | Refactored code validation |
-| **Total** | **159+** | **Complete functionality coverage** | **Production ready** |
+| **Favorite Models Tests** | 11 | Favorite models management | User preferences |
+| **Encryption Tests** | 10 | Secure credential storage | Security |
+| **Settings Tests** | 15+ | Configuration management | User settings |
+| **Total** | **207+** | **Complete functionality coverage** | **Production ready** |
 
 ### 🎯 Recent Major Improvements
+- **Test Fixes**: Fixed all 11 failing FavoriteModelsService tests using dependency injection and mocking
 - **Code Refactoring**: Eliminated duplicate headers across 12+ locations using centralized `OpenRouterRequestBuilder`
 - **Test Infrastructure**: Fixed hanging tests and memory issues with proper timeouts and exclusions
 - **X-Title Header Fix**: Added missing attribution headers to all OpenRouter API requests
 - **Memory Management**: Reduced test memory usage from 3.6GB+ to 512MB with proper configuration
+- **Dependency Injection**: Made FavoriteModelsService testable with optional constructor parameters
 
 ### ✅ Test Status
-- **Build Status**: ✅ All tests passing (159 tests in 3 seconds)
+- **Build Status**: ✅ All tests passing (207 tests, 0 failures)
 - **Coverage**: 🎯 Core functionality fully covered including refactored code
 - **Reliability**: 🔒 No more hanging tests or memory issues
-- **Performance**: ⚡ Ultra-fast execution (3 seconds for full suite)
+- **Performance**: ⚡ Ultra-fast execution (3-8 seconds for full suite)
 
 ## 🏗️ Test Architecture
 
@@ -141,11 +146,13 @@ OpenRouter Icons Tests > Icon Resources > Should have all required icon resource
 OpenRouter Models Tests > API Key Models > Should deserialize ApiKeyInfo from JSON PASSED
 OpenRouter Request Builder Tests > GET Request Tests > Should build GET request with API key authentication PASSED
 OpenRouter Settings Service Tests > API Key Management > Should store and retrieve API key PASSED
+Favorite Models Service Tests > Favorite Management > should add favorite model PASSED
+Favorite Models Service Tests > Favorite Ordering > should reorder favorites PASSED
 RequestTranslatorTest > translateChatCompletionRequest should pass through model name exactly() PASSED
-... (159 tests total)
+... (207 tests total)
 
-BUILD SUCCESSFUL in 3s
-159 tests completed, 159 succeeded, 14 skipped ✅
+BUILD SUCCESSFUL in 3-8s
+207 tests completed, 207 succeeded, 14 skipped ✅
 ```
 
 ### Safe Test Runner Output

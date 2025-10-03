@@ -49,6 +49,7 @@ Thumbs.db
 *.swp
 *.swo
 *~
+REFACTORING_PROGRESS.md
 
 # CMake
 cmake-build-*/

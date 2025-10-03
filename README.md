@@ -1,24 +1,26 @@
 # OpenRouter IntelliJ Plugin
 
 [![JetBrains Plugin](https://img.shields.io/badge/JetBrains-Plugin-orange.svg)](https://plugins.jetbrains.com/plugin/28520)
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
+[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.ai), providing access to 400+ AI models with usage monitoring, quota tracking, and seamless JetBrains AI Assistant integration.
 
 ## Features
 
-**🤖 AI Assistant Integration** - Use OpenRouter's 400+ models directly in JetBrains AI Assistant
-**📊 Status Bar Widget** - Real-time usage display with comprehensive popup menu
-**🔑 API Key Management** - Secure provisioning key support with automatic API key creation
-**📈 Usage Analytics** - Track token consumption, costs, and model performance
-**🔴 Real-time Monitoring** - Live connection status with color-coded indicators
-**📋 Statistics Popup** - Detailed usage analytics in modal dialog
-**⚙️ Settings Panel** - Configuration with validation and testing
-**🌐 Proxy Server** - Local OpenAI-compatible proxy for seamless integration
-**🔒 Security** - Encrypted API key storage with localhost-only proxy access
-**🧪 Comprehensive Testing** - 145+ tests covering unit, integration, and E2E scenarios
-**🛠️ Developer-Friendly** - Extensive documentation and debugging capabilities
+- **🤖 AI Assistant Integration** - Use OpenRouter's 400+ models directly in JetBrains AI Assistant
+- **📊 Status Bar Widget** - Real-time usage display with comprehensive popup menu
+- **🔑 API Key Management** - Secure provisioning key support with automatic API key creation
+- **📈 Usage Analytics** - Track token consumption, costs, and model performance
+- **🔴 Real-time Monitoring** - Live connection status with color-coded indicators
+- **📋 Statistics Popup** - Detailed usage analytics in modal dialog
+- **⚙️ Settings Panel** - Configuration with validation and testing
+- **🌐 Proxy Server** - Local OpenAI-compatible proxy for seamless integration
+- **🔒 Security** - Encrypted API key storage with localhost-only proxy access
+- **🧪 Comprehensive Testing** - 207+ tests covering unit, integration, and E2E scenarios
+- **🛠️ Developer-Friendly** - Extensive documentation and debugging capabilities
+- **⭐ Favorite Models** - Quick access to your preferred AI models
+- **🎨 Code Quality** - Maintained with detekt static analysis and comprehensive refactoring
 
 ## Installation
 
@@ -121,21 +123,23 @@ cd openrouter-intellij-plugin
 
 ### Testing
 ```bash
-# Run all tests (145+ tests)
+# Run all tests (207+ tests)
 ./gradlew test
 
 # Run core functionality tests only
-./gradlew test --tests "*ChatCompletionServletTest*" --tests "*ApiKeyHandlingIntegrationTest*"
+./gradlew test --tests "*ChatCompletionServletTest*" --tests "*FavoriteModelsServiceTest*"
 
 # Run with development IDE for manual testing
 ./gradlew runIde --no-daemon
 ```
 
 **Test Coverage**:
-- **Unit Tests** - 15 tests covering data models, settings, and business logic
-- **Integration Tests** - 8 tests for API key handling and proxy server functionality
-- **E2E Tests** - 122 tests for complete workflow validation (disabled by default)
+- **Unit Tests** - 109 tests covering data models, settings, and business logic
+- **Integration Tests** - 50+ tests for API key handling and proxy server functionality
+- **Request Builder Tests** - 12 tests validating refactored HTTP request construction
+- **Favorite Models Tests** - 11 tests for favorite models management
 - **Security Tests** - Comprehensive validation of API key handling and encryption
+- **Total** - 207+ tests with 100% pass rate
 
 For detailed testing information, see [TESTING.md](TESTING.md).
 

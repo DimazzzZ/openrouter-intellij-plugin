@@ -74,7 +74,7 @@ All plugin metadata is centralized in `gradle.properties` for consistency:
 
 ```properties
 # Core plugin information
-pluginVersion = 0.1.0
+pluginVersion = 0.2.0
 pluginName = OpenRouter
 pluginGroup = org.zhavoronkov
 pluginId = org.zhavoronkov.openrouter
@@ -93,10 +93,10 @@ pluginUntilBuild = 252.*      # IntelliJ 2025.2+
 ### Version Update Process
 ```bash
 # 🔄 Update version (if update script exists)
-./scripts/update-version.sh 0.1.0
+./scripts/update-version.sh 0.2.0
 
 # 📝 Manual update in gradle.properties
-# Edit pluginVersion = 0.1.0
+# Edit pluginVersion = 0.2.0
 
 # ✅ Verify version
 ./gradlew properties | grep pluginVersion
@@ -398,7 +398,18 @@ curl -X POST http://localhost:8080/v1/chat/completions \
 - Follow Kotlin coding conventions
 - Use meaningful variable and function names
 - Add KDoc comments for public APIs
-- Keep functions small and focused
+- Keep functions small and focused (max 60 lines)
+- Avoid deep nesting (max 4 levels)
+- Extract complex conditions to well-named methods
+
+### Code Quality
+- **Static Analysis**: Run detekt before committing
+  ```bash
+  ./gradlew detekt --console=plain
+  ```
+- **Code Smells**: Address ComplexCondition, NestedBlockDepth, and LongMethod warnings
+- **Refactoring**: Follow the 11-step safe refactoring process (see below)
+- **Test Coverage**: Maintain 100% test pass rate
 
 ### Error Handling
 - Use proper exception handling
@@ -415,6 +426,8 @@ curl -X POST http://localhost:8080/v1/chat/completions \
 - Write unit tests for business logic
 - Test error conditions and edge cases
 - Use mock objects for external dependencies
+- Use dependency injection for testability (constructor parameters)
+- Run tests before and after refactoring
 
 ## API Integration
 
@@ -441,6 +454,116 @@ client.newCall(request).execute().use { response ->
         // Handle error
     }
 }
+```
+
+## Code Refactoring
+
+### Safe Refactoring Process (11 Steps)
+
+When refactoring code to fix detekt warnings or improve code quality:
+
+1. **Identify the Issue**: Run `./gradlew detekt` to find code smells
+2. **Understand the Code**: Read and comprehend what the code does
+3. **Find Related Tests**: Check if tests exist for the code
+4. **Run Baseline Tests**: Record current test results
+5. **Plan the Refactoring**: Choose appropriate refactoring pattern
+6. **Make ONE Change**: Fix one issue at a time
+7. **Compile**: Ensure code compiles after each change
+8. **Run Tests Again**: Verify no regressions
+9. **Verify with Detekt**: Confirm the issue is fixed
+10. **Review Changes**: Check the diff before committing
+11. **Commit**: Write descriptive commit message
+
+### Common Refactoring Patterns
+
+**Extract Method** - Break long methods into smaller ones:
+```kotlin
+// Before: 80+ lines
+fun doPost(req: HttpServletRequest, resp: HttpServletResponse) {
+    // ... 80 lines of code
+}
+
+// After: 20 lines
+fun doPost(req: HttpServletRequest, resp: HttpServletResponse) {
+    val requestId = generateId()
+    logRequestStart(requestId)
+    try {
+        processRequest(req, resp, requestId)
+    } catch (e: Exception) {
+        handleException(e, resp, requestId)
+    } finally {
+        logRequestComplete(requestId)
+    }
+}
+```
+
+**Extract Condition** - Simplify complex boolean expressions:
+```kotlin
+// Before
+if (fromIndex < 0 || fromIndex >= size || toIndex < 0 || toIndex >= size) {
+    return
+}
+
+// After
+if (!areIndicesValid(fromIndex, toIndex, size)) {
+    return
+}
+
+private fun areIndicesValid(from: Int, to: Int, size: Int): Boolean {
+    return from in 0 until size && to in 0 until size
+}
+```
+
+**Early Returns** - Reduce nesting depth:
+```kotlin
+// Before: 4 levels of nesting
+fun validate(id: String): Result {
+    if (isConfigured()) {
+        val model = getModel(id)
+        if (model != null) {
+            if (testConnection()) {
+                return Result(true, "Valid")
+            }
+        }
+    }
+    return Result(false, "Invalid")
+}
+
+// After: 1-2 levels of nesting
+fun validate(id: String): Result {
+    if (!isConfigured()) return Result(false, "Not configured")
+    val model = getModel(id) ?: return Result(false, "Model not found")
+    if (!testConnection()) return Result(false, "Connection failed")
+    return Result(true, "Valid")
+}
+```
+
+### Dependency Injection for Testing
+
+Make services testable by accepting dependencies via constructor:
+
+```kotlin
+// Before: Hard to test
+@Service
+class FavoriteModelsService {
+    private val settingsService = OpenRouterSettingsService.getInstance()
+    // ... methods using settingsService
+}
+
+// After: Testable with dependency injection
+@Service
+class FavoriteModelsService(
+    private val settingsService: OpenRouterSettingsService? = null
+) {
+    private val settings: OpenRouterSettingsService by lazy {
+        settingsService ?: OpenRouterSettingsService.getInstance()
+    }
+    // ... methods using settings
+}
+
+// In tests:
+val mockSettings = mock(OpenRouterSettingsService::class.java)
+val service = FavoriteModelsService(mockSettings)
 ```
 
 ## Debugging
