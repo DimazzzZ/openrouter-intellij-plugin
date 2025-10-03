@@ -23,6 +23,7 @@ import jakarta.servlet.http.HttpServletResponse
 import java.io.BufferedReader
 import java.io.PrintWriter
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import java.security.MessageDigest
 
 /**
@@ -40,9 +41,8 @@ class ChatCompletionServlet(
         private const val NANOSECONDS_TO_MILLISECONDS = 1_000_000L
         private const val OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
-        // Request tracking for debugging duplicate requests
-        @Volatile
-        private var requestCounter = 0
+        // Request tracking - thread-safe counter using AtomicInteger
+        private val requestCounter = AtomicInteger(0)
 
         // Request deduplication tracking
         private val recentRequests = mutableMapOf<String, Long>()
@@ -58,10 +58,11 @@ class ChatCompletionServlet(
     private val settingsService = OpenRouterSettingsService.getInstance()
 
     override fun doPost(req: HttpServletRequest, resp: HttpServletResponse) {
-        val requestId = (++requestCounter).toString().padStart(6, '0')
+        val requestNumber = requestCounter.incrementAndGet()
+        val requestId = requestNumber.toString().padStart(6, '0')
         val startNs = System.nanoTime()
 
-        logRequestStart(requestId)
+        logRequestStart(requestId, requestNumber)
 
         try {
             processRequest(req, resp, requestId, startNs)
@@ -83,12 +84,12 @@ class ChatCompletionServlet(
     /**
      * Log request start
      */
-    private fun logRequestStart(requestId: String) {
+    private fun logRequestStart(requestId: String, requestNumber: Int) {
         val timestamp = System.currentTimeMillis()
         PluginLogger.Service.info("═══════════════════════════════════════════════════════")
         PluginLogger.Service.info("[Chat-$requestId] NEW CHAT COMPLETION REQUEST RECEIVED")
         PluginLogger.Service.info("[Chat-$requestId] Timestamp: $timestamp")
-        PluginLogger.Service.info("[Chat-$requestId] Total chat requests so far: $requestCounter")
+        PluginLogger.Service.info("[Chat-$requestId] Total chat requests so far: $requestNumber")
         PluginLogger.Service.info("═══════════════════════════════════════════════════════")
     }
 
@@ -332,10 +333,23 @@ class ChatCompletionServlet(
         request: Request
     ) {
         val errorBody = response.body?.string() ?: "Unknown error"
-        PluginLogger.Service.error("[Chat-$requestId] ❌ OpenRouter API Error: ${response.code}")
-        PluginLogger.Service.error("[Chat-$requestId] ❌ Error details: $errorBody")
-        PluginLogger.Service.error("[Chat-$requestId] ❌ Request URL: ${request.url}")
-        PluginLogger.Service.error("[Chat-$requestId] ❌ API key prefix: ${apiKey.take(15)}... (length: ${apiKey.length})")
+
+        // Log as single consolidated message to avoid multiple stack traces
+        val errorMessage = buildString {
+            append("[Chat-$requestId] ❌ OpenRouter API Error: ${response.code}\n")
+            append("  Error details: $errorBody\n")
+            append("  Request URL: ${request.url}\n")
+            append("  API key prefix: ${apiKey.take(15)}... (length: ${apiKey.length})")
+        }
+
+        // Use warn() for expected API errors (404, 429, etc.) to avoid stack traces
+        // Use error() only for unexpected errors (500, network failures, etc.)
+        if (response.code in 400..499) {
+            PluginLogger.Service.warn(errorMessage)
+        } else {
+            PluginLogger.Service.error(errorMessage)
+        }
+
         PluginLogger.Service.debug("[Chat-$requestId] ❌ Full request body: ${jsonBody.take(500)}")
 
         writer.write("data: ${gson.toJson(mapOf("error" to mapOf("message" to errorBody)))}\n\n")

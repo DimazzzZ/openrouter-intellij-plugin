@@ -31,12 +31,11 @@ object PluginLogger {
         fun warn(message: String, throwable: Throwable) = serviceLogger.warn("[$PLUGIN_NAME] $message", throwable)
         fun error(message: String) = serviceLogger.error("[$PLUGIN_NAME] $message")
         fun error(message: String, throwable: Throwable) = serviceLogger.error("[$PLUGIN_NAME] $message", throwable)
-        
+
         fun debug(message: String) {
             if (debugEnabled) {
-                val logMessage = "[$PLUGIN_NAME][DEBUG] $message"
-                serviceLogger.info(logMessage)
-                println(logMessage) // Also print to console for development
+                // Only log to logger, NOT to console (prevents duplicate logging)
+                serviceLogger.info("[$PLUGIN_NAME][DEBUG] $message")
             }
         }
 
@@ -52,40 +51,28 @@ object PluginLogger {
      */
     object Settings {
         fun info(message: String) {
-            val logMessage = "[$PLUGIN_NAME] $message"
-            settingsLogger.info(logMessage)
-            if (debugEnabled) println(logMessage)
+            settingsLogger.info("[$PLUGIN_NAME] $message")
         }
 
         fun warn(message: String) {
-            val logMessage = "[$PLUGIN_NAME] $message"
-            settingsLogger.warn(logMessage)
-            if (debugEnabled) println("WARN: $logMessage")
+            settingsLogger.warn("[$PLUGIN_NAME] $message")
         }
 
         fun warn(message: String, throwable: Throwable) {
-            val logMessage = "[$PLUGIN_NAME] $message"
-            settingsLogger.warn(logMessage, throwable)
-            if (debugEnabled) println("WARN: $logMessage - ${throwable.message}")
+            settingsLogger.warn("[$PLUGIN_NAME] $message", throwable)
         }
 
         fun error(message: String) {
-            val logMessage = "[$PLUGIN_NAME] $message"
-            settingsLogger.error(logMessage)
-            println("ERROR: $logMessage") // Always print errors
+            settingsLogger.error("[$PLUGIN_NAME] $message")
         }
 
         fun error(message: String, throwable: Throwable) {
-            val logMessage = "[$PLUGIN_NAME] $message"
-            settingsLogger.error(logMessage, throwable)
-            println("ERROR: $logMessage - ${throwable.message}") // Always print errors
+            settingsLogger.error("[$PLUGIN_NAME] $message", throwable)
         }
-        
+
         fun debug(message: String) {
             if (debugEnabled) {
-                val logMessage = "[$PLUGIN_NAME][DEBUG] $message"
-                settingsLogger.info(logMessage)
-                println(logMessage) // Also print to console for development
+                settingsLogger.info("[$PLUGIN_NAME][DEBUG] $message")
             }
         }
 
@@ -100,12 +87,7 @@ object PluginLogger {
          * Always logs important events regardless of debug mode.
          */
         fun production(message: String) {
-            val logMessage = "[$PLUGIN_NAME][PROD] $message"
-            settingsLogger.info(logMessage)
-            // Also print to console for immediate visibility during development
-            if (debugEnabled) {
-                println(logMessage)
-            }
+            settingsLogger.info("[$PLUGIN_NAME][PROD] $message")
         }
     }
     

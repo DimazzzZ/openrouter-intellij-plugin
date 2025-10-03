@@ -14,6 +14,7 @@ import jakarta.servlet.http.HttpServletResponse
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Servlet that provides OpenAI-compatible /v1/models endpoint
@@ -33,15 +34,14 @@ class ModelsServlet(
         private val modelsCache = ConcurrentHashMap<String, OpenAIModelsResponse>()
         private val cacheTimestamp = AtomicLong(0)
 
-        // Request tracking for debugging duplicate requests
-        @Volatile
-        private var requestCounter = 0
+        // Request tracking - thread-safe counter using AtomicInteger
+        private val requestCounter = AtomicInteger(0)
     }
 
     private val gson = Gson()
 
     public override fun doGet(req: HttpServletRequest, resp: HttpServletResponse) {
-        val requestId = ++requestCounter
+        val requestId = requestCounter.incrementAndGet()
         val timestamp = System.currentTimeMillis()
 
         try {
@@ -56,16 +56,15 @@ class ModelsServlet(
             PluginLogger.Service.info("[Models-$requestId] Remote Address: ${req.remoteAddr}")
             PluginLogger.Service.info("═══════════════════════════════════════════════════════")
 
-            // Log all headers for debugging AI Assistant integration
+            // Log all headers for debugging AI Assistant integration (DEBUG level only)
             val headers = req.headerNames.asSequence().associateWith { req.getHeader(it) }
             PluginLogger.Service.debug("Request headers: $headers")
 
             // Allow unauthenticated requests for model discovery (common practice for AI clients)
             val authHeader = req.getHeader("Authorization")
             if (authHeader != null) {
+                // Only log auth header in DEBUG mode
                 PluginLogger.Service.debug("Authorization header provided: ${authHeader.take(20)}...")
-            } else {
-                PluginLogger.Service.debug("No Authorization header - allowing unauthenticated model discovery for AI Assistant compatibility")
             }
 
             // Parse query parameters for filtering
