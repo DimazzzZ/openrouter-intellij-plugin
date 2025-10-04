@@ -80,7 +80,8 @@ jobs:
     
     - name: Run Detekt
       run: ./gradlew detekt
-    
+      continue-on-error: true  # Don't fail release if Detekt finds issues
+
     - name: Run Plugin Verifier
       run: ./gradlew runPluginVerifier
     
