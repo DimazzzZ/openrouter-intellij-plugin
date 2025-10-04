@@ -71,13 +71,13 @@ jobs:
 
     - name: Update version in gradle.properties
       run: |
-        ./gradlew updateVersion -PnewVersion=${{ needs.validate-version.outputs.version }} --no-configuration-cache
+        # Update version directly without Gradle to avoid cache invalidation
+        sed -i "s/^pluginVersion = .*/pluginVersion = ${{ needs.validate-version.outputs.version }}/" gradle.properties
+        echo "Updated plugin version to ${{ needs.validate-version.outputs.version }}"
 
     - name: Build, test, and analyze
       run: ./gradlew buildPlugin test detekt --build-cache
-
-    - name: Run Plugin Verifier
-      run: ./gradlew runPluginVerifier --build-cache || true  # Don't fail release if verifier has issues
+      # Note: Plugin Verifier is skipped - JetBrains Marketplace will verify compatibility during publishing
     
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
@@ -180,7 +180,9 @@ jobs:
 
     - name: Update version in gradle.properties
       run: |
-        ./gradlew updateVersion -PnewVersion=${{ needs.validate-version.outputs.version }} --no-configuration-cache
+        # Update version directly without Gradle to avoid cache invalidation
+        sed -i "s/^pluginVersion = .*/pluginVersion = ${{ needs.validate-version.outputs.version }}/" gradle.properties
+        echo "Updated plugin version to ${{ needs.validate-version.outputs.version }}"
 
     - name: Sign and publish plugin to JetBrains Marketplace
       run: ./gradlew signPlugin publishPlugin --build-cache
