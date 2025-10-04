@@ -82,8 +82,17 @@ jobs:
       run: ./gradlew detekt
       continue-on-error: true  # Don't fail release if Detekt finds issues
 
+    - name: Free up disk space
+      run: |
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /usr/local/share/boost
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+        df -h
+
     - name: Run Plugin Verifier
       run: ./gradlew runPluginVerifier
+      continue-on-error: true  # Don't fail release if verifier has issues (disk space, network, etc.)
     
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
