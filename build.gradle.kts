@@ -226,6 +226,9 @@ tasks {
         description = "Updates the plugin version in gradle.properties"
         group = "versioning"
 
+        // Disable configuration cache for this task as it modifies gradle.properties
+        notCompatibleWithConfigurationCache("Modifies gradle.properties file")
+
         doLast {
             val newVersion = providers.gradleProperty("newVersion").orNull
                 ?: throw GradleException("Please specify newVersion: ./gradlew updateVersion -PnewVersion=1.2.0")
