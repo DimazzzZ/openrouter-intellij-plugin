@@ -64,16 +64,6 @@ jobs:
         java-version: '17'
         cache: 'gradle'  # Cache Gradle dependencies
 
-    - name: Free up disk space
-      run: |
-        # Remove large unused packages BEFORE setting up Java/Gradle
-        sudo rm -rf /usr/share/dotnet
-        sudo rm -rf /opt/ghc
-        sudo rm -rf /usr/local/share/boost
-        sudo rm -rf /usr/local/lib/android
-        sudo rm -rf /usr/share/swift
-        df -h
-
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4
       with:
