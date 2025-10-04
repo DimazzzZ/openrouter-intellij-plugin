@@ -23,6 +23,7 @@ gradle-app.setting
 # Java
 *.class
 *.jar
+!gradle/wrapper/*.jar  # Allow Gradle wrapper jar
 *.war
 *.ear
 *.nar
