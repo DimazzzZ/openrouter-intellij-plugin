@@ -65,10 +65,9 @@ jobs:
         cache: 'gradle'  # Cache Gradle dependencies
 
     - name: Setup Gradle
-      uses: gradle/gradle-build-action@v3
+      uses: gradle/actions/setup-gradle@v4
       with:
         cache-read-only: false
-        gradle-home-cache-cleanup: true
 
     - name: Free up disk space
       run: |
@@ -114,7 +113,7 @@ jobs:
         cache: 'gradle'
 
     - name: Setup Gradle
-      uses: gradle/gradle-build-action@v3
+      uses: gradle/actions/setup-gradle@v4
       with:
         cache-read-only: true  # Read-only for release job
     
@@ -182,7 +181,7 @@ jobs:
         cache: 'gradle'
 
     - name: Setup Gradle
-      uses: gradle/gradle-build-action@v3
+      uses: gradle/actions/setup-gradle@v4
       with:
         cache-read-only: true  # Read-only for publish job
 

@@ -26,10 +26,9 @@ jobs:
         cache: 'gradle'  # Cache Gradle dependencies
 
     - name: Setup Gradle
-      uses: gradle/gradle-build-action@v3
+      uses: gradle/actions/setup-gradle@v4
       with:
         cache-read-only: false  # Allow writing to cache on main/dev branches
-        gradle-home-cache-cleanup: true  # Clean up old cache entries
 
     - name: Build plugin, run tests, and Detekt in one command
       run: ./gradlew build detekt --parallel --build-cache --configuration-cache
