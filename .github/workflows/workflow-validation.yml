@@ -199,7 +199,7 @@ jobs:
         echo "💡 All workflows are designed for GitHub's free tier!"
 
     - name: Upload documentation
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: github-actions-documentation
         path: GITHUB_ACTIONS_SETUP.md

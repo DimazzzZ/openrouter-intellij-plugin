@@ -26,7 +26,7 @@ jobs:
         gradle-version: '8.2.1'
     
     - name: Cache IntelliJ dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/.gradle/caches/modules-2/files-2.1/com.jetbrains.intellij.idea
@@ -34,32 +34,32 @@ jobs:
         key: ${{ runner.os }}-intellij-${{ hashFiles('build.gradle.kts') }}
         restore-keys: |
           ${{ runner.os }}-intellij-
-    
+
     - name: Build plugin
       run: ./gradlew build -x test -x detekt
-    
+
     - name: Run unit tests
       run: ./gradlew test
-      
+
     - name: Run Detekt analysis
       run: ./gradlew detekt
       continue-on-error: true  # Don't fail CI if Detekt finds issues
-    
+
     - name: Upload test results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: test-results
         path: build/reports/tests/test/
-    
+
     - name: Upload Detekt SARIF
-      uses: github/codeql-action/upload-sarif@v2
+      uses: github/codeql-action/upload-sarif@v3
       if: always()
       with:
         sarif_file: build/reports/detekt/detekt.sarif
-    
+
     - name: Upload Detekt reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: detekt-reports
