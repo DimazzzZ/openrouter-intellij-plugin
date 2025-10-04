@@ -30,8 +30,11 @@ jobs:
       with:
         cache-read-only: false  # Allow writing to cache on main/dev branches
 
-    - name: Build plugin, run tests, and Detekt in one command
-      run: ./gradlew build detekt --parallel --build-cache --configuration-cache
+    - name: Build plugin
+      run: ./gradlew build --build-cache
+
+    - name: Run Detekt
+      run: ./gradlew detekt --build-cache
       continue-on-error: true  # Don't fail CI if Detekt finds issues
 
     - name: Upload test results

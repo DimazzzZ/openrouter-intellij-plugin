@@ -64,27 +64,38 @@ jobs:
         java-version: '17'
         cache: 'gradle'  # Cache Gradle dependencies
 
+    - name: Free up disk space
+      run: |
+        # Remove large unused packages BEFORE setting up Java/Gradle
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /usr/local/share/boost
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /usr/share/swift
+        df -h
+
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4
       with:
         cache-read-only: false
 
-    - name: Free up disk space
-      run: |
-        sudo rm -rf /usr/share/dotnet
-        sudo rm -rf /opt/ghc
-        sudo rm -rf /usr/local/share/boost
-        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-        df -h
-
     - name: Update version in gradle.properties
       run: |
         ./gradlew updateVersion -PnewVersion=${{ needs.validate-version.outputs.version }} --no-configuration-cache
 
-    - name: Build, test, and verify plugin
-      run: |
-        ./gradlew buildPlugin test detekt runPluginVerifier --parallel --build-cache
-      continue-on-error: true  # Don't fail release if Detekt or verifier has issues
+    - name: Build plugin
+      run: ./gradlew buildPlugin --build-cache
+
+    - name: Run tests
+      run: ./gradlew test --build-cache
+
+    - name: Run Detekt
+      run: ./gradlew detekt --build-cache
+      continue-on-error: true  # Don't fail release if Detekt finds issues
+
+    - name: Run Plugin Verifier
+      run: ./gradlew runPluginVerifier --build-cache
+      continue-on-error: true  # Don't fail release if verifier has issues
     
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
