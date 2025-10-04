@@ -55,6 +55,7 @@ detekt {
 // Configure Detekt tasks
 tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
     jvmTarget = "17"
+    ignoreFailures = true  // Don't fail the build on Detekt issues
 }
 
 tasks {

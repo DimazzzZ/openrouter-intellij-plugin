@@ -83,14 +83,8 @@ jobs:
       run: |
         ./gradlew updateVersion -PnewVersion=${{ needs.validate-version.outputs.version }} --no-configuration-cache
 
-    - name: Build plugin
-      run: ./gradlew buildPlugin --build-cache
-
-    - name: Run tests
-      run: ./gradlew test --build-cache
-
-    - name: Run Detekt
-      run: ./gradlew detekt --build-cache || true  # Don't fail release if Detekt finds issues
+    - name: Build, test, and analyze
+      run: ./gradlew buildPlugin test detekt --build-cache
 
     - name: Run Plugin Verifier
       run: ./gradlew runPluginVerifier --build-cache || true  # Don't fail release if verifier has issues
