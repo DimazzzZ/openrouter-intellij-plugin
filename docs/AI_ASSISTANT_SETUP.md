@@ -17,8 +17,7 @@ Before you begin, ensure you have:
 
 1. Open **Settings** → **Tools** → **OpenRouter**
 2. Enter your **Provisioning Key** from [OpenRouter Provisioning Keys](https://openrouter.ai/settings/provisioning-keys)
-3. Click **Test Connection** to verify your key works
-4. Click **Apply** and **OK**
+3. Click **Apply** and **OK**
 
 ![OpenRouter Settings](images/openrouter-settings.png)
 <p style="text-align:center;font-style: italic">OpenRouter settings panel with provisioning key field</p>
