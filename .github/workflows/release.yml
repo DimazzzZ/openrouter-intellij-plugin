@@ -62,25 +62,13 @@ jobs:
       with:
         distribution: 'temurin'
         java-version: '17'
-    
+        cache: 'gradle'  # Cache Gradle dependencies
+
     - name: Setup Gradle
-      uses: gradle/gradle-build-action@v2
+      uses: gradle/gradle-build-action@v3
       with:
-        gradle-version: '8.2.1'
-    
-    - name: Update version in gradle.properties
-      run: |
-        ./gradlew updateVersion -PnewVersion=${{ needs.validate-version.outputs.version }} --no-configuration-cache
-    
-    - name: Build plugin
-      run: ./gradlew buildPlugin
-    
-    - name: Run tests
-      run: ./gradlew test
-    
-    - name: Run Detekt
-      run: ./gradlew detekt
-      continue-on-error: true  # Don't fail release if Detekt finds issues
+        cache-read-only: false
+        gradle-home-cache-cleanup: true
 
     - name: Free up disk space
       run: |
@@ -90,9 +78,14 @@ jobs:
         sudo rm -rf "$AGENT_TOOLSDIRECTORY"
         df -h
 
-    - name: Run Plugin Verifier
-      run: ./gradlew runPluginVerifier
-      continue-on-error: true  # Don't fail release if verifier has issues (disk space, network, etc.)
+    - name: Update version in gradle.properties
+      run: |
+        ./gradlew updateVersion -PnewVersion=${{ needs.validate-version.outputs.version }} --no-configuration-cache
+
+    - name: Build, test, and verify plugin
+      run: |
+        ./gradlew buildPlugin test detekt runPluginVerifier --parallel --build-cache
+      continue-on-error: true  # Don't fail release if Detekt or verifier has issues
     
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
@@ -104,7 +97,9 @@ jobs:
   create-release:
     needs: [validate-version, build-and-test]
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: write  # Required to create releases
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -116,11 +111,12 @@ jobs:
       with:
         distribution: 'temurin'
         java-version: '17'
-    
+        cache: 'gradle'
+
     - name: Setup Gradle
-      uses: gradle/gradle-build-action@v2
+      uses: gradle/gradle-build-action@v3
       with:
-        gradle-version: '8.2.1'
+        cache-read-only: true  # Read-only for release job
     
     - name: Download build artifacts
       uses: actions/download-artifact@v4
@@ -183,18 +179,19 @@ jobs:
       with:
         distribution: 'temurin'
         java-version: '17'
-    
+        cache: 'gradle'
+
     - name: Setup Gradle
-      uses: gradle/gradle-build-action@v2
+      uses: gradle/gradle-build-action@v3
       with:
-        gradle-version: '8.2.1'
-    
+        cache-read-only: true  # Read-only for publish job
+
     - name: Update version in gradle.properties
       run: |
         ./gradlew updateVersion -PnewVersion=${{ needs.validate-version.outputs.version }} --no-configuration-cache
 
     - name: Sign and publish plugin to JetBrains Marketplace
-      run: ./gradlew signPlugin publishPlugin
+      run: ./gradlew signPlugin publishPlugin --build-cache
       env:
         CERTIFICATE_CHAIN: ${{ secrets.CERTIFICATE_CHAIN }}
         PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}

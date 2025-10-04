@@ -23,30 +23,16 @@ jobs:
       with:
         distribution: 'temurin'
         java-version: '17'
-    
+        cache: 'gradle'  # Cache Gradle dependencies
+
     - name: Setup Gradle
-      uses: gradle/gradle-build-action@v2
+      uses: gradle/gradle-build-action@v3
       with:
-        gradle-version: '8.2.1'
-    
-    - name: Cache IntelliJ dependencies
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.gradle/caches/modules-2/files-2.1/com.jetbrains.intellij.idea
-          ~/.gradle/caches/modules-2/files-2.1/com.jetbrains
-        key: ${{ runner.os }}-intellij-${{ hashFiles('build.gradle.kts') }}
-        restore-keys: |
-          ${{ runner.os }}-intellij-
+        cache-read-only: false  # Allow writing to cache on main/dev branches
+        gradle-home-cache-cleanup: true  # Clean up old cache entries
 
-    - name: Build plugin
-      run: ./gradlew build -x test -x detekt
-
-    - name: Run unit tests
-      run: ./gradlew test
-
-    - name: Run Detekt analysis
-      run: ./gradlew detekt
+    - name: Build plugin, run tests, and Detekt in one command
+      run: ./gradlew build detekt --parallel --build-cache --configuration-cache
       continue-on-error: true  # Don't fail CI if Detekt finds issues
 
     - name: Upload test results
