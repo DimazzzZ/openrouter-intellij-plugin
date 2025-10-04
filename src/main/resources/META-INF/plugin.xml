@@ -59,6 +59,11 @@
 
     <!-- Change notes for this version -->
     <change-notes><![CDATA[
+        <h3>🎉 Version 0.2.1 - OpenRouter models support for 3rd-party AI Assistants (2025-10-04)</h3>
+        <ul>
+            <li>fix: resolve JetBrains plugin verifier compatibility issues and optimize workflows</li>
+        </ul>
+
         <h3>🎉 Version 0.2.0 - OpenRouter models support for 3rd-party AI Assistants (2025-10-03)</h3>
         <p><strong>New Features:</strong></p>
         <ul>
