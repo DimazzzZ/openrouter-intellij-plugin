@@ -192,7 +192,7 @@ jobs:
         PRIVATE_KEY_PASSWORD: ${{ secrets.PRIVATE_KEY_PASSWORD }}
         PUBLISH_TOKEN: ${{ secrets.PUBLISH_TOKEN }}
     
-    - name: Comment on release with marketplace link
+    - name: Update release with marketplace link
       uses: actions/github-script@v6
       with:
         script: |
@@ -201,42 +201,13 @@ jobs:
             repo: context.repo.repo,
             tag: 'v${{ needs.validate-version.outputs.version }}'
           });
-          
-          await github.rest.issues.createComment({
-            issue_number: release.data.id,
+
+          // Update release body to include marketplace link
+          const marketplaceLink = '\n\n---\n\n🎉 **Plugin Published!**\n\nThe plugin has been successfully published to the JetBrains Marketplace.\n\n📦 [View on Marketplace](https://plugins.jetbrains.com/plugin/org.zhavoronkov.openrouter)';
+
+          await github.rest.repos.updateRelease({
             owner: context.repo.owner,
             repo: context.repo.repo,
-            body: '🎉 **Plugin Published!**\n\nThe plugin has been successfully published to the JetBrains Marketplace.\n\n📦 [View on Marketplace](https://plugins.jetbrains.com/plugin/org.zhavoronkov.openrouter)'
+            release_id: release.data.id,
+            body: release.data.body + marketplaceLink
           });
-
-  update-documentation:
-    needs: [validate-version, publish-to-marketplace]
-    runs-on: ubuntu-latest
-    if: always() && needs.publish-to-marketplace.result == 'success'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-    
-    - name: Update README badges
-      run: |
-        # Update version badge in README.md
-        sed -i "s/version-[0-9.]*/version-${{ needs.validate-version.outputs.version }}/g" README.md
-        
-        # Update changelog reference
-        echo "## [${{ needs.validate-version.outputs.version }}] - $(date +%Y-%m-%d)" >> TEMP_CHANGELOG.md
-        echo "" >> TEMP_CHANGELOG.md
-        cat changelog.md >> TEMP_CHANGELOG.md
-        echo "" >> TEMP_CHANGELOG.md
-        cat CHANGELOG.md >> TEMP_CHANGELOG.md
-        mv TEMP_CHANGELOG.md CHANGELOG.md
-    
-    - name: Commit documentation updates
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add README.md CHANGELOG.md
-        git commit -m "docs: update documentation for release ${{ needs.validate-version.outputs.version }}" || exit 0
-        git push
