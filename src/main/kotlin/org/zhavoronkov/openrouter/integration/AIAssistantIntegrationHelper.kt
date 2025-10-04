@@ -21,6 +21,7 @@ object AIAssistantIntegrationHelper {
     /**
      * Checks if JetBrains AI Assistant plugin is installed and enabled
      */
+    @Suppress("DEPRECATION")  // isEnabled() is deprecated but replacement not available in 2023.2
     fun isAIAssistantAvailable(): Boolean {
         return try {
             val pluginId = PluginId.getId(AI_ASSISTANT_PLUGIN_ID)
@@ -202,21 +203,29 @@ object AIAssistantIntegrationHelper {
     private fun handleWizardAction(project: Project?, status: IntegrationStatus) {
         when (status) {
             IntegrationStatus.AI_ASSISTANT_NOT_AVAILABLE -> {
-                // Open plugin marketplace
+                // Open plugin marketplace using ActionManager
                 try {
-                    val action = com.intellij.ide.actions.ShowPluginManagerAction()
-                    val dataContext = if (project != null) {
-                        com.intellij.openapi.actionSystem.impl.SimpleDataContext.getProjectContext(project)
-                    } else {
-                        com.intellij.openapi.actionSystem.impl.SimpleDataContext.EMPTY_CONTEXT
-                    }
-                    action.actionPerformed(
-                        com.intellij.openapi.actionSystem.AnActionEvent.createFromDataContext(
-                            "",
+                    val actionManager = com.intellij.openapi.actionSystem.ActionManager.getInstance()
+                    val action = actionManager.getAction("WelcomeScreen.Plugins")
+                        ?: actionManager.getAction("ShowPluginManager")
+
+                    if (action != null) {
+                        val dataContext = if (project != null) {
+                            com.intellij.openapi.actionSystem.impl.SimpleDataContext.getProjectContext(project)
+                        } else {
+                            com.intellij.openapi.actionSystem.impl.SimpleDataContext.EMPTY_CONTEXT
+                        }
+
+                        actionManager.tryToExecute(
+                            action,
+                            com.intellij.openapi.ui.playback.commands.ActionCommand.getInputEvent("ShowPluginManager"),
                             null,
-                            dataContext
+                            null,
+                            true
                         )
-                    )
+                    } else {
+                        throw IllegalStateException("Plugin manager action not found")
+                    }
                 } catch (e: Exception) {
                     PluginLogger.Service.error("Failed to open plugin marketplace", e)
                     Messages.showErrorDialog(
