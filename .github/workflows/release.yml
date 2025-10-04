@@ -70,7 +70,7 @@ jobs:
     
     - name: Update version in gradle.properties
       run: |
-        ./gradlew updateVersion -PnewVersion=${{ needs.validate-version.outputs.version }}
+        ./gradlew updateVersion -PnewVersion=${{ needs.validate-version.outputs.version }} --no-configuration-cache
     
     - name: Build plugin
       run: ./gradlew buildPlugin
@@ -181,8 +181,8 @@ jobs:
     
     - name: Update version in gradle.properties
       run: |
-        ./gradlew updateVersion -PnewVersion=${{ needs.validate-version.outputs.version }}
-    
+        ./gradlew updateVersion -PnewVersion=${{ needs.validate-version.outputs.version }} --no-configuration-cache
+
     - name: Sign and publish plugin to JetBrains Marketplace
       run: ./gradlew signPlugin publishPlugin
       env:
