@@ -17,6 +17,7 @@ import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import org.zhavoronkov.openrouter.utils.ModelAvailabilityNotifier
 import jakarta.servlet.http.HttpServlet
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -352,8 +353,43 @@ class ChatCompletionServlet(
 
         PluginLogger.Service.debug("[Chat-$requestId] ❌ Full request body: ${jsonBody.take(500)}")
 
-        writer.write("data: ${gson.toJson(mapOf("error" to mapOf("message" to errorBody)))}\n\n")
+        // Create user-friendly error message
+        val userFriendlyMessage = createUserFriendlyErrorMessage(errorBody, response.code)
+
+        writer.write("data: ${gson.toJson(mapOf("error" to mapOf("message" to userFriendlyMessage)))}\n\n")
         writer.flush()
+    }
+
+    /**
+     * Create a user-friendly error message based on the error response
+     */
+    private fun createUserFriendlyErrorMessage(errorBody: String, statusCode: Int): String {
+        // Check if this is a "No endpoints found" error (model unavailable)
+        if (statusCode == 404 && errorBody.contains("No endpoints found", ignoreCase = true)) {
+            // Extract model name from error message
+            val modelNameRegex = """No endpoints found for ([^.]+)""".toRegex()
+            val modelName = modelNameRegex.find(errorBody)?.groupValues?.get(1) ?: "the requested model"
+
+            // Show notification to user (only once per model per hour)
+            ModelAvailabilityNotifier.notifyModelUnavailable(modelName, errorBody)
+
+            return buildString {
+                append("❌ Model Unavailable: $modelName\n\n")
+                append("This model is currently unavailable on OpenRouter. This can happen when:\n")
+                append("• The model has been deprecated or removed\n")
+                append("• All providers for this model are temporarily down\n")
+                append("• The free tier for this model is unavailable\n\n")
+                append("💡 Suggested alternatives:\n")
+                append("• openai/gpt-4o-mini (fast, affordable)\n")
+                append("• anthropic/claude-3.5-sonnet (high quality)\n")
+                append("• google/gemini-pro-1.5 (large context)\n\n")
+                append("📚 Check model status: https://openrouter.ai/models\n")
+                append("⚙️ Update your model selection in AI Assistant settings")
+            }.toString()
+        }
+
+        // For other errors, return the original error message
+        return errorBody
     }
 
     /**

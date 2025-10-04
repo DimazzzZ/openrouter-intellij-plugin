@@ -109,6 +109,11 @@
                            displayType="BALLOON"
                            isLogByDefault="true"/>
 
+        <!-- Notification group for model errors and warnings -->
+        <notificationGroup id="OpenRouter Errors"
+                           displayType="BALLOON"
+                           isLogByDefault="true"/>
+
         <!-- Application-level services -->
         <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterService"/>
         <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterSettingsService"/>
