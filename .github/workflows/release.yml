@@ -90,12 +90,10 @@ jobs:
       run: ./gradlew test --build-cache
 
     - name: Run Detekt
-      run: ./gradlew detekt --build-cache
-      continue-on-error: true  # Don't fail release if Detekt finds issues
+      run: ./gradlew detekt --build-cache || true  # Don't fail release if Detekt finds issues
 
     - name: Run Plugin Verifier
-      run: ./gradlew runPluginVerifier --build-cache
-      continue-on-error: true  # Don't fail release if verifier has issues
+      run: ./gradlew runPluginVerifier --build-cache || true  # Don't fail release if verifier has issues
     
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
