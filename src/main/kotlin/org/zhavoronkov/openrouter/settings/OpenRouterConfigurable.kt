@@ -20,7 +20,8 @@ class OpenRouterConfigurable : Configurable {
     override fun createComponent(): JComponent? {
         settingsPanel = OpenRouterSettingsPanel()
 
-        // Load current settings into the panel BEFORE refreshing API keys
+        // Load current settings into the panel
+        // Note: setProvisioningKey() will automatically load API keys (with caching)
         val panel = settingsPanel ?: return null
         panel.setProvisioningKey(settingsService.getProvisioningKey())
         // TODO: Future version - Default model selection
@@ -29,8 +30,8 @@ class OpenRouterConfigurable : Configurable {
         panel.setRefreshInterval(settingsService.getRefreshInterval())
         panel.setShowCosts(settingsService.shouldShowCosts())
 
-        // Now refresh API keys with the loaded provisioning key
-        panel.refreshApiKeys()
+        // REMOVED: panel.refreshApiKeys() - No longer needed!
+        // setProvisioningKey() already loads API keys with caching
 
         return panel.getPanel()
     }
@@ -60,9 +61,9 @@ class OpenRouterConfigurable : Configurable {
         settingsService.setRefreshInterval(panel.getRefreshInterval())
         settingsService.setShowCosts(panel.shouldShowCosts())
 
-        // Refresh API keys table if provisioning key changed
+        // Refresh API keys table if provisioning key changed (force refresh to bypass cache)
         if (oldProvisioningKey != newProvisioningKey) {
-            panel.refreshApiKeys()
+            panel.refreshApiKeys(forceRefresh = true)
 
             // If this is the first time setting a provisioning key, the refreshApiKeys will automatically
             // create the IntelliJ IDEA Plugin API key if it doesn't exist
@@ -83,7 +84,9 @@ class OpenRouterConfigurable : Configurable {
         panel.setAutoRefresh(settingsService.isAutoRefreshEnabled())
         panel.setRefreshInterval(settingsService.getRefreshInterval())
         panel.setShowCosts(settingsService.shouldShowCosts())
-        panel.refreshApiKeys() // Refresh API keys when resetting
+
+        // REMOVED: panel.refreshApiKeys() - No longer needed!
+        // setProvisioningKey() already loads API keys with caching
     }
 
     override fun disposeUIResources() {

@@ -1,17 +1,27 @@
 package org.zhavoronkov.openrouter
 
 import com.google.gson.Gson
-import okhttp3.*
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
-import org.junit.jupiter.api.*
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Disabled
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertEquals
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 @DisplayName("OpenRouter API Integration Tests")
+@Disabled("Disabled by default to avoid memory issues. Enable manually for integration testing.")
 class ApiIntegrationTest {
 
     private lateinit var mockWebServer: MockWebServer

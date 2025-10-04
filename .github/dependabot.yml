@@ -1,0 +1,84 @@
+version: 2
+updates:
+  # Gradle dependencies
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "DimazzzZ"
+    assignees:
+      - "DimazzzZ"
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps-dev"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "automerge"
+    # Group updates to reduce PR noise
+    groups:
+      kotlin:
+        patterns:
+          - "org.jetbrains.kotlin*"
+          - "kotlin*"
+      jetbrains:
+        patterns:
+          - "org.jetbrains.intellij*"
+          - "com.jetbrains*"
+      test-dependencies:
+        patterns:
+          - "org.junit.jupiter*"
+          - "org.mockito*"
+          - "org.assertj*"
+      http-clients:
+        patterns:
+          - "com.squareup.okhttp3*"
+      detekt:
+        patterns:
+          - "io.gitlab.arturbosch.detekt*"
+    # Version update strategies
+    versioning-strategy: "increase"
+    # Ignore specific dependencies if needed
+    ignore:
+      # Ignore major version updates for stable dependencies
+      - dependency-name: "org.jetbrains.intellij"
+        update-types: ["version-update:semver-major"]
+      # Ignore specific versions that might be problematic
+      - dependency-name: "com.squareup.okhttp3:okhttp"
+        versions: ["5.0.0-alpha.*"]
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/.github/workflows"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "DimazzzZ"
+    assignees:
+      - "DimazzzZ"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "ci/cd"
+      - "dependencies"
+      - "automerge"
+    # Group GitHub Actions updates
+    groups:
+      actions:
+        patterns:
+          - "actions/*"
+        exclude-patterns:
+          - "actions/checkout"  # Keep checkout separate as it's critical
+      gradle-actions:
+        patterns:
+          - "gradle/*"

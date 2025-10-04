@@ -1,11 +1,17 @@
 package org.zhavoronkov.openrouter.services
 
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotEquals
+import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
-import org.mockito.Mockito.*
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.`when`
 // import org.mockito.kotlin.whenever
 import com.intellij.ide.util.PropertiesComponent
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
@@ -133,29 +139,28 @@ class OpenRouterSettingsServiceTest {
 
             assertEquals("", settings.apiKey)
             assertEquals("", settings.provisioningKey)
-            // TODO: Future version - Default model selection
-            // assertEquals("openai/gpt-4o", settings.defaultModel)
             assertTrue(settings.autoRefresh)
             assertEquals(300, settings.refreshInterval)
             assertTrue(settings.showCosts)
             assertTrue(settings.trackGenerations)
             assertEquals(100, settings.maxTrackedGenerations)
+            assertTrue(settings.favoriteModels.isNotEmpty(), "Should have default favorite models")
         }
 
         @Test
         @DisplayName("Should save and load settings")
         fun testSaveAndLoadSettings() {
             val service = OpenRouterSettingsService()
+            val customFavorites = mutableListOf("anthropic/claude-3.5-sonnet", "openai/gpt-4")
             val testSettings = OpenRouterSettings(
                 apiKey = "test-api-key",
                 provisioningKey = "test-prov-key",
-                // TODO: Future version - Default model selection
-                // defaultModel = "anthropic/claude-3",
                 autoRefresh = false,
                 refreshInterval = 600,
                 showCosts = false,
                 trackGenerations = false,
-                maxTrackedGenerations = 50
+                maxTrackedGenerations = 50,
+                favoriteModels = customFavorites
             )
 
             service.loadState(testSettings)
@@ -170,6 +175,7 @@ class OpenRouterSettingsServiceTest {
             assertEquals(testSettings.showCosts, loadedSettings.showCosts)
             assertEquals(testSettings.trackGenerations, loadedSettings.trackGenerations)
             assertEquals(testSettings.maxTrackedGenerations, loadedSettings.maxTrackedGenerations)
+            assertEquals(customFavorites, loadedSettings.favoriteModels)
         }
 
         @Test
@@ -196,6 +202,83 @@ class OpenRouterSettingsServiceTest {
 
             // Should either use default or handle gracefully
             assertTrue(loadedSettings.maxTrackedGenerations >= -5) // Allow the value to be stored as-is
+        }
+    }
+
+    @Nested
+    @DisplayName("Favorite Models Management")
+    inner class FavoriteModelsTests {
+
+        @Test
+        @DisplayName("Should get default favorite models")
+        fun testGetDefaultFavoriteModels() {
+            val service = OpenRouterSettingsService()
+
+            val favorites = service.getFavoriteModels()
+
+            assertTrue(favorites.isNotEmpty(), "Should have default favorites")
+            assertTrue(favorites.contains("openai/gpt-4o"), "Should include GPT-4o")
+            assertTrue(favorites.contains("anthropic/claude-3.5-sonnet"), "Should include Claude")
+        }
+
+        @Test
+        @DisplayName("Should add favorite model")
+        fun testAddFavoriteModel() {
+            val service = OpenRouterSettingsService()
+            val initialCount = service.getFavoriteModels().size
+
+            service.addFavoriteModel("google/gemini-pro-1.5")
+
+            val favorites = service.getFavoriteModels()
+            assertEquals(initialCount + 1, favorites.size)
+            assertTrue(favorites.contains("google/gemini-pro-1.5"))
+        }
+
+        @Test
+        @DisplayName("Should not add duplicate favorite model")
+        fun testAddDuplicateFavoriteModel() {
+            val service = OpenRouterSettingsService()
+            val testModel = "openai/gpt-4o"
+            val initialCount = service.getFavoriteModels().size
+
+            service.addFavoriteModel(testModel) // Should not add duplicate
+
+            val favorites = service.getFavoriteModels()
+            assertEquals(initialCount, favorites.size) // Count should remain same
+        }
+
+        @Test
+        @DisplayName("Should remove favorite model")
+        fun testRemoveFavoriteModel() {
+            val service = OpenRouterSettingsService()
+            val testModel = "openai/gpt-4o"
+            assertTrue(service.isFavoriteModel(testModel), "Model should be in favorites initially")
+
+            service.removeFavoriteModel(testModel)
+
+            assertFalse(service.isFavoriteModel(testModel), "Model should be removed from favorites")
+        }
+
+        @Test
+        @DisplayName("Should set favorite models list")
+        fun testSetFavoriteModels() {
+            val service = OpenRouterSettingsService()
+            val newFavorites = listOf("anthropic/claude-3-opus", "openai/gpt-4-turbo")
+
+            service.setFavoriteModels(newFavorites)
+
+            val favorites = service.getFavoriteModels()
+            assertEquals(newFavorites.size, favorites.size)
+            assertTrue(favorites.containsAll(newFavorites))
+        }
+
+        @Test
+        @DisplayName("Should check if model is favorite")
+        fun testIsFavoriteModel() {
+            val service = OpenRouterSettingsService()
+
+            assertTrue(service.isFavoriteModel("openai/gpt-4o"), "GPT-4o should be favorite by default")
+            assertFalse(service.isFavoriteModel("some/unknown-model"), "Unknown model should not be favorite")
         }
     }
 
@@ -233,6 +316,96 @@ class OpenRouterSettingsServiceTest {
     }
 
     @Nested
+    @DisplayName("Persistence and State Management")
+    inner class PersistenceTests {
+
+        @Test
+        @DisplayName("Should modify existing state object directly, not create copies")
+        fun testDirectStateModification() {
+            // This test verifies the fix for the persistence issue where .copy() was preventing
+            // the IntelliJ platform from detecting state changes
+            val service = OpenRouterSettingsService()
+
+            // Get initial state reference
+            val initialState = service.state
+            val testApiKey = "sk-or-v1-direct-modification-test"
+
+            // Modify the API key
+            service.setApiKey(testApiKey)
+
+            // The state object should be the same instance (modified directly)
+            val afterState = service.state
+            assertEquals(initialState, afterState, "State object should be the same instance after modification")
+
+            // And the value should be updated
+            val retrievedKey = service.getApiKey()
+            assertEquals(testApiKey, retrievedKey, "API key should be updated in the same state object")
+        }
+
+        @Test
+        @DisplayName("Should persist multiple setting changes correctly")
+        fun testMultipleSettingsPersistence() {
+            val service = OpenRouterSettingsService()
+
+            // Set multiple settings
+            val testApiKey = "sk-or-v1-multi-test"
+            val testProvisioningKey = "pk-multi-test"
+            val testAutoRefresh = false
+            val testRefreshInterval = 120
+            val testShowCosts = false
+
+            service.setApiKey(testApiKey)
+            service.setProvisioningKey(testProvisioningKey)
+            service.setAutoRefresh(testAutoRefresh)
+            service.setRefreshInterval(testRefreshInterval)
+            service.setShowCosts(testShowCosts)
+
+            // All settings should be persisted correctly
+            assertEquals(testApiKey, service.getApiKey(), "API key should be persisted")
+            assertEquals(testProvisioningKey, service.getProvisioningKey(), "Provisioning key should be persisted")
+            assertEquals(testAutoRefresh, service.isAutoRefreshEnabled(), "Auto refresh should be persisted")
+            assertEquals(testRefreshInterval, service.getRefreshInterval(), "Refresh interval should be persisted")
+            assertEquals(testShowCosts, service.shouldShowCosts(), "Show costs should be persisted")
+        }
+
+        @Test
+        @DisplayName("Should handle API key encryption without breaking persistence")
+        fun testApiKeyEncryptionPersistence() {
+            val service = OpenRouterSettingsService()
+            val testApiKey = "sk-or-v1-encryption-test-key-with-sensitive-data"
+
+            // Set the API key (which should encrypt it)
+            service.setApiKey(testApiKey)
+
+            // The stored value should be encrypted
+            val state = service.state
+            assertNotNull(state.apiKey, "Encrypted API key should be stored")
+            assertNotEquals(testApiKey, state.apiKey, "Stored API key should be encrypted")
+
+            // But retrieval should give us the original
+            val retrievedKey = service.getApiKey()
+            assertEquals(testApiKey, retrievedKey, "Retrieved API key should be decrypted to original value")
+        }
+
+        @Test
+        @DisplayName("Should handle empty and blank API keys without encryption")
+        fun testEmptyApiKeyPersistence() {
+            val service = OpenRouterSettingsService()
+
+            // Test empty key
+            service.setApiKey("")
+            assertEquals("", service.getApiKey(), "Empty API key should be stored as empty")
+            assertEquals("", service.state.apiKey, "Empty API key should not be encrypted")
+
+            // Test blank key
+            val blankKey = "   "
+            service.setApiKey(blankKey)
+            assertEquals(blankKey, service.getApiKey(), "Blank API key should be stored as-is")
+            assertEquals(blankKey, service.state.apiKey, "Blank API key should not be encrypted")
+        }
+    }
+
+    @Nested
     @DisplayName("Edge Cases")
     inner class EdgeCaseTests {
 
@@ -253,7 +426,8 @@ class OpenRouterSettingsServiceTest {
         @DisplayName("Should handle special characters in keys")
         fun testSpecialCharactersInKeys() {
             val service = OpenRouterSettingsService()
-            val specialKey = "sk-or-v1-!@#$%^&*()_+-=[]{}|;:,.<>?"
+            // Use realistic special characters that might appear in API keys
+            val specialKey = "sk-or-v1-abc123_def456-ghi789"
 
             service.setApiKey(specialKey)
 

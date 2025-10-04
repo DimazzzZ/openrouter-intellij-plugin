@@ -118,16 +118,50 @@ data class ProviderInfo(
     @SerializedName("status_page_url") val statusPageUrl: String?
 )
 
+// OpenRouter Models API Response
+data class OpenRouterModelsResponse(
+    val data: List<OpenRouterModelInfo>
+)
+
+data class OpenRouterModelInfo(
+    val id: String,
+    val name: String,
+    val created: Long,
+    val description: String? = null,
+    val architecture: ModelArchitecture? = null,
+    @SerializedName("top_provider") val topProvider: TopProvider? = null,
+    val pricing: ModelPricing? = null,
+    @SerializedName("context_length") val contextLength: Int? = null,
+    @SerializedName("per_request_limits") val perRequestLimits: Map<String, Any>? = null,
+    @SerializedName("supported_parameters") val supportedParameters: List<String>? = null
+)
+
+data class ModelArchitecture(
+    @SerializedName("input_modalities") val inputModalities: List<String>? = null,
+    @SerializedName("output_modalities") val outputModalities: List<String>? = null,
+    val tokenizer: String? = null,
+    @SerializedName("instruct_type") val instructType: String? = null
+)
+
+data class TopProvider(
+    @SerializedName("is_moderated") val isModerated: Boolean? = null,
+    @SerializedName("context_length") val contextLength: Int? = null,
+    @SerializedName("max_completion_tokens") val maxCompletionTokens: Int? = null
+)
+
+data class ModelPricing(
+    val prompt: String? = null,
+    val completion: String? = null,
+    val image: String? = null,
+    val request: String? = null
+)
+
+// Legacy model info for backward compatibility
 data class ModelInfo(
     val id: String,
     val name: String,
     val description: String? = null,
     val pricing: ModelPricing? = null
-)
-
-data class ModelPricing(
-    val prompt: Double? = null,
-    val completion: Double? = null
 )
 
 /**
@@ -165,16 +199,81 @@ data class ActivityData(
 )
 
 /**
+ * Chat completion request and response models
+ */
+data class ChatCompletionRequest(
+    val model: String,
+    val messages: List<ChatMessage>,
+    val temperature: Double? = null,
+    @SerializedName("max_tokens") val maxTokens: Int? = null,
+    @SerializedName("top_p") val topP: Double? = null,
+    @SerializedName("frequency_penalty") val frequencyPenalty: Double? = null,
+    @SerializedName("presence_penalty") val presencePenalty: Double? = null,
+    val stop: List<String>? = null,
+    val stream: Boolean? = false
+)
+
+data class ChatMessage(
+    val role: String, // "system", "user", "assistant"
+    val content: String,
+    val name: String? = null
+)
+
+data class ChatCompletionResponse(
+    val id: String? = null,
+    val `object`: String? = null,
+    val created: Long? = null,
+    val model: String? = null,
+    val choices: List<ChatChoice>? = null,
+    val usage: ChatUsage? = null
+)
+
+data class ChatChoice(
+    val index: Int? = null,
+    val message: ChatMessage? = null,
+    @SerializedName("finish_reason") val finishReason: String? = null
+)
+
+data class ChatUsage(
+    @SerializedName("prompt_tokens") val promptTokens: Int? = null,
+    @SerializedName("completion_tokens") val completionTokens: Int? = null,
+    @SerializedName("total_tokens") val totalTokens: Int? = null
+)
+
+/**
  * Settings data class
  */
 data class OpenRouterSettings(
     var apiKey: String = "",
     var provisioningKey: String = "",
-    // TODO: Future version - Default model selection
-    // var defaultModel: String = "openai/gpt-4o",
     var autoRefresh: Boolean = true,
     var refreshInterval: Int = 300, // seconds
     var showCosts: Boolean = true,
     var trackGenerations: Boolean = true,
-    var maxTrackedGenerations: Int = 100
+    var maxTrackedGenerations: Int = 100,
+    var favoriteModels: MutableList<String> = getDefaultFavoriteModels(),
+    var lastSeenVersion: String = "" // Track last seen version for "What's New" notifications
 )
+
+/**
+ * Default favorite models for new installations
+ */
+private fun getDefaultFavoriteModels(): MutableList<String> {
+    return mutableListOf(
+        "openai/gpt-5",
+        "openai/gpt-4o",
+        "openai/gpt-4o-mini",
+        "openai/gpt-4-turbo",
+        "openai/gpt-4",
+        "anthropic/claude-sonnet-4.5",
+        "anthropic/claude-sonnet-4",
+        "anthropic/claude-3.5-sonnet",
+        "anthropic/claude-3-opus",
+        "anthropic/claude-3-haiku",
+        "google/gemini-2.5-pro",
+        "google/gemini-2.5-flash",
+        "meta-llama/llama-3.1-70b-instruct",
+        "mistralai/mixtral-8x7b-instruct",
+        "cohere/command-r-plus"
+    )
+}

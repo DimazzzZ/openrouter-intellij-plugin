@@ -13,10 +13,12 @@ import com.intellij.openapi.ui.popup.util.BaseListPopupStep
 import com.intellij.openapi.wm.StatusBar
 import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.impl.status.EditorBasedWidget
+import com.intellij.ui.awt.RelativePoint
 import com.intellij.util.Consumer
 import org.zhavoronkov.openrouter.models.ConnectionStatus
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.ui.OpenRouterStatsPopup
 import java.awt.event.MouseEvent
 import java.util.Locale
@@ -29,6 +31,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
     private val openRouterService = OpenRouterService.getInstance()
     private val settingsService = OpenRouterSettingsService.getInstance()
+    private val proxyService = OpenRouterProxyService.getInstance()
 
     private var connectionStatus = ConnectionStatus.NOT_CONFIGURED
     private var currentText = "Status: Not Configured"
@@ -56,7 +59,26 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
     private fun showPopupMenu(event: MouseEvent) {
         val popupStep = OpenRouterPopupStep()
         val popup = JBPopupFactory.getInstance().createListPopup(popupStep)
-        popup.showUnderneathOf(event.component)
+
+        // Position popup above the status bar widget
+        // Use the component from the event as the anchor
+        val component = event.component
+
+        // Get the preferred size of the popup to calculate proper positioning
+        val popupContent = popup.content
+        val popupSize = popupContent.preferredSize
+
+        // Get component's screen location
+        val componentLocationOnScreen = component.locationOnScreen
+
+        // Calculate position: popup should appear above the component
+        // Position the popup's bottom-left corner at the component's top-left corner
+        val popupX = componentLocationOnScreen.x
+        val popupY = componentLocationOnScreen.y - popupSize.height
+
+        // Create the point and show the popup
+        val popupPoint = java.awt.Point(popupX, popupY)
+        popup.show(RelativePoint.fromScreen(popupPoint))
     }
 
     private inner class OpenRouterPopupStep : BaseListPopupStep<PopupMenuItem>("OpenRouter", createMenuItems()) {
@@ -112,6 +134,8 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
             )
         )
 
+
+
         // Authentication
         if (settingsService.isConfigured()) {
             items.add(
@@ -130,6 +154,8 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
                 )
             )
         }
+
+
 
         // Settings (direct action, no submenu)
         items.add(
@@ -200,6 +226,10 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
     private fun openFeedbackRepository() {
         BrowserUtil.browse("https://github.com/DimazzzZ/openrouter-intellij-plugin/issues")
     }
+
+
+
+
 
     /**
      * Update the widget with current quota information

@@ -23,6 +23,7 @@ gradle-app.setting
 # Java
 *.class
 *.jar
+!gradle/wrapper/*.jar  # Allow Gradle wrapper jar
 *.war
 *.ear
 *.nar
@@ -49,6 +50,7 @@ Thumbs.db
 *.swp
 *.swo
 *~
+REFACTORING_PROGRESS.md
 
 # CMake
 cmake-build-*/
@@ -83,3 +85,5 @@ coverage/
 # Test results
 test-results/
 junit.xml
+
+ml-llm

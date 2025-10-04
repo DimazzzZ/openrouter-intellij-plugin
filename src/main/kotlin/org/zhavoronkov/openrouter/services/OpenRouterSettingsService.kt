@@ -6,6 +6,7 @@ import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
 import org.zhavoronkov.openrouter.utils.EncryptionUtil
+import org.zhavoronkov.openrouter.utils.PluginLogger
 
 /**
  * Service for managing OpenRouter plugin settings
@@ -33,19 +34,40 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
     }
 
     fun getApiKey(): String {
-        return if (EncryptionUtil.isEncrypted(settings.apiKey)) {
-            EncryptionUtil.decrypt(settings.apiKey)
+        val encrypted = settings.apiKey
+        val decrypted = if (EncryptionUtil.isEncrypted(encrypted)) {
+            EncryptionUtil.decrypt(encrypted)
         } else {
-            settings.apiKey
+            encrypted
         }
+        PluginLogger.Service.info("getApiKey: encrypted.length=${encrypted.length}, encrypted.isEmpty=${encrypted.isEmpty()}, decrypted.length=${decrypted.length}, decrypted.isEmpty=${decrypted.isEmpty()}")
+        return decrypted
     }
 
     fun setApiKey(apiKey: String) {
-        settings.apiKey = if (apiKey.isNotBlank()) {
+        PluginLogger.Service.info("setApiKey called: apiKey.length=${apiKey.length}, apiKey.isEmpty=${apiKey.isEmpty()}")
+
+        val encryptedKey = if (apiKey.isNotBlank()) {
             EncryptionUtil.encrypt(apiKey)
         } else {
             apiKey
         }
+
+        PluginLogger.Service.info("setApiKey: encrypted.length=${encryptedKey.length}, encrypted.isEmpty=${encryptedKey.isEmpty()}")
+
+        // Modify the existing settings object directly (don't create a new copy)
+        // This ensures the PersistentStateComponent properly detects the change
+        val oldApiKey = settings.apiKey
+        settings.apiKey = encryptedKey
+
+        PluginLogger.Service.info("setApiKey: settings.apiKey changed from length ${oldApiKey.length} to ${settings.apiKey.length}")
+        PluginLogger.Service.info("setApiKey: settings.apiKey.isEmpty=${settings.apiKey.isEmpty()}")
+
+        notifyStateChanged()
+
+        // Verify immediately after persistence
+        val retrieved = getApiKey()
+        PluginLogger.Service.info("setApiKey: verification after persistence - retrieved.length=${retrieved.length}, retrieved.isEmpty=${retrieved.isEmpty()}")
     }
 
     /**
@@ -66,11 +88,15 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
     }
 
     fun setProvisioningKey(provisioningKey: String) {
-        settings.provisioningKey = if (provisioningKey.isNotBlank()) {
+        val encryptedKey = if (provisioningKey.isNotBlank()) {
             EncryptionUtil.encrypt(provisioningKey)
         } else {
             provisioningKey
         }
+
+        // Modify the existing settings object directly (don't create a new copy)
+        settings.provisioningKey = encryptedKey
+        notifyStateChanged()
     }
 
     // TODO: Future version - Default model selection
@@ -113,5 +139,49 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
     fun isConfigured(): Boolean {
         val provisioningKey = getProvisioningKey()
         return provisioningKey.isNotBlank()
+    }
+
+    // Favorite Models Management
+    fun getFavoriteModels(): List<String> {
+        return settings.favoriteModels.toList()
+    }
+
+    fun addFavoriteModel(modelId: String) {
+        if (!settings.favoriteModels.contains(modelId)) {
+            settings.favoriteModels.add(modelId)
+        }
+    }
+
+    fun removeFavoriteModel(modelId: String) {
+        settings.favoriteModels.remove(modelId)
+    }
+
+    fun setFavoriteModels(models: List<String>) {
+        settings.favoriteModels.clear()
+        settings.favoriteModels.addAll(models)
+    }
+
+    fun isFavoriteModel(modelId: String): Boolean {
+        return settings.favoriteModels.contains(modelId)
+    }
+
+    /**
+     * Notify the platform that the state has changed and should be persisted.
+     * This is necessary when settings are modified outside of the standard
+     * Configurable apply flow (e.g., from dialogs or background operations).
+     *
+     * This method forces immediate synchronous persistence to ensure the state
+     * is saved before any subsequent operations that might check for it.
+     */
+    private fun notifyStateChanged() {
+        try {
+            PluginLogger.Service.info("notifyStateChanged: About to call saveSettings()")
+            // Force immediate state persistence
+            // This is synchronous to ensure the state is saved before returning
+            ApplicationManager.getApplication().saveSettings()
+            PluginLogger.Service.info("Settings state persisted successfully")
+        } catch (e: Exception) {
+            PluginLogger.Service.warn("Failed to persist settings state", e)
+        }
     }
 }
