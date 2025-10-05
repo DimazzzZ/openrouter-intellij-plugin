@@ -21,12 +21,15 @@ object AIAssistantIntegrationHelper {
     /**
      * Checks if JetBrains AI Assistant plugin is installed and enabled
      */
-    @Suppress("DEPRECATION")  // isEnabled() is deprecated but replacement not available in 2023.2
     fun isAIAssistantAvailable(): Boolean {
         return try {
             val pluginId = PluginId.getId(AI_ASSISTANT_PLUGIN_ID)
-            val plugin = PluginManagerCore.getPlugin(pluginId)
-            plugin != null && plugin.isEnabled
+            val plugin = PluginManagerCore.getPlugin(pluginId) ?: return false
+
+            // Using deprecated API as replacement is not available in stable IntelliJ Platform API
+            // The deprecation warning is acceptable as this API will remain functional for years
+            @Suppress("DEPRECATION")
+            plugin.isEnabled
         } catch (e: Exception) {
             PluginLogger.Service.debug("Error checking AI Assistant availability", e)
             false
