@@ -18,6 +18,7 @@ import com.intellij.util.ui.ListTableModel
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.Dimension
@@ -25,6 +26,8 @@ import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import javax.swing.JCheckBox
+import javax.swing.JComboBox
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.Timer
@@ -63,6 +66,17 @@ class FavoriteModelsSettingsPanel : Disposable {
     // Search
     private val searchField = SearchTextField()
     private var searchDebounceTimer: Timer? = null
+
+    // Filter components
+    private lateinit var providerComboBox: JComboBox<String>
+    private lateinit var contextComboBox: JComboBox<String>
+    private lateinit var visionCheckBox: JCheckBox
+    private lateinit var audioCheckBox: JCheckBox
+    private lateinit var toolsCheckBox: JCheckBox
+    private lateinit var imageGenCheckBox: JCheckBox
+
+    // Filter state
+    private var currentFilterCriteria = ModelFilterCriteria.default()
 
     // Loading state
     private val loadingPanel = JBLoadingPanel(BorderLayout(), this)
@@ -120,6 +134,13 @@ class FavoriteModelsSettingsPanel : Disposable {
                     comment("Only favorite models are shown in AI Assistant model selection")
                 }.topGap(TopGap.NONE).visible(keyPresent)
 
+                // Filters section
+                row {
+                    cell(createFiltersPanel())
+                        .align(Align.FILL)
+                        .resizableColumn()
+                }.layout(RowLayout.PARENT_GRID).visible(keyPresent)
+
                 row {
                     cell(createAvailableModelsPanel())
                         .align(Align.FILL)
@@ -138,6 +159,101 @@ class FavoriteModelsSettingsPanel : Disposable {
         panel.minimumSize = Dimension(MIN_DIALOG_WIDTH, MIN_DIALOG_HEIGHT)
         loadingPanel.add(panel, BorderLayout.CENTER)
         return loadingPanel
+    }
+
+    /**
+     * Create the filters panel
+     */
+    private fun createFiltersPanel(): JPanel {
+        return panel {
+            row {
+                label("Filters:")
+                    .bold()
+            }.topGap(TopGap.NONE)
+
+            row("Provider:") {
+                providerComboBox = comboBox(listOf("All Providers"))
+                    .applyToComponent {
+                        addActionListener { onFilterChanged() }
+                    }
+                    .component
+
+                label("Context:")
+                    .gap(RightGap.SMALL)
+
+                contextComboBox = comboBox(
+                    ModelProviderUtils.ContextRange.values().map { it.displayName }
+                )
+                    .applyToComponent {
+                        addActionListener { onFilterChanged() }
+                    }
+                    .component
+            }.layout(RowLayout.PARENT_GRID).topGap(TopGap.SMALL)
+
+            row("Capabilities:") {
+                visionCheckBox = checkBox("Vision")
+                    .applyToComponent {
+                        addActionListener { onFilterChanged() }
+                    }
+                    .component
+
+                audioCheckBox = checkBox("Audio")
+                    .applyToComponent {
+                        addActionListener { onFilterChanged() }
+                    }
+                    .component
+
+                toolsCheckBox = checkBox("Tools")
+                    .applyToComponent {
+                        addActionListener { onFilterChanged() }
+                    }
+                    .component
+
+                imageGenCheckBox = checkBox("Image Gen")
+                    .applyToComponent {
+                        addActionListener { onFilterChanged() }
+                    }
+                    .component
+            }.layout(RowLayout.PARENT_GRID).topGap(TopGap.SMALL)
+
+            row("Quick Add:") {
+                button("Popular") {
+                    addPresetToFavorites(ModelPresets.POPULAR_MODELS)
+                }.applyToComponent {
+                    toolTipText = "Add popular models for coding and general tasks"
+                }
+
+                button("OpenAI") {
+                    addPresetToFavorites(ModelPresets.OPENAI_MODELS)
+                }.applyToComponent {
+                    toolTipText = "Add all OpenAI GPT models"
+                }
+
+                button("Anthropic") {
+                    addPresetToFavorites(ModelPresets.ANTHROPIC_MODELS)
+                }.applyToComponent {
+                    toolTipText = "Add all Anthropic Claude models"
+                }
+
+                button("Google") {
+                    addPresetToFavorites(ModelPresets.GOOGLE_MODELS)
+                }.applyToComponent {
+                    toolTipText = "Add all Google Gemini models"
+                }
+
+                button("Cost-Effective") {
+                    addPresetToFavorites(ModelPresets.COST_EFFECTIVE_MODELS)
+                }.applyToComponent {
+                    toolTipText = "Add cost-effective models"
+                }
+            }.layout(RowLayout.PARENT_GRID).topGap(TopGap.SMALL)
+
+            row {
+                button("Clear Filters") {
+                    clearFilters()
+                }
+            }.topGap(TopGap.SMALL)
+        }
     }
 
     /**
@@ -412,6 +528,7 @@ class FavoriteModelsSettingsPanel : Disposable {
                     if (models != null) {
                         PluginLogger.Settings.debug("Loading ${models.size} models into UI")
                         allAvailableModels = models
+                        updateProviderDropdown()
                         PluginLogger.Settings.debug("Set allAvailableModels, now calling filterAvailableModels()")
                         filterAvailableModels()
                         PluginLogger.Settings.debug("After filterAvailableModels(), table has ${availableTableModel.rowCount} rows")
@@ -456,6 +573,7 @@ class FavoriteModelsSettingsPanel : Disposable {
 
                     if (models != null) {
                         allAvailableModels = models
+                        updateProviderDropdown()
                         filterAvailableModels()
                         updateFavoriteAvailability(models)
                     } else {
@@ -476,28 +594,126 @@ class FavoriteModelsSettingsPanel : Disposable {
     }
 
     /**
-     * Filter available models based on search text
+     * Filter available models based on all filter criteria
      */
     private fun filterAvailableModels() {
         val searchText = searchField.text.trim()
-        filteredAvailableModels = if (searchText.isEmpty()) {
-            allAvailableModels
-        } else {
-            allAvailableModels.filter { model ->
-                model.id.contains(searchText, ignoreCase = true) ||
-                        model.name.contains(searchText, ignoreCase = true)
-            }
-        }
+
+        // Apply all filters using ModelProviderUtils
+        filteredAvailableModels = ModelProviderUtils.applyFilters(
+            models = allAvailableModels,
+            provider = currentFilterCriteria.provider,
+            contextRange = currentFilterCriteria.contextRange,
+            requireVision = currentFilterCriteria.requireVision,
+            requireAudio = currentFilterCriteria.requireAudio,
+            requireTools = currentFilterCriteria.requireTools,
+            requireImageGen = currentFilterCriteria.requireImageGen,
+            searchText = searchText
+        )
 
         // Exclude already favorited models
         val favoriteIds = getCurrentFavoriteIds().toSet()
         val availableToAdd = filteredAvailableModels.filter { it.id !in favoriteIds }
 
-        PluginLogger.Settings.debug("Filtered models: ${availableToAdd.size} available (from ${allAvailableModels.size} total)")
+        PluginLogger.Settings.debug(
+            "Filtered models: ${availableToAdd.size} available " +
+            "(from ${allAvailableModels.size} total, filters: ${currentFilterCriteria.getActiveFiltersDescription()})"
+        )
         availableTableModel.items = availableToAdd
 
         // Update status label
         updateStatusLabels()
+    }
+
+    /**
+     * Handle filter changes
+     */
+    private fun onFilterChanged() {
+        // Update filter criteria from UI components
+        currentFilterCriteria = ModelFilterCriteria(
+            provider = providerComboBox.selectedItem as? String ?: "All Providers",
+            contextRange = ModelProviderUtils.ContextRange.fromDisplayName(
+                contextComboBox.selectedItem as? String ?: "Any"
+            ),
+            requireVision = visionCheckBox.isSelected,
+            requireAudio = audioCheckBox.isSelected,
+            requireTools = toolsCheckBox.isSelected,
+            requireImageGen = imageGenCheckBox.isSelected,
+            searchText = searchField.text.trim()
+        )
+
+        // Re-filter the available models
+        filterAvailableModels()
+
+        PluginLogger.Settings.debug("Filters changed: ${currentFilterCriteria.getActiveFiltersDescription()}")
+    }
+
+    /**
+     * Clear all filters
+     */
+    private fun clearFilters() {
+        providerComboBox.selectedItem = "All Providers"
+        contextComboBox.selectedItem = ModelProviderUtils.ContextRange.ANY.displayName
+        visionCheckBox.isSelected = false
+        audioCheckBox.isSelected = false
+        toolsCheckBox.isSelected = false
+        imageGenCheckBox.isSelected = false
+        searchField.text = ""
+
+        currentFilterCriteria = ModelFilterCriteria.default()
+        filterAvailableModels()
+
+        PluginLogger.Settings.debug("Filters cleared")
+    }
+
+    /**
+     * Add preset models to favorites
+     */
+    private fun addPresetToFavorites(presetModelIds: List<String>) {
+        if (!keyPresent) return
+
+        val currentFavorites = favoriteTableModel.items.toMutableList()
+        val currentIds = currentFavorites.map { it.id }.toSet()
+
+        // Find models from preset that exist in available models
+        val modelsToAdd = allAvailableModels.filter { model ->
+            model.id in presetModelIds && model.id !in currentIds
+        }
+
+        if (modelsToAdd.isEmpty()) {
+            Messages.showInfoMessage(
+                "All models from this preset are already in your favorites.",
+                "No Models Added"
+            )
+            return
+        }
+
+        currentFavorites.addAll(modelsToAdd)
+        favoriteTableModel.items = currentFavorites
+        filterAvailableModels() // Refresh to exclude newly added
+
+        Messages.showInfoMessage(
+            "Added ${modelsToAdd.size} model(s) to favorites.",
+            "Models Added"
+        )
+
+        PluginLogger.Settings.debug("Added ${modelsToAdd.size} models from preset")
+    }
+
+    /**
+     * Update provider dropdown with unique providers from available models
+     */
+    private fun updateProviderDropdown() {
+        val providers = listOf("All Providers") + ModelProviderUtils.getUniqueProviders(allAvailableModels)
+        val currentSelection = providerComboBox.selectedItem
+
+        providerComboBox.removeAllItems()
+        providers.forEach { providerComboBox.addItem(it) }
+
+        // Restore selection if it still exists
+        if (currentSelection in providers) {
+            providerComboBox.selectedItem = currentSelection
+        }
     }
 
     /**
