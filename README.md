@@ -19,7 +19,14 @@ An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.
 - **🔒 Security** - Encrypted API key storage with localhost-only proxy access
 - **🧪 Comprehensive Testing** - 207+ tests covering unit, integration, and E2E scenarios
 - **🛠️ Developer-Friendly** - Extensive documentation and debugging capabilities
-- **⭐ Favorite Models** - Quick access to your preferred AI models
+- **⭐ Favorite Models** - Quick access to your preferred AI models with advanced filtering:
+  - Filter by provider (OpenAI, Anthropic, Google, Meta, etc.)
+  - Filter by capabilities (Vision, Audio, Tools, Image Generation)
+  - Filter by context length (< 32K, 32K-128K, > 128K)
+  - Quick presets (Popular, Coding, Multimodal, Cost-Effective)
+  - Real-time search across 400+ models
+- **🚀 First-Run Experience** - Welcome notification and setup wizard for easy onboarding
+- **💡 Contextual Help** - GotIt tooltips guide you through key features
 - **🎨 Code Quality** - Maintained with detekt static analysis and comprehensive refactoring
 
 ## Installation
@@ -36,9 +43,30 @@ An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.
 
 ## Setup
 
+### First-Time Setup (Recommended)
+
+When you first install the plugin, a **welcome notification** will appear with a "Quick Setup" button. This launches a step-by-step wizard that guides you through:
+
+1. **Welcome** - Introduction to OpenRouter and what you'll need
+2. **Provisioning Key** - Add and automatically validate your key from [OpenRouter](https://openrouter.ai/settings/provisioning-keys)
+3. **Favorite Models** - Select your preferred models with embedded search and filtering
+4. **Completion** - Copy proxy server URL and configure AI Assistant
+
+**New in v0.2.0+:**
+- ✅ Automatic provisioning key validation with visual feedback
+- ✅ Embedded model selection UI with real-time search
+- ✅ Smart button states (Next/Finish only enabled when ready)
+- ✅ Polished layout with proper spacing and typography
+- ✅ Back button navigation between steps
+
+The wizard makes setup quick and easy, especially for first-time users!
+
+### Manual Setup
+
 1. **Get Provisioning Key**: Visit [OpenRouter Provisioning Keys](https://openrouter.ai/settings/provisioning-keys)
 2. **Configure**: `Settings` → `Tools` → `OpenRouter` → Enter Provisioning Key
-3. **Start Using**: Click status bar widget to access features
+3. **Select Models**: `Settings` → `Tools` → `OpenRouter` → `Favorite Models` → Choose your models
+4. **Start Using**: Click status bar widget to access features
 
 The plugin automatically creates and configures an API key when you provide a provisioning key.
 

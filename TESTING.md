@@ -2,9 +2,16 @@
 
 This document describes the testing infrastructure and procedures for the OpenRouter IntelliJ Plugin.
 
+## 📑 Table of Contents
+- [Test Overview](#-test-overview)
+- [Running Tests](#-running-tests)
+- [Testing First-Run Experience](#-testing-first-run-experience)
+- [Test Architecture](#-test-architecture)
+- [Debugging Tests](#-debugging-tests)
+
 ## 📊 Test Overview
 
-The plugin features a comprehensive test suite with 207+ tests ensuring reliability and stability:
+The plugin features a comprehensive test suite with 270+ tests ensuring reliability and stability:
 
 | Test Suite | Tests | Coverage | Focus Area |
 |------------|-------|----------|------------|
@@ -12,9 +19,10 @@ The plugin features a comprehensive test suite with 207+ tests ensuring reliabil
 | **Integration Tests** | 50+ | API communication, servlet logic | External integration |
 | **Request Builder Tests** | 12 | HTTP request construction | Refactored code validation |
 | **Favorite Models Tests** | 11 | Favorite models management | User preferences |
+| **Model Filtering Tests** | 64 | Provider/capability/context filtering | Enhanced filtering (Phase 1) |
 | **Encryption Tests** | 10 | Secure credential storage | Security |
 | **Settings Tests** | 15+ | Configuration management | User settings |
-| **Total** | **207+** | **Complete functionality coverage** | **Production ready** |
+| **Total** | **270+** | **Complete functionality coverage** | **Production ready** |
 
 ### 🎯 Recent Major Improvements
 - **Test Fixes**: Fixed all 11 failing FavoriteModelsService tests using dependency injection and mocking
@@ -25,10 +33,16 @@ The plugin features a comprehensive test suite with 207+ tests ensuring reliabil
 - **Dependency Injection**: Made FavoriteModelsService testable with optional constructor parameters
 
 ### ✅ Test Status
-- **Build Status**: ✅ All tests passing (207 tests, 0 failures)
-- **Coverage**: 🎯 Core functionality fully covered including refactored code
+- **Build Status**: ✅ All tests passing (270+ tests, 0 failures)
+- **Coverage**: 🎯 Core functionality fully covered including Phase 1-3 enhancements
 - **Reliability**: 🔒 No more hanging tests or memory issues
 - **Performance**: ⚡ Ultra-fast execution (3-8 seconds for full suite)
+
+### 🎯 Phase 1-3 Testing (UI Enhancements)
+- **Phase 1 Tests**: 64 unit tests for model filtering (ModelProviderUtils, ModelPresets, ModelFilterCriteria)
+- **Phase 2 Tests**: N/A (code simplification, no new functionality)
+- **Phase 3 Tests**: Manual testing required for first-run experience (welcome notification, setup wizard)
+- **Testing Guide**: See "Testing First-Run Experience" section below
 
 ## 🏗️ Test Architecture
 
@@ -73,6 +87,7 @@ src/test/kotlin/org/zhavoronkov/openrouter/
 - **🌐 Integration Tests**: OpenRouter API communication
 - **🤖 Proxy Tests**: AI Assistant integration proxy server (ChatCompletionServletTest)
 - **🔑 API Key Tests**: Comprehensive API key handling validation (ApiKeyHandlingIntegrationTest)
+- **🎨 UI Enhancement Tests**: Model filtering, presets, and criteria (Phase 1)
 - **📋 Mock Tests**: Simulated API responses for reliability
 - **🚨 Error Tests**: Edge cases and failure scenarios
 - **🌍 E2E Tests**: Complete workflows with real API calls (disabled by default)
@@ -87,7 +102,7 @@ src/test/kotlin/org/zhavoronkov/openrouter/
 # Run safe unit tests only (guaranteed to work)
 ./scripts/run-safe-tests.sh
 
-# Or run full unit test suite (159 tests in 3 seconds)
+# Or run full unit test suite (270+ tests in 3-8 seconds)
 ./gradlew test
 ```
 
@@ -98,6 +113,11 @@ src/test/kotlin/org/zhavoronkov/openrouter/
 
 # 🧪 Request builder tests (12 tests) - validates refactoring
 ./gradlew test --tests "OpenRouterRequestBuilderTest"
+
+# 🎨 Phase 1 filtering tests (64 tests)
+./gradlew test --tests "ModelProviderUtilsTest"
+./gradlew test --tests "ModelPresetsTest"
+./gradlew test --tests "ModelFilterCriteriaTest"
 
 # 🔑 Settings and API key tests
 ./gradlew test --tests "ApiKeysTableModelTest" --tests "OpenRouterSettingsServiceTest"
@@ -310,6 +330,94 @@ Tests are optimized for continuous integration:
 - [ ] Test coverage reporting
 - [ ] Performance regression detection
 - [ ] Compatibility matrix testing
+
+---
+
+## 🚀 Testing First-Run Experience
+
+The plugin includes a comprehensive first-run experience (Phase 3) that requires manual testing.
+
+### Quick Start
+```bash
+# Start fresh development IDE with clean state
+./gradlew clean runIde
+```
+
+### Components to Test
+
+#### 1. Welcome Notification
+- **Trigger**: Opens automatically on first project open
+- **Actions**: Quick Setup, Open Settings, Dismiss
+- **Verification**: Notification appears only once
+
+#### 2. Setup Wizard
+- **Step 0 (Welcome)**: Introduction with proper bullet formatting and icons
+- **Step 1 (Provisioning Key)**:
+  - Automatic validation with visual feedback (spinner → checkmark/error)
+  - "Next" button disabled until valid key entered
+  - Key encrypted and saved after validation
+- **Step 2 (Favorite Models)**:
+  - Embedded model selector with search
+  - Checkboxes (not true/false text)
+  - Selected count updates in real-time
+  - Table sortable by clicking column headers
+- **Step 3 (Completion)**:
+  - Proxy server URL displayed (http://127.0.0.1:8080/v1/)
+  - Copy button works
+  - Link to AI Assistant setup guide
+
+#### 3. Navigation
+- **Back Button**: Returns to previous step (not close wizard)
+- **Next Button**: Smart enable/disable based on validation
+- **Skip/Close**: Properly closes wizard
+
+### Testing Methods
+
+**Method 1: Fresh Development IDE (Recommended)**
+```bash
+./gradlew clean runIde
+# Opens new IDE instance with clean state
+# Welcome notification appears automatically
+```
+
+**Method 2: Reset Settings File**
+```bash
+# Find settings file
+find ~/Library/Application\ Support/JetBrains -name "openrouter.xml" | grep sandbox
+
+# Edit and change:
+# <option name="hasSeenWelcome" value="true" /> to false
+# <option name="hasCompletedSetup" value="true" /> to false
+
+# Restart development IDE
+./gradlew runIde
+```
+
+**Method 3: Delete Settings (Clean Slate)**
+```bash
+# Find and delete
+find ~/Library/Application\ Support/JetBrains -name "openrouter.xml" | grep sandbox | xargs rm
+
+# Restart
+./gradlew runIde
+```
+
+### Test Checklist
+
+- [ ] Welcome notification appears on first project open
+- [ ] "Quick Setup" button opens wizard
+- [ ] Step 0: Proper layout with icons and separators
+- [ ] Step 1: Invalid key shows error, valid key shows checkmark
+- [ ] Step 1: "Next" disabled until validation succeeds
+- [ ] Step 2: Checkboxes render properly (not true/false)
+- [ ] Step 2: Selected count updates when checking models
+- [ ] Step 2: Table sorts by clicking "Model" header
+- [ ] Step 2: Search filters models in real-time
+- [ ] Step 3: Proxy URL shows 127.0.0.1 (not localhost)
+- [ ] Step 3: Copy button copies correct URL
+- [ ] Back button navigates to previous step
+- [ ] Wizard can be skipped
+- [ ] Setup completion tracked correctly
 
 ---
 

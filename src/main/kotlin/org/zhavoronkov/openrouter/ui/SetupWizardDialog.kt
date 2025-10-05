@@ -16,6 +16,7 @@ import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
+import org.zhavoronkov.openrouter.proxy.OpenRouterProxyServer
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterService
@@ -66,9 +67,9 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     private var filteredModels: List<OpenRouterModelInfo> = emptyList()
     private val selectedModels = mutableSetOf<String>()
     private val searchField = SearchTextField()
-    private val providerComboBox = JComboBox<String>()
     private val modelsTableModel = ModelsTableModel()
     private val modelsTable = JBTable(modelsTableModel)
+    private val selectedCountLabel = JBLabel("Selected: 0 models")
     private var isLoadingModels = false
     private val modelsPanel = createModelsPanel()
 
@@ -89,6 +90,9 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         // Setup listeners
         setupProvisioningKeyListener()
         setupSearchListener()
+
+        // Setup selected count label
+        selectedCountLabel.foreground = UIUtil.getLabelInfoForeground()
 
         init()
         updateButtons()
@@ -197,27 +201,18 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                 cell(searchField)
                     .resizableColumn()
                     .align(AlignX.FILL)
-            }.topGap(TopGap.MEDIUM).bottomGap(BottomGap.SMALL)
-
-            row {
-                label("Provider:")
-                cell(providerComboBox)
-                    .comment("Filter by AI provider")
-            }.bottomGap(BottomGap.MEDIUM)
+            }.topGap(TopGap.MEDIUM).bottomGap(BottomGap.MEDIUM)
 
             row {
                 val scrollPane = JBScrollPane(modelsTable)
-                scrollPane.preferredSize = Dimension(650, 250)
+                scrollPane.preferredSize = Dimension(650, 280)
                 cell(scrollPane)
                     .resizableColumn()
                     .align(AlignX.FILL)
             }.resizableRow()
 
             row {
-                text("Selected: 0 models")
-                    .apply {
-                        component.foreground = UIUtil.getLabelInfoForeground()
-                    }
+                cell(selectedCountLabel)
             }.topGap(TopGap.SMALL)
         }
 
@@ -237,51 +232,46 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
             row {
                 icon(AllIcons.General.InspectionsOK)
-                text("You're all set! Here's what to do next:")
+                text("You're ready to go!")
             }.bottomGap(BottomGap.MEDIUM)
 
             separator()
 
-            indent {
-                row {
-                    label("1.")
-                    text("Start the proxy server in Settings → Tools → OpenRouter")
-                }.topGap(TopGap.MEDIUM).bottomGap(BottomGap.SMALL)
-
-                row {
-                    label("2.")
-                    text("Configure JetBrains AI Assistant to use the proxy")
-                }.bottomGap(BottomGap.SMALL)
-
-                row {
-                    label("3.")
-                    text("Start using 400+ AI models!")
-                }.bottomGap(BottomGap.MEDIUM)
-            }
-
-            separator()
+            row {
+                text(
+                    "Copy the proxy server URL below and paste it into your favorite AI Assistant. " +
+                            "For example, in JetBrains AI Assistant, paste this URL in the custom server settings."
+                )
+            }.topGap(TopGap.MEDIUM).bottomGap(BottomGap.MEDIUM)
 
             row {
-                text("The proxy server provides an OpenAI-compatible API at:")
-            }.topGap(TopGap.MEDIUM).bottomGap(BottomGap.SMALL)
+                label("Proxy Server URL:")
+            }.bottomGap(BottomGap.SMALL)
 
             row {
-                val urlLabel = JBLabel("http://localhost:8080")
+                val proxyUrl = OpenRouterProxyServer.buildProxyUrl(8080)
+                val urlLabel = JBLabel()
+                urlLabel.text = proxyUrl
                 urlLabel.font = Font(Font.MONOSPACED, Font.PLAIN, 12)
                 urlLabel.foreground = JBColor.BLUE
                 cell(urlLabel)
+                    .resizableColumn()
+
+                button("Copy") {
+                    copyProxyUrlToClipboard(proxyUrl)
+                }
             }.bottomGap(BottomGap.MEDIUM)
 
             separator()
 
             row {
-                label("<html><b>Need help?</b></html>")
+                label("<html><b>Need help with configuration?</b></html>")
             }.topGap(TopGap.MEDIUM).bottomGap(BottomGap.SMALL)
 
             row {
                 browserLink(
-                    "View Documentation",
-                    "https://github.com/DimazzzZ/openrouter-intellij-plugin"
+                    "View AI Assistant Setup Guide",
+                    "https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/docs/AI_ASSISTANT_SETUP.md"
                 )
             }
         }
@@ -327,9 +317,30 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     }
 
     override fun doCancelAction() {
-        // User skipped the wizard
-        settingsService.setHasCompletedSetup(false)
-        super.doCancelAction()
+        when (currentStep) {
+            0 -> {
+                // User skipped the wizard
+                settingsService.setHasCompletedSetup(false)
+                super.doCancelAction()
+            }
+            1 -> {
+                // Back to welcome
+                currentStep = 0
+                cardLayout.show(cardPanel, "welcome")
+                updateButtons()
+            }
+            2 -> {
+                // Back to provisioning key
+                currentStep = 1
+                cardLayout.show(cardPanel, "provisioning")
+                updateButtons()
+            }
+            3 -> {
+                // Close button - same as finish
+                settingsService.setHasCompletedSetup(true)
+                super.doCancelAction()
+            }
+        }
     }
 
     private fun updateButtons() {
@@ -460,11 +471,11 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                     isLoadingModels = false
                     if (models != null) {
                         allModels = models
-                        setupProviderFilter()
                         filterModels()
 
                         // Pre-select some popular models
                         preselectPopularModels()
+                        updateSelectedCount()
                     } else {
                         PluginLogger.Settings.warn("Failed to load models in setup wizard")
                     }
@@ -481,20 +492,6 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
             }
     }
 
-    private fun setupProviderFilter() {
-        val providers = mutableSetOf("All Providers")
-        allModels.forEach { model ->
-            providers.add(ModelProviderUtils.extractProvider(model.id))
-        }
-
-        providerComboBox.removeAllItems()
-        providers.sorted().forEach { providerComboBox.addItem(it) }
-
-        providerComboBox.addActionListener {
-            filterModels()
-        }
-    }
-
     private fun setupSearchListener() {
         searchField.addDocumentListener(object : DocumentListener {
             override fun insertUpdate(e: DocumentEvent?) = filterModels()
@@ -505,21 +502,30 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
     private fun filterModels() {
         val searchText = searchField.text.lowercase()
-        val selectedProvider = providerComboBox.selectedItem as? String ?: "All Providers"
 
         filteredModels = allModels.filter { model ->
-            val matchesSearch = searchText.isBlank() ||
+            searchText.isBlank() ||
                     model.id.lowercase().contains(searchText) ||
                     model.name.lowercase().contains(searchText) ||
                     model.description?.lowercase()?.contains(searchText) == true
-
-            val matchesProvider = selectedProvider == "All Providers" ||
-                    ModelProviderUtils.extractProvider(model.id) == selectedProvider
-
-            matchesSearch && matchesProvider
         }
 
         modelsTableModel.fireTableDataChanged()
+    }
+
+    private fun updateSelectedCount() {
+        selectedCountLabel.text = "Selected: ${selectedModels.size} models"
+    }
+
+    private fun copyProxyUrlToClipboard(url: String) {
+        try {
+            val clipboard = java.awt.Toolkit.getDefaultToolkit().systemClipboard
+            val stringSelection = java.awt.datatransfer.StringSelection(url)
+            clipboard.setContents(stringSelection, null)
+            PluginLogger.Settings.info("Proxy URL copied to clipboard: $url")
+        } catch (e: Exception) {
+            PluginLogger.Settings.error("Failed to copy proxy URL to clipboard", e)
+        }
     }
 
     private fun setupModelsTable() {
@@ -527,18 +533,17 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         modelsTable.intercellSpacing = Dimension(0, 0)
         modelsTable.rowHeight = 28
         modelsTable.tableHeader.reorderingAllowed = false
+        modelsTable.autoCreateRowSorter = true  // Enable sorting
 
         // Column widths
         val columnModel = modelsTable.columnModel
         columnModel.getColumn(0).preferredWidth = 40  // Checkbox
         columnModel.getColumn(0).maxWidth = 40
-        columnModel.getColumn(1).preferredWidth = 250 // Model name
-        columnModel.getColumn(2).preferredWidth = 100 // Provider
+        columnModel.getColumn(1).preferredWidth = 400 // Model name (wider, no provider column)
 
-        // Center align checkbox column
-        val centerRenderer = DefaultTableCellRenderer()
-        centerRenderer.horizontalAlignment = SwingConstants.CENTER
-        columnModel.getColumn(0).cellRenderer = centerRenderer
+        // Disable sorting on checkbox column
+        val sorter = modelsTable.rowSorter as? javax.swing.table.TableRowSorter<*>
+        sorter?.setSortable(0, false)
     }
 
     private fun preselectPopularModels() {
@@ -556,6 +561,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         }
 
         modelsTableModel.fireTableDataChanged()
+        updateSelectedCount()
     }
 
     private fun saveFavoriteModels() {
@@ -569,12 +575,11 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     private inner class ModelsTableModel : AbstractTableModel() {
         override fun getRowCount(): Int = filteredModels.size
 
-        override fun getColumnCount(): Int = 3
+        override fun getColumnCount(): Int = 2  // Checkbox + Model name only
 
         override fun getColumnName(column: Int): String = when (column) {
             0 -> ""
             1 -> "Model"
-            2 -> "Provider"
             else -> ""
         }
 
@@ -594,7 +599,6 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
             return when (columnIndex) {
                 0 -> selectedModels.contains(model.id)
                 1 -> model.name
-                2 -> ModelProviderUtils.extractProvider(model.id)
                 else -> null
             }
         }
@@ -611,6 +615,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                 }
 
                 fireTableCellUpdated(rowIndex, columnIndex)
+                updateSelectedCount()
             }
         }
     }

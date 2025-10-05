@@ -52,11 +52,16 @@ java -version  # Should be JDK 17+
 # 🚀 Run in development IDE (recommended for testing)
 ./gradlew runIde --no-daemon
 
+# 🧹 Run with clean state (tests first-run experience)
+./gradlew clean runIde --no-daemon
+
 # 📦 Build distribution for manual installation
 ./gradlew buildPlugin --no-daemon
 
 # 📁 Distribution will be in: build/distributions/openrouter-intellij-plugin-*.zip
 ```
+
+**Note**: Use `./gradlew clean runIde` to test the first-run experience (welcome notification and setup wizard) with a fresh state.
 
 ### 4. Local Installation
 ```bash
@@ -216,10 +221,14 @@ openrouter-intellij-plugin/
 │   │   ├── OpenRouterProxyService.kt # AI Assistant proxy server management
 │   │   └── OpenRouterGenerationTrackingService.kt # Usage tracking
 │   ├── 🚀 startup/                  # Startup activities
-│   │   └── ProxyServerStartupActivity.kt # Auto-start proxy server
+│   │   ├── ProxyServerStartupActivity.kt # Auto-start proxy server
+│   │   └── WelcomeNotificationActivity.kt # First-run welcome notification (Phase 3)
 │   ├── 🔧 settings/                 # Settings UI components
 │   │   ├── OpenRouterConfigurable.kt # Settings page configuration
-│   │   └── OpenRouterSettingsPanel.kt # Settings UI panel
+│   │   ├── OpenRouterSettingsPanel.kt # Main settings UI panel
+│   │   ├── FavoriteModelsSettingsPanel.kt # Favorite models selector with filtering (Phase 1)
+│   │   ├── ModelPresets.kt          # Predefined model lists (Phase 1)
+│   │   └── ModelFilterCriteria.kt   # Filter state management (Phase 1)
 │   ├── 📍 statusbar/                # Status bar integration
 │   │   ├── OpenRouterStatusBarWidget.kt # Main status bar widget
 │   │   └── OpenRouterStatusBarWidgetFactory.kt # Widget factory
@@ -227,9 +236,12 @@ openrouter-intellij-plugin/
 │   │   ├── OpenRouterToolWindowContent.kt # Tool window content (future feature)
 │   │   └── OpenRouterToolWindowFactory.kt # Tool window factory (future feature)
 │   ├── 🎭 ui/                       # UI components & dialogs
-│   │   └── OpenRouterStatsPopup.kt  # Statistics popup dialog
+│   │   ├── OpenRouterStatsPopup.kt  # Statistics popup dialog
+│   │   └── SetupWizardDialog.kt     # First-run setup wizard (Phase 3)
 │   └── 🔧 utils/                    # Utility classes
-│       └── PluginLogger.kt          # Logging utilities
+│       ├── PluginLogger.kt          # Logging utilities
+│       ├── ModelProviderUtils.kt    # Model filtering utilities (Phase 1)
+│       └── EncryptionUtil.kt        # API key encryption
 ├── 📁 src/main/resources/
 │   ├── 📁 META-INF/
 │   │   ├── plugin.xml               # Plugin configuration
@@ -240,9 +252,12 @@ openrouter-intellij-plugin/
 │       ├── openrouter-13.png        # Status bar icon (13x13)
 │       ├── openrouter-16.png        # Menu icon (16x16)
 │       └── openrouter-40.png        # Large icon (40x40)
-├── 📁 src/test/kotlin/              # Test suites
+├── 📁 src/test/kotlin/              # Test suites (270+ tests)
 │   ├── SimpleUnitTest.kt            # Unit tests (15 tests)
 │   ├── ApiIntegrationTest.kt        # API tests (7 tests)
+│   ├── ModelProviderUtilsTest.kt    # Filtering tests (28 tests, Phase 1)
+│   ├── ModelPresetsTest.kt          # Preset tests (16 tests, Phase 1)
+│   ├── ModelFilterCriteriaTest.kt   # Filter criteria tests (20 tests, Phase 1)
 │   └── 📁 resources/mocks/          # Mock API responses
 └── 📁 docs/                         # Documentation files
     ├── README.md                    # Main documentation

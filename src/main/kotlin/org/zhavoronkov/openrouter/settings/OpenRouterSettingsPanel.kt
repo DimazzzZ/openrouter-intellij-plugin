@@ -459,6 +459,8 @@ class OpenRouterSettingsPanel {
         if (provisioningKey.isNotBlank()) {
             apiKeyManager.loadApiKeysWithoutAutoCreate()
         }
+        // Update proxy status to reflect current server state
+        updateProxyStatus()
     }
 
     fun isAutoRefreshEnabled(): Boolean = autoRefreshCheckBox.isSelected
