@@ -15,6 +15,7 @@ object PluginLogger {
     private val settingsLogger = Logger.getInstance("org.zhavoronkov.openrouter.settings")
     private val statusBarLogger = Logger.getInstance("org.zhavoronkov.openrouter.statusbar")
     private val modelsLogger = Logger.getInstance("org.zhavoronkov.openrouter.models")
+    private val startupLogger = Logger.getInstance("org.zhavoronkov.openrouter.startup")
     
     // Debug mode flag - can be controlled via system property
     private val debugEnabled: Boolean by lazy {
@@ -117,14 +118,31 @@ object PluginLogger {
         fun warn(message: String, throwable: Throwable) = modelsLogger.warn("[$PLUGIN_NAME] $message", throwable)
         fun error(message: String) = modelsLogger.error("[$PLUGIN_NAME] $message")
         fun error(message: String, throwable: Throwable) = modelsLogger.error("[$PLUGIN_NAME] $message", throwable)
-        
+
         fun debug(message: String) {
             if (debugEnabled) {
                 modelsLogger.info("[$PLUGIN_NAME][DEBUG] $message")
             }
         }
     }
-    
+
+    /**
+     * Startup activity logging
+     */
+    object Startup {
+        fun info(message: String) = startupLogger.info("[$PLUGIN_NAME] $message")
+        fun warn(message: String) = startupLogger.warn("[$PLUGIN_NAME] $message")
+        fun warn(message: String, throwable: Throwable) = startupLogger.warn("[$PLUGIN_NAME] $message", throwable)
+        fun error(message: String) = startupLogger.error("[$PLUGIN_NAME] $message")
+        fun error(message: String, throwable: Throwable) = startupLogger.error("[$PLUGIN_NAME] $message", throwable)
+
+        fun debug(message: String) {
+            if (debugEnabled) {
+                startupLogger.info("[$PLUGIN_NAME][DEBUG] $message")
+            }
+        }
+    }
+
     /**
      * Check if debug logging is enabled
      */

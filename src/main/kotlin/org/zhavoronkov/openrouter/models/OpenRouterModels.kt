@@ -252,7 +252,9 @@ data class OpenRouterSettings(
     var trackGenerations: Boolean = true,
     var maxTrackedGenerations: Int = 100,
     var favoriteModels: MutableList<String> = getDefaultFavoriteModels(),
-    var lastSeenVersion: String = "" // Track last seen version for "What's New" notifications
+    var lastSeenVersion: String = "", // Track last seen version for "What's New" notifications
+    var hasSeenWelcome: Boolean = false, // Track if user has seen welcome notification
+    var hasCompletedSetup: Boolean = false // Track if user has completed initial setup
 )
 
 /**

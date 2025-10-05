@@ -6,6 +6,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.ui.Messages
+import com.intellij.ui.GotItTooltip
 import com.intellij.ui.SearchTextField
 import com.intellij.ui.TableSpeedSearch
 import com.intellij.ui.ToolbarDecorator
@@ -101,6 +102,17 @@ class FavoriteModelsSettingsPanel : Disposable {
         if (keyPresent) {
             loadInitialData()
         }
+        showGotItTooltips()
+    }
+
+    /**
+     * Show GotIt tooltips for first-time users
+     * Note: Tooltips are disabled for now to avoid memory leak issues
+     */
+    private fun showGotItTooltips() {
+        // GotIt tooltips are disabled for now to avoid memory leak issues
+        // They will be re-enabled in a future version with proper disposable management
+        // See: https://jetbrains.org/intellij/sdk/docs/basics/disposers.html
     }
 
     /**

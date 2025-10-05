@@ -167,6 +167,36 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
 
     /**
      * Notify the platform that the state has changed and should be persisted.
+     * Check if user has seen the welcome notification
+     */
+    fun hasSeenWelcome(): Boolean {
+        return settings.hasSeenWelcome
+    }
+
+    /**
+     * Mark that user has seen the welcome notification
+     */
+    fun setHasSeenWelcome(seen: Boolean) {
+        settings.hasSeenWelcome = seen
+        notifyStateChanged()
+    }
+
+    /**
+     * Check if user has completed initial setup
+     */
+    fun hasCompletedSetup(): Boolean {
+        return settings.hasCompletedSetup
+    }
+
+    /**
+     * Mark that user has completed initial setup
+     */
+    fun setHasCompletedSetup(completed: Boolean) {
+        settings.hasCompletedSetup = completed
+        notifyStateChanged()
+    }
+
+    /**
      * This is necessary when settings are modified outside of the standard
      * Configurable apply flow (e.g., from dialogs or background operations).
      *

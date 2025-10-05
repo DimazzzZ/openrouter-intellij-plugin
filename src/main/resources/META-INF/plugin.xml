@@ -119,6 +119,11 @@
                            displayType="BALLOON"
                            isLogByDefault="true"/>
 
+        <!-- Notification group for welcome and onboarding -->
+        <notificationGroup id="OpenRouter Notifications"
+                           displayType="BALLOON"
+                           isLogByDefault="true"/>
+
         <!-- Application-level services -->
         <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterService"/>
         <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterSettingsService"/>
@@ -146,6 +151,7 @@
             order="after Encoding"/>
 
         <!-- Startup activities -->
+        <postStartupActivity implementation="org.zhavoronkov.openrouter.startup.WelcomeNotificationActivity"/>
         <postStartupActivity implementation="org.zhavoronkov.openrouter.startup.ProxyServerStartupActivity"/>
         <postStartupActivity implementation="org.zhavoronkov.openrouter.startup.WhatsNewNotificationActivity"/>
         

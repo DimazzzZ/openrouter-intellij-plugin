@@ -6,6 +6,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.AnActionButton
+import com.intellij.ui.GotItTooltip
 import com.intellij.ui.ToolbarDecorator
 import com.intellij.ui.components.*
 import com.intellij.ui.dsl.builder.*
@@ -220,21 +221,18 @@ class OpenRouterSettingsPanel {
                 }.resizableRow()
             }
 
-            // AI Assistant Integration group
-            group("AI Assistant Integration") {
-                row {
+            // Proxy Server group
+            group("Proxy Server") {
+                // Proxy server controls
+                row("Status:") {
                     cell(statusLabel)
                 }.layout(RowLayout.PARENT_GRID)
 
                 row {
-                    startServerButton = button("Start Proxy Server") { startProxyServer() }.component
-                    stopServerButton = button("Stop Proxy Server") { stopProxyServer() }.component
-                    copyUrlButton = button("Copy URL") { copyProxyUrl() }.component
+                    startServerButton = button("Start Server") { startProxyServer() }.component
+                    stopServerButton = button("Stop Server") { stopProxyServer() }.component
+                    copyUrlButton = button("Copy Proxy URL") { copyProxyUrlToClipboard() }.component
                 }.layout(RowLayout.PARENT_GRID)
-
-                row {
-                    comment("Copy the URL above and paste it as the Base URL in AI Assistant settings: Tools > AI Assistant > Models > Add Model > Custom OpenAI-compatible. This proxy service can also be used with any other 3rd-party service to which you can add OpenAI-compatible server URL!")
-                }
             }
         }
 
@@ -245,6 +243,19 @@ class OpenRouterSettingsPanel {
 
         // Initialize status
         updateProxyStatus()
+
+        // Show GotIt tooltips for first-time users
+        showGotItTooltips()
+    }
+
+    /**
+     * Show GotIt tooltips for first-time users
+     * Note: Tooltips are shown asynchronously to avoid blocking UI initialization
+     */
+    private fun showGotItTooltips() {
+        // GotIt tooltips are disabled for now to avoid memory leak issues
+        // They will be re-enabled in a future version with proper disposable management
+        // See: https://jetbrains.org/intellij/sdk/docs/basics/disposers.html
     }
 
     private fun setupApiKeysPanel() {
@@ -369,7 +380,10 @@ class OpenRouterSettingsPanel {
         }
     }
 
-    private fun copyProxyUrl() {
+    /**
+     * Copy proxy URL to clipboard with improved messaging
+     */
+    private fun copyProxyUrlToClipboard() {
         val status = proxyService.getServerStatus()
         val url = if (status.isRunning && status.url != null) {
             status.url
@@ -380,7 +394,24 @@ class OpenRouterSettingsPanel {
         val clipboard = Toolkit.getDefaultToolkit().systemClipboard
         clipboard.setContents(StringSelection(url), null)
 
-        Messages.showInfoMessage("URL copied to clipboard: $url", "URL Copied")
+        if (status.isRunning) {
+            Messages.showInfoMessage(
+                "Proxy URL copied to clipboard:\n\n$url\n\nPaste this as the Base URL in AI Assistant settings.",
+                "Proxy URL Copied"
+            )
+        } else {
+            Messages.showWarningDialog(
+                "Proxy server is not running. Start the server first to get the URL.",
+                "Server Not Running"
+            )
+        }
+    }
+
+    /**
+     * Legacy method for backward compatibility
+     */
+    private fun copyProxyUrl() {
+        copyProxyUrlToClipboard()
     }
 
     private fun updateProxyStatus() {
