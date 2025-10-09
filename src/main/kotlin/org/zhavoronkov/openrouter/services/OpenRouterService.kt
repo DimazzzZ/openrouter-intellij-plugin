@@ -86,6 +86,21 @@ class OpenRouterService {
     }
 
     /**
+     * Handle network errors gracefully without alarming users
+     * Network issues (offline, DNS problems, etc.) are common and expected
+     */
+    private fun handleNetworkError(e: IOException, context: String) {
+        val errorMsg = when (e) {
+            is java.net.UnknownHostException -> "Unable to reach OpenRouter (offline or DNS issue)"
+            is java.net.SocketTimeoutException -> "Request timed out - OpenRouter may be slow or unreachable"
+            is java.net.ConnectException -> "Connection refused - OpenRouter may be down"
+            else -> "Network error: ${e.message}"
+        }
+        PluginLogger.Service.warn("$context: $errorMsg")
+        PluginLogger.Service.debug("$context - network issue details", e)
+    }
+
+    /**
      * Get usage statistics for a specific generation
      */
     fun getGenerationStats(generationId: String): CompletableFuture<GenerationResponse?> {
@@ -115,7 +130,7 @@ class OpenRouterService {
                     }
                 }
             } catch (e: IOException) {
-                PluginLogger.Service.warn("Network error getting generation stats", e)
+                handleNetworkError(e, "Error getting generation stats")
                 null
             }
         }
@@ -207,7 +222,7 @@ class OpenRouterService {
                     response.isSuccessful
                 }
             } catch (e: IOException) {
-                PluginLogger.Service.warn("Connection test failed", e)
+                handleNetworkError(e, "Connection test failed")
                 false
             } catch (e: JsonSyntaxException) {
                 PluginLogger.Service.warn("Connection test failed - invalid JSON response", e)
@@ -270,7 +285,7 @@ class OpenRouterService {
                     }
                 }
             } catch (e: IOException) {
-                PluginLogger.Service.warn("Network error getting API keys list", e)
+                handleNetworkError(e, "Error getting API keys list")
                 null
             }
         }
@@ -447,7 +462,7 @@ class OpenRouterService {
                     null
                 }
             } catch (e: IOException) {
-                PluginLogger.Service.error("Error fetching credits - network issue", e)
+                handleNetworkError(e, "Error fetching credits")
                 null
             } catch (e: JsonSyntaxException) {
                 PluginLogger.Service.error("Error fetching credits - invalid JSON response", e)
@@ -491,7 +506,7 @@ class OpenRouterService {
                     null
                 }
             } catch (e: IOException) {
-                PluginLogger.Service.error("Error fetching activity - network issue", e)
+                handleNetworkError(e, "Error fetching activity")
                 null
             } catch (e: JsonSyntaxException) {
                 PluginLogger.Service.error("Error fetching activity - invalid JSON response", e)
@@ -529,7 +544,7 @@ class OpenRouterService {
                     null
                 }
             } catch (e: IOException) {
-                PluginLogger.Service.error("Error fetching models - network issue", e)
+                handleNetworkError(e, "Error fetching models")
                 null
             } catch (e: JsonSyntaxException) {
                 PluginLogger.Service.error("Error fetching models - invalid JSON response", e)
@@ -567,7 +582,7 @@ class OpenRouterService {
                     null
                 }
             } catch (e: IOException) {
-                PluginLogger.Service.error("Error fetching providers - network issue", e)
+                handleNetworkError(e, "Error fetching providers")
                 null
             } catch (e: JsonSyntaxException) {
                 PluginLogger.Service.error("Error fetching providers - invalid JSON response", e)
