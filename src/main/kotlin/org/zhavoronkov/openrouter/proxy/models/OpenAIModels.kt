@@ -62,7 +62,8 @@ data class OpenAIModel(
     val owned_by: String,
     val permission: List<OpenAIPermission> = emptyList(),
     val root: String? = null,
-    val parent: String? = null
+    val parent: String? = null,
+    val type: String = "llm"
 )
 
 data class OpenAIPermission(
