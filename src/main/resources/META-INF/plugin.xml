@@ -59,6 +59,14 @@
 
     <!-- Change notes for this version -->
     <change-notes><![CDATA[
+        <h3>🔧 Version 0.2.2 - Compatibility Fix (2025-12-02)</h3>
+        <ul>
+            <li>fix: extend compatibility to JetBrains Rider 2025.3.X and other IDEs up to 2025.3+</li>
+            <li>fix: replace deprecated PluginDescriptor.isEnabled() with PluginManagerCore.isPluginEnabled() to resolve IntelliJ 2025.3 EAP/RC compatibility issues</li>
+        </ul>
+
+        <hr/>
+
         <h3>🎉 Version 0.2.1 - OpenRouter models support for 3rd-party AI Assistants (2025-10-04)</h3>
         <ul>
             <li>fix: resolve JetBrains plugin verifier compatibility issues and optimize workflows</li>

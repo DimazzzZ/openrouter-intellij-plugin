@@ -38,7 +38,7 @@ dependencies {
 
 // Configure Gradle IntelliJ Plugin
 intellij {
-    version.set("2023.2.5")
+    version.set(project.findProperty("platformVersion") as String? ?: "2023.2.5")
     type.set("IU") // Target IDE Platform - Ultimate Edition for AI Assistant support
 
     plugins.set(listOf(/* Plugin Dependencies */))
