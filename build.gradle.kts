@@ -5,8 +5,8 @@ plugins {
     id("io.gitlab.arturbosch.detekt") version "1.23.4"
 }
 
-group = project.findProperty("pluginGroup") ?: "com.openrouter"
-version = project.findProperty("pluginVersion") ?: "1.0.0"
+group = project.findProperty("pluginGroup") ?: "org.zhavoronkov"
+version = project.findProperty("pluginVersion") ?: "0.2.2"
 
 repositories {
     mavenCentral()
