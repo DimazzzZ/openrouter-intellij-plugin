@@ -6,7 +6,6 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.ui.Messages
-import com.intellij.ui.GotItTooltip
 import com.intellij.ui.SearchTextField
 import com.intellij.ui.TableSpeedSearch
 import com.intellij.ui.ToolbarDecorator
@@ -29,7 +28,6 @@ import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.JCheckBox
 import javax.swing.JComboBox
-import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.Timer
 import javax.swing.event.DocumentEvent
@@ -47,7 +45,6 @@ class FavoriteModelsSettingsPanel : Disposable {
         private const val MIN_DIALOG_HEIGHT = 480
         private const val SEARCH_FIELD_HEIGHT = 28
         private const val BUTTON_COLUMN_WIDTH = 90
-        private const val CACHE_DURATION_MS = 300000L // 5 minutes
     }
 
     private val settingsService = OpenRouterSettingsService.getInstance()
@@ -194,7 +191,7 @@ class FavoriteModelsSettingsPanel : Disposable {
                     .gap(RightGap.SMALL)
 
                 contextComboBox = comboBox(
-                    ModelProviderUtils.ContextRange.values().map { it.displayName }
+                    ModelProviderUtils.ContextRange.entries.map { it.displayName }
                 )
                     .applyToComponent {
                         addActionListener { onFilterChanged() }
@@ -500,6 +497,20 @@ class FavoriteModelsSettingsPanel : Disposable {
             override fun removeUpdate(e: DocumentEvent?) = scheduleSearch()
             override fun changedUpdate(e: DocumentEvent?) = scheduleSearch()
         })
+
+        // Add KeyListener to handle Enter key and prevent dialog from closing
+        searchField.textEditor.addKeyListener(object : KeyAdapter() {
+            override fun keyPressed(e: KeyEvent?) {
+                if (e?.keyCode == KeyEvent.VK_ENTER) {
+                    // Consume the Enter key event to prevent dialog from closing
+                    e.consume()
+                    // Immediately trigger search without debouncing on Enter
+                    if (keyPresent) {
+                        filterAvailableModels()
+                    }
+                }
+            }
+        })
     }
 
     /**
@@ -733,7 +744,7 @@ class FavoriteModelsSettingsPanel : Disposable {
      */
     private fun loadFavorites() {
         val favoriteIds = settingsService.getFavoriteModels()
-        val favoriteModels = favoriteIds.mapNotNull { id ->
+        val favoriteModels = favoriteIds.map { id ->
             allAvailableModels.find { it.id == id }
                 ?: OpenRouterModelInfo(id = id, name = id, created = 0L) // Unavailable model
         }
