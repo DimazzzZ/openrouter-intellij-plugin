@@ -3,7 +3,7 @@ import java.time.Duration
 plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "1.9.10"
-    id("org.jetbrains.intellij") version "1.17.3"
+    id("org.jetbrains.intellij") version "1.17.4"
     id("io.gitlab.arturbosch.detekt") version "1.23.4"
 }
 
@@ -27,8 +27,8 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.2")
     testImplementation("org.junit.jupiter:junit-jupiter-params:5.9.2")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.2")
-    testImplementation("org.mockito:mockito-core:5.1.1")
-    testImplementation("org.mockito:mockito-junit-jupiter:5.1.1")
+    testImplementation("org.mockito:mockito-core:5.7.0")
+    testImplementation("org.mockito:mockito-junit-jupiter:5.7.0")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.11.0")
     testImplementation("org.assertj:assertj-core:3.24.2")
 
@@ -38,7 +38,7 @@ dependencies {
 
 // Configure Gradle IntelliJ Plugin
 intellij {
-    version.set("2023.2.5")
+    version.set(project.findProperty("platformVersion") as String? ?: "2023.2.5")
     type.set("IU") // Target IDE Platform - Ultimate Edition for AI Assistant support
 
     plugins.set(listOf(/* Plugin Dependencies */))
@@ -100,6 +100,7 @@ tasks {
             "-XX:CICompilerCount=2",
             "-XX:+HeapDumpOnOutOfMemoryError",
             "-XX:+UseStringDeduplication",
+            "-Dnet.bytebuddy.experimental=true",
             "-Djunit.jupiter.execution.timeout.default=10s",
             "-Djunit.jupiter.execution.timeout.testable.method.default=10s",
             "-Djunit.jupiter.execution.timeout.test.method.default=10s",
