@@ -69,9 +69,9 @@ class RequestTranslatorTest {
         // When
         val result = RequestTranslator.translateChatCompletionRequest(openAIRequest)
 
-        // Then
+        // Then: With pure passthrough (defaultMaxTokens disabled), no defaults are applied
         assertEquals(0.7, result.temperature)
-        assertEquals(1000, result.maxTokens)
+        assertNull(result.maxTokens, "maxTokens should be null when no max_tokens provided and defaults disabled")
         assertEquals(false, result.stream)
         assertNull(result.topP)
         assertNull(result.frequencyPenalty)

@@ -4,12 +4,22 @@ import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatMessage
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatMessage
+import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.PluginLogger
 
 /**
  * Translates OpenAI API requests to OpenRouter API format
  */
 object RequestTranslator {
+
+    private val settingsService by lazy {
+        try {
+            OpenRouterSettingsService.getInstance()
+        } catch (e: Exception) {
+            // In test environment, return null or a mock
+            null
+        }
+    }
 
     private const val DEFAULT_MAX_TOKENS = 1000
     private const val DEFAULT_TEMPERATURE = 0.7
@@ -24,11 +34,18 @@ object RequestTranslator {
         PluginLogger.Service.debug("Translating OpenAI request to OpenRouter format")
         PluginLogger.Service.debug("Model: ${openAIRequest.model}, Stream: ${openAIRequest.stream}")
 
+        // Apply default max tokens only if feature is enabled (defaultMaxTokens > 0)
+        val defaultMaxTokens = if (settingsService?.getDefaultMaxTokens() ?: 0 > 0) {
+            settingsService?.getDefaultMaxTokens()
+        } else {
+            null
+        }
+
         return ChatCompletionRequest(
             model = openAIRequest.model, // Model name should already be normalized (e.g., "openai/gpt-4")
             messages = openAIRequest.messages.map { translateMessage(it) },
             temperature = openAIRequest.temperature ?: DEFAULT_TEMPERATURE,
-            maxTokens = openAIRequest.max_tokens ?: DEFAULT_MAX_TOKENS,
+            maxTokens = openAIRequest.max_tokens ?: defaultMaxTokens,
             topP = openAIRequest.top_p,
             frequencyPenalty = openAIRequest.frequency_penalty,
             presencePenalty = openAIRequest.presence_penalty,

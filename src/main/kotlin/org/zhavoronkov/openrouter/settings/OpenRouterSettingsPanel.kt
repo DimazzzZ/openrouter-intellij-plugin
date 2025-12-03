@@ -104,6 +104,8 @@ class OpenRouterSettingsPanel {
     private val autoRefreshCheckBox: JBCheckBox
     private val refreshIntervalSpinner: JSpinner
     private val showCostsCheckBox: JBCheckBox
+    private val defaultMaxTokensSpinner: JSpinner
+    private val enableDefaultMaxTokensCheckBox: JBCheckBox
     private val apiKeyTableModel = ApiKeyTableModel()
     private val apiKeyTable = JBTable(apiKeyTableModel)
     private val openRouterService = OpenRouterService.getInstance()
@@ -131,6 +133,10 @@ class OpenRouterSettingsPanel {
         private const val MAX_REFRESH_INTERVAL = 300
         private const val REFRESH_INTERVAL_STEP = 10
         private const val LABEL_COLUMN_WIDTH = 170
+        private const val DEFAULT_MAX_TOKENS = 8000
+        private const val MIN_MAX_TOKENS = 1
+        private const val MAX_MAX_TOKENS = 128000
+        private const val MAX_TOKENS_STEP = 1000
     }
 
     init {
@@ -154,6 +160,16 @@ class OpenRouterSettingsPanel {
             MAX_REFRESH_INTERVAL,
             REFRESH_INTERVAL_STEP
         ))
+
+        enableDefaultMaxTokensCheckBox = JBCheckBox("Enable default max tokens for proxy requests")
+        defaultMaxTokensSpinner = JSpinner(SpinnerNumberModel(
+            DEFAULT_MAX_TOKENS,  // Default value
+            MIN_MAX_TOKENS,      // Minimum value
+            MAX_MAX_TOKENS,      // Maximum value
+            MAX_TOKENS_STEP      // Step
+        )).apply {
+            isEnabled = false // Disabled by default since feature is off by default
+        }
 
         // Configure API key table
         apiKeyTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
@@ -203,6 +219,14 @@ class OpenRouterSettingsPanel {
                 }.layout(RowLayout.PARENT_GRID)
 
                 row {
+                    cell(enableDefaultMaxTokensCheckBox)
+                }.layout(RowLayout.PARENT_GRID)
+
+                row("Maximum tokens:") {
+                    cell(defaultMaxTokensSpinner)
+                }.layout(RowLayout.PARENT_GRID)
+
+                row {
                     cell(autoRefreshCheckBox)
                     cell(showCostsCheckBox)
                 }.layout(RowLayout.PARENT_GRID)
@@ -239,6 +263,10 @@ class OpenRouterSettingsPanel {
         // Set up listeners
         autoRefreshCheckBox.addActionListener {
             refreshIntervalSpinner.isEnabled = autoRefreshCheckBox.isSelected
+        }
+
+        enableDefaultMaxTokensCheckBox.addActionListener {
+            defaultMaxTokensSpinner.isEnabled = enableDefaultMaxTokensCheckBox.isSelected
         }
 
         // Initialize status
@@ -480,5 +508,18 @@ class OpenRouterSettingsPanel {
 
     fun setShowCosts(show: Boolean) {
         showCostsCheckBox.isSelected = show
+    }
+
+    fun isDefaultMaxTokensEnabled(): Boolean = enableDefaultMaxTokensCheckBox.isSelected
+
+    fun setDefaultMaxTokensEnabled(enabled: Boolean) {
+        enableDefaultMaxTokensCheckBox.isSelected = enabled
+        defaultMaxTokensSpinner.isEnabled = enabled
+    }
+
+    fun getDefaultMaxTokens(): Int = defaultMaxTokensSpinner.value as Int
+
+    fun setDefaultMaxTokens(maxTokens: Int) {
+        defaultMaxTokensSpinner.value = maxTokens
     }
 }

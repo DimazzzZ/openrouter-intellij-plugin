@@ -166,6 +166,21 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
     }
 
     /**
+     * Get default max tokens setting
+     */
+    fun getDefaultMaxTokens(): Int {
+        return settings.defaultMaxTokens
+    }
+
+    /**
+     * Set default max tokens setting
+     */
+    fun setDefaultMaxTokens(maxTokens: Int) {
+        settings.defaultMaxTokens = maxTokens
+        notifyStateChanged()
+    }
+
+    /**
      * Notify the platform that the state has changed and should be persisted.
      * Check if user has seen the welcome notification
      */

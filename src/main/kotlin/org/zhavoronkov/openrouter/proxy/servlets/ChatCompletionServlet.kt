@@ -11,7 +11,6 @@ import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatCompletionResponse
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionResponse
-import org.zhavoronkov.openrouter.proxy.translation.RequestTranslator
 import org.zhavoronkov.openrouter.proxy.translation.ResponseTranslator
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
@@ -256,7 +255,7 @@ class ChatCompletionServlet(
         writer.flush() // Flush headers immediately
 
         try {
-            val (_, jsonBody) = prepareStreamingRequest(openAIRequest, requestId)
+            val jsonBody = prepareStreamingRequest(openAIRequest, requestId)
             val request = buildOpenRouterRequest(jsonBody, apiKey)
             executeStreamingRequest(request, writer, requestId, apiKey, jsonBody)
         } catch (e: Exception) {
@@ -277,16 +276,15 @@ class ChatCompletionServlet(
     }
 
     /**
-     * Prepare the streaming request by translating to OpenRouter format
+     * Prepare the streaming request for pure passthrough
      */
     private fun prepareStreamingRequest(
         openAIRequest: OpenAIChatCompletionRequest,
         requestId: String
-    ): Pair<ChatCompletionRequest, String> {
-        val openRouterRequest = RequestTranslator.translateChatCompletionRequest(openAIRequest)
-        val jsonBody = gson.toJson(openRouterRequest)
-        PluginLogger.Service.debug("[Chat-$requestId] Streaming request body: ${jsonBody.take(500)}...")
-        return Pair(openRouterRequest, jsonBody)
+    ): String {
+        val jsonBody = gson.toJson(openAIRequest)
+        PluginLogger.Service.debug("[Chat-$requestId] Streaming request body (passthrough): ${jsonBody.take(500)}...")
+        return jsonBody
     }
 
     /**
@@ -463,8 +461,8 @@ class ChatCompletionServlet(
         requestId: String,
         startNs: Long
     ) {
-        val openRouterRequest = translateRequest(openAIRequest, resp, requestId) ?: return
-        val openRouterResponse = executeOpenRouterRequest(openRouterRequest, apiKey, resp, requestId) ?: return
+        val requestBody = prepareNonStreamingRequest(openAIRequest, requestId)
+        val openRouterResponse = executeOpenRouterRequest(requestBody, apiKey, resp, requestId) ?: return
         val openAIResponse = translateResponse(openRouterResponse, openAIRequest.model, resp, requestId) ?: return
 
         sendSuccessResponse(resp, openAIResponse, startNs, requestId)
@@ -513,33 +511,24 @@ class ChatCompletionServlet(
 
 
 
-    private fun translateRequest(openAIRequest: OpenAIChatCompletionRequest, resp: HttpServletResponse, requestId: String): ChatCompletionRequest? {
-        val openRouterRequest = RequestTranslator.translateChatCompletionRequest(openAIRequest)
-        val openRouterRequestJson = gson.toJson(openRouterRequest)
-        PluginLogger.Service.debug("[Chat-$requestId] Translated OpenRouter request: $openRouterRequestJson")
-
-        if (!RequestTranslator.validateTranslatedRequest(openRouterRequest)) {
-            PluginLogger.Service.error("[Chat-$requestId] Request validation failed")
-            sendErrorResponse(resp, "Invalid request format", HttpServletResponse.SC_BAD_REQUEST)
-            return null
-        }
-
-        return openRouterRequest
+    private fun prepareNonStreamingRequest(openAIRequest: OpenAIChatCompletionRequest, requestId: String): String {
+        val jsonBody = gson.toJson(openAIRequest)
+        PluginLogger.Service.debug("[Chat-$requestId] Non-streaming request body (passthrough): ${jsonBody.take(500)}...")
+        return jsonBody
     }
 
     private fun executeOpenRouterRequest(
-        openRouterRequest: ChatCompletionRequest,
+        requestBody: String,
         apiKey: String,
         resp: HttpServletResponse,
         requestId: String
     ): ChatCompletionResponse? {
         PluginLogger.Service.info("[Chat-$requestId] Dispatching request to OpenRouter API…")
 
-        // Create HTTP request directly with the provided API key
-        val jsonBody = gson.toJson(openRouterRequest)
+        // Send request body as-is for passthrough
         val request = OpenRouterRequestBuilder.buildPostRequest(
             url = OPENROUTER_API_URL,
-            jsonBody = jsonBody,
+            jsonBody = requestBody,
             authType = OpenRouterRequestBuilder.AuthType.API_KEY,
             authToken = apiKey
         )
@@ -647,4 +636,3 @@ class ChatCompletionServlet(
         }
     }
 }
-
