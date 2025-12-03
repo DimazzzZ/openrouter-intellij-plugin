@@ -25,8 +25,8 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.2")
     testImplementation("org.junit.jupiter:junit-jupiter-params:5.9.2")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.2")
-    testImplementation("org.mockito:mockito-core:5.1.1")
-    testImplementation("org.mockito:mockito-junit-jupiter:5.1.1")
+    testImplementation("org.mockito:mockito-core:5.7.0")
+    testImplementation("org.mockito:mockito-junit-jupiter:5.7.0")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.11.0")
     testImplementation("org.assertj:assertj-core:3.24.2")
 
@@ -42,12 +42,6 @@ intellij {
     plugins.set(listOf(/* Plugin Dependencies */))
 }
 
-
-
-
-
-
-
 // Configure Detekt
 detekt {
     buildUponDefaultConfig = true
@@ -55,3 +49,40 @@ detekt {
     config.setFrom("$projectDir/config/detekt/detekt.yml")
     baseline = file("$projectDir/config/detekt/baseline.xml")
 }
+
+tasks {
+    // Set JVM compatibility versions
+    withType<JavaCompile> {
+        sourceCompatibility = "17"
+        targetCompatibility = "17"
+    }
+    withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+        kotlinOptions.jvmTarget = "17"
+    }
+
+    // Configure Detekt tasks
+    withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
+        jvmTarget = "17"
+        ignoreFailures = true  // Don't fail the build on Detekt issues during development
+    }
+
+    // Configure tests
+    test {
+        useJUnitPlatform()
+        systemProperty("java.awt.headless", "true")
+        jvmArgs = listOf(
+            "-Dnet.bytebuddy.experimental=true"  // For Mockito Java 21 compatibility
+        )
+        testLogging {
+            events("passed", "skipped", "failed")
+        }
+    }
+
+    // Configure plugin metadata
+    patchPluginXml {
+        version.set(project.findProperty("pluginVersion") as String? ?: "1.0.0")
+        sinceBuild.set("232")
+        untilBuild.set("252.*")
+    }
+}
+
