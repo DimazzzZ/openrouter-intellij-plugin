@@ -19,6 +19,53 @@ class OpenRouterConfigurable : Configurable {
     private val settingsService = OpenRouterSettingsService.getInstance()
     private val openRouterService = OpenRouterService.getInstance()
 
+    /**
+     * Loads current settings from the service into the panel
+     */
+    private fun loadSettingsIntoPanel(panel: OpenRouterSettingsPanel) {
+        panel.setProvisioningKey(settingsService.getProvisioningKey())
+        // TODO: Future version - Default model selection
+        // panel.setDefaultModel(settingsService.getDefaultModel())
+        panel.setAutoRefresh(settingsService.isAutoRefreshEnabled())
+        panel.setRefreshInterval(settingsService.getRefreshInterval())
+        panel.setShowCosts(settingsService.shouldShowCosts())
+        setPanelDefaultMaxTokens(panel)
+    }
+
+    /**
+     * Saves settings from the panel to the service
+     */
+    private fun saveSettingsFromPanel(panel: OpenRouterSettingsPanel) {
+        settingsService.setProvisioningKey(panel.getProvisioningKey())
+        // TODO: Future version - Default model selection
+        // settingsService.setDefaultModel(panel.getDefaultModel())
+        settingsService.setAutoRefresh(panel.isAutoRefreshEnabled())
+        settingsService.setRefreshInterval(panel.getRefreshInterval())
+        settingsService.setShowCosts(panel.shouldShowCosts())
+        savePanelDefaultMaxTokens(panel)
+    }
+
+    /**
+     * Sets the panel's default max tokens configuration based on service state
+     */
+    private fun setPanelDefaultMaxTokens(panel: OpenRouterSettingsPanel) {
+        val currentMaxTokens = settingsService.getDefaultMaxTokens()
+        panel.setDefaultMaxTokensEnabled(currentMaxTokens > 0)
+        panel.setDefaultMaxTokens(currentMaxTokens.takeIf { it > 0 } ?: PREFERRED_DEFAULT_MAX_TOKENS)
+    }
+
+    /**
+     * Saves the default max tokens setting from panel to service
+     */
+    private fun savePanelDefaultMaxTokens(panel: OpenRouterSettingsPanel) {
+        val maxTokensValue = if (panel.isDefaultMaxTokensEnabled()) {
+            panel.getDefaultMaxTokens()
+        } else {
+            0 // 0 indicates disabled feature
+        }
+        settingsService.setDefaultMaxTokens(maxTokensValue)
+    }
+
     override fun getDisplayName(): String = "OpenRouter"
 
     override fun createComponent(): JComponent? {
@@ -27,17 +74,7 @@ class OpenRouterConfigurable : Configurable {
         // Load current settings into the panel
         // Note: setProvisioningKey() will automatically load API keys (with caching)
         val panel = settingsPanel ?: return null
-        panel.setProvisioningKey(settingsService.getProvisioningKey())
-        // TODO: Future version - Default model selection
-        // panel.setDefaultModel(settingsService.getDefaultModel())
-        panel.setAutoRefresh(settingsService.isAutoRefreshEnabled())
-        panel.setRefreshInterval(settingsService.getRefreshInterval())
-        panel.setShowCosts(settingsService.shouldShowCosts())
-        panel.setDefaultMaxTokensEnabled(settingsService.getDefaultMaxTokens() > 0)
-        panel.setDefaultMaxTokens(settingsService.getDefaultMaxTokens().takeIf { it > 0 } ?: PREFERRED_DEFAULT_MAX_TOKENS)
-
-        // REMOVED: panel.refreshApiKeys() - No longer needed!
-        // setProvisioningKey() already loads API keys with caching
+        loadSettingsIntoPanel(panel)
 
         return panel.getPanel()
     }
@@ -77,21 +114,8 @@ class OpenRouterConfigurable : Configurable {
         val oldProvisioningKey = settingsService.getProvisioningKey()
         val newProvisioningKey = panel.getProvisioningKey()
 
-        // Update settings
-        settingsService.setProvisioningKey(newProvisioningKey)
-        // TODO: Future version - Default model selection
-        // settingsService.setDefaultModel(panel.getDefaultModel())
-        settingsService.setAutoRefresh(panel.isAutoRefreshEnabled())
-        settingsService.setRefreshInterval(panel.getRefreshInterval())
-        settingsService.setShowCosts(panel.shouldShowCosts())
-
-        // Set max tokens: 0 if disabled, spinner value if enabled
-        val maxTokensValue = if (panel.isDefaultMaxTokensEnabled()) {
-            panel.getDefaultMaxTokens()
-        } else {
-            0 // 0 indicates disabled feature
-        }
-        settingsService.setDefaultMaxTokens(maxTokensValue)
+        // Update all settings from panel to service
+        saveSettingsFromPanel(panel)
 
         // Refresh API keys table if provisioning key changed (force refresh to bypass cache)
         if (oldProvisioningKey != newProvisioningKey) {
@@ -110,14 +134,8 @@ class OpenRouterConfigurable : Configurable {
     override fun reset() {
         val panel = settingsPanel ?: return
 
-        panel.setProvisioningKey(settingsService.getProvisioningKey())
-        // TODO: Future version - Default model selection
-        // panel.setDefaultModel(settingsService.getDefaultModel())
-        panel.setAutoRefresh(settingsService.isAutoRefreshEnabled())
-        panel.setRefreshInterval(settingsService.getRefreshInterval())
-        panel.setShowCosts(settingsService.shouldShowCosts())
-        panel.setDefaultMaxTokensEnabled(settingsService.getDefaultMaxTokens() > 0)
-        panel.setDefaultMaxTokens(settingsService.getDefaultMaxTokens().takeIf { it > 0 } ?: PREFERRED_DEFAULT_MAX_TOKENS)
+        // Load all current settings back into the panel
+        loadSettingsIntoPanel(panel)
 
         // REMOVED: panel.refreshApiKeys() - No longer needed!
         // setProvisioningKey() already loads API keys with caching

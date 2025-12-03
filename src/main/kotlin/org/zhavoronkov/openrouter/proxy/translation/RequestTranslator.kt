@@ -12,7 +12,14 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
  */
 object RequestTranslator {
 
-    private val settingsService = OpenRouterSettingsService.getInstance()
+    private val settingsService by lazy {
+        try {
+            OpenRouterSettingsService.getInstance()
+        } catch (e: Exception) {
+            // In test environment, return null or a mock
+            null
+        }
+    }
 
     private const val DEFAULT_MAX_TOKENS = 1000
     private const val DEFAULT_TEMPERATURE = 0.7
@@ -28,8 +35,8 @@ object RequestTranslator {
         PluginLogger.Service.debug("Model: ${openAIRequest.model}, Stream: ${openAIRequest.stream}")
 
         // Apply default max tokens only if feature is enabled (defaultMaxTokens > 0)
-        val defaultMaxTokens = if (settingsService.getDefaultMaxTokens() > 0) {
-            settingsService.getDefaultMaxTokens()
+        val defaultMaxTokens = if (settingsService?.getDefaultMaxTokens() ?: 0 > 0) {
+            settingsService?.getDefaultMaxTokens()
         } else {
             null
         }
