@@ -254,7 +254,8 @@ data class OpenRouterSettings(
     var favoriteModels: MutableList<String> = getDefaultFavoriteModels(),
     var lastSeenVersion: String = "", // Track last seen version for "What's New" notifications
     var hasSeenWelcome: Boolean = false, // Track if user has seen welcome notification
-    var hasCompletedSetup: Boolean = false // Track if user has completed initial setup
+    var hasCompletedSetup: Boolean = false, // Track if user has completed initial setup
+    var defaultMaxTokens: Int = 0 // Configurable default max tokens for proxy requests (0 = disabled/pure passthrough)
 )
 
 /**

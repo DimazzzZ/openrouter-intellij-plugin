@@ -206,6 +206,69 @@ class OpenRouterSettingsServiceTest {
     }
 
     @Nested
+    @DisplayName("Default Max Tokens Management")
+    inner class DefaultMaxTokensTests {
+
+        @Test
+        @DisplayName("Should store and retrieve default max tokens value")
+        fun testDefaultMaxTokensStorage() {
+            val service = OpenRouterSettingsService()
+            val testValue = 8000
+
+            service.setDefaultMaxTokens(testValue)
+
+            assertEquals(testValue, service.getDefaultMaxTokens())
+        }
+
+        @Test
+        @DisplayName("Should return 0 for unset default max tokens (disabled)")
+        fun testUnsetDefaultMaxTokens() {
+            val service = OpenRouterSettingsService()
+
+            // Should default to disabled (0)
+            assertEquals(0, service.getDefaultMaxTokens(), "Default should be disabled (0)")
+        }
+
+        @Test
+        @DisplayName("Should handle zero value for disabled feature")
+        fun testZeroValueForDisabled() {
+            val service = OpenRouterSettingsService()
+
+            service.setDefaultMaxTokens(0)
+
+            assertEquals(0, service.getDefaultMaxTokens(), "Zero indicates disabled feature")
+        }
+
+        @Test
+        @DisplayName("Should handle large max tokens values")
+        fun testLargeMaxTokensValue() {
+            val service = OpenRouterSettingsService()
+            val largeValue = 128000 // Large but realistic value
+
+            service.setDefaultMaxTokens(largeValue)
+
+            assertEquals(largeValue, service.getDefaultMaxTokens())
+        }
+
+        @Test
+        @DisplayName("Should handle settings persistence with default max tokens")
+        fun testDefaultMaxTokensPersistence() {
+            val service = OpenRouterSettingsService()
+            val testValue = 4000
+
+            // Set value
+            service.setDefaultMaxTokens(testValue)
+
+            // Verify it persists in state
+            val state = service.state
+            assertEquals(testValue, state.defaultMaxTokens, "Should persist defaultMaxTokens in state")
+
+            // Verify retrieval works
+            assertEquals(testValue, service.getDefaultMaxTokens())
+        }
+    }
+
+    @Nested
     @DisplayName("Favorite Models Management")
     inner class FavoriteModelsTests {
 
