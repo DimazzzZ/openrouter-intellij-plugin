@@ -11,20 +11,24 @@ This document describes the testing infrastructure and procedures for the OpenRo
 
 ## 📊 Test Overview
 
-The plugin features a comprehensive test suite with 388+ tests ensuring reliability and stability:
+The plugin features a comprehensive test suite with 465+ total tests (388 active, 77 disabled) ensuring reliability and stability:
 
-| Test Suite | Tests | Coverage | Focus Area |
-|------------|-------|----------|------------|
-| **Unit Tests** | 109 | Core functionality, data models | Business logic |
-| **Integration Tests** | 50+ | API communication, servlet logic | External integration |
-| **Request Builder Tests** | 12 | HTTP request construction | Refactored code validation |
-| **Favorite Models Tests** | 11 | Favorite models management | User preferences |
-| **Model Filtering Tests** | 64 | Provider/capability/context filtering | Enhanced filtering (Phase 1) |
-| **Proxy Configuration Tests** | 26+ | Port selection, auto-start, settings validation | Proxy server configuration |
-| **Settings Panel Tests** | 15+ | UI configuration and immediate application | User interface |
-| **Encryption Tests** | 10 | Secure credential storage | Security |
-| **Settings Tests** | 15+ | Configuration management | User settings |
-| **Total** | **388+** | **Complete functionality coverage** | **Production ready** |
+| Test Suite | Tests | Status | Coverage | Focus Area |
+|------------|-------|--------|----------|------------|
+| **Unit Tests** | 109 | ✅ Active | Core functionality, data models | Business logic |
+| **Integration Tests** | 65+ | ⏸️ Disabled | API communication, servlet logic | External integration |
+| **E2E Tests** | 10+ | ⏸️ Disabled | Real OpenRouter API calls | End-to-end validation |
+| **Request Builder Tests** | 12 | ✅ Active | HTTP request construction | Refactored code validation |
+| **Favorite Models Tests** | 11 | ✅ Active | Favorite models management | User preferences |
+| **Model Filtering Tests** | 64 | ✅ Active | Provider/capability/context filtering | Enhanced filtering (Phase 1) |
+| **Proxy Configuration Tests** | 26+ | ✅ Active | Port selection, auto-start, settings validation | Proxy server configuration |
+| **Settings Panel Tests** | 15+ | ✅ Active | UI configuration and immediate application | User interface |
+| **UI Tests** | 2 | ⏸️ Disabled | UI component keyboard handling | User interface (headless skip) |
+| **Encryption Tests** | 10 | ✅ Active | Secure credential storage | Security |
+| **Settings Tests** | 15+ | ✅ Active | Configuration management | User settings |
+| **Total Active** | **388** | **✅ All passing** | **Production functionality coverage** | **CI/CD ready** |
+| **Total Disabled** | **77** | **⏸️ Available on-demand** | **Integration & E2E coverage** | **Manual testing** |
+| **Grand Total** | **465+** | **Complete test coverage** | **Development to production** | **Full validation** |
 
 ### 🎯 Recent Major Improvements
 - **Proxy Configuration Tests**: Added 26+ comprehensive tests for proxy server configuration, port selection, and settings validation
@@ -38,10 +42,122 @@ The plugin features a comprehensive test suite with 388+ tests ensuring reliabil
 - **Dependency Injection**: Made FavoriteModelsService testable with optional constructor parameters
 
 ### ✅ Test Status
-- **Build Status**: ✅ All tests passing (388+ tests, 0 failures, 83 skipped)
+- **Build Status**: ✅ All active tests passing (388+ tests, 0 failures, 77 disabled)
 - **Coverage**: 🎯 Complete functionality coverage including proxy configuration improvements
 - **Reliability**: 🔒 No more hanging tests or memory issues
-- **Performance**: ⚡ Ultra-fast execution (3-8 seconds for full suite)
+- **Performance**: ⚡ Ultra-fast execution (3-8 seconds for active suite)
+
+## 🔧 Disabled Tests (77 Tests)
+
+The plugin includes 77 disabled tests that are **valuable but not run by default** for practical reasons:
+
+### 📊 Disabled Test Categories
+
+| Category | Count | Reason Disabled | When to Enable |
+|----------|-------|-----------------|----------------|
+| **Integration Tests** | ~65 | Memory issues in CI/CD | Local development, bug investigation |
+| **E2E Tests** | ~10 | Consume real API credits ($$) | Major releases, critical bug verification |
+| **UI Tests** | ~2 | Require graphical environment | Local UI testing, non-headless environments |
+
+### 🚀 How to Enable Disabled Tests
+
+#### **Method 1: Enable Specific Test Categories**
+
+**Integration Tests** (for local development):
+```bash
+# Enable integration tests by removing @Disabled annotation
+# Edit these files and comment out @Disabled lines:
+# - src/test/kotlin/org/zhavoronkov/openrouter/ApiIntegrationTest.kt
+# - src/test/kotlin/org/zhavoronkov/openrouter/services/OpenRouterServiceIntegrationTest.kt
+# - src/test/kotlin/org/zhavoronkov/openrouter/integration/ProxyServerIntegrationTest.kt
+# - src/test/kotlin/org/zhavoronkov/openrouter/proxy/servlets/*.kt
+
+# Run integration tests
+./gradlew test --tests "*Integration*"
+```
+
+**E2E Tests** (costs real API credits):
+```bash
+# 1. Create .env file with real OpenRouter credentials:
+echo "OPENROUTER_API_KEY=sk-or-v1-your-real-key" > .env
+echo "OPENROUTER_PROVISIONING_KEY=pk-your-real-provisioning-key" >> .env
+
+# 2. Enable E2E tests by removing @Disabled annotation in:
+# - src/test/kotlin/org/zhavoronkov/openrouter/integration/OpenRouterProxyE2ETest.kt
+# - src/test/kotlin/org/zhavoronkov/openrouter/integration/ProxyServerDuplicateTest.kt
+# - src/test/kotlin/org/zhavoronkov/openrouter/integration/SimpleProxyTest.kt
+
+# 3. Run E2E tests (⚠️ COSTS MONEY - real API calls)
+./gradlew test --tests "*E2E*" --tests "*Duplicate*" --tests "*SimpleProxy*"
+```
+
+**UI Tests** (require graphical environment):
+```bash
+# Run in non-headless environment
+export JAVA_AWT_HEADLESS=false
+./gradlew test --tests "*UI*" --tests "*SettingsPanel*"
+```
+
+#### **Method 2: Enable via Test Tags**
+
+```bash
+# Run integration tests by tag
+./gradlew test -Dgroups="integration"
+
+# Run E2E tests by tag (⚠️ COSTS MONEY)
+./gradlew test -Dgroups="e2e"
+```
+
+#### **Method 3: Temporary Enable All (Not Recommended)**
+
+```bash
+# ⚠️ WARNING: This will run E2E tests and cost money!
+# Only do this if you have .env setup and understand the cost
+
+# Find and temporarily comment out all @Disabled annotations
+find src/test -name "*.kt" -exec sed -i.bak 's/@Disabled/@_Disabled_TEMP/g' {} \;
+
+# Run all tests
+./gradlew test
+
+# Restore @Disabled annotations
+find src/test -name "*.kt" -exec sed -i '' 's/@_Disabled_TEMP/@Disabled/g' {} \;
+find src/test -name "*.bak" -delete
+```
+
+### 🎯 When to Use Disabled Tests
+
+| Scenario | Tests to Enable | Reason |
+|----------|----------------|---------|
+| **Local Development** | Integration Tests | Verify HTTP server, servlet, and API client behavior |
+| **Before Major Release** | Integration + E2E Tests | Full validation against real OpenRouter API |
+| **Bug Investigation** | Relevant Integration Tests | Deep dive into specific component issues |
+| **API Changes** | E2E Tests | Verify compatibility with OpenRouter API updates |
+| **UI Development** | UI Tests | Validate keyboard handling and component behavior |
+| **Performance Testing** | Integration Tests | Load testing and server behavior validation |
+
+### ⚠️ Important Notes
+
+1. **E2E Tests Cost Money**: They make real API calls to OpenRouter and consume credits
+2. **Integration Tests Use Memory**: May cause issues in CI/CD with limited memory
+3. **UI Tests Need Graphics**: Skip automatically in headless environments  
+4. **All Disabled Tests Are Maintained**: They're kept up-to-date and valuable for manual testing
+
+### 🔍 Finding Specific Tests
+
+```bash
+# Find all disabled integration tests
+grep -r "@Disabled" src/test/ --include="*Integration*"
+
+# Find all disabled E2E tests  
+grep -r "@Disabled" src/test/ --include="*E2E*"
+
+# Find all UI tests
+grep -r "headless" src/test/ --include="*UI*"
+
+# Count disabled tests per file
+find src/test -name "*.kt" -exec sh -c 'echo "=== {} ==="; grep -c "@Disabled\|@DisabledIf" "{}"' \;
+```
 
 ### 🎯 Phase 1-3 Testing (UI Enhancements)
 - **Phase 1 Tests**: 64 unit tests for model filtering (ModelProviderUtils, ModelPresets, ModelFilterCriteria)

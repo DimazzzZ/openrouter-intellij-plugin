@@ -52,14 +52,22 @@ java -version  # Should be JDK 17+
 # 🚀 Run in development IDE (recommended for testing)
 ./gradlew runIde --no-daemon
 
+# 🧪 Run active tests (388 tests, excludes disabled integration/E2E tests)
+./gradlew test --no-daemon
+
 # 🧹 Run with clean state (tests first-run experience)
 ./gradlew clean runIde --no-daemon
+
+# 🔧 Run integration tests (requires enabling @Disabled annotations)
+# See TESTING.md for details on enabling 77 disabled tests
 
 # 📦 Build distribution for manual installation
 ./gradlew buildPlugin --no-daemon
 
 # 📁 Distribution will be in: build/distributions/openrouter-intellij-plugin-*.zip
 ```
+
+**Note**: The project includes 77 disabled tests (integration, E2E, UI) that are valuable but not run by default. See [TESTING.md](TESTING.md#disabled-tests-77-tests) for details on when and how to enable them.
 
 **Note**: Use `./gradlew clean runIde` to test the first-run experience (welcome notification and setup wizard) with a fresh state.
 
@@ -172,12 +180,30 @@ curl http://localhost:8080/v1/models
 
 #### Test Failures
 ```bash
+# Run active tests only (default - excludes 77 disabled tests)
+./gradlew test
+
 # Run specific test categories
 ./gradlew test --tests "*ChatCompletionServletTest*"
 ./gradlew test --tests "*ApiKeyHandlingIntegrationTest*"
 
 # Check for real API keys in tests
 grep -r "sk-or-v1-" src/test/ --exclude-dir=mocks
+
+# If you see "77 skipped" - those are disabled integration/E2E tests
+# See TESTING.md for how to enable them when needed
+```
+
+#### Disabled Tests (77 Tests)
+```bash
+# Check why tests are disabled
+grep -r "@Disabled" src/test/ --include="*.kt"
+
+# Count disabled tests
+find src/test -name "*.kt" -exec grep -l "@Disabled\|@DisabledIf" {} \; | wc -l
+
+# Enable integration tests for deep testing (edit files to remove @Disabled)
+# ⚠️ Enable E2E tests only with real API keys in .env (costs money)
 ```
 
 ## 🏗️ Project Architecture
