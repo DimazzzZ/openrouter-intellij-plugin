@@ -30,8 +30,6 @@ class OpenRouterProxyServer {
 
     companion object {
         private const val DEFAULT_PORT = 8080
-        private const val MIN_PORT = 8080
-        private const val MAX_PORT = 8090
         private const val LOCALHOST = "127.0.0.1"
         private const val RESTART_DELAY_MS = 1000L
         private const val API_BASE_PATH = "/v1/"
@@ -74,9 +72,24 @@ class OpenRouterProxyServer {
                     return@supplyAsync true
                 }
 
-                port = findAvailablePort()
+                val preferredPort = settingsService.getProxyPort()
+                port = if (preferredPort > 0) {
+                    // Use specific port if configured
+                    if (isPortAvailable(preferredPort)) {
+                        preferredPort
+                    } else {
+                        PluginLogger.Service.warn("Preferred port $preferredPort is not available, searching range")
+                        findAvailablePortInRange()
+                    }
+                } else {
+                    // Auto-select from configured range
+                    findAvailablePortInRange()
+                }
+
                 if (port == -1) {
-                    PluginLogger.Service.error("No available ports found in range $MIN_PORT-$MAX_PORT")
+                    val rangeStart = settingsService.getProxyPortRangeStart()
+                    val rangeEnd = settingsService.getProxyPortRangeEnd()
+                    PluginLogger.Service.error("No available ports found in range $rangeStart-$rangeEnd")
                     return@supplyAsync false
                 }
 
@@ -241,10 +254,13 @@ class OpenRouterProxyServer {
     }
 
     /**
-     * Finds an available port in the specified range
+     * Finds an available port in the configured range
      */
-    private fun findAvailablePort(): Int {
-        for (port in MIN_PORT..MAX_PORT) {
+    private fun findAvailablePortInRange(): Int {
+        val rangeStart = settingsService.getProxyPortRangeStart()
+        val rangeEnd = settingsService.getProxyPortRangeEnd()
+
+        for (port in rangeStart..rangeEnd) {
             if (isPortAvailable(port)) {
                 return port
             }

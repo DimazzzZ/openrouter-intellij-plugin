@@ -52,14 +52,22 @@ java -version  # Should be JDK 17+
 # 🚀 Run in development IDE (recommended for testing)
 ./gradlew runIde --no-daemon
 
+# 🧪 Run active tests (388 tests, excludes disabled integration/E2E tests)
+./gradlew test --no-daemon
+
 # 🧹 Run with clean state (tests first-run experience)
 ./gradlew clean runIde --no-daemon
+
+# 🔧 Run integration tests (requires enabling @Disabled annotations)
+# See TESTING.md for details on enabling 77 disabled tests
 
 # 📦 Build distribution for manual installation
 ./gradlew buildPlugin --no-daemon
 
 # 📁 Distribution will be in: build/distributions/openrouter-intellij-plugin-*.zip
 ```
+
+**Note**: The project includes 77 disabled tests (integration, E2E, UI) that are valuable but not run by default. See [TESTING.md](TESTING.md#disabled-tests-77-tests) for details on when and how to enable them.
 
 **Note**: Use `./gradlew clean runIde` to test the first-run experience (welcome notification and setup wizard) with a fresh state.
 
@@ -172,12 +180,30 @@ curl http://localhost:8080/v1/models
 
 #### Test Failures
 ```bash
+# Run active tests only (default - excludes 77 disabled tests)
+./gradlew test
+
 # Run specific test categories
 ./gradlew test --tests "*ChatCompletionServletTest*"
 ./gradlew test --tests "*ApiKeyHandlingIntegrationTest*"
 
 # Check for real API keys in tests
 grep -r "sk-or-v1-" src/test/ --exclude-dir=mocks
+
+# If you see "77 skipped" - those are disabled integration/E2E tests
+# See TESTING.md for how to enable them when needed
+```
+
+#### Disabled Tests (77 Tests)
+```bash
+# Check why tests are disabled
+grep -r "@Disabled" src/test/ --include="*.kt"
+
+# Count disabled tests
+find src/test -name "*.kt" -exec grep -l "@Disabled\|@DisabledIf" {} \; | wc -l
+
+# Enable integration tests for deep testing (edit files to remove @Disabled)
+# ⚠️ Enable E2E tests only with real API keys in .env (costs money)
 ```
 
 ## 🏗️ Project Architecture
@@ -328,10 +354,12 @@ openrouter-intellij-plugin/
 ## 🤖 AI Assistant Integration
 
 ### Proxy Server Architecture
-The plugin includes a local HTTP proxy server that enables JetBrains AI Assistant to access OpenRouter's 400+ models:
+The plugin includes a configurable local HTTP proxy server that enables JetBrains AI Assistant to access OpenRouter's 400+ models:
 
 - **Technology**: Eclipse Jetty 11 embedded HTTP server
-- **Port Range**: Auto-allocates ports 8080-8090
+- **Port Configuration**: Configurable ports (default 8880-8899, avoids common conflicts)
+- **Auto-start Control**: Configurable auto-start behavior (disabled by default)
+- **Port Selection**: Specific port or auto-selection within configurable range
 - **Protocol**: OpenAI-compatible REST API
 - **Security**: Localhost-only (127.0.0.1), no external access
 - **Authentication**: Handled transparently via OpenRouter plugin
@@ -365,14 +393,22 @@ The proxy server translates between OpenAI and OpenRouter formats:
 # Start development IDE with proxy server
 ./gradlew runIde --no-daemon
 
-# Test proxy endpoints directly
-curl http://localhost:8080/health
-curl http://localhost:8080/v1/models
+# Note: Default port range is now 8880-8899 (configurable in settings)
+# Check actual port in OpenRouter Settings > Proxy Server section
+
+# Test proxy endpoints directly (replace 8880 with actual port)
+curl http://localhost:8880/health
+curl http://localhost:8880/v1/models
 
 # Test chat completion (requires OpenRouter configuration)
-curl -X POST http://localhost:8080/v1/chat/completions \
+curl -X POST http://localhost:8880/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"Hello"}]}'
+
+# Test immediate settings application
+# 1. Change proxy port in settings UI
+# 2. Click "Start Proxy" (no need to click Apply first)
+# 3. Verify proxy starts on new port
 ```
 
 ### Integration Components
@@ -406,6 +442,29 @@ curl -X POST http://localhost:8080/v1/chat/completions \
 **Files Affected**: Test files, documentation, mock data
 **Replacements**: All real keys replaced with secure placeholder values
 **Best Practices**: Added security guidelines and validation checks
+
+#### Proxy Configuration Improvements (v0.3.0)
+**Problem**: Proxy always auto-started on IDEA restart using port 8080, causing conflicts
+**Solution**: Complete proxy configuration overhaul with user control
+
+**Key Changes**:
+- **Configurable Auto-start**: Disabled by default, user-controllable
+- **Better Port Range**: Changed default from 8080-8090 to 8880-8899
+- **Flexible Port Selection**: Specific port or auto-select within range
+- **Immediate Application**: Settings applied instantly when starting proxy
+- **Comprehensive UI**: Full configuration panel with validation
+
+**Files Modified**:
+- `OpenRouterProxyServer.kt` - Enhanced port selection logic
+- `OpenRouterSettingsService.kt` - Added proxy configuration methods
+- `OpenRouterSettingsPanel.kt` - Added proxy UI and immediate application
+- `OpenRouterModels.kt` - Updated default settings
+- `OpenRouterConfigurable.kt` - Integrated proxy settings
+
+**Development Impact**:
+- **Testing**: 26+ new tests covering all proxy configuration scenarios
+- **User Experience**: No more unwanted proxy startup, better port selection
+- **Backward Compatibility**: Existing installations use improved defaults
 
 ## Development Guidelines
 

@@ -30,6 +30,7 @@ class OpenRouterConfigurable : Configurable {
         panel.setRefreshInterval(settingsService.getRefreshInterval())
         panel.setShowCosts(settingsService.shouldShowCosts())
         setPanelDefaultMaxTokens(panel)
+        setPanelProxySettings(panel)
     }
 
     /**
@@ -43,6 +44,7 @@ class OpenRouterConfigurable : Configurable {
         settingsService.setRefreshInterval(panel.getRefreshInterval())
         settingsService.setShowCosts(panel.shouldShowCosts())
         savePanelDefaultMaxTokens(panel)
+        savePanelProxySettings(panel)
     }
 
     /**
@@ -64,6 +66,60 @@ class OpenRouterConfigurable : Configurable {
             0 // 0 indicates disabled feature
         }
         settingsService.setDefaultMaxTokens(maxTokensValue)
+    }
+
+    /**
+     * Sets the panel's proxy configuration based on service state
+     */
+    private fun setPanelProxySettings(panel: OpenRouterSettingsPanel) {
+        panel.setProxyAutoStart(settingsService.isProxyAutoStartEnabled())
+
+        val configuredPort = settingsService.getProxyPort()
+        panel.setUseSpecificPort(configuredPort > 0)
+        panel.setProxyPort(if (configuredPort > 0) configuredPort else 8080)
+
+        panel.setProxyPortRangeStart(settingsService.getProxyPortRangeStart())
+        panel.setProxyPortRangeEnd(settingsService.getProxyPortRangeEnd())
+    }
+
+    /**
+     * Saves proxy settings from panel to service
+     */
+    private fun savePanelProxySettings(panel: OpenRouterSettingsPanel) {
+        settingsService.setProxyAutoStart(panel.getProxyAutoStart())
+
+        val port = if (panel.getUseSpecificPort()) {
+            panel.getProxyPort()
+        } else {
+            0 // 0 means auto-select from range
+        }
+        settingsService.setProxyPort(port)
+
+        settingsService.setProxyPortRange(
+            panel.getProxyPortRangeStart(),
+            panel.getProxyPortRangeEnd()
+        )
+    }
+
+    /**
+     * Checks if proxy settings have been modified
+     */
+    private fun isProxySettingsModified(panel: OpenRouterSettingsPanel): Boolean {
+        val currentAutoStart = settingsService.isProxyAutoStartEnabled()
+        val currentPort = settingsService.getProxyPort()
+        val currentRangeStart = settingsService.getProxyPortRangeStart()
+        val currentRangeEnd = settingsService.getProxyPortRangeEnd()
+
+        val panelAutoStart = panel.getProxyAutoStart()
+        val panelUseSpecificPort = panel.getUseSpecificPort()
+        val panelPort = if (panelUseSpecificPort) panel.getProxyPort() else 0
+        val panelRangeStart = panel.getProxyPortRangeStart()
+        val panelRangeEnd = panel.getProxyPortRangeEnd()
+
+        return currentAutoStart != panelAutoStart ||
+               currentPort != panelPort ||
+               currentRangeStart != panelRangeStart ||
+               currentRangeEnd != panelRangeEnd
     }
 
     override fun getDisplayName(): String = "OpenRouter"
@@ -105,7 +161,8 @@ class OpenRouterConfigurable : Configurable {
             panel.isAutoRefreshEnabled() != settingsService.isAutoRefreshEnabled() ||
             panel.getRefreshInterval() != settingsService.getRefreshInterval() ||
             panel.shouldShowCosts() != settingsService.shouldShowCosts() ||
-            maxTokensChanged
+            maxTokensChanged ||
+            isProxySettingsModified(panel)
     }
 
     override fun apply() {

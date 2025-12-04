@@ -6,7 +6,7 @@ plugins {
 }
 
 group = project.findProperty("pluginGroup") ?: "org.zhavoronkov"
-version = project.findProperty("pluginVersion") ?: "0.2.2"
+version = project.findProperty("pluginVersion") ?: "0.3.0"
 
 repositories {
     mavenCentral()
@@ -36,8 +36,8 @@ dependencies {
 
 // Configure IntelliJ Plugin
 intellij {
-    version.set(project.findProperty("platformVersion") as String? ?: "2023.2.5")
-    type.set("IU") // Target IDE Platform - Ultimate Edition for AI Assistant support
+    version.set(project.findProperty("platformVersion") as String? ?: "2024.1.6")
+    type.set(project.findProperty("platformType") as String? ?: "IC")
 
     plugins.set(listOf(/* Plugin Dependencies */))
 }
@@ -80,9 +80,9 @@ tasks {
 
     // Configure plugin metadata
     patchPluginXml {
-        version.set(project.findProperty("pluginVersion") as String? ?: "1.0.0")
-        sinceBuild.set("232")
-        untilBuild.set("252.*")
+        version.set(project.findProperty("pluginVersion") as String? ?: "0.3.0")
+        sinceBuild.set(project.findProperty("pluginSinceBuild") as String? ?: "241")
+        untilBuild.set(project.findProperty("pluginUntilBuild") as String? ?: "253.*")
     }
 }
 

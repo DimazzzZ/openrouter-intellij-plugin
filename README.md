@@ -8,7 +8,7 @@ An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.
 
 ## Features
 
-- **🤖 AI Assistant Proxy** - Local proxy server to connect JetBrains AI Assistant with OpenRouter's 400+ models
+- **🤖 AI Assistant Proxy** - Configurable local proxy server (ports 8880-8899 by default) with auto-start control and flexible port selection
 - **📊 Status Bar Widget** - Real-time usage display with comprehensive popup menu
 - **🔑 API Key Management** - Secure provisioning key support with automatic API key creation
 - **📈 Usage Analytics** - Track token consumption, costs, and model performance
@@ -76,7 +76,7 @@ The plugin automatically creates and configures an API key when you provide a pr
 
 ### Quick Start
 1. **Configure OpenRouter Plugin** (as above)
-2. **Start Proxy Server**: The server starts automatically when you configure your Provisioning Key
+2. **Configure Proxy Server**: Auto-start is disabled by default - manually start via Settings or enable auto-start
 3. **Configure AI Assistant**: Settings → Tools → AI Assistant → Models → Add custom model
    - **Provider**: Custom
    - **Server URL**: Copy from OpenRouter settings (e.g., `http://127.0.0.1:8080`)
@@ -116,10 +116,28 @@ The plugin automatically creates and configures an API key when you provide a pr
 - **Documentation**: Links to OpenRouter API documentation
 - **Logout**: Clear stored credentials
 
+### Proxy Server Configuration
+Access via `Settings` → `Tools` → `OpenRouter` → `Proxy Server` section:
+
+- **Auto-start**: Control whether proxy starts automatically on IDEA launch (disabled by default)
+- **Port Selection**: Choose specific port or auto-select from configurable range
+- **Port Range**: Configure port range for auto-selection (default: 8880-8899)
+- **Immediate Application**: Start Proxy button applies current settings without requiring Apply/OK
+- **Conflict Avoidance**: Default range avoids common development ports (8080, 8000, etc.)
+- **Manual Control**: Start/stop proxy server on demand from settings panel
+
+#### Configuration Options
+```kotlin
+proxyAutoStart = false           // Auto-start on IDEA launch
+proxyPort = 0                   // Specific port (0 = auto-select)  
+proxyPortRangeStart = 8880      // Range start for auto-selection
+proxyPortRangeEnd = 8899        // Range end for auto-selection
+```
+
 ## Architecture
 
 ### Core Components
-- **Jetty Proxy Server** - Embedded HTTP server (ports 8080-8090) for AI Assistant integration
+- **Jetty Proxy Server** - Configurable embedded HTTP server (default ports 8880-8899) with flexible port selection and auto-start control
 - **OpenRouter API Client** - Handles authentication, quota tracking, and model access
 - **Settings Management** - Encrypted credential storage with validation
 - **Status Bar Integration** - Real-time monitoring with minimal UI footprint

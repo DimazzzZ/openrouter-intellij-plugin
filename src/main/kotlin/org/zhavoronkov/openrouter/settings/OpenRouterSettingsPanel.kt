@@ -127,6 +127,13 @@ class OpenRouterSettingsPanel {
     private lateinit var stopServerButton: JButton
     private lateinit var copyUrlButton: JButton
 
+    // Proxy configuration components
+    private lateinit var proxyAutoStartCheckBox: JBCheckBox
+    private lateinit var useSpecificPortCheckBox: JBCheckBox
+    private lateinit var proxyPortSpinner: JSpinner
+    private lateinit var proxyPortRangeStartSpinner: JSpinner
+    private lateinit var proxyPortRangeEndSpinner: JSpinner
+
     companion object {
         private const val DEFAULT_REFRESH_INTERVAL = 300
         private const val MIN_REFRESH_INTERVAL = 60
@@ -137,6 +144,10 @@ class OpenRouterSettingsPanel {
         private const val MIN_MAX_TOKENS = 1
         private const val MAX_MAX_TOKENS = 128000
         private const val MAX_TOKENS_STEP = 1000
+        // Proxy configuration constants
+        private const val MIN_PORT = 1024
+        private const val MAX_PORT = 65535
+        private const val DEFAULT_PROXY_PORT = 8880
     }
 
     init {
@@ -170,6 +181,33 @@ class OpenRouterSettingsPanel {
         )).apply {
             isEnabled = false // Disabled by default since feature is off by default
         }
+
+        // Initialize proxy configuration components
+        proxyAutoStartCheckBox = JBCheckBox("Auto-start proxy server on IDEA startup")
+        useSpecificPortCheckBox = JBCheckBox("Use specific port")
+
+        proxyPortSpinner = JSpinner(SpinnerNumberModel(
+            DEFAULT_PROXY_PORT,  // Default value
+            MIN_PORT,            // Minimum value
+            MAX_PORT,            // Maximum value
+            1                    // Step
+        )).apply {
+            isEnabled = false // Disabled by default since "Use specific port" is unchecked
+        }
+
+        proxyPortRangeStartSpinner = JSpinner(SpinnerNumberModel(
+            8880,    // Default start of range
+            MIN_PORT,
+            MAX_PORT,
+            1
+        ))
+
+        proxyPortRangeEndSpinner = JSpinner(SpinnerNumberModel(
+            8899,    // Default end of range
+            MIN_PORT,
+            MAX_PORT,
+            1
+        ))
 
         // Configure API key table
         apiKeyTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
@@ -247,6 +285,32 @@ class OpenRouterSettingsPanel {
 
             // Proxy Server group
             group("Proxy Server") {
+                // Auto-start configuration
+                row {
+                    cell(proxyAutoStartCheckBox)
+                }.layout(RowLayout.PARENT_GRID)
+
+                // Port configuration
+                row {
+                    cell(useSpecificPortCheckBox)
+                }.layout(RowLayout.PARENT_GRID)
+
+                row("Specific port:") {
+                    cell(proxyPortSpinner)
+                }.layout(RowLayout.PARENT_GRID)
+
+                row("Port range start:") {
+                    cell(proxyPortRangeStartSpinner)
+                }.layout(RowLayout.PARENT_GRID)
+
+                row("Port range end:") {
+                    cell(proxyPortRangeEndSpinner)
+                }.layout(RowLayout.PARENT_GRID)
+
+                row {
+                    comment("When 'Use specific port' is unchecked, the proxy will auto-select from the specified range.")
+                }
+
                 // Proxy server controls
                 row("Status:") {
                     cell(statusLabel)
@@ -267,6 +331,22 @@ class OpenRouterSettingsPanel {
 
         enableDefaultMaxTokensCheckBox.addActionListener {
             defaultMaxTokensSpinner.isEnabled = enableDefaultMaxTokensCheckBox.isSelected
+        }
+
+        // Proxy configuration listeners
+        useSpecificPortCheckBox.addActionListener {
+            proxyPortSpinner.isEnabled = useSpecificPortCheckBox.isSelected
+            proxyPortRangeStartSpinner.isEnabled = !useSpecificPortCheckBox.isSelected
+            proxyPortRangeEndSpinner.isEnabled = !useSpecificPortCheckBox.isSelected
+        }
+
+        // Validate port range when values change
+        proxyPortRangeStartSpinner.addChangeListener {
+            validatePortRange()
+        }
+
+        proxyPortRangeEndSpinner.addChangeListener {
+            validatePortRange()
         }
 
         // Initialize status
@@ -356,6 +436,10 @@ class OpenRouterSettingsPanel {
             )
             return
         }
+
+        // Apply current proxy settings from UI before starting server
+        // This ensures the proxy uses the current UI values without requiring Apply/OK
+        applyCurrentProxySettings()
 
         startServerButton.isEnabled = false
         startServerButton.text = "Starting..."
@@ -521,5 +605,82 @@ class OpenRouterSettingsPanel {
 
     fun setDefaultMaxTokens(maxTokens: Int) {
         defaultMaxTokensSpinner.value = maxTokens
+    }
+
+    // Proxy configuration methods
+
+    fun getProxyAutoStart(): Boolean = proxyAutoStartCheckBox.isSelected
+
+    fun setProxyAutoStart(enabled: Boolean) {
+        proxyAutoStartCheckBox.isSelected = enabled
+    }
+
+    fun getUseSpecificPort(): Boolean = useSpecificPortCheckBox.isSelected
+
+    fun setUseSpecificPort(useSpecific: Boolean) {
+        useSpecificPortCheckBox.isSelected = useSpecific
+        proxyPortSpinner.isEnabled = useSpecific
+        proxyPortRangeStartSpinner.isEnabled = !useSpecific
+        proxyPortRangeEndSpinner.isEnabled = !useSpecific
+    }
+
+    fun getProxyPort(): Int = proxyPortSpinner.value as Int
+
+    fun setProxyPort(port: Int) {
+        proxyPortSpinner.value = port
+    }
+
+    fun getProxyPortRangeStart(): Int = proxyPortRangeStartSpinner.value as Int
+
+    fun setProxyPortRangeStart(port: Int) {
+        proxyPortRangeStartSpinner.value = port
+        validatePortRange()
+    }
+
+    fun getProxyPortRangeEnd(): Int = proxyPortRangeEndSpinner.value as Int
+
+    fun setProxyPortRangeEnd(port: Int) {
+        proxyPortRangeEndSpinner.value = port
+        validatePortRange()
+    }
+
+    /**
+     * Applies current proxy settings from UI to settings service.
+     * This ensures immediate proxy server startup uses current UI values
+     * without requiring Apply/OK button click.
+     */
+    private fun applyCurrentProxySettings() {
+        try {
+            settingsService.setProxyAutoStart(getProxyAutoStart())
+
+            val port = if (getUseSpecificPort()) {
+                getProxyPort()
+            } else {
+                0 // 0 means auto-select from range
+            }
+            settingsService.setProxyPort(port)
+
+            settingsService.setProxyPortRange(
+                getProxyPortRangeStart(),
+                getProxyPortRangeEnd()
+            )
+
+            PluginLogger.Settings.debug("Applied current proxy settings: autoStart=${getProxyAutoStart()}, port=$port, range=${getProxyPortRangeStart()}-${getProxyPortRangeEnd()}")
+        } catch (e: Exception) {
+            PluginLogger.Settings.error("Failed to apply current proxy settings: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Validates that port range start <= end
+     */
+    private fun validatePortRange() {
+        val startPort = proxyPortRangeStartSpinner.value as Int
+        val endPort = proxyPortRangeEndSpinner.value as Int
+
+        if (startPort > endPort) {
+            // Automatically adjust the end port to be at least equal to start port
+            proxyPortRangeEndSpinner.value = startPort
+        }
     }
 }
