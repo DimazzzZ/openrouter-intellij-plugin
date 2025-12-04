@@ -211,6 +211,85 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
         notifyStateChanged()
     }
 
+    // Proxy Server Configuration
+
+    /**
+     * Check if proxy server should auto-start on IDEA startup
+     */
+    fun isProxyAutoStartEnabled(): Boolean {
+        return settings.proxyAutoStart
+    }
+
+    /**
+     * Set proxy server auto-start behavior
+     */
+    fun setProxyAutoStart(enabled: Boolean) {
+        settings.proxyAutoStart = enabled
+        notifyStateChanged()
+    }
+
+    /**
+     * Get preferred proxy server port (0 means auto-select from range)
+     */
+    fun getProxyPort(): Int {
+        return settings.proxyPort
+    }
+
+    /**
+     * Set preferred proxy server port (0 means auto-select from range)
+     */
+    fun setProxyPort(port: Int) {
+        require(port == 0 || port in 1024..65535) { "Port must be 0 (auto) or between 1024-65535" }
+        settings.proxyPort = port
+        notifyStateChanged()
+    }
+
+    /**
+     * Get proxy server port range start
+     */
+    fun getProxyPortRangeStart(): Int {
+        return settings.proxyPortRangeStart
+    }
+
+    /**
+     * Set proxy server port range start
+     */
+    fun setProxyPortRangeStart(port: Int) {
+        require(port in 1024..65535) { "Port must be between 1024-65535" }
+        require(port <= settings.proxyPortRangeEnd) { "Start port must be <= end port" }
+        settings.proxyPortRangeStart = port
+        notifyStateChanged()
+    }
+
+    /**
+     * Get proxy server port range end
+     */
+    fun getProxyPortRangeEnd(): Int {
+        return settings.proxyPortRangeEnd
+    }
+
+    /**
+     * Set proxy server port range end
+     */
+    fun setProxyPortRangeEnd(port: Int) {
+        require(port in 1024..65535) { "Port must be between 1024-65535" }
+        require(port >= settings.proxyPortRangeStart) { "End port must be >= start port" }
+        settings.proxyPortRangeEnd = port
+        notifyStateChanged()
+    }
+
+    /**
+     * Set proxy server port range
+     */
+    fun setProxyPortRange(startPort: Int, endPort: Int) {
+        require(startPort in 1024..65535) { "Start port must be between 1024-65535" }
+        require(endPort in 1024..65535) { "End port must be between 1024-65535" }
+        require(startPort <= endPort) { "Start port must be <= end port" }
+        settings.proxyPortRangeStart = startPort
+        settings.proxyPortRangeEnd = endPort
+        notifyStateChanged()
+    }
+
     /**
      * This is necessary when settings are modified outside of the standard
      * Configurable apply flow (e.g., from dialogs or background operations).

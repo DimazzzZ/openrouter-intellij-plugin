@@ -5,6 +5,29 @@ All notable changes to the OpenRouter IntelliJ Plugin will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2025-12-04
+
+### 🔧 Enhanced Proxy Server Configuration
+
+#### ⚙️ Proxy Configuration
+- **Configurable Auto-start** - Proxy auto-start now disabled by default and fully configurable
+- **Better Port Range** - Default port range changed from `8080-8090` to `8880-8899` to avoid common conflicts
+- **Flexible Port Selection** - Users can specify exact port or use auto-selection within configurable range
+- **Immediate Settings Application** - "Start Proxy" button now applies current UI settings without requiring "Apply/OK" click
+- **Comprehensive Validation** - Port range constraints (1024-65535) with automatic adjustment of invalid ranges
+- **Enhanced Settings UI** - Full proxy configuration panel with real-time validation
+
+#### 🛠️ Technical Improvements
+- **Port Conflict Resolution** - Intelligent fallback from specific port to range selection
+- **Settings Persistence** - All proxy settings properly saved and loaded
+- **Backward Compatibility** - Existing installations automatically use improved defaults
+- **Extensive Testing** - 26+ new tests covering all proxy configuration scenarios
+
+#### 🎯 User Experience
+- **No Unwanted Auto-start** - Clean startup experience without unexpected proxy server
+- **Seamless Testing** - Change proxy settings and start immediately without Apply button
+- **Better Defaults** - Avoid port conflicts with common development tools (8080, 8000, etc.)
+
 ## [0.2.2] - 2025-12-02
 
 - fix: extend compatibility to JetBrains Rider 2025.3.X and other IDEs up to 2025.3+
