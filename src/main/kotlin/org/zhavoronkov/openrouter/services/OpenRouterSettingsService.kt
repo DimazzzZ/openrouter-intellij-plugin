@@ -299,11 +299,16 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
      */
     private fun notifyStateChanged() {
         try {
-            PluginLogger.Service.info("notifyStateChanged: About to call saveSettings()")
-            // Force immediate state persistence
-            // This is synchronous to ensure the state is saved before returning
-            ApplicationManager.getApplication().saveSettings()
-            PluginLogger.Service.info("Settings state persisted successfully")
+            val application = ApplicationManager.getApplication()
+            if (application != null) {
+                PluginLogger.Service.info("notifyStateChanged: About to call saveSettings()")
+                // Force immediate state persistence
+                // This is synchronous to ensure the state is saved before returning
+                application.saveSettings()
+                PluginLogger.Service.info("Settings state persisted successfully")
+            } else {
+                PluginLogger.Service.info("notifyStateChanged: Application is null (likely test environment), skipping saveSettings()")
+            }
         } catch (e: Exception) {
             PluginLogger.Service.warn("Failed to persist settings state", e)
         }

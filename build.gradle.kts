@@ -37,6 +37,7 @@ dependencies {
     testImplementation("com.squareup.okhttp3:mockwebserver:4.11.0")
     testImplementation("org.assertj:assertj-core:3.24.2")
 
+
     // Detekt plugins
     detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.4")
 }
@@ -94,4 +95,3 @@ tasks {
         untilBuild.set(project.findProperty("pluginUntilBuild") as String? ?: "253.*")
     }
 }
-
