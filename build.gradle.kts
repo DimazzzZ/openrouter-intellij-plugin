@@ -1,12 +1,19 @@
 plugins {
     id("java")
-    id("org.jetbrains.kotlin.jvm") version "1.9.10"
+    id("org.jetbrains.kotlin.jvm") version "1.9.25"
     id("org.jetbrains.intellij") version "1.17.4"
     id("io.gitlab.arturbosch.detekt") version "1.23.4"
 }
 
 group = project.findProperty("pluginGroup") ?: "org.zhavoronkov"
 version = project.findProperty("pluginVersion") ?: "0.3.0"
+
+// Configure Java toolchain to use Java 17 specifically
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(17))
+    }
+}
 
 repositories {
     mavenCentral()
@@ -71,7 +78,9 @@ tasks {
         useJUnitPlatform()
         systemProperty("java.awt.headless", "true")
         jvmArgs = listOf(
-            "-Dnet.bytebuddy.experimental=true"  // For Mockito Java 21 compatibility
+            "-Dnet.bytebuddy.experimental=true",  // For Mockito Java 21+ compatibility
+            "--add-opens=java.base/java.lang=ALL-UNNAMED",  // For Java 25 compatibility
+            "--add-opens=java.base/java.util=ALL-UNNAMED"
         )
         testLogging {
             events("passed", "skipped", "failed")
