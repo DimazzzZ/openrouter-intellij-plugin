@@ -165,6 +165,70 @@ find src/test -name "*.kt" -exec sh -c 'echo "=== {} ==="; grep -c "@Disabled\|@
 - **Phase 3 Tests**: Manual testing required for first-run experience (welcome notification, setup wizard)
 - **Testing Guide**: See "Testing First-Run Experience" section below
 
+## 🚀 New Features Testing (v0.3.0)
+
+### Setup Wizard Testing
+The plugin includes a comprehensive multi-step setup wizard that requires manual testing to ensure proper first-run experience.
+
+**Quick Test Setup**:
+```bash
+# Start fresh development IDE with clean state
+./gradlew clean runIde
+# Wizard appears automatically on first project open
+```
+
+**Wizard Components to Test**:
+- **Welcome Notification**: Appears on first project open with "Quick Setup" button
+- **Step 0**: Introduction screen with proper formatting and icons
+- **Step 1**: Provisioning key validation with visual feedback (spinner → checkmark/error)
+- **Step 2**: Model selection with checkboxes, search, and real-time filtering
+- **Step 3**: Completion screen with proxy URL copy functionality
+
+**Testing Methods**:
+1. **Fresh Development IDE**: `./gradlew clean runIde`
+2. **Reset Settings**: Change `hasSeenWelcome/hasCompletedSetup` to false in settings.xml
+3. **Delete Settings**: Remove openrouter.xml for complete reset
+
+**Key Test Points**:
+- [ ] Buttons properly enabled/disabled based on validation
+- [ ] Checkboxes render correctly (not true/false text)
+- [ ] Search filters models in real-time
+- [ ] Navigation works with Back/Next buttons
+- [ ] Setup completion is properly tracked
+
+### Advanced Model Filtering Tests (64 Tests)
+```bash
+# Run all filtering-related tests
+./gradlew test --tests "ModelProviderUtilsTest"
+./gradlew test --tests "ModelPresetsTest"
+./gradlew test --tests "ModelFilterCriteriaTest"
+
+# Test specific filtering scenarios
+./gradlew test --tests "*ModelFilter*"
+```
+
+**Filtering Test Coverage**:
+- **Provider Filtering**: OpenAI, Anthropic, Google, Meta, Mistral optimization
+- **Context Window**: Smart date parsing (1K, 4K, 8K, 16K, 32K+ ranges)
+- **Capability Filtering**: Vision, Audio, Tools, Image Generation detection
+- **Preset Testing**: Multimodal, Coding, Cost-Effective predefined sets
+
+### Enhanced Statistics Dialog Tests (30+ Tests)
+```bash
+# Test modal dialog functionality
+./gradlew test --tests "*OpenRouterStatsPopup*"
+
+# Test configuration and threading
+./gradlew test --tests "*StatsPopupConfigurationTest*"
+./gradlew test --tests "*StatsPopupThreadingTest*"
+```
+
+**Dialog Test Categories**:
+- **Configuration Tests**: Different setup scenarios and validation
+- **Data Loading Tests**: Asynchronous operations and error handling
+- **Threading Tests**: EDT usage and UI safety verification
+- **Modal Behavior**: Proper IntelliJ DialogWrapper integration
+
 ## 🏗️ Test Architecture
 
 ### Test Structure

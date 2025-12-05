@@ -602,6 +602,66 @@ find ~/Library/Application\ Support/JetBrains -name "openrouter.xml" | grep sand
 ./gradlew clean runIde
 ```
 
+## 🔍 Advanced Filtering Debugging
+
+### Filter Issues
+
+**Symptoms**: Models not filtering correctly by provider/context/capabilities
+
+**Debug Steps**:
+1. Check active filter criteria:
+   ```bash
+   grep -E "Applying filters:|Provider:|Context:|Capabilities:" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+   ```
+
+2. Verify date parsing for context ranges:
+   ```bash
+   grep -E "Failed to parse date|Smart date parsing" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+   ```
+
+3. Test specific filter combinations:
+   ```bash
+   grep "Filtering.*vision.*tools" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+   ```
+
+### Model Search Debugging
+
+**Problem**: Search not working or returning unexpected results
+
+**Debug Steps**:
+1. Check search queries:
+   ```bash
+   grep -E "Search.*query|Filter.*text" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+   ```
+
+2. Verify model name matching:
+   ```bash
+   grep "Model.*matches.*search" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+   ```
+
+## 🪟 Modal Statistics Dialog Debugging
+
+### Dialog Behavior Issues
+
+**Problem**: Statistics not opening as modal dialog or behaving unexpectedly
+
+**Check**:
+1. DialogWrapper initialization:
+   ```bash
+   grep "Creating modal statistics dialog\|Failed to show statistics" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+   ```
+
+2. Verify DialogWrapper extension:
+   ```kotlin
+   // Should extend DialogWrapper, not JBPopup
+   class OpenRouterStatsPopup : DialogWrapper(project)
+   ```
+
+3. Check for EDT usage issues:
+   ```bash
+   grep "Modal dialog.*EDT\|DialogWrapper.*invokeLater" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+   ```
+
 ---
 
 **💡 Pro Tip**: Enable debug logging temporarily when troubleshooting, then disable it to avoid log file bloat in production.

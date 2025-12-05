@@ -1,7 +1,7 @@
 # OpenRouter IntelliJ Plugin
 
 [![JetBrains Plugin](https://img.shields.io/badge/JetBrains-Plugin-orange.svg)](https://plugins.jetbrains.com/plugin/28520)
-[![Version](https://img.shields.io/badge/version-0.2.2-blue.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
+[![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.ai), providing access to 400+ AI models with usage monitoring, quota tracking, and seamless JetBrains AI Assistant integration.

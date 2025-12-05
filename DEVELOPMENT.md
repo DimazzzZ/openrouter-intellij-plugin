@@ -418,6 +418,62 @@ curl -X POST http://localhost:8880/v1/chat/completions \
 - **ProxyServerStartupActivity**: Auto-start proxy server on IDE startup
 - **AIAssistantIntegrationHelper**: Utilities for setup and configuration
 
+## 🏗️ Setup Wizard Development
+
+### Quick Wizard Testing
+```bash
+# Start fresh development IDE (recommended for testing first-run experience)
+./gradlew clean runIde
+
+# Test welcome notification + setup wizard
+# Wizard appears on first project open automatically
+```
+
+### Setup Wizard Architecture
+- **SetupWizardDialog.kt** - Multi-step onboarding dialog with embedded model selection
+- **CardLayout Navigation** - Step-by-step flow with validation
+- **Validation System** - Real-time provisioning key validation with visual feedback
+- **Model Selection** - Embedded table with search, filtering, and checkbox selection
+- **Configuration Saving** - Automatic settings persistence and completion tracking
+
+## 🔍 Advanced Model Filtering Architecture
+
+### Core Components
+- **ModelFilterCriteria.kt** - Filter state management with active filter counting
+- **ModelPresets.kt** - Predefined filter combinations (Multimodal, Coding, Cost-Effective)
+- **ModelProviderUtils.kt** - Core filtering logic for provider, context, and capability filtering
+- **ContextRange Enum** - Smart date parsing for context length filtering (1K, 4K, 8K, 16K, 32K+)
+
+### Filtering Capabilities
+- **Provider Filtering**: OpenAI, Anthropic, Google, Meta, Mistral, etc.
+- **Context Filtering**: Automatic parsing of context lengths from model descriptions
+- **Capability Filtering**: Vision, Audio, Tools, Image Generation detection
+- **Quick Presets**: One-click filters for common use cases
+- **Real-time Search**: Fuzzy matching across model names and descriptions
+
+## 📊 Enhanced Statistics Dialog Development
+
+- **DialogWrapper Migration** - Refactored from JBPopup to proper IntelliJ DialogWrapper
+- **Native Modal Behavior** - Better IDE integration with standard modal dialog patterns
+- **Asynchronous Data Loading** - Thread-safe UI updates with proper EDT handling
+- **Configuration Validation** - Comprehensive error handling and null safety
+
+## 🔔 Whats New Notification System
+
+### Version-Specific Notifications
+- **WhatsNewNotificationActivity.kt** - Automatic version update notifications
+- **Once-Per-Version Logic** - Shows only for upgrades, not fresh installs
+- **Actionable Links** - Direct access to Settings and Changelog
+- **Persistent Settings** - Tracks last seen version to prevent duplicate notifications
+
+### Update Process
+```kotlin
+// Update version for new releases
+companion object {
+    private const val CURRENT_VERSION = "0.3.0"  // ← Update for each release
+}
+```
+
 ### Recent Architecture Changes
 
 #### API Key Handling Fix (Major)

@@ -24,7 +24,7 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
 class WhatsNewNotificationActivity : ProjectActivity {
 
     companion object {
-        private const val CURRENT_VERSION = "0.2.0"
+        private const val CURRENT_VERSION = "0.3.0"
         private const val CHANGELOG_URL = "https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/CHANGELOG.md"
     }
 
@@ -62,11 +62,12 @@ class WhatsNewNotificationActivity : ProjectActivity {
                 "OpenRouter Plugin Updated to v$CURRENT_VERSION",
                 """
                 <b>🎉 New Features:</b><br/>
-                • <b>AI Assistant Proxy</b> - Connect AI Assistant to 400+ OpenRouter models<br/>
-                • <b>Favorite Models</b> - Quick access to your preferred models<br/>
-                • <b>Enhanced Quality</b> - 207+ tests, zero critical code smells<br/>
+                • <b>Setup Wizard</b> - Interactive onboarding for first-time users<br/>
+                • <b>Advanced Model Filtering</b> - Filter by provider, context window, capabilities<br/>
+                • <b>Modal Statistics Dialog</b> - Enhanced popup with proper modal behavior<br/>
                 <br/>
-                Click below to explore the new features!
+                <b>🧪 Quality Improvements:</b><br/>
+                • 300+ tests • Bug fixes • IDE 2025.3.X support • Better error handling
                 """.trimIndent(),
                 NotificationType.INFORMATION
             )
