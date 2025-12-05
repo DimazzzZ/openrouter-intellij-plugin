@@ -105,7 +105,10 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
             if (selectedValue.hasSubmenu) {
                 return selectedValue.createSubmenu()
             } else {
-                selectedValue.action?.invoke()
+                // Defer dialog display to avoid focus issues with popup menus
+                selectedValue.action?.let { action ->
+                    ApplicationManager.getApplication().invokeLater { action() }
+                }
                 return FINAL_CHOICE
             }
         }
@@ -125,12 +128,16 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
             )
         )
 
-        // Quota / Usage
+        // Quota / Usage (always show, but disable when not configured)
         items.add(
             PopupMenuItem(
                 text = "View Quota Usage",
                 icon = AllIcons.General.Information,
-                action = { showQuotaUsage() }
+                action = if (settingsService.isConfigured()) {
+                    { showQuotaUsage() }
+                } else {
+                    null // Disabled when not configured
+                }
             )
         )
 
@@ -190,8 +197,8 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
     // Action methods
     private fun showQuotaUsage() {
         // Show quota usage in a modal dialog
-        val statsPopup = OpenRouterStatsPopup(project)
-        statsPopup.showCenteredInCurrentWindow()
+        val statsPopup = OpenRouterStatsPopup(project, openRouterService, settingsService)
+        statsPopup.showDialog()
     }
 
     private fun logout() {
