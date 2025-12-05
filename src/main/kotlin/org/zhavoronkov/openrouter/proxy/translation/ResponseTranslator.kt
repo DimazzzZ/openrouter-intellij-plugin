@@ -142,27 +142,6 @@ object ResponseTranslator {
     // Models are now returned exactly as requested
 
     /**
-     * Extracts the owner/provider from OpenRouter model ID
-     */
-    private fun extractOwner(modelId: String?): String {
-        if (modelId == null) return "unknown"
-
-        val parts = modelId.split("/")
-        return if (parts.size >= 2) {
-            when (parts[0]) {
-                "openai" -> "openai"
-                "anthropic" -> "anthropic"
-                "google" -> "google"
-                "meta" -> "meta"
-                "mistral" -> "mistralai"
-                else -> parts[0]
-            }
-        } else {
-            "openrouter"
-        }
-    }
-
-    /**
      * Creates default permission object for models
      */
     private fun createDefaultPermission(): OpenAIPermission {

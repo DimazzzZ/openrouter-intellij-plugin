@@ -15,7 +15,7 @@ class EnginesServlet : OpenAIBaseServlet() {
             PluginLogger.Service.debug("Engines endpoint called")
 
             // Validate authorization and extract API key
-            val apiKey = validateAndExtractApiKey(resp, req) ?: return@handleRequest
+            val _apiKey = validateAndExtractApiKey(resp, req) ?: return@handleRequest
 
             // Set response headers
             resp.contentType = "application/json"

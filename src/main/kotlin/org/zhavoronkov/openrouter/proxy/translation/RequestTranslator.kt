@@ -21,7 +21,6 @@ object RequestTranslator {
         }
     }
 
-    private const val DEFAULT_MAX_TOKENS = 1000
     private const val DEFAULT_TEMPERATURE = 0.7
 
     /**

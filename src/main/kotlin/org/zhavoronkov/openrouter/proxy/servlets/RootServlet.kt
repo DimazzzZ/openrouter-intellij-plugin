@@ -87,7 +87,7 @@ class RootServlet(
 
     // Note: handleModelsRequest method removed - /models is now handled exclusively by ModelsServlet
 
-    private fun handleModelsOptions(req: HttpServletRequest, resp: HttpServletResponse) {
+    private fun handleModelsOptions(_req: HttpServletRequest, resp: HttpServletResponse) {
         resp.setHeader("Access-Control-Allow-Origin", "*")
         resp.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS")
         resp.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")

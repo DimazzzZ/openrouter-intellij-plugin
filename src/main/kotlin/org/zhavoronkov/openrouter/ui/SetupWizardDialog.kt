@@ -38,7 +38,6 @@ import javax.swing.table.AbstractTableModel
 class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) {
 
     private val settingsService = OpenRouterSettingsService.getInstance()
-    private val proxyService = OpenRouterProxyService.getInstance()
     private val openRouterService = OpenRouterService.getInstance()
     private val favoriteModelsService = FavoriteModelsService.getInstance()
 
@@ -46,7 +45,6 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     private val cardPanel = JPanel(cardLayout)
 
     private var currentStep = 0
-    private val totalSteps = 4
 
     // Step 0: Welcome
     private val welcomePanel = createWelcomePanel()

@@ -24,8 +24,6 @@ class OpenRouterConfigurable : Configurable {
      */
     private fun loadSettingsIntoPanel(panel: OpenRouterSettingsPanel) {
         panel.setProvisioningKey(settingsService.getProvisioningKey())
-        // TODO: Future version - Default model selection
-        // panel.setDefaultModel(settingsService.getDefaultModel())
         panel.setAutoRefresh(settingsService.isAutoRefreshEnabled())
         panel.setRefreshInterval(settingsService.getRefreshInterval())
         panel.setShowCosts(settingsService.shouldShowCosts())
@@ -38,8 +36,6 @@ class OpenRouterConfigurable : Configurable {
      */
     private fun saveSettingsFromPanel(panel: OpenRouterSettingsPanel) {
         settingsService.setProvisioningKey(panel.getProvisioningKey())
-        // TODO: Future version - Default model selection
-        // settingsService.setDefaultModel(panel.getDefaultModel())
         settingsService.setAutoRefresh(panel.isAutoRefreshEnabled())
         settingsService.setRefreshInterval(panel.getRefreshInterval())
         settingsService.setShowCosts(panel.shouldShowCosts())
@@ -156,8 +152,6 @@ class OpenRouterConfigurable : Configurable {
         }
 
         return panel.getProvisioningKey() != settingsService.getProvisioningKey() ||
-            // TODO: Future version - Default model selection
-            // panel.getDefaultModel() != settingsService.getDefaultModel() ||
             panel.isAutoRefreshEnabled() != settingsService.isAutoRefreshEnabled() ||
             panel.getRefreshInterval() != settingsService.getRefreshInterval() ||
             panel.shouldShowCosts() != settingsService.shouldShowCosts() ||

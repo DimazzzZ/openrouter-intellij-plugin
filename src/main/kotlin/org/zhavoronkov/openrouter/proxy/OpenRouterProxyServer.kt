@@ -1,6 +1,5 @@
 package org.zhavoronkov.openrouter.proxy
 
-import com.google.gson.Gson
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.eclipse.jetty.server.Server
@@ -26,7 +25,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 class OpenRouterProxyServer {
 
     companion object {
-        private const val DEFAULT_PORT = 8080
         private const val LOCALHOST = "127.0.0.1"
         private const val RESTART_DELAY_MS = 1000L
         private const val API_BASE_PATH = "/v1/"
@@ -52,7 +50,6 @@ class OpenRouterProxyServer {
     private var server: Server? = null
     private var currentPort: Int = 0
     private val isRunning = AtomicBoolean(false)
-    private val gson = Gson()
 
     private val openRouterService = OpenRouterService.getInstance()
     private val settingsService = OpenRouterSettingsService.getInstance()

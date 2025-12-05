@@ -298,11 +298,5 @@ class ModelsServlet(
         resp.writer.write(gson.toJson(errorResponse))
     }
 
-    private fun sendAuthErrorResponse(resp: HttpServletResponse) {
-        resp.status = HttpServletResponse.SC_UNAUTHORIZED
-        resp.contentType = "application/json"
 
-        val errorResponse = ResponseTranslator.createAuthErrorResponse()
-        resp.writer.write(gson.toJson(errorResponse))
-    }
 }

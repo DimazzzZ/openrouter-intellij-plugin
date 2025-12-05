@@ -227,7 +227,7 @@ object AIAssistantIntegrationHelper {
                             true
                         )
                     } else {
-                        throw IllegalStateException("Plugin manager action not found")
+                        error("Plugin manager action not found")
                     }
                 } catch (e: Exception) {
                     PluginLogger.Service.error("Failed to open plugin marketplace", e)

@@ -32,8 +32,6 @@ class ChatCompletionServlet(
 ) : HttpServlet() {
 
     companion object {
-        private const val REQUEST_TIMEOUT_SECONDS = 120L
-        private const val BODY_PREVIEW_MAX_LENGTH = 5000
         private const val AUTH_HEADER_PREFIX_LENGTH = 7
         private const val NANOSECONDS_TO_MILLISECONDS = 1_000_000L
         private const val OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
