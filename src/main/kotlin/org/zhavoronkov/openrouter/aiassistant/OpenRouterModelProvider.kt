@@ -17,6 +17,10 @@ class OpenRouterModelProvider {
     private val settingsService = OpenRouterSettingsService.getInstance()
 
     companion object {
+        private const val PROVIDER_NAME = "OpenRouter"
+        private const val PROVIDER_DISPLAY_NAME = "OpenRouter (400+ AI Models)"
+        private const val PROVIDER_DESCRIPTION = "Access to 400+ AI models through OpenRouter.ai unified API"
+
         // Common OpenRouter models that work well for code assistance
         private val SUPPORTED_MODELS = listOf(
             "openai/gpt-4o",
@@ -33,18 +37,17 @@ class OpenRouterModelProvider {
     /**
      * Get the provider name for AI Assistant
      */
-    fun getProviderName(): String = "OpenRouter"
+    fun getProviderName(): String = PROVIDER_NAME
 
     /**
      * Get the provider display name for AI Assistant UI
      */
-    fun getProviderDisplayName(): String = "OpenRouter (400+ AI Models)"
+    fun getProviderDisplayName(): String = PROVIDER_DISPLAY_NAME
 
     /**
      * Get the provider description
      */
-    fun getProviderDescription(): String =
-        "Access to 400+ AI models through OpenRouter.ai unified API"
+    fun getProviderDescription(): String = PROVIDER_DESCRIPTION
 
     /**
      * Check if the provider is available and configured

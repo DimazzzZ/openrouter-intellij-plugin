@@ -20,6 +20,7 @@ class OpenRouterSmartChatEndpointProvider {
         private const val PROVIDER_NAME = "OpenRouter"
         private const val PROVIDER_DESCRIPTION = "Access 400+ AI models through OpenRouter.ai"
         private const val BASE_URL = "https://openrouter.ai/api/v1"
+        private const val DEFAULT_MODEL = "openai/gpt-4o-mini"
     }
 
     /**
@@ -156,9 +157,7 @@ class OpenRouterSmartChatEndpointProvider {
     /**
      * Gets the default model for this provider
      */
-    fun getDefaultModel(): String {
-        return "openai/gpt-4o-mini"
-    }
+    fun getDefaultModel(): String = DEFAULT_MODEL
 
     /**
      * Gets provider-specific headers for API requests

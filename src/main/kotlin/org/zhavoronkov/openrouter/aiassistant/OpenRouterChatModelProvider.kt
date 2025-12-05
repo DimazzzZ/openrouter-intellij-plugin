@@ -18,6 +18,7 @@ class OpenRouterChatModelProvider {
     companion object {
         private const val MAX_TOKENS_DEFAULT = 2000
         private const val TEMPERATURE_DEFAULT = 0.7
+        private const val SUPPORTS_STREAMING = true
     }
 
     /**
@@ -83,10 +84,7 @@ class OpenRouterChatModelProvider {
     /**
      * Check if streaming is supported for the given model
      */
-    fun supportsStreaming(_modelId: String): Boolean {
-        // Most OpenRouter models support streaming
-        return true
-    }
+    fun supportsStreaming(_modelId: String): Boolean = SUPPORTS_STREAMING
 
     /**
      * Get the estimated token count for a message
