@@ -113,8 +113,8 @@ class OpenRouterStatsPopupUtilityTest {
         )
 
         val result = OpenRouterStatsUtils.calculateActivityStats(activities)
-        assertEquals(35L, result.first)  // 10 + 5 + 20
-        assertEquals(4.5, result.second, 0.001)  // 1.5 + 2.3 + 0.7
+        assertEquals(35L, result.first) // 10 + 5 + 20
+        assertEquals(4.5, result.second, 0.001) // 1.5 + 2.3 + 0.7
     }
 
     // ========================================
@@ -165,7 +165,7 @@ class OpenRouterStatsPopupUtilityTest {
             createActivityData("2024-12-05"), // today
             createActivityData("2024-12-04"), // yesterday
             createActivityData("2024-12-03"), // 2 days ago
-            createActivityData("2024-11-28")  // week ago
+            createActivityData("2024-11-28") // week ago
         )
 
         val result = OpenRouterStatsUtils.filterActivitiesByTime(activities, today, yesterday, weekAgo, true)
@@ -183,7 +183,7 @@ class OpenRouterStatsPopupUtilityTest {
             createActivityData("2024-12-04"), // yesterday
             createActivityData("2024-12-03"), // 2 days ago
             createActivityData("2024-11-28"), // exactly week ago
-            createActivityData("2024-11-27")  // older than week
+            createActivityData("2024-11-27") // older than week
         )
 
         val result = OpenRouterStatsUtils.filterActivitiesByTime(activities, today, yesterday, weekAgo, false)
@@ -205,9 +205,9 @@ class OpenRouterStatsPopupUtilityTest {
 
         val result = OpenRouterStatsUtils.extractRecentModelNames(activities)
         assertEquals(3, result.size) // 3 unique models
-        assertEquals("claude-3", result[0])     // most recent (2024-12-05)
+        assertEquals("claude-3", result[0]) // most recent (2024-12-05)
         assertEquals("gpt-3.5-turbo", result[1]) // middle (2024-12-04)
-        assertEquals("gpt-4", result[2])        // oldest recent (2024-12-03, not 12-01)
+        assertEquals("gpt-4", result[2]) // oldest recent (2024-12-03, not 12-01)
     }
 
     private fun createActivityData(

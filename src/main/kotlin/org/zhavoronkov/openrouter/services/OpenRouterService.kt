@@ -3,10 +3,8 @@ package org.zhavoronkov.openrouter.services
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.diagnostic.Logger
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
-import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.zhavoronkov.openrouter.models.ActivityResponse
 import org.zhavoronkov.openrouter.models.ApiKeysListResponse
@@ -153,8 +151,12 @@ class OpenRouterService {
                 val requestBody = jsonBody.toRequestBody("application/json".toMediaType())
 
                 PluginLogger.Service.info("[OR] POST $CHAT_COMPLETIONS_ENDPOINT")
-                PluginLogger.Service.debug("[OR] Headers: Authorization=Bearer ${apiKey.take(8)}…(redacted), Content-Type=application/json")
-                PluginLogger.Service.debug("[OR] Outgoing JSON: ${jsonBody.take(8000)}${if (jsonBody.length > 8000) "…(truncated)" else ""}")
+                PluginLogger.Service.debug(
+                    "[OR] Headers: Authorization=Bearer ${apiKey.take(8)}…(redacted), Content-Type=application/json"
+                )
+                PluginLogger.Service.debug(
+                    "[OR] Outgoing JSON: ${jsonBody.take(8000)}${if (jsonBody.length > 8000) "…(truncated)" else ""}"
+                )
 
                 val httpRequest = OpenRouterRequestBuilder.buildPostRequest(
                     url = CHAT_COMPLETIONS_ENDPOINT,
@@ -167,11 +169,19 @@ class OpenRouterService {
                     val responseBody = response.body?.string() ?: ""
                     val durationMs = (System.nanoTime() - startNs) / 1_000_000
                     val contentType = response.header("Content-Type") ?: ""
-                    PluginLogger.Service.info("[OR] Response ${response.code} from OpenRouter in ${durationMs}ms (Content-Type=$contentType)")
-                    PluginLogger.Service.debug("[OR] Response body: ${responseBody.take(10000)}${if (responseBody.length > 10000) "…(truncated)" else ""}")
+                    PluginLogger.Service.info(
+                        "[OR] Response ${response.code} from OpenRouter in ${durationMs}ms (Content-Type=$contentType)"
+                    )
+                    PluginLogger.Service.debug(
+                        "[OR] Response body: ${responseBody.take(
+                            10000
+                        )}${if (responseBody.length > 10000) "…(truncated)" else ""}"
+                    )
 
                     if (!response.isSuccessful) {
-                        PluginLogger.Service.error("[OR] Chat completion failed: ${response.code} ${response.message} - $responseBody")
+                        PluginLogger.Service.error(
+                            "[OR] Chat completion failed: ${response.code} ${response.message} - $responseBody"
+                        )
                         return@use null
                     }
 
@@ -267,7 +277,9 @@ class OpenRouterService {
                             PluginLogger.Service.debug("Attempting to parse JSON response...")
                             val result = gson.fromJson(responseBody, ApiKeysListResponse::class.java)
                             PluginLogger.Service.info("Successfully parsed ${result?.data?.size ?: 0} API keys")
-                            PluginLogger.Service.debug("Parsed API keys: ${result?.data?.map { it.name } ?: emptyList()}")
+                            PluginLogger.Service.debug(
+                                "Parsed API keys: ${result?.data?.map { it.name } ?: emptyList()}"
+                            )
                             result
                         } catch (e: JsonSyntaxException) {
                             PluginLogger.Service.warn("Failed to parse API keys list response: $responseBody", e)
@@ -349,7 +361,9 @@ class OpenRouterService {
                 val requestBody = CreateApiKeyRequest(name = name, limit = limit)
                 val json = gson.toJson(requestBody)
 
-                PluginLogger.Service.debug("Creating API key with name: $name using provisioning key: ${provisioningKey.take(10)}...")
+                PluginLogger.Service.debug(
+                    "Creating API key with name: $name using provisioning key: ${provisioningKey.take(10)}..."
+                )
                 PluginLogger.Service.debug("Making POST request to: $API_KEYS_ENDPOINT")
                 PluginLogger.Service.debug("Request body: $json")
 
@@ -375,7 +389,9 @@ class OpenRouterService {
                             null
                         }
                     } else {
-                        PluginLogger.Service.warn("Failed to create API key: ${response.code} ${response.message} - $responseBody")
+                        PluginLogger.Service.warn(
+                            "Failed to create API key: ${response.code} ${response.message} - $responseBody"
+                        )
                         null
                     }
                 }
@@ -440,7 +456,9 @@ class OpenRouterService {
                     return@supplyAsync null
                 }
 
-                PluginLogger.Service.debug("Fetching credits from OpenRouter with provisioning key: ${provisioningKey.take(10)}...")
+                PluginLogger.Service.debug(
+                    "Fetching credits from OpenRouter with provisioning key: ${provisioningKey.take(10)}..."
+                )
                 PluginLogger.Service.debug("Making request to: $CREDITS_ENDPOINT")
 
                 val request = OpenRouterRequestBuilder.buildGetRequest(
@@ -484,7 +502,9 @@ class OpenRouterService {
                     return@supplyAsync null
                 }
 
-                PluginLogger.Service.debug("Fetching activity from OpenRouter with provisioning key: ${provisioningKey.take(10)}...")
+                PluginLogger.Service.debug(
+                    "Fetching activity from OpenRouter with provisioning key: ${provisioningKey.take(10)}..."
+                )
                 PluginLogger.Service.debug("Making request to: $ACTIVITY_ENDPOINT")
 
                 val request = OpenRouterRequestBuilder.buildGetRequest(
@@ -499,7 +519,9 @@ class OpenRouterService {
 
                 if (response.isSuccessful) {
                     val activityResponse = gson.fromJson(responseBody, ActivityResponse::class.java)
-                    PluginLogger.Service.info("Successfully parsed activity response with ${activityResponse.data.size} entries")
+                    PluginLogger.Service.info(
+                        "Successfully parsed activity response with ${activityResponse.data.size} entries"
+                    )
                     activityResponse
                 } else {
                     PluginLogger.Service.warn("Failed to fetch activity: ${response.code} - $responseBody")
@@ -575,7 +597,9 @@ class OpenRouterService {
 
                 if (response.isSuccessful) {
                     val providersResponse = gson.fromJson(responseBody, ProvidersResponse::class.java)
-                    PluginLogger.Service.info("Successfully parsed providers response: ${providersResponse.data.size} providers")
+                    PluginLogger.Service.info(
+                        "Successfully parsed providers response: ${providersResponse.data.size} providers"
+                    )
                     providersResponse
                 } else {
                     PluginLogger.Service.warn("Failed to fetch providers: ${response.code} - $responseBody")

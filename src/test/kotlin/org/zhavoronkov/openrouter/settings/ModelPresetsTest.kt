@@ -63,7 +63,7 @@ class ModelPresetsTest {
     @Test
     fun `ALL_PRESETS should contain all preset definitions`() {
         assertEquals(8, ModelPresets.ALL_PRESETS.size)
-        
+
         val presetNames = ModelPresets.ALL_PRESETS.map { it.name }
         assertTrue(presetNames.contains("Popular Models"))
         assertTrue(presetNames.contains("OpenAI"))
@@ -128,4 +128,3 @@ class ModelPresetsTest {
         }
     }
 }
-

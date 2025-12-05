@@ -9,7 +9,7 @@ class ModelFilterCriteriaTest {
     @Test
     fun `default criteria should have no active filters`() {
         val criteria = ModelFilterCriteria.default()
-        
+
         assertEquals("All Providers", criteria.provider)
         assertEquals(ModelProviderUtils.ContextRange.ANY, criteria.contextRange)
         assertFalse(criteria.requireVision)
@@ -153,10 +153,10 @@ class ModelFilterCriteriaTest {
     fun `criteria should be immutable data class`() {
         val criteria1 = ModelFilterCriteria(provider = "OpenAI")
         val criteria2 = criteria1.copy(requireVision = true)
-        
+
         assertEquals("OpenAI", criteria1.provider)
         assertFalse(criteria1.requireVision)
-        
+
         assertEquals("OpenAI", criteria2.provider)
         assertTrue(criteria2.requireVision)
     }
@@ -166,9 +166,8 @@ class ModelFilterCriteriaTest {
         val criteria1 = ModelFilterCriteria(provider = "OpenAI", requireVision = true)
         val criteria2 = ModelFilterCriteria(provider = "OpenAI", requireVision = true)
         val criteria3 = ModelFilterCriteria(provider = "Anthropic", requireVision = true)
-        
+
         assertEquals(criteria1, criteria2)
         assertNotEquals(criteria1, criteria3)
     }
 }
-

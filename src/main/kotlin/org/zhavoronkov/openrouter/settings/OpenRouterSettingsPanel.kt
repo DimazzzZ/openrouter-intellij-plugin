@@ -5,31 +5,18 @@ import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.ui.Messages
-import com.intellij.ui.AnActionButton
-import com.intellij.ui.GotItTooltip
 import com.intellij.ui.ToolbarDecorator
 import com.intellij.ui.components.*
 import com.intellij.ui.dsl.builder.*
 import com.intellij.ui.table.JBTable
-import com.intellij.ui.table.TableView
-import com.intellij.util.ui.UIUtil
-import com.intellij.util.ui.ColumnInfo
-import com.intellij.openapi.actionSystem.AnAction
-import com.intellij.openapi.actionSystem.AnActionEvent
 import org.zhavoronkov.openrouter.models.ApiKeyInfo
+import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
-import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
-import java.awt.Dimension
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
-import java.awt.event.KeyEvent
-import java.awt.event.MouseAdapter
-import java.awt.event.MouseEvent
-import java.util.Locale
-import java.util.concurrent.TimeUnit
 import javax.swing.*
 import javax.swing.table.AbstractTableModel
 
@@ -144,6 +131,7 @@ class OpenRouterSettingsPanel {
         private const val MIN_MAX_TOKENS = 1
         private const val MAX_MAX_TOKENS = 128000
         private const val MAX_TOKENS_STEP = 1000
+
         // Proxy configuration constants
         private const val MIN_PORT = 1024
         private const val MAX_PORT = 65535
@@ -165,20 +153,24 @@ class OpenRouterSettingsPanel {
         autoRefreshCheckBox = JBCheckBox("Auto-refresh quota information")
         showCostsCheckBox = JBCheckBox("Show costs in status bar")
 
-        refreshIntervalSpinner = JSpinner(SpinnerNumberModel(
-            DEFAULT_REFRESH_INTERVAL,
-            MIN_REFRESH_INTERVAL,
-            MAX_REFRESH_INTERVAL,
-            REFRESH_INTERVAL_STEP
-        ))
+        refreshIntervalSpinner = JSpinner(
+            SpinnerNumberModel(
+                DEFAULT_REFRESH_INTERVAL,
+                MIN_REFRESH_INTERVAL,
+                MAX_REFRESH_INTERVAL,
+                REFRESH_INTERVAL_STEP
+            )
+        )
 
         enableDefaultMaxTokensCheckBox = JBCheckBox("Enable default max tokens for proxy requests")
-        defaultMaxTokensSpinner = JSpinner(SpinnerNumberModel(
-            DEFAULT_MAX_TOKENS,  // Default value
-            MIN_MAX_TOKENS,      // Minimum value
-            MAX_MAX_TOKENS,      // Maximum value
-            MAX_TOKENS_STEP      // Step
-        )).apply {
+        defaultMaxTokensSpinner = JSpinner(
+            SpinnerNumberModel(
+                DEFAULT_MAX_TOKENS, // Default value
+                MIN_MAX_TOKENS, // Minimum value
+                MAX_MAX_TOKENS, // Maximum value
+                MAX_TOKENS_STEP // Step
+            )
+        ).apply {
             isEnabled = false // Disabled by default since feature is off by default
         }
 
@@ -186,28 +178,34 @@ class OpenRouterSettingsPanel {
         proxyAutoStartCheckBox = JBCheckBox("Auto-start proxy server on IDEA startup")
         useSpecificPortCheckBox = JBCheckBox("Use specific port")
 
-        proxyPortSpinner = JSpinner(SpinnerNumberModel(
-            DEFAULT_PROXY_PORT,  // Default value
-            MIN_PORT,            // Minimum value
-            MAX_PORT,            // Maximum value
-            1                    // Step
-        )).apply {
+        proxyPortSpinner = JSpinner(
+            SpinnerNumberModel(
+                DEFAULT_PROXY_PORT, // Default value
+                MIN_PORT, // Minimum value
+                MAX_PORT, // Maximum value
+                1 // Step
+            )
+        ).apply {
             isEnabled = false // Disabled by default since "Use specific port" is unchecked
         }
 
-        proxyPortRangeStartSpinner = JSpinner(SpinnerNumberModel(
-            8880,    // Default start of range
-            MIN_PORT,
-            MAX_PORT,
-            1
-        ))
+        proxyPortRangeStartSpinner = JSpinner(
+            SpinnerNumberModel(
+                8880, // Default start of range
+                MIN_PORT,
+                MAX_PORT,
+                1
+            )
+        )
 
-        proxyPortRangeEndSpinner = JSpinner(SpinnerNumberModel(
-            8899,    // Default end of range
-            MIN_PORT,
-            MAX_PORT,
-            1
-        ))
+        proxyPortRangeEndSpinner = JSpinner(
+            SpinnerNumberModel(
+                8899, // Default end of range
+                MIN_PORT,
+                MAX_PORT,
+                1
+            )
+        )
 
         // Configure API key table
         apiKeyTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
@@ -665,7 +663,9 @@ class OpenRouterSettingsPanel {
                 getProxyPortRangeEnd()
             )
 
-            PluginLogger.Settings.debug("Applied current proxy settings: autoStart=${getProxyAutoStart()}, port=$port, range=${getProxyPortRangeStart()}-${getProxyPortRangeEnd()}")
+            PluginLogger.Settings.debug(
+                "Applied current proxy settings: autoStart=${getProxyAutoStart()}, port=$port, range=${getProxyPortRangeStart()}-${getProxyPortRangeEnd()}"
+            )
         } catch (e: Exception) {
             PluginLogger.Settings.error("Failed to apply current proxy settings: ${e.message}", e)
         }

@@ -2,29 +2,26 @@ package org.zhavoronkov.openrouter.proxy.servlets
 
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
-import okhttp3.MediaType.Companion.toMediaType
+import jakarta.servlet.http.HttpServlet
+import jakarta.servlet.http.HttpServletRequest
+import jakarta.servlet.http.HttpServletResponse
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
-import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatCompletionResponse
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionResponse
 import org.zhavoronkov.openrouter.proxy.translation.ResponseTranslator
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.utils.ModelAvailabilityNotifier
 import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.utils.PluginLogger
-import org.zhavoronkov.openrouter.utils.ModelAvailabilityNotifier
-import jakarta.servlet.http.HttpServlet
-import jakarta.servlet.http.HttpServletRequest
-import jakarta.servlet.http.HttpServletResponse
 import java.io.BufferedReader
 import java.io.PrintWriter
+import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
-import java.security.MessageDigest
 
 /**
  * Servlet that provides OpenAI-compatible /v1/chat/completions endpoint
@@ -174,7 +171,9 @@ class ChatCompletionServlet(
             return null
         }
 
-        PluginLogger.Service.info("[Chat-$requestId] 🔑 Using API key from plugin settings: ${apiKey.take(20)}... (length: ${apiKey.length})")
+        PluginLogger.Service.info(
+            "[Chat-$requestId] 🔑 Using API key from plugin settings: ${apiKey.take(20)}... (length: ${apiKey.length})"
+        )
         PluginLogger.Service.info("[Chat-$requestId] 🔑 API key prefix: ${apiKey.take(15)}...")
 
         return apiKey
@@ -202,7 +201,11 @@ class ChatCompletionServlet(
     /**
      * Handle timeout exception
      */
-    private fun handleTimeoutException(e: java.util.concurrent.TimeoutException, resp: HttpServletResponse, requestId: String) {
+    private fun handleTimeoutException(
+        e: java.util.concurrent.TimeoutException,
+        resp: HttpServletResponse,
+        requestId: String
+    ) {
         PluginLogger.Service.error("[Chat-$requestId] Chat completion request timed out: ${e.message}", e)
         sendErrorResponse(resp, "Request timed out", HttpServletResponse.SC_REQUEST_TIMEOUT)
     }
@@ -210,7 +213,11 @@ class ChatCompletionServlet(
     /**
      * Handle execution exception
      */
-    private fun handleExecutionException(e: java.util.concurrent.ExecutionException, resp: HttpServletResponse, requestId: String) {
+    private fun handleExecutionException(
+        e: java.util.concurrent.ExecutionException,
+        resp: HttpServletResponse,
+        requestId: String
+    ) {
         PluginLogger.Service.error("[Chat-$requestId] Chat completion execution failed: ${e.message}", e)
         sendErrorResponse(resp, "Execution error: ${e.message}", HttpServletResponse.SC_INTERNAL_SERVER_ERROR)
     }
@@ -226,7 +233,11 @@ class ChatCompletionServlet(
     /**
      * Handle illegal argument exception
      */
-    private fun handleIllegalArgumentException(e: IllegalArgumentException, resp: HttpServletResponse, requestId: String) {
+    private fun handleIllegalArgumentException(
+        e: IllegalArgumentException,
+        resp: HttpServletResponse,
+        requestId: String
+    ) {
         PluginLogger.Service.error("[Chat-$requestId] Invalid argument in chat completion: ${e.message}", e)
         sendErrorResponse(resp, "Invalid request: ${e.message}", HttpServletResponse.SC_BAD_REQUEST)
     }
@@ -476,7 +487,9 @@ class ChatCompletionServlet(
         val contentType = req.contentType
         val contentLength = req.contentLength
 
-        PluginLogger.Service.info("[Chat-$requestId] Incoming $method $requestURI (servletPath=$servletPath, pathInfo=$pathInfo)")
+        PluginLogger.Service.info(
+            "[Chat-$requestId] Incoming $method $requestURI (servletPath=$servletPath, pathInfo=$pathInfo)"
+        )
         PluginLogger.Service.debug("[Chat-$requestId] Content-Type=$contentType, Content-Length=$contentLength")
 
         val headers = req.headerNames.asSequence().associateWith { name ->
@@ -505,15 +518,17 @@ class ChatCompletionServlet(
             return null
         }
 
-        PluginLogger.Service.info("[Chat-$requestId] 🔑 API key extracted: ${apiKey.take(20)}... (length: ${apiKey.length})")
+        PluginLogger.Service.info(
+            "[Chat-$requestId] 🔑 API key extracted: ${apiKey.take(20)}... (length: ${apiKey.length})"
+        )
         return apiKey
     }
 
-
-
     private fun prepareNonStreamingRequest(openAIRequest: OpenAIChatCompletionRequest, requestId: String): String {
         val jsonBody = gson.toJson(openAIRequest)
-        PluginLogger.Service.debug("[Chat-$requestId] Non-streaming request body (passthrough): ${jsonBody.take(500)}...")
+        PluginLogger.Service.debug(
+            "[Chat-$requestId] Non-streaming request body (passthrough): ${jsonBody.take(500)}..."
+        )
         return jsonBody
     }
 
@@ -537,7 +552,9 @@ class ChatCompletionServlet(
             httpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     val errorBody = response.body?.string() ?: "Unknown error"
-                    PluginLogger.Service.error("[Chat-$requestId] OpenRouter returned error: ${response.code} - $errorBody")
+                    PluginLogger.Service.error(
+                        "[Chat-$requestId] OpenRouter returned error: ${response.code} - $errorBody"
+                    )
                     sendErrorResponse(resp, "OpenRouter API error: $errorBody", response.code)
                     return null
                 }
@@ -545,7 +562,11 @@ class ChatCompletionServlet(
                 val responseBody = response.body?.string()
                 if (responseBody == null) {
                     PluginLogger.Service.error("[Chat-$requestId] OpenRouter returned null response body")
-                    sendErrorResponse(resp, "Failed to get response from OpenRouter", HttpServletResponse.SC_SERVICE_UNAVAILABLE)
+                    sendErrorResponse(
+                        resp,
+                        "Failed to get response from OpenRouter",
+                        HttpServletResponse.SC_SERVICE_UNAVAILABLE
+                    )
                     return null
                 }
 
@@ -555,7 +576,11 @@ class ChatCompletionServlet(
             }
         } catch (e: Exception) {
             PluginLogger.Service.error("[Chat-$requestId] Exception calling OpenRouter: ${e.message}", e)
-            sendErrorResponse(resp, "Failed to call OpenRouter: ${e.message}", HttpServletResponse.SC_SERVICE_UNAVAILABLE)
+            sendErrorResponse(
+                resp,
+                "Failed to call OpenRouter: ${e.message}",
+                HttpServletResponse.SC_SERVICE_UNAVAILABLE
+            )
             return null
         }
     }
@@ -584,7 +609,9 @@ class ChatCompletionServlet(
 
     private fun sendSuccessResponse(resp: HttpServletResponse, openAIResponse: OpenAIChatCompletionResponse, startNs: Long, requestId: String) {
         val durationMs = (System.nanoTime() - startNs) / NANOSECONDS_TO_MILLISECONDS
-        PluginLogger.Service.info("[Chat-$requestId] ✅ Chat completion successful in ${durationMs}ms, returning response")
+        PluginLogger.Service.info(
+            "[Chat-$requestId] ✅ Chat completion successful in ${durationMs}ms, returning response"
+        )
 
         resp.contentType = "application/json"
         resp.status = HttpServletResponse.SC_OK
@@ -617,17 +644,25 @@ class ChatCompletionServlet(
     /**
      * Parse request body from string instead of reading from request again
      */
-    private fun parseRequestBody(requestBody: String, resp: HttpServletResponse, requestId: String): OpenAIChatCompletionRequest? {
+    private fun parseRequestBody(
+        requestBody: String,
+        resp: HttpServletResponse,
+        requestId: String
+    ): OpenAIChatCompletionRequest? {
         return try {
             val openAIRequest = gson.fromJson(requestBody, OpenAIChatCompletionRequest::class.java)
 
             if (openAIRequest.messages.isNullOrEmpty()) {
-                PluginLogger.Service.error("[Chat-$requestId] Request validation failed: messages cannot be null or empty")
+                PluginLogger.Service.error(
+                    "[Chat-$requestId] Request validation failed: messages cannot be null or empty"
+                )
                 sendErrorResponse(resp, "Messages cannot be null or empty", HttpServletResponse.SC_BAD_REQUEST)
                 return null
             }
 
-            PluginLogger.Service.info("[Chat-$requestId] Processing request for model: ${openAIRequest.model} with ${openAIRequest.messages.size} messages, stream=${openAIRequest.stream}")
+            PluginLogger.Service.info(
+                "[Chat-$requestId] Processing request for model: ${openAIRequest.model} with ${openAIRequest.messages.size} messages, stream=${openAIRequest.stream}"
+            )
             openAIRequest
         } catch (e: JsonSyntaxException) {
             PluginLogger.Service.error("[Chat-$requestId] Failed to parse request JSON: ${e.message}", e)

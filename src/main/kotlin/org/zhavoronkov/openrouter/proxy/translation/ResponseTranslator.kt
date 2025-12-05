@@ -146,7 +146,7 @@ object ResponseTranslator {
      */
     private fun extractOwner(modelId: String?): String {
         if (modelId == null) return "unknown"
-        
+
         val parts = modelId.split("/")
         return if (parts.size >= 2) {
             when (parts[0]) {
@@ -193,11 +193,11 @@ object ResponseTranslator {
     fun validateTranslatedResponse(response: OpenAIChatCompletionResponse): Boolean {
         return try {
             response.id.isNotBlank() &&
-            response.model.isNotBlank() &&
-            response.choices.isNotEmpty() &&
-            response.choices.all { choice ->
-                choice.message.role.isNotBlank() && choice.message.content.isNotBlank()
-            }
+                response.model.isNotBlank() &&
+                response.choices.isNotEmpty() &&
+                response.choices.all { choice ->
+                    choice.message.role.isNotBlank() && choice.message.content.isNotBlank()
+                }
         } catch (e: Exception) {
             PluginLogger.Service.error("Response validation failed", e)
             false

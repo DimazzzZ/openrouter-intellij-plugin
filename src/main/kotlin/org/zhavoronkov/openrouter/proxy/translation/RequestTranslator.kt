@@ -75,11 +75,11 @@ object RequestTranslator {
         return try {
             // Basic validation
             request.model.isNotBlank() &&
-            request.messages.isNotEmpty() &&
-            request.messages.all { it.role.isNotBlank() && it.content.isNotBlank() } &&
-            (request.temperature == null || request.temperature in 0.0..2.0) &&
-            (request.maxTokens == null || request.maxTokens > 0) &&
-            (request.topP == null || request.topP in 0.0..1.0)
+                request.messages.isNotEmpty() &&
+                request.messages.all { it.role.isNotBlank() && it.content.isNotBlank() } &&
+                (request.temperature == null || request.temperature in 0.0..2.0) &&
+                (request.maxTokens == null || request.maxTokens > 0) &&
+                (request.topP == null || request.topP in 0.0..1.0)
         } catch (e: Exception) {
             PluginLogger.Service.error("Request validation failed", e)
             false

@@ -60,9 +60,13 @@ object OpenRouterStatsUtils {
     /**
      * Filters activities by time period
      */
-    fun filterActivitiesByTime(activities: List<ActivityData>,
-                               today: LocalDate, yesterday: LocalDate, weekAgo: LocalDate,
-                               isLast24h: Boolean): List<ActivityData> {
+    fun filterActivitiesByTime(
+        activities: List<ActivityData>,
+        today: LocalDate,
+        yesterday: LocalDate,
+        weekAgo: LocalDate,
+        isLast24h: Boolean
+    ): List<ActivityData> {
         return if (isLast24h) {
             activities.filter { activity ->
                 val activityDate = parseActivityDate(activity.date)

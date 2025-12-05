@@ -1,13 +1,12 @@
 package org.zhavoronkov.openrouter.ui
 
-import org.zhavoronkov.openrouter.models.ActivityData
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import org.zhavoronkov.openrouter.models.ActivityData
 import java.time.LocalDate
 import java.util.*
 
 class OpenRouterStatsPopupTest {
-
 
     @Test
     fun `formatCurrency returns correct format with default decimals`() {
@@ -90,7 +89,10 @@ class OpenRouterStatsPopupTest {
     fun `buildModelsHtmlList handles more than 5 models with truncation`() {
         val models = listOf("model1", "model2", "model3", "model4", "model5", "model6")
         val html = OpenRouterStatsUtils.buildModelsHtmlList(models)
-        assertEquals("<html>Recent Models:<br/>• model1<br/>• model2<br/>• model3<br/>• model4<br/>• model5<br/>• +1 more</html>", html)
+        assertEquals(
+            "<html>Recent Models:<br/>• model1<br/>• model2<br/>• model3<br/>• model4<br/>• model5<br/>• +1 more</html>",
+            html
+        )
     }
 
     @Test
@@ -108,7 +110,7 @@ class OpenRouterStatsPopupTest {
         val activities = listOf(
             ActivityData("2024-01-02", "model1", "model1", "e1", "p1", 1.0, 0.0, 1, 10, 5, 0), // Today
             ActivityData("2024-01-01", "model2", "model2", "e2", "p2", 1.0, 0.0, 1, 10, 5, 0), // Yesterday
-            ActivityData("2023-12-26", "model3", "model3", "e3", "p3", 1.0, 0.0, 1, 10, 5, 0)  // Week ago
+            ActivityData("2023-12-26", "model3", "model3", "e3", "p3", 1.0, 0.0, 1, 10, 5, 0) // Week ago
         )
 
         // Test 24h filter (should include today and yesterday)

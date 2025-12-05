@@ -1,14 +1,11 @@
 package org.zhavoronkov.openrouter.proxy
 
 import com.google.gson.Gson
-import com.google.gson.JsonSyntaxException
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.eclipse.jetty.server.Server
 import org.eclipse.jetty.servlet.ServletContextHandler
 import org.eclipse.jetty.servlet.ServletHolder
-import jakarta.servlet.DispatcherType
-import java.util.EnumSet
 import org.zhavoronkov.openrouter.proxy.servlets.ChatCompletionServlet
 import org.zhavoronkov.openrouter.proxy.servlets.EnginesServlet
 import org.zhavoronkov.openrouter.proxy.servlets.HealthCheckServlet
@@ -245,7 +242,7 @@ class OpenRouterProxyServer {
         context.addServlet(chatServlet, "/v1/chat/completions")
         context.addServlet(organizationServlet, "/v1/organizations")
         context.addServlet(enginesServlet, "/v1/engines")
-        context.addServlet(rootServlet, "/")  // Root servlet handles /models and other routes
+        context.addServlet(rootServlet, "/") // Root servlet handles /models and other routes
 
         // Add CORS filter for browser compatibility
         context.addFilter(CorsFilter::class.java, "/*", null)

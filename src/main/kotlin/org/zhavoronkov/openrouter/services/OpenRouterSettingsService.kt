@@ -40,12 +40,16 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
         } else {
             encrypted
         }
-        PluginLogger.Service.info("getApiKey: encrypted.length=${encrypted.length}, encrypted.isEmpty=${encrypted.isEmpty()}, decrypted.length=${decrypted.length}, decrypted.isEmpty=${decrypted.isEmpty()}")
+        PluginLogger.Service.info(
+            "getApiKey: encrypted.length=${encrypted.length}, encrypted.isEmpty=${encrypted.isEmpty()}, decrypted.length=${decrypted.length}, decrypted.isEmpty=${decrypted.isEmpty()}"
+        )
         return decrypted
     }
 
     fun setApiKey(apiKey: String) {
-        PluginLogger.Service.info("setApiKey called: apiKey.length=${apiKey.length}, apiKey.isEmpty=${apiKey.isEmpty()}")
+        PluginLogger.Service.info(
+            "setApiKey called: apiKey.length=${apiKey.length}, apiKey.isEmpty=${apiKey.isEmpty()}"
+        )
 
         val encryptedKey = if (apiKey.isNotBlank()) {
             EncryptionUtil.encrypt(apiKey)
@@ -53,21 +57,27 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
             apiKey
         }
 
-        PluginLogger.Service.info("setApiKey: encrypted.length=${encryptedKey.length}, encrypted.isEmpty=${encryptedKey.isEmpty()}")
+        PluginLogger.Service.info(
+            "setApiKey: encrypted.length=${encryptedKey.length}, encrypted.isEmpty=${encryptedKey.isEmpty()}"
+        )
 
         // Modify the existing settings object directly (don't create a new copy)
         // This ensures the PersistentStateComponent properly detects the change
         val oldApiKey = settings.apiKey
         settings.apiKey = encryptedKey
 
-        PluginLogger.Service.info("setApiKey: settings.apiKey changed from length ${oldApiKey.length} to ${settings.apiKey.length}")
+        PluginLogger.Service.info(
+            "setApiKey: settings.apiKey changed from length ${oldApiKey.length} to ${settings.apiKey.length}"
+        )
         PluginLogger.Service.info("setApiKey: settings.apiKey.isEmpty=${settings.apiKey.isEmpty()}")
 
         notifyStateChanged()
 
         // Verify immediately after persistence
         val retrieved = getApiKey()
-        PluginLogger.Service.info("setApiKey: verification after persistence - retrieved.length=${retrieved.length}, retrieved.isEmpty=${retrieved.isEmpty()}")
+        PluginLogger.Service.info(
+            "setApiKey: verification after persistence - retrieved.length=${retrieved.length}, retrieved.isEmpty=${retrieved.isEmpty()}"
+        )
     }
 
     /**
@@ -307,7 +317,9 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
                 application.saveSettings()
                 PluginLogger.Service.info("Settings state persisted successfully")
             } else {
-                PluginLogger.Service.info("notifyStateChanged: Application is null (likely test environment), skipping saveSettings()")
+                PluginLogger.Service.info(
+                    "notifyStateChanged: Application is null (likely test environment), skipping saveSettings()"
+                )
             }
         } catch (e: Exception) {
             PluginLogger.Service.warn("Failed to persist settings state", e)

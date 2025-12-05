@@ -41,7 +41,13 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
     }
 
     // Test-friendly constructor
-    constructor(project: Project, openRouterService: OpenRouterService?, settingsService: OpenRouterSettingsService?) : this(project) {
+    constructor(
+        project: Project,
+        openRouterService: OpenRouterService?,
+        settingsService: OpenRouterSettingsService?
+    ) : this(
+        project
+    ) {
         // This constructor is only for testing - we'll use field injection
         if (openRouterService != null) {
             this.openRouterServiceField = openRouterService
@@ -53,7 +59,7 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
 
     private var openRouterServiceField: OpenRouterService? = null
     private var settingsServiceField: OpenRouterSettingsService? = null
-    
+
     private val openRouterService: OpenRouterService?
         get() = openRouterServiceField ?: try {
             OpenRouterService.getInstance()
@@ -62,7 +68,7 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
             println("OpenRouterService not available: ${e.message}")
             null
         }
-    
+
     private val settingsService: OpenRouterSettingsService?
         get() = settingsServiceField ?: try {
             OpenRouterSettingsService.getInstance()
@@ -89,6 +95,7 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
     private lateinit var totalCreditsLabel: JBLabel
     private lateinit var creditsUsageLabel: JBLabel
     private lateinit var creditsRemainingLabel: JBLabel
+
     // TEMPORARILY COMMENTED OUT - TODO: Re-enable when local activity tracking is ready
     // private lateinit var recentCostLabel: JBLabel
     // private lateinit var recentTokensLabel: JBLabel
@@ -97,9 +104,6 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
     private lateinit var activityWeekLabel: JBLabel
     private lateinit var activityModelsLabel: JBLabel
     private lateinit var progressBar: JProgressBar
-
-
-
 
     /**
      * Sets all labels to loading state
@@ -121,7 +125,6 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
      * Sets all labels to not configured state
      */
     private fun setLabelsToNotConfigured() {
-
         tierLabel.text = "Account: $NOT_CONFIGURED_MESSAGE"
         totalCreditsLabel.text = "Total Credits: $NOT_CONFIGURED_TEXT"
         creditsUsageLabel.text = "Credits Used: $NOT_CONFIGURED_TEXT"
@@ -138,7 +141,6 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
      * Sets all labels to error state
      */
     private fun setLabelsToError() {
-
         tierLabel.text = "Account: $ERROR_MESSAGE"
         totalCreditsLabel.text = "Total Credits: $ERROR_TEXT"
         creditsUsageLabel.text = "Credits Used: $ERROR_TEXT"
@@ -160,13 +162,10 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         progressBar.isIndeterminate = indeterminate
     }
 
-
-
     /**
      * Sets activity state when no recent activity
      */
     private fun setActivityLabelsToNoActivity() {
-
         activity24hLabel.text = "Last 24 hours: $NO_ACTIVITY_TEXT"
         activityWeekLabel.text = "Last week: $NO_ACTIVITY_TEXT"
         activityModelsLabel.text = NO_RECENT_MODELS_HTML
@@ -208,7 +207,7 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
     private fun createSettingsAction(): Action {
         return object : DialogWrapperAction("Settings") {
             override fun doAction(e: java.awt.event.ActionEvent?) {
-                close(OK_EXIT_CODE)  // Close this dialog first
+                close(OK_EXIT_CODE) // Close this dialog first
                 openSettings()
             }
         }
@@ -339,23 +338,21 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         statsPanel.add(recentTokensLabel)
         statsPanel.add(Box.createVerticalStrut(4))
         statsPanel.add(generationCountLabel)
-        */
+         */
 
         return statsPanel
     }
 
-
-
     private fun loadData() {
         val settings = settingsService
         val routerService = openRouterService
-        
+
         if (settings == null || routerService == null) {
             // In test environment, services might be null
             showError()
             return
         }
-        
+
         if (!settings.isConfigured()) {
             println("DEBUG: Settings not configured")
             showNotConfigured()
@@ -396,7 +393,6 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
     }
 
     private fun setLoadingState() {
-
         setLabelsToLoading()
         setProgressBarState(text = DEFAULT_LOADING_TEXT, indeterminate = true)
     }
@@ -420,7 +416,7 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         recentTokensLabel.text = "Recent Tokens: ${String.format(Locale.US, "%,d", recentTokens)} (last 50 calls)"
         generationCountLabel.text = "Tracked Calls: $generationCount total"
     }
-    */
+     */
 
     private fun updateWithCredits(creditsResponse: CreditsResponse) {
         val creditsData = creditsResponse.data
@@ -435,7 +431,10 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         // Update progress bar with credits information
         if (totalCredits > 0) {
             val percentage = ((usedCredits / totalCredits) * 100).toInt()
-            setProgressBarState(percentage, "${percentage}% used ($${formatCurrency(usedCredits)}/$${formatCurrency(totalCredits)})")
+            setProgressBarState(
+                percentage,
+                "$percentage% used ($${formatCurrency(usedCredits)}/$${formatCurrency(totalCredits)})"
+            )
         } else {
             setProgressBarState(text = "No credits available")
         }
@@ -468,14 +467,6 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         activityModelsLabel.text = buildModelsHtmlList(recentModelNames)
     }
 
-
-
-
-
-
-
-
-
     private fun showNotConfigured() {
         setLabelsToNotConfigured()
         setProgressBarState(text = NOT_CONFIGURED_MESSAGE)
@@ -496,8 +487,6 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         activityModelsLabel.text = "<html>Recent Models:<br/>• Go to Settings → OpenRouter<br/>• Add your Provisioning Key<br/>• Get it from openrouter.ai/keys</html>"
         setProgressBarState(text = "Provisioning Key Required - Click Settings")
     }
-
-
 
     private fun openSettings() {
         ApplicationManager.getApplication().invokeLater {
@@ -547,9 +536,13 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
     /**
      * Filters activities by time period
      */
-    private fun filterActivitiesByTime(activities: List<ActivityData>,
-                                       today: LocalDate, yesterday: LocalDate, weekAgo: LocalDate,
-                                       isLast24h: Boolean): List<ActivityData> {
+    private fun filterActivitiesByTime(
+        activities: List<ActivityData>,
+        today: LocalDate,
+        yesterday: LocalDate,
+        weekAgo: LocalDate,
+        isLast24h: Boolean
+    ): List<ActivityData> {
         return if (isLast24h) {
             activities.filter { activity ->
                 val activityDate = parseActivityDate(activity.date)

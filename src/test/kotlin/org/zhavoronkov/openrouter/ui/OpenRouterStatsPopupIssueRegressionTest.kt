@@ -1,14 +1,14 @@
 package org.zhavoronkov.openrouter.ui
 
+import com.intellij.openapi.project.Project
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import org.mockito.Mockito.*
-import com.intellij.openapi.project.Project
+import org.zhavoronkov.openrouter.models.*
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
-import org.zhavoronkov.openrouter.models.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -54,9 +54,15 @@ class OpenRouterStatsPopupIssueRegressionTest {
         val creditsResponse = createMockCreditsResponse()
         val activityResponse = createMockActivityResponse()
 
-        `when`(openRouterService.getApiKeysList()).thenReturn(CompletableFuture.completedFuture(apiKeysResponse) as CompletableFuture<ApiKeysListResponse?>)
-        `when`(openRouterService.getCredits()).thenReturn(CompletableFuture.completedFuture(creditsResponse) as CompletableFuture<CreditsResponse?>)
-        `when`(openRouterService.getActivity()).thenReturn(CompletableFuture.completedFuture(activityResponse) as CompletableFuture<ActivityResponse?>)
+        `when`(
+            openRouterService.getApiKeysList()
+        ).thenReturn(CompletableFuture.completedFuture(apiKeysResponse) as CompletableFuture<ApiKeysListResponse?>)
+        `when`(
+            openRouterService.getCredits()
+        ).thenReturn(CompletableFuture.completedFuture(creditsResponse) as CompletableFuture<CreditsResponse?>)
+        `when`(
+            openRouterService.getActivity()
+        ).thenReturn(CompletableFuture.completedFuture(activityResponse) as CompletableFuture<ActivityResponse?>)
 
         // When/Then: Constructor should not throw exceptions when run on EDT
         assertDoesNotThrow {
@@ -80,8 +86,16 @@ class OpenRouterStatsPopupIssueRegressionTest {
         // Create slow API responses to test threading
         val slowFuture = CompletableFuture<ApiKeysListResponse?>()
         `when`(openRouterService.getApiKeysList()).thenReturn(slowFuture)
-        `when`(openRouterService.getCredits()).thenReturn(CompletableFuture.completedFuture(createMockCreditsResponse()) as CompletableFuture<CreditsResponse?>)
-        `when`(openRouterService.getActivity()).thenReturn(CompletableFuture.completedFuture(createMockActivityResponse()) as CompletableFuture<ActivityResponse?>)
+        `when`(
+            openRouterService.getCredits()
+        ).thenReturn(
+            CompletableFuture.completedFuture(createMockCreditsResponse()) as CompletableFuture<CreditsResponse?>
+        )
+        `when`(
+            openRouterService.getActivity()
+        ).thenReturn(
+            CompletableFuture.completedFuture(createMockActivityResponse()) as CompletableFuture<ActivityResponse?>
+        )
 
         // When: Create popup on EDT (this should not block)
         var popup: OpenRouterStatsPopup? = null
@@ -142,8 +156,12 @@ class OpenRouterStatsPopupIssueRegressionTest {
         `when`(settingsService.getProvisioningKey()).thenReturn("test-key")
 
         `when`(openRouterService.getApiKeysList()).thenReturn(CompletableFuture.completedFuture(null))
-        `when`(openRouterService.getCredits()).thenReturn(CompletableFuture.completedFuture(createMockCreditsResponse()))
-        `when`(openRouterService.getActivity()).thenReturn(CompletableFuture.completedFuture(createMockActivityResponse()))
+        `when`(
+            openRouterService.getCredits()
+        ).thenReturn(CompletableFuture.completedFuture(createMockCreditsResponse()))
+        `when`(
+            openRouterService.getActivity()
+        ).thenReturn(CompletableFuture.completedFuture(createMockActivityResponse()))
 
         // When/Then: Should handle gracefully without exceptions
         assertDoesNotThrow {
@@ -242,9 +260,21 @@ class OpenRouterStatsPopupIssueRegressionTest {
         `when`(settingsService.isConfigured()).thenReturn(true)
         `when`(settingsService.getProvisioningKey()).thenReturn("valid-key")
 
-        `when`(openRouterService.getApiKeysList()).thenReturn(CompletableFuture.completedFuture(createMockApiKeysResponse()) as CompletableFuture<ApiKeysListResponse?>)
-        `when`(openRouterService.getCredits()).thenReturn(CompletableFuture.completedFuture(createMockCreditsResponse()) as CompletableFuture<CreditsResponse?>)
-        `when`(openRouterService.getActivity()).thenReturn(CompletableFuture.completedFuture(createMockActivityResponse()) as CompletableFuture<ActivityResponse?>)
+        `when`(
+            openRouterService.getApiKeysList()
+        ).thenReturn(
+            CompletableFuture.completedFuture(createMockApiKeysResponse()) as CompletableFuture<ApiKeysListResponse?>
+        )
+        `when`(
+            openRouterService.getCredits()
+        ).thenReturn(
+            CompletableFuture.completedFuture(createMockCreditsResponse()) as CompletableFuture<CreditsResponse?>
+        )
+        `when`(
+            openRouterService.getActivity()
+        ).thenReturn(
+            CompletableFuture.completedFuture(createMockActivityResponse()) as CompletableFuture<ActivityResponse?>
+        )
 
         // When: Create popup
         val popup = createPopupOnEdt(project, openRouterService, settingsService)
@@ -271,9 +301,15 @@ class OpenRouterStatsPopupIssueRegressionTest {
         `when`(settingsService.isConfigured()).thenReturn(true)
         `when`(settingsService.getProvisioningKey()).thenReturn("test-key")
 
-        `when`(openRouterService.getApiKeysList()).thenReturn(CompletableFuture.completedFuture(createMockApiKeysResponse()))
-        `when`(openRouterService.getCredits()).thenReturn(CompletableFuture.completedFuture(createMockCreditsResponse()))
-        `when`(openRouterService.getActivity()).thenReturn(CompletableFuture.completedFuture(createMockActivityResponse()))
+        `when`(
+            openRouterService.getApiKeysList()
+        ).thenReturn(CompletableFuture.completedFuture(createMockApiKeysResponse()))
+        `when`(
+            openRouterService.getCredits()
+        ).thenReturn(CompletableFuture.completedFuture(createMockCreditsResponse()))
+        `when`(
+            openRouterService.getActivity()
+        ).thenReturn(CompletableFuture.completedFuture(createMockActivityResponse()))
 
         // When: Create popup (should complete within timeout)
         val popup = createPopupOnEdt(project, openRouterService, settingsService)
@@ -299,14 +335,18 @@ class OpenRouterStatsPopupIssueRegressionTest {
 
         // Create activity with various date formats
         val activityData = listOf(
-            createActivityData("2024-12-05"),          // Date only
+            createActivityData("2024-12-05"), // Date only
             createActivityData("2024-12-05 10:30:00"), // Date with time
             createActivityData("2024-12-04T15:45:30Z") // ISO format
         )
         val activityResponse = ActivityResponse(activityData)
 
-        `when`(openRouterService.getApiKeysList()).thenReturn(CompletableFuture.completedFuture(createMockApiKeysResponse()))
-        `when`(openRouterService.getCredits()).thenReturn(CompletableFuture.completedFuture(createMockCreditsResponse()))
+        `when`(
+            openRouterService.getApiKeysList()
+        ).thenReturn(CompletableFuture.completedFuture(createMockApiKeysResponse()))
+        `when`(
+            openRouterService.getCredits()
+        ).thenReturn(CompletableFuture.completedFuture(createMockCreditsResponse()))
         `when`(openRouterService.getActivity()).thenReturn(CompletableFuture.completedFuture(activityResponse))
 
         // When: Create popup
@@ -325,7 +365,9 @@ class OpenRouterStatsPopupIssueRegressionTest {
 
         // Use reflection to access private formatCurrency method
         val formatCurrencyMethod = OpenRouterStatsPopup::class.java.getDeclaredMethod(
-            "formatCurrency", Double::class.java, Int::class.java
+            "formatCurrency",
+            Double::class.java,
+            Int::class.java
         )
         formatCurrencyMethod.isAccessible = true
 

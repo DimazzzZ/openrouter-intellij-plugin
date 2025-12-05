@@ -1,9 +1,9 @@
 package org.zhavoronkov.openrouter.settings
 
 import com.intellij.ui.SearchTextField
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.condition.DisabledIfSystemProperty
 import java.awt.event.KeyEvent
 

@@ -6,12 +6,10 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
-import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.mockito.Mockito.mock
-import org.mockito.Mockito.`when`
 // import org.mockito.kotlin.whenever
 import com.intellij.ide.util.PropertiesComponent
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
@@ -594,8 +592,8 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
 
             // Test individual range setters - set end first to avoid constraint violation
-            service.setProxyPortRangeEnd(9010)  // Set end first
-            service.setProxyPortRangeStart(9000)  // Then set start
+            service.setProxyPortRangeEnd(9010) // Set end first
+            service.setProxyPortRangeStart(9000) // Then set start
 
             assertEquals(9000, service.getProxyPortRangeStart())
             assertEquals(9010, service.getProxyPortRangeEnd())

@@ -34,9 +34,9 @@ class WelcomeNotificationActivity : ProjectActivity {
             .createNotification(
                 "Welcome to OpenRouter!",
                 "Get started in 3 easy steps:\n" +
-                        "1. Add your Provisioning Key\n" +
-                        "2. Select favorite models\n" +
-                        "3. Start the proxy server",
+                    "1. Add your Provisioning Key\n" +
+                    "2. Select favorite models\n" +
+                    "3. Start the proxy server",
                 NotificationType.INFORMATION
             )
 
@@ -71,4 +71,3 @@ class WelcomeNotificationActivity : ProjectActivity {
         notification.notify(project)
     }
 }
-

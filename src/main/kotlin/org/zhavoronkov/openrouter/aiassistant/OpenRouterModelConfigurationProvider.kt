@@ -1,6 +1,5 @@
 package org.zhavoronkov.openrouter.aiassistant
 
-import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
@@ -12,45 +11,44 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
  * Handles configuration aspects and settings integration
  */
 class OpenRouterModelConfigurationProvider {
-    
+
     private val settingsService = OpenRouterSettingsService.getInstance()
     private val modelProvider = OpenRouterModelProvider()
-    
+
     companion object {
-        private val logger = Logger.getInstance(OpenRouterModelConfigurationProvider::class.java)
         private const val PROVIDER_ID = "openrouter"
         private const val PROVIDER_NAME = "OpenRouter"
     }
-    
+
     /**
      * Get the unique provider identifier
      */
     fun getProviderId(): String = PROVIDER_ID
-    
+
     /**
      * Get the provider display name for AI Assistant UI
      */
     fun getProviderDisplayName(): String = modelProvider.getProviderDisplayName()
-    
+
     /**
      * Get provider description
      */
     fun getProviderDescription(): String = modelProvider.getProviderDescription()
-    
+
     /**
      * Check if the provider is properly configured
      */
     fun isConfigured(): Boolean {
         return settingsService.isConfigured() && modelProvider.isAvailable()
     }
-    
+
     /**
      * Get current configuration status message
      */
     fun getConfigurationStatusMessage(): String {
         return modelProvider.getConfigurationStatus()
     }
-    
+
     /**
      * Get configuration instructions for users
      */
@@ -67,7 +65,7 @@ class OpenRouterModelConfigurationProvider {
             The OpenRouter plugin will automatically create an API key for AI Assistant usage.
         """.trimIndent()
     }
-    
+
     /**
      * Open OpenRouter settings when user needs to configure
      */
@@ -81,7 +79,7 @@ class OpenRouterModelConfigurationProvider {
             PluginLogger.Service.error("Error opening OpenRouter settings", e)
         }
     }
-    
+
     /**
      * Get available model configurations
      */
@@ -108,14 +106,14 @@ class OpenRouterModelConfigurationProvider {
             emptyList()
         }
     }
-    
+
     /**
      * Get a specific model configuration by ID
      */
     fun getModelConfiguration(modelId: String): ModelConfiguration? {
         return getModelConfigurations().find { it.id == modelId }
     }
-    
+
     /**
      * Validate a model configuration
      */
@@ -168,7 +166,7 @@ class OpenRouterModelConfigurationProvider {
             )
         }
     }
-    
+
     /**
      * Get provider-specific settings that might be shown in AI Assistant settings
      */
@@ -181,14 +179,14 @@ class OpenRouterModelConfigurationProvider {
             "configurationUrl" to "settings://Tools/OpenRouter"
         )
     }
-    
+
     /**
      * Handle provider activation - called when user enables OpenRouter in AI Assistant
      */
     fun onProviderActivated() {
         try {
             PluginLogger.Service.info("OpenRouter provider activated for AI Assistant")
-            
+
             if (!isConfigured()) {
                 PluginLogger.Service.info("OpenRouter not configured - prompting user for setup")
                 // Could potentially show a notification here directing user to settings
@@ -197,7 +195,7 @@ class OpenRouterModelConfigurationProvider {
             PluginLogger.Service.error("Error handling provider activation", e)
         }
     }
-    
+
     /**
      * Handle provider deactivation - called when user disables OpenRouter in AI Assistant
      */

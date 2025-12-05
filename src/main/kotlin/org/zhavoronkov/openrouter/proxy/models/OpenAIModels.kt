@@ -1,7 +1,5 @@
 package org.zhavoronkov.openrouter.proxy.models
 
-import com.google.gson.annotations.SerializedName
-
 /**
  * OpenAI API compatible models for the proxy server
  * These models ensure compatibility with JetBrains AI Assistant

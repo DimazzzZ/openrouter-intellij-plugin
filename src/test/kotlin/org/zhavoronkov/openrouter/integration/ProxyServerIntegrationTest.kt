@@ -13,13 +13,13 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Integration tests for OpenRouter Proxy Server via Jetty
- * 
+ *
  * These tests verify that the Jetty server infrastructure works correctly:
  * - Server starts and stops cleanly
  * - Servlets are properly registered and routed
  * - Concurrent requests are handled correctly
  * - HTTP protocol basics work (GET, POST, OPTIONS)
- * 
+ *
  * Note: Full end-to-end tests with OpenRouter API are in separate test files
  * because they require IntelliJ services which aren't available in unit tests.
  */
@@ -44,13 +44,13 @@ class ProxyServerIntegrationTest {
 
         // Create a standalone Jetty server for testing
         jettyServer = Server(proxyPort)
-        
+
         val context = ServletContextHandler(ServletContextHandler.SESSIONS)
         context.contextPath = "/"
-        
+
         // Add health check servlet (doesn't require IntelliJ services)
         context.addServlet(ServletHolder(HealthCheckServlet()), "/health")
-        
+
         jettyServer.handler = context
         jettyServer.start()
 
@@ -78,10 +78,10 @@ class ProxyServerIntegrationTest {
 
             httpClient.newCall(request).execute().use { response ->
                 assertEquals(200, response.code, "Health check should return 200")
-                
+
                 val body = response.body?.string()
                 assertNotNull(body)
-                
+
                 val json = gson.fromJson(body, Map::class.java)
                 assertEquals("ok", json["status"])
             }
@@ -171,7 +171,7 @@ class ProxyServerIntegrationTest {
         @DisplayName("Should handle rapid sequential requests")
         fun testRapidSequentialRequests() {
             val startTime = System.currentTimeMillis()
-            
+
             repeat(50) {
                 val request = Request.Builder()
                     .url("http://localhost:$proxyPort/health")
@@ -182,7 +182,7 @@ class ProxyServerIntegrationTest {
                     assertEquals(200, response.code, "Request $it should succeed")
                 }
             }
-            
+
             val duration = System.currentTimeMillis() - startTime
             println("✅ Completed 50 requests in ${duration}ms")
             assertTrue(duration < 10000, "Should complete 50 requests in under 10 seconds")
@@ -194,7 +194,7 @@ class ProxyServerIntegrationTest {
             val connectors = jettyServer.connectors
             assertNotNull(connectors, "Server should have connectors")
             assertTrue(connectors.isNotEmpty(), "Server should have at least one connector")
-            
+
             val handler = jettyServer.handler
             assertNotNull(handler, "Server should have a handler")
             assertTrue(handler is ServletContextHandler, "Handler should be ServletContextHandler")
@@ -288,4 +288,3 @@ class ProxyServerIntegrationTest {
         }
     }
 }
-

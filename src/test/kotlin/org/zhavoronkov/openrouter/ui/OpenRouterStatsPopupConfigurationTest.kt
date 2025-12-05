@@ -1,14 +1,13 @@
 package org.zhavoronkov.openrouter.ui
 
-import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.BeforeEach
-import org.mockito.Mockito.*
 import com.intellij.openapi.project.Project
+import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import org.mockito.Mockito.*
+import org.zhavoronkov.openrouter.models.*
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
-import org.zhavoronkov.openrouter.models.*
-import java.util.concurrent.CompletableFuture
 
 /**
  * Tests for configuration validation logic

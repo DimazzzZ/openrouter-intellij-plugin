@@ -19,11 +19,11 @@ data class ModelFilterCriteria(
      */
     fun hasActiveFilters(): Boolean {
         return provider != "All Providers" ||
-               contextRange != ModelProviderUtils.ContextRange.ANY ||
-               requireVision ||
-               requireAudio ||
-               requireTools ||
-               requireImageGen
+            contextRange != ModelProviderUtils.ContextRange.ANY ||
+            requireVision ||
+            requireAudio ||
+            requireTools ||
+            requireImageGen
     }
 
     /**
@@ -101,4 +101,3 @@ data class ModelFilterCriteria(
         }
     }
 }
-

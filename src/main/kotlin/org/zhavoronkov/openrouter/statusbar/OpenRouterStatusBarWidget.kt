@@ -16,9 +16,9 @@ import com.intellij.openapi.wm.impl.status.EditorBasedWidget
 import com.intellij.ui.awt.RelativePoint
 import com.intellij.util.Consumer
 import org.zhavoronkov.openrouter.models.ConnectionStatus
+import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
-import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.ui.OpenRouterStatsPopup
 import java.awt.event.MouseEvent
 import java.util.Locale
@@ -141,8 +141,6 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
             )
         )
 
-
-
         // Authentication
         if (settingsService.isConfigured()) {
             items.add(
@@ -161,8 +159,6 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
                 )
             )
         }
-
-
 
         // Settings (direct action, no submenu)
         items.add(
@@ -233,10 +229,6 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
     private fun openFeedbackRepository() {
         BrowserUtil.browse("https://github.com/DimazzzZ/openrouter-intellij-plugin/issues")
     }
-
-
-
-
 
     /**
      * Update the widget with current quota information

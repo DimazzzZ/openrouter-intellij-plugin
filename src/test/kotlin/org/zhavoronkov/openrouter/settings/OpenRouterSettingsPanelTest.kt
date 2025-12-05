@@ -1,22 +1,16 @@
 package org.zhavoronkov.openrouter.settings
 
-import com.intellij.openapi.application.ApplicationManager
-import com.intellij.testFramework.fixtures.BasePlatformTestCase
-import org.junit.jupiter.api.DisplayName
-import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.condition.DisabledIfSystemProperty
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Test
 import org.mockito.Mockito.*
 import org.zhavoronkov.openrouter.proxy.OpenRouterProxyServer
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
-import org.zhavoronkov.openrouter.services.OpenRouterService
 import java.awt.GraphicsEnvironment
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
-import java.util.concurrent.CompletableFuture
-import javax.swing.JButton
 
 /**
  * Comprehensive tests for OpenRouterSettingsPanel user interactions
@@ -218,4 +212,3 @@ class OpenRouterSettingsPanelTest {
         assertTrue(shouldBeEnabled, "Copy URL button should be enabled when server is running")
     }
 }
-

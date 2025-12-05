@@ -21,7 +21,7 @@ class ProxyServerStartupActivity : ProjectActivity {
             // Check if running with --proxy-server argument for testing
             val args = System.getProperty("idea.additional.args") ?: ""
             val forceStartProxy = args.contains("--proxy-server") ||
-                                 System.getProperty("openrouter.force.proxy", "false").toBoolean()
+                System.getProperty("openrouter.force.proxy", "false").toBoolean()
 
             if (forceStartProxy) {
                 PluginLogger.Service.info("Force starting proxy server for testing (--proxy-server argument detected)")
@@ -32,7 +32,9 @@ class ProxyServerStartupActivity : ProjectActivity {
                         val status = proxyService.getServerStatus()
                         PluginLogger.Service.info("OpenRouter proxy server FORCE STARTED on port ${status.port}")
                         PluginLogger.Service.info("AI Assistant can connect to: ${status.url}")
-                        PluginLogger.Service.info("Note: Running in test mode - some features may be limited without proper configuration")
+                        PluginLogger.Service.info(
+                            "Note: Running in test mode - some features may be limited without proper configuration"
+                        )
                     } else {
                         PluginLogger.Service.warn("Failed to force-start OpenRouter proxy server")
                     }
@@ -41,7 +43,9 @@ class ProxyServerStartupActivity : ProjectActivity {
                     null
                 }
             } else if (settingsService.isConfigured() && settingsService.isProxyAutoStartEnabled()) {
-                PluginLogger.Service.info("OpenRouter is configured and auto-start is enabled, attempting to auto-start proxy server")
+                PluginLogger.Service.info(
+                    "OpenRouter is configured and auto-start is enabled, attempting to auto-start proxy server"
+                )
 
                 // Start the proxy server asynchronously
                 proxyService.autoStartIfConfigured().thenAccept { success ->
@@ -66,7 +70,6 @@ class ProxyServerStartupActivity : ProjectActivity {
             }
 
             // Note: AI Assistant integration check removed - plugin works independently
-
         } catch (e: Exception) {
             PluginLogger.Service.error("Error in OpenRouter startup activity", e)
         }

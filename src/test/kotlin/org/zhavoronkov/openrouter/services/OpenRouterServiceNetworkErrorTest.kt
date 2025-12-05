@@ -11,11 +11,10 @@ import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
-import java.util.concurrent.TimeUnit
 
 /**
  * Tests for network error handling in OpenRouterService
- * 
+ *
  * These tests verify that network errors (offline, DNS issues, timeouts, etc.)
  * are handled gracefully without throwing exceptions or alarming users.
  */
@@ -94,9 +93,9 @@ class OpenRouterServiceNetworkErrorTest {
                 val request = okhttp3.Request.Builder()
                     .url(mockServer.url("/api/v1/credits"))
                     .build()
-                
+
                 val response = client.newCall(request).execute()
-                
+
                 // Verify error response is handled
                 assertFalse(response.isSuccessful)
                 assertEquals(500, response.code)
@@ -118,10 +117,10 @@ class OpenRouterServiceNetworkErrorTest {
                 val request = okhttp3.Request.Builder()
                     .url(mockServer.url("/api/v1/credits"))
                     .build()
-                
+
                 val response = client.newCall(request).execute()
                 val body = response.body?.string()
-                
+
                 // Verify that attempting to parse malformed JSON throws expected exception
                 assertThrows(com.google.gson.JsonSyntaxException::class.java) {
                     gson.fromJson(body, Map::class.java)
@@ -175,7 +174,7 @@ class OpenRouterServiceNetworkErrorTest {
         fun testReturnsNullOnError() {
             // This test verifies the pattern used in OpenRouterService
             // where network errors return null instead of throwing exceptions
-            
+
             val result = try {
                 // Simulate network call that fails
                 throw UnknownHostException("openrouter.ai")
@@ -183,7 +182,7 @@ class OpenRouterServiceNetworkErrorTest {
                 // Handle gracefully by returning null
                 null
             }
-            
+
             assertNull(result, "Network errors should return null for graceful degradation")
         }
 
@@ -196,7 +195,7 @@ class OpenRouterServiceNetworkErrorTest {
                     .setResponseCode(500)
                     .setBody("{\"error\": \"Server error\"}")
             )
-            
+
             // Second request succeeds
             mockServer.enqueue(
                 MockResponse()
@@ -229,13 +228,13 @@ class OpenRouterServiceNetworkErrorTest {
             // This test documents the expected behavior:
             // Network errors should be logged at WARN level (not ERROR)
             // because being offline is not an application error
-            
+
             val errorTypes = listOf(
                 UnknownHostException::class.java,
                 SocketTimeoutException::class.java,
                 ConnectException::class.java
             )
-            
+
             errorTypes.forEach { exceptionType ->
                 assertTrue(
                     IOException::class.java.isAssignableFrom(exceptionType),
@@ -250,13 +249,12 @@ class OpenRouterServiceNetworkErrorTest {
             // This test documents the expected behavior:
             // Full stack traces should only be logged when debug mode is enabled
             // Normal users should see friendly error messages without stack traces
-            
+
             val debugEnabled = System.getProperty("openrouter.debug", "false").toBoolean()
-            
+
             // In production (debug disabled), stack traces should not be shown
             // In development (debug enabled), stack traces can be shown
             assertNotNull(debugEnabled)
         }
     }
 }
-

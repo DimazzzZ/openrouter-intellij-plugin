@@ -7,22 +7,22 @@ import com.intellij.openapi.diagnostic.Logger
  * Provides configurable debug logging that can be enabled/disabled for development vs production.
  */
 object PluginLogger {
-    
+
     private const val PLUGIN_NAME = "OpenRouter"
-    
+
     // Logger instances for different components
     private val serviceLogger = Logger.getInstance("org.zhavoronkov.openrouter.services")
     private val settingsLogger = Logger.getInstance("org.zhavoronkov.openrouter.settings")
     private val statusBarLogger = Logger.getInstance("org.zhavoronkov.openrouter.statusbar")
     private val modelsLogger = Logger.getInstance("org.zhavoronkov.openrouter.models")
     private val startupLogger = Logger.getInstance("org.zhavoronkov.openrouter.startup")
-    
+
     // Debug mode flag - can be controlled via system property
     private val debugEnabled: Boolean by lazy {
         System.getProperty("openrouter.debug", "false").toBoolean() ||
-        System.getProperty("idea.log.debug.categories", "").contains("org.zhavoronkov.openrouter")
+            System.getProperty("idea.log.debug.categories", "").contains("org.zhavoronkov.openrouter")
     }
-    
+
     /**
      * Service-related logging
      */
@@ -46,7 +46,7 @@ object PluginLogger {
             }
         }
     }
-    
+
     /**
      * Settings-related logging
      */
@@ -91,7 +91,7 @@ object PluginLogger {
             settingsLogger.info("[$PLUGIN_NAME][PROD] $message")
         }
     }
-    
+
     /**
      * Status bar widget logging
      */
@@ -101,14 +101,14 @@ object PluginLogger {
         fun warn(message: String, throwable: Throwable) = statusBarLogger.warn("[$PLUGIN_NAME] $message", throwable)
         fun error(message: String) = statusBarLogger.error("[$PLUGIN_NAME] $message")
         fun error(message: String, throwable: Throwable) = statusBarLogger.error("[$PLUGIN_NAME] $message", throwable)
-        
+
         fun debug(message: String) {
             if (debugEnabled) {
                 statusBarLogger.info("[$PLUGIN_NAME][DEBUG] $message")
             }
         }
     }
-    
+
     /**
      * Models/API data logging
      */
@@ -155,8 +155,18 @@ object PluginLogger {
         serviceLogger.info("[$PLUGIN_NAME] Debug logging enabled: $debugEnabled")
         if (debugEnabled) {
             serviceLogger.info("[$PLUGIN_NAME] Debug logging configuration:")
-            serviceLogger.info("[$PLUGIN_NAME]   - openrouter.debug system property: ${System.getProperty("openrouter.debug", "not set")}")
-            serviceLogger.info("[$PLUGIN_NAME]   - idea.log.debug.categories: ${System.getProperty("idea.log.debug.categories", "not set")}")
+            serviceLogger.info(
+                "[$PLUGIN_NAME]   - openrouter.debug system property: ${System.getProperty(
+                    "openrouter.debug",
+                    "not set"
+                )}"
+            )
+            serviceLogger.info(
+                "[$PLUGIN_NAME]   - idea.log.debug.categories: ${System.getProperty(
+                    "idea.log.debug.categories",
+                    "not set"
+                )}"
+            )
         }
     }
 }

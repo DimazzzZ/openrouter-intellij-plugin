@@ -78,11 +78,9 @@ class ProxyServerDuplicateTest {
             }
         }
 
-        apiKey = envVars["OPENROUTER_API_KEY"] 
+        apiKey = envVars["OPENROUTER_API_KEY"]
             ?: throw IllegalStateException("❌ OPENROUTER_API_KEY not found in .env file")
     }
-
-
 
     @Nested
     @DisplayName("Direct API Single Request Tests")
@@ -165,8 +163,10 @@ class ProxyServerDuplicateTest {
                 println("   Duration: ${duration}ms")
 
                 assertEquals(200, response.code, "Should return 200 OK")
-                assertTrue(response.header("Content-Type")?.contains("text/event-stream") == true,
-                    "Should have SSE content type")
+                assertTrue(
+                    response.header("Content-Type")?.contains("text/event-stream") == true,
+                    "Should have SSE content type"
+                )
 
                 val body = response.body?.string()
                 assertNotNull(body, "Response body should not be null")
@@ -238,8 +238,10 @@ class ProxyServerDuplicateTest {
             CompletableFuture.allOf(*futures.toTypedArray()).get(60, TimeUnit.SECONDS)
 
             println("\n   Success rate: $successCount/$requestCount")
-            assertTrue(successCount.get() >= requestCount - 1,
-                "Should have at least ${requestCount - 1} successful requests")
+            assertTrue(
+                successCount.get() >= requestCount - 1,
+                "Should have at least ${requestCount - 1} successful requests"
+            )
 
             println("   ✅ Concurrent requests handled correctly")
             println("   📊 Check OpenRouter dashboard for exactly $requestCount requests")

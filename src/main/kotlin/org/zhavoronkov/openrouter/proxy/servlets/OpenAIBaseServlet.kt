@@ -4,8 +4,8 @@ import com.google.gson.Gson
 import jakarta.servlet.http.HttpServlet
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
-import org.zhavoronkov.openrouter.utils.PluginLogger
 import org.zhavoronkov.openrouter.proxy.translation.ResponseTranslator
+import org.zhavoronkov.openrouter.utils.PluginLogger
 
 /**
  * Base servlet class that provides common OpenAI API compatibility functionality

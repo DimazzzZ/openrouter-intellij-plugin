@@ -10,31 +10,33 @@ import okhttp3.RequestBody.Companion.toRequestBody
  * Eliminates code duplication and ensures consistent headers across all requests
  */
 object OpenRouterRequestBuilder {
-    
+
     // OpenRouter-specific headers that should be included in all requests
     private const val HTTP_REFERER = "https://github.com/DimazzzZ/openrouter-intellij-plugin"
     private const val X_TITLE = "OpenRouter IntelliJ Plugin"
     private const val CONTENT_TYPE_JSON = "application/json"
-    
+
     /**
      * Authentication types for different OpenRouter endpoints
      */
     enum class AuthType {
         /** No authentication required (public endpoints like /models) */
         NONE,
+
         /** API key authentication (Bearer <api-key>) for chat completions, credits, etc. */
         API_KEY,
+
         /** Provisioning key authentication (Bearer <provisioning-key>) for API key management */
         PROVISIONING_KEY
     }
-    
+
     /**
      * HTTP methods supported by the request builder
      */
     enum class HttpMethod {
         GET, POST, DELETE
     }
-    
+
     /**
      * Build a GET request with standard OpenRouter headers
      */
@@ -50,7 +52,7 @@ object OpenRouterRequestBuilder {
             authToken = authToken
         )
     }
-    
+
     /**
      * Build a POST request with JSON body and standard OpenRouter headers
      */
@@ -68,7 +70,7 @@ object OpenRouterRequestBuilder {
             requestBody = jsonBody.toRequestBody(CONTENT_TYPE_JSON.toMediaType())
         )
     }
-    
+
     /**
      * Build a DELETE request with standard OpenRouter headers
      */
@@ -84,7 +86,7 @@ object OpenRouterRequestBuilder {
             authToken = authToken
         )
     }
-    
+
     /**
      * Core request builder that handles all HTTP methods and authentication types
      */
@@ -100,12 +102,12 @@ object OpenRouterRequestBuilder {
             .addHeader("Content-Type", CONTENT_TYPE_JSON)
             .addHeader("HTTP-Referer", HTTP_REFERER)
             .addHeader("X-Title", X_TITLE)
-        
+
         // Add authentication header if required
         if (authType != AuthType.NONE && authToken != null) {
             builder.addHeader("Authorization", "Bearer $authToken")
         }
-        
+
         // Set HTTP method and body
         when (method) {
             HttpMethod.GET -> {
@@ -122,17 +124,17 @@ object OpenRouterRequestBuilder {
                 builder.delete()
             }
         }
-        
+
         return builder.build()
     }
-    
+
     /**
      * Convenience method to create JSON request body
      */
     fun createJsonBody(jsonString: String): RequestBody {
         return jsonString.toRequestBody(CONTENT_TYPE_JSON.toMediaType())
     }
-    
+
     /**
      * Get the standard OpenRouter headers as a map (for AI Assistant integration)
      */
@@ -141,14 +143,14 @@ object OpenRouterRequestBuilder {
         headers["Content-Type"] = CONTENT_TYPE_JSON
         headers["HTTP-Referer"] = HTTP_REFERER
         headers["X-Title"] = X_TITLE
-        
+
         if (authToken != null) {
             headers["Authorization"] = "Bearer $authToken"
         }
-        
+
         return headers
     }
-    
+
     /**
      * Update configuration values (for future extensibility)
      */

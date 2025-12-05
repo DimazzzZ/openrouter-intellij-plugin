@@ -7,7 +7,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.JBColor
 import com.intellij.ui.SearchTextField
-import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBScrollPane
@@ -22,7 +21,6 @@ import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.EncryptionUtil
-import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.CardLayout
@@ -33,7 +31,6 @@ import javax.swing.*
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.table.AbstractTableModel
-import javax.swing.table.DefaultTableCellRenderer
 
 /**
  * Multi-step setup wizard for first-time users with validation and embedded model selection
@@ -112,7 +109,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
             row {
                 text(
                     "OpenRouter gives you access to 400+ AI models through a single API. " +
-                            "This wizard will help you get started in just a few steps."
+                        "This wizard will help you get started in just a few steps."
                 )
             }.bottomGap(BottomGap.MEDIUM)
 
@@ -240,7 +237,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
             row {
                 text(
                     "Copy the proxy server URL below and paste it into your favorite AI Assistant. " +
-                            "For example, in JetBrains AI Assistant, paste this URL in the custom server settings."
+                        "For example, in JetBrains AI Assistant, paste this URL in the custom server settings."
                 )
             }.topGap(TopGap.MEDIUM).bottomGap(BottomGap.MEDIUM)
 
@@ -505,9 +502,9 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
         filteredModels = allModels.filter { model ->
             searchText.isBlank() ||
-                    model.id.lowercase().contains(searchText) ||
-                    model.name.lowercase().contains(searchText) ||
-                    model.description?.lowercase()?.contains(searchText) == true
+                model.id.lowercase().contains(searchText) ||
+                model.name.lowercase().contains(searchText) ||
+                model.description?.lowercase()?.contains(searchText) == true
         }
 
         modelsTableModel.fireTableDataChanged()
@@ -533,11 +530,11 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         modelsTable.intercellSpacing = Dimension(0, 0)
         modelsTable.rowHeight = 28
         modelsTable.tableHeader.reorderingAllowed = false
-        modelsTable.autoCreateRowSorter = true  // Enable sorting
+        modelsTable.autoCreateRowSorter = true // Enable sorting
 
         // Column widths
         val columnModel = modelsTable.columnModel
-        columnModel.getColumn(0).preferredWidth = 40  // Checkbox
+        columnModel.getColumn(0).preferredWidth = 40 // Checkbox
         columnModel.getColumn(0).maxWidth = 40
         columnModel.getColumn(1).preferredWidth = 400 // Model name (wider, no provider column)
 
@@ -575,7 +572,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     private inner class ModelsTableModel : AbstractTableModel() {
         override fun getRowCount(): Int = filteredModels.size
 
-        override fun getColumnCount(): Int = 2  // Checkbox + Model name only
+        override fun getColumnCount(): Int = 2 // Checkbox + Model name only
 
         override fun getColumnName(column: Int): String = when (column) {
             0 -> ""
@@ -630,4 +627,3 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         }
     }
 }
-

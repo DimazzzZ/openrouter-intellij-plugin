@@ -1,16 +1,16 @@
 package org.zhavoronkov.openrouter.ui
 
+import com.intellij.openapi.project.Project
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.*
-import com.intellij.openapi.project.Project
+import org.zhavoronkov.openrouter.models.ApiKeyInfo
+import org.zhavoronkov.openrouter.models.ApiKeysListResponse
+import org.zhavoronkov.openrouter.models.CreditsData
+import org.zhavoronkov.openrouter.models.CreditsResponse
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
-import org.zhavoronkov.openrouter.models.CreditsResponse
-import org.zhavoronkov.openrouter.models.CreditsData
-import org.zhavoronkov.openrouter.models.ApiKeysListResponse
-import org.zhavoronkov.openrouter.models.ApiKeyInfo
 import java.util.concurrent.CompletableFuture
 
 class OpenRouterStatsPopupDataLoadTest {
@@ -54,16 +54,18 @@ class OpenRouterStatsPopupDataLoadTest {
         // Given: Mock API responses that match the expected structure
         val creditsData = CreditsData(totalCredits = 10.0, totalUsage = 2.5)
         val creditsResponse = CreditsResponse(creditsData)
-        val apiKeyInfo = listOf(ApiKeyInfo(
-            name = "test-key",
-            label = "Test Key",
-            disabled = false,
-            usage = 5.0,
-            limit = null,
-            createdAt = "2023-01-01T00:00:00Z",
-            updatedAt = null,
-            hash = "test-hash"
-        ))
+        val apiKeyInfo = listOf(
+            ApiKeyInfo(
+                name = "test-key",
+                label = "Test Key",
+                disabled = false,
+                usage = 5.0,
+                limit = null,
+                createdAt = "2023-01-01T00:00:00Z",
+                updatedAt = null,
+                hash = "test-hash"
+            )
+        )
         val apiKeysResponse = ApiKeysListResponse(apiKeyInfo)
 
         // Then: Verify the models can be created and have expected data
@@ -92,16 +94,18 @@ class OpenRouterStatsPopupDataLoadTest {
         // Mock API responses
         val creditsData = CreditsData(totalCredits = 10.0, totalUsage = 2.5)
         val creditsResponse = CreditsResponse(creditsData)
-        val apiKeyInfo = listOf(ApiKeyInfo(
-            name = "test-key",
-            label = "Test Key",
-            disabled = false,
-            usage = 5.0,
-            limit = null,
-            createdAt = "2023-01-01T00:00:00Z",
-            updatedAt = null,
-            hash = "test-hash"
-        ))
+        val apiKeyInfo = listOf(
+            ApiKeyInfo(
+                name = "test-key",
+                label = "Test Key",
+                disabled = false,
+                usage = 5.0,
+                limit = null,
+                createdAt = "2023-01-01T00:00:00Z",
+                updatedAt = null,
+                hash = "test-hash"
+            )
+        )
         val apiKeysResponse = ApiKeysListResponse(apiKeyInfo)
 
         `when`(openRouterService.getCredits()).thenReturn(CompletableFuture.completedFuture(creditsResponse))

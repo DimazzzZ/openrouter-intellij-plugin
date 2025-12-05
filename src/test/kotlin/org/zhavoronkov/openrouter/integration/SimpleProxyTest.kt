@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Simple test to verify our proxy server request handling behavior.
- * 
+ *
  * This test makes direct HTTP requests to verify:
  * 1. Our duplicate detection logic works correctly
  * 2. Request processing is consistent
@@ -32,7 +32,7 @@ class SimpleProxyTest {
     @BeforeAll
     fun setUpAll() {
         println("🚀 Starting Simple Proxy Request Behavior Test")
-        
+
         // Load API keys from .env file
         loadEnvFile()
         println("🔑 Loaded API key: ${apiKey.take(20)}...")
@@ -44,7 +44,7 @@ class SimpleProxyTest {
             .readTimeout(60, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
             .build()
-        
+
         println("✅ HTTP client initialized")
         println("⚠️  WARNING: Tests will make REAL API calls to verify behavior!")
     }
@@ -72,7 +72,7 @@ class SimpleProxyTest {
             }
         }
 
-        apiKey = envVars["OPENROUTER_API_KEY"] 
+        apiKey = envVars["OPENROUTER_API_KEY"]
             ?: throw IllegalStateException("❌ OPENROUTER_API_KEY not found in .env file")
     }
 
@@ -80,7 +80,7 @@ class SimpleProxyTest {
     @DisplayName("Should verify OpenRouter API baseline behavior")
     fun testOpenRouterApiBaseline() {
         println("\n🧪 Testing OpenRouter API baseline behavior...")
-        
+
         val requestBody = """
             {
                 "model": "openai/gpt-4o-mini",
@@ -102,19 +102,19 @@ class SimpleProxyTest {
         val startTime = System.currentTimeMillis()
         httpClient.newCall(request).execute().use { response ->
             val duration = System.currentTimeMillis() - startTime
-            
+
             println("   Response code: ${response.code}")
             println("   Duration: ${duration}ms")
-            
+
             assertEquals(200, response.code, "Should return 200 OK")
-            
+
             val body = response.body?.string()
             assertNotNull(body, "Response body should not be null")
-            
+
             val json = gson.fromJson(body, Map::class.java)
             assertNotNull(json["id"], "Response should have ID")
             assertNotNull(json["choices"], "Response should have choices")
-            
+
             println("   ✅ OpenRouter API baseline test successful")
             println("   📊 This confirms OpenRouter API works correctly")
         }
@@ -124,10 +124,10 @@ class SimpleProxyTest {
     @DisplayName("Should verify sequential requests work correctly")
     fun testSequentialRequests() {
         println("\n🧪 Testing sequential requests to OpenRouter API...")
-        
+
         repeat(3) { i ->
             println("   Making request ${i + 1}/3...")
-            
+
             val requestBody = """
                 {
                     "model": "openai/gpt-4o-mini",
@@ -149,17 +149,17 @@ class SimpleProxyTest {
             val startTime = System.currentTimeMillis()
             httpClient.newCall(request).execute().use { response ->
                 val duration = System.currentTimeMillis() - startTime
-                
+
                 println("      Response code: ${response.code}, Duration: ${duration}ms")
                 assertEquals(200, response.code, "Request ${i + 1} should succeed")
             }
-            
+
             // Small delay between requests
             if (i < 2) {
                 Thread.sleep(1000)
             }
         }
-        
+
         println("   ✅ All sequential requests successful")
         println("   📊 Check OpenRouter dashboard for exactly 3 sequential requests")
     }
@@ -168,7 +168,7 @@ class SimpleProxyTest {
     @DisplayName("Should verify streaming requests work correctly")
     fun testStreamingRequest() {
         println("\n🧪 Testing streaming request to OpenRouter API...")
-        
+
         val requestBody = """
             {
                 "model": "openai/gpt-4o-mini",
@@ -190,22 +190,24 @@ class SimpleProxyTest {
         val startTime = System.currentTimeMillis()
         httpClient.newCall(request).execute().use { response ->
             val duration = System.currentTimeMillis() - startTime
-            
+
             println("   Response code: ${response.code}")
             println("   Content-Type: ${response.header("Content-Type")}")
             println("   Duration: ${duration}ms")
-            
+
             assertEquals(200, response.code, "Should return 200 OK")
-            assertTrue(response.header("Content-Type")?.contains("text/event-stream") == true,
-                "Should have SSE content type")
-            
+            assertTrue(
+                response.header("Content-Type")?.contains("text/event-stream") == true,
+                "Should have SSE content type"
+            )
+
             val body = response.body?.string()
             assertNotNull(body, "Response body should not be null")
-            
+
             // Verify SSE format
             assertTrue(body!!.contains("data: "), "Should contain SSE data lines")
             assertTrue(body.contains("[DONE]"), "Should contain [DONE] marker")
-            
+
             println("   ✅ Streaming request successful")
             println("   📊 Check OpenRouter dashboard for exactly 1 streaming request")
         }
@@ -215,27 +217,27 @@ class SimpleProxyTest {
     @DisplayName("Should verify request hash generation consistency")
     fun testRequestHashConsistency() {
         println("\n🧪 Testing request hash generation consistency...")
-        
+
         // This test verifies our duplicate detection logic would work correctly
         val requestBody1 = """{"model":"test","messages":[{"role":"user","content":"test"}]}"""
         val requestBody2 = """{"model":"test","messages":[{"role":"user","content":"test"}]}"""
         val requestBody3 = """{"model":"test","messages":[{"role":"user","content":"different"}]}"""
-        
+
         // Simulate our hash generation logic
         val hash1 = generateTestHash(requestBody1, "127.0.0.1")
         val hash2 = generateTestHash(requestBody2, "127.0.0.1")
         val hash3 = generateTestHash(requestBody3, "127.0.0.1")
         val hash4 = generateTestHash(requestBody1, "192.168.1.1")
-        
+
         println("   Hash 1 (identical content, same IP): $hash1")
         println("   Hash 2 (identical content, same IP): $hash2")
         println("   Hash 3 (different content, same IP): $hash3")
         println("   Hash 4 (identical content, different IP): $hash4")
-        
+
         assertEquals(hash1, hash2, "Identical requests should have same hash")
         assertNotEquals(hash1, hash3, "Different content should have different hash")
         assertNotEquals(hash1, hash4, "Different IP should have different hash")
-        
+
         println("   ✅ Request hash generation is consistent")
         println("   📊 This confirms our duplicate detection logic is sound")
     }

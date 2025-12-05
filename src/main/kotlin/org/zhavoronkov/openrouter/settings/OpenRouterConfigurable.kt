@@ -117,9 +117,9 @@ class OpenRouterConfigurable : Configurable {
         val panelRangeEnd = panel.getProxyPortRangeEnd()
 
         return currentAutoStart != panelAutoStart ||
-               currentPort != panelPort ||
-               currentRangeStart != panelRangeStart ||
-               currentRangeEnd != panelRangeEnd
+            currentPort != panelPort ||
+            currentRangeStart != panelRangeStart ||
+            currentRangeEnd != panelRangeEnd
     }
 
     override fun getDisplayName(): String = "OpenRouter"

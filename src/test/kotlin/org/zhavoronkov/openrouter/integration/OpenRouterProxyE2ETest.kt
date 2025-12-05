@@ -5,40 +5,30 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import org.eclipse.jetty.server.Server
-import org.eclipse.jetty.servlet.ServletContextHandler
-import org.eclipse.jetty.servlet.ServletHolder
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.Assertions.*
-import org.zhavoronkov.openrouter.models.ChatCompletionRequest
-import org.zhavoronkov.openrouter.models.ChatMessage
-import org.zhavoronkov.openrouter.proxy.servlets.ChatCompletionServlet
-import org.zhavoronkov.openrouter.proxy.servlets.HealthCheckServlet
-import org.zhavoronkov.openrouter.proxy.servlets.ModelsServlet
-import org.zhavoronkov.openrouter.services.OpenRouterService
-import java.io.BufferedReader
 import java.io.File
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * End-to-End Integration Tests for OpenRouter Proxy Server
- * 
+ *
  * These tests use REAL OpenRouter API keys from .env file and make REAL API calls.
  * They verify the complete request flow: Client -> Jetty Proxy -> OpenRouter API -> Response
- * 
+ *
  * ⚠️ WARNING: These tests consume real API credits!
- * 
+ *
  * Tests verify:
  * 1. Streaming support (SSE) - ensures only 1 request is sent (not 11 duplicates)
  * 2. Model name normalization - "gpt-4" -> "openai/gpt-4"
  * 3. Non-streaming requests work correctly
  * 4. Responses are properly formatted
- * 
+ *
  * To run these tests:
  * - Ensure .env file exists with OPENROUTER_API_KEY and OPENROUTER_PROVISIONING_KEY
  * - Run: ./gradlew test --tests "OpenRouterProxyE2ETest"
- * 
+ *
  * @Tag("e2e") - Marks as end-to-end test (can be excluded from CI/CD)
  */
 @DisplayName("OpenRouter Proxy E2E Tests (Real API)")
@@ -88,7 +78,9 @@ class OpenRouterProxyE2ETest {
     private fun loadEnvFile() {
         val envFile = File(".env")
         if (!envFile.exists()) {
-            throw IllegalStateException("❌ .env file not found! Please create .env with OPENROUTER_API_KEY and OPENROUTER_PROVISIONING_KEY")
+            throw IllegalStateException(
+                "❌ .env file not found! Please create .env with OPENROUTER_API_KEY and OPENROUTER_PROVISIONING_KEY"
+            )
         }
 
         val envVars = mutableMapOf<String, String>()
@@ -103,7 +95,7 @@ class OpenRouterProxyE2ETest {
             }
         }
 
-        apiKey = envVars["OPENROUTER_API_KEY"] 
+        apiKey = envVars["OPENROUTER_API_KEY"]
             ?: throw IllegalStateException("❌ OPENROUTER_API_KEY not found in .env file")
         provisioningKey = envVars["OPENROUTER_PROVISIONING_KEY"]
             ?: throw IllegalStateException("❌ OPENROUTER_PROVISIONING_KEY not found in .env file")
@@ -199,8 +191,10 @@ class OpenRouterProxyE2ETest {
                 println("   Model in response: $model")
 
                 // OpenRouter should return the full model name with provider prefix
-                assertTrue(model.contains("/") || model.contains("gpt") || model.contains("openai"),
-                    "Model should be properly formatted: $model")
+                assertTrue(
+                    model.contains("/") || model.contains("gpt") || model.contains("openai"),
+                    "Model should be properly formatted: $model"
+                )
 
                 println("   ✅ Model name normalization working")
             }
@@ -243,8 +237,10 @@ class OpenRouterProxyE2ETest {
                 println("   Duration: ${duration}ms")
 
                 assertEquals(200, response.code, "Should return 200 OK")
-                assertTrue(response.header("Content-Type")?.contains("text/event-stream") == true,
-                    "Should have SSE content type")
+                assertTrue(
+                    response.header("Content-Type")?.contains("text/event-stream") == true,
+                    "Should have SSE content type"
+                )
 
                 val body = response.body?.string()
                 assertNotNull(body, "Response body should not be null")
@@ -485,8 +481,10 @@ class OpenRouterProxyE2ETest {
             }
 
             println("\n   Success rate: $successCount/$requestCount")
-            assertTrue(successCount.get() >= requestCount - 1,
-                "Should have at least ${requestCount - 1} successful requests")
+            assertTrue(
+                successCount.get() >= requestCount - 1,
+                "Should have at least ${requestCount - 1} successful requests"
+            )
         }
     }
 

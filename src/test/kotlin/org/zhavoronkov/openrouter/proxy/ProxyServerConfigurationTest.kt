@@ -1,16 +1,12 @@
 package org.zhavoronkov.openrouter.proxy
 
-import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
-import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.api.Test
 import org.mockito.Mockito.*
-import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
-import java.net.ServerSocket
-import java.util.concurrent.TimeUnit
 
 @DisplayName("Proxy Server Configuration Tests")
 class ProxyServerConfigurationTest {
@@ -31,35 +27,45 @@ class ProxyServerConfigurationTest {
             // Test specific port configuration
             val specificPortSettings = OpenRouterSettings(proxyPort = 8888)
             assertTrue(specificPortSettings.proxyPort > 0, "Should use specific port when configured")
-            
+
             // Test auto-select configuration
             val autoSelectSettings = OpenRouterSettings(proxyPort = 0)
             assertEquals(0, autoSelectSettings.proxyPort, "Should use auto-select when port is 0")
-            
+
             // Verify range is available for auto-select
-            assertTrue(autoSelectSettings.proxyPortRangeStart < autoSelectSettings.proxyPortRangeEnd,
-                "Range start should be less than range end")
-            assertTrue(autoSelectSettings.proxyPortRangeStart >= 1024, 
-                "Range start should be >= 1024")
-            assertTrue(autoSelectSettings.proxyPortRangeEnd <= 65535,
-                "Range end should be <= 65535")
+            assertTrue(
+                autoSelectSettings.proxyPortRangeStart < autoSelectSettings.proxyPortRangeEnd,
+                "Range start should be less than range end"
+            )
+            assertTrue(
+                autoSelectSettings.proxyPortRangeStart >= 1024,
+                "Range start should be >= 1024"
+            )
+            assertTrue(
+                autoSelectSettings.proxyPortRangeEnd <= 65535,
+                "Range end should be <= 65535"
+            )
         }
 
-        @Test 
+        @Test
         @DisplayName("Should validate port range availability")
         fun testPortRangeValidation() {
             val settings = OpenRouterSettings(
                 proxyPortRangeStart = 8880,
                 proxyPortRangeEnd = 8899
             )
-            
+
             // Range should be valid
-            assertTrue(settings.proxyPortRangeStart <= settings.proxyPortRangeEnd,
-                "Start port should be <= end port")
-            
+            assertTrue(
+                settings.proxyPortRangeStart <= settings.proxyPortRangeEnd,
+                "Start port should be <= end port"
+            )
+
             // Range should have at least one port
-            assertTrue(settings.proxyPortRangeEnd - settings.proxyPortRangeStart >= 0,
-                "Range should contain at least one port")
+            assertTrue(
+                settings.proxyPortRangeEnd - settings.proxyPortRangeStart >= 0,
+                "Range should contain at least one port"
+            )
         }
 
         @Test
@@ -70,15 +76,18 @@ class ProxyServerConfigurationTest {
                 proxyPortRangeStart = 8880,
                 proxyPortRangeEnd = 8880
             )
-            assertEquals(1, singlePortSettings.proxyPortRangeEnd - singlePortSettings.proxyPortRangeStart + 1,
-                "Single port range should have exactly one port")
-                
-            // Maximum valid port 
+            assertEquals(
+                1,
+                singlePortSettings.proxyPortRangeEnd - singlePortSettings.proxyPortRangeStart + 1,
+                "Single port range should have exactly one port"
+            )
+
+            // Maximum valid port
             val maxPortSettings = OpenRouterSettings(proxyPort = 65535)
             assertEquals(65535, maxPortSettings.proxyPort, "Should handle maximum valid port")
-            
+
             // Minimum valid port
-            val minPortSettings = OpenRouterSettings(proxyPort = 1024) 
+            val minPortSettings = OpenRouterSettings(proxyPort = 1024)
             assertEquals(1024, minPortSettings.proxyPort, "Should handle minimum valid port")
         }
     }
@@ -93,14 +102,25 @@ class ProxyServerConfigurationTest {
             val settings = OpenRouterSettings()
 
             // Verify new defaults are properly set
-            assertEquals(8880, settings.proxyPortRangeStart,
-                "Default start port should be 8880 (avoiding common port 8080)")
-            assertEquals(8899, settings.proxyPortRangeEnd,
-                "Default end port should be 8899")
-            assertEquals(0, settings.proxyPort,
-                "Default specific port should be 0 (auto-select)")
-            assertFalse(settings.proxyAutoStart,
-                "Auto-start should be disabled by default")
+            assertEquals(
+                8880,
+                settings.proxyPortRangeStart,
+                "Default start port should be 8880 (avoiding common port 8080)"
+            )
+            assertEquals(
+                8899,
+                settings.proxyPortRangeEnd,
+                "Default end port should be 8899"
+            )
+            assertEquals(
+                0,
+                settings.proxyPort,
+                "Default specific port should be 0 (auto-select)"
+            )
+            assertFalse(
+                settings.proxyAutoStart,
+                "Auto-start should be disabled by default"
+            )
         }
 
         @Test
@@ -148,14 +168,22 @@ class ProxyServerConfigurationTest {
             )
 
             validConfigs.forEach { config ->
-                assertTrue(config.proxyPortRangeStart >= 1024,
-                    "Range start should be >= 1024 for config: $config")
-                assertTrue(config.proxyPortRangeEnd <= 65535,
-                    "Range end should be <= 65535 for config: $config")
-                assertTrue(config.proxyPortRangeStart <= config.proxyPortRangeEnd,
-                    "Range start should be <= end for config: $config")
-                assertTrue(config.proxyPort == 0 || (config.proxyPort >= 1024 && config.proxyPort <= 65535),
-                    "Specific port should be 0 or in valid range for config: $config")
+                assertTrue(
+                    config.proxyPortRangeStart >= 1024,
+                    "Range start should be >= 1024 for config: $config"
+                )
+                assertTrue(
+                    config.proxyPortRangeEnd <= 65535,
+                    "Range end should be <= 65535 for config: $config"
+                )
+                assertTrue(
+                    config.proxyPortRangeStart <= config.proxyPortRangeEnd,
+                    "Range start should be <= end for config: $config"
+                )
+                assertTrue(
+                    config.proxyPort == 0 || (config.proxyPort >= 1024 && config.proxyPort <= 65535),
+                    "Specific port should be 0 or in valid range for config: $config"
+                )
             }
         }
     }
@@ -169,8 +197,10 @@ class ProxyServerConfigurationTest {
         fun testAutoStartDisabled() {
             val settings = OpenRouterSettings()
 
-            assertFalse(settings.proxyAutoStart,
-                "Auto-start should be disabled by default for better user control")
+            assertFalse(
+                settings.proxyAutoStart,
+                "Auto-start should be disabled by default for better user control"
+            )
         }
 
         @Test
@@ -178,8 +208,10 @@ class ProxyServerConfigurationTest {
         fun testAutoStartEnabled() {
             val settings = OpenRouterSettings(proxyAutoStart = true)
 
-            assertTrue(settings.proxyAutoStart,
-                "Auto-start should be enabled when configured")
+            assertTrue(
+                settings.proxyAutoStart,
+                "Auto-start should be enabled when configured"
+            )
         }
 
         @Test
@@ -204,8 +236,10 @@ class ProxyServerConfigurationTest {
             )
             assertTrue(allEnabled.proxyAutoStart, "Auto-start should be enabled")
             assertEquals(8889, allEnabled.proxyPort, "Should use specific port")
-            assertTrue(allEnabled.proxyPort in allEnabled.proxyPortRangeStart..allEnabled.proxyPortRangeEnd,
-                "Specific port should be within configured range")
+            assertTrue(
+                allEnabled.proxyPort in allEnabled.proxyPortRangeStart..allEnabled.proxyPortRangeEnd,
+                "Specific port should be within configured range"
+            )
         }
     }
 
@@ -224,10 +258,14 @@ class ProxyServerConfigurationTest {
             assertTrue(rangeSize <= 100, "Default range should not be excessively large")
 
             // Range should avoid common well-known ports
-            assertTrue(settings.proxyPortRangeStart > 8000,
-                "Range should start above common development ports")
-            assertTrue(settings.proxyPortRangeEnd < 9000,
-                "Range should end before higher service ports")
+            assertTrue(
+                settings.proxyPortRangeStart > 8000,
+                "Range should start above common development ports"
+            )
+            assertTrue(
+                settings.proxyPortRangeEnd < 9000,
+                "Range should end before higher service ports"
+            )
         }
 
         @Test
@@ -240,18 +278,22 @@ class ProxyServerConfigurationTest {
             // Strategy 2: Range selection (let system choose)
             val rangeConfig = OpenRouterSettings(proxyPort = 0)
             assertEquals(0, rangeConfig.proxyPort, "Should use range selection strategy")
-            assertTrue(rangeConfig.proxyPortRangeStart < rangeConfig.proxyPortRangeEnd,
-                "Range should be valid for selection")
+            assertTrue(
+                rangeConfig.proxyPortRangeStart < rangeConfig.proxyPortRangeEnd,
+                "Range should be valid for selection"
+            )
 
             // Strategy 3: Mixed approach (fallback from specific to range)
             val mixedConfig = OpenRouterSettings(
-                proxyPort = 8889,  // Try specific first
-                proxyPortRangeStart = 8880,  // Fallback range
+                proxyPort = 8889, // Try specific first
+                proxyPortRangeStart = 8880, // Fallback range
                 proxyPortRangeEnd = 8899
             )
             assertTrue(mixedConfig.proxyPort > 0, "Should prefer specific port")
-            assertTrue(mixedConfig.proxyPort in mixedConfig.proxyPortRangeStart..mixedConfig.proxyPortRangeEnd,
-                "Specific port should be within fallback range for consistency")
+            assertTrue(
+                mixedConfig.proxyPort in mixedConfig.proxyPortRangeStart..mixedConfig.proxyPortRangeEnd,
+                "Specific port should be within fallback range for consistency"
+            )
         }
     }
 }

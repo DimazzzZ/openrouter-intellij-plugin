@@ -12,8 +12,11 @@ class OpenRouterStatsDialogTest {
         val dialogClass = OpenRouterStatsPopup::class.java
         val superClass = dialogClass.superclass
 
-        assertEquals("DialogWrapper", superClass.simpleName,
-                    "OpenRouterStatsPopup should extend DialogWrapper for modal behavior")
+        assertEquals(
+            "DialogWrapper",
+            superClass.simpleName,
+            "OpenRouterStatsPopup should extend DialogWrapper for modal behavior"
+        )
     }
 
     @Test

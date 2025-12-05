@@ -3,7 +3,6 @@ package org.zhavoronkov.openrouter.services
 import com.google.gson.Gson
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
-import okhttp3.mockwebserver.RecordedRequest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.DisplayName
@@ -17,7 +16,6 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.mockito.Mockito.mock
 // import org.mockito.kotlin.whenever
 import java.io.IOException
-import java.util.concurrent.TimeUnit
 
 @DisplayName("OpenRouter Service Integration Tests")
 @Disabled("Disabled by default to avoid memory issues. Enable manually for integration testing.")

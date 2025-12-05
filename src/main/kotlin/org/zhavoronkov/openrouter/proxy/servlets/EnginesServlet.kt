@@ -53,7 +53,6 @@ class EnginesServlet : OpenAIBaseServlet() {
 
             resp.writer.write(gson.toJson(enginesResponse))
             PluginLogger.Service.debug("Engines response sent successfully")
-
         }, resp, "engines")
     }
 

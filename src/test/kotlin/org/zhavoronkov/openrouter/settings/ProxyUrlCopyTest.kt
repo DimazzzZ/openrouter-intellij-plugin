@@ -1,8 +1,8 @@
 package org.zhavoronkov.openrouter.settings
 
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.Assertions.*
 import org.mockito.Mockito.*
 import org.zhavoronkov.openrouter.proxy.OpenRouterProxyServer
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
@@ -32,10 +32,14 @@ class ProxyUrlCopyTest {
         proxyManager.updateProxyStatusLabel(statusLabel)
 
         // Then: Should display full URL
-        assertTrue(statusLabel.text.contains("http://127.0.0.1:8080"), 
-            "Status should contain full URL")
-        assertTrue(statusLabel.text.contains("Running"), 
-            "Status should indicate running state")
+        assertTrue(
+            statusLabel.text.contains("http://127.0.0.1:8080"),
+            "Status should contain full URL"
+        )
+        assertTrue(
+            statusLabel.text.contains("Running"),
+            "Status should indicate running state"
+        )
     }
 
     @Test
@@ -79,11 +83,17 @@ class ProxyUrlCopyTest {
         proxyManager.updateProxyStatusLabel(statusLabel)
 
         // Then: Should use HTML formatting
-        assertTrue(statusLabel.text.startsWith("<html>"), 
-            "Should use HTML formatting")
-        assertTrue(statusLabel.text.contains("<code>"), 
-            "Should use code formatting for URL")
-        assertTrue(statusLabel.text.contains("<b>Running:</b>"), 
-            "Should bold the status text")
+        assertTrue(
+            statusLabel.text.startsWith("<html>"),
+            "Should use HTML formatting"
+        )
+        assertTrue(
+            statusLabel.text.contains("<code>"),
+            "Should use code formatting for URL"
+        )
+        assertTrue(
+            statusLabel.text.contains("<b>Running:</b>"),
+            "Should bold the status text"
+        )
     }
 }

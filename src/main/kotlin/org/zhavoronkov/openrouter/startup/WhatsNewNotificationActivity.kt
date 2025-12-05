@@ -14,7 +14,7 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
 
 /**
  * Startup activity to show "What's New" notification after plugin update
- * 
+ *
  * This follows JetBrains best practices:
  * - Shows only once per version
  * - Non-intrusive balloon notification
@@ -36,7 +36,9 @@ class WhatsNewNotificationActivity : ProjectActivity {
 
             // Only show notification if this is a new version
             if (lastSeenVersion != CURRENT_VERSION && lastSeenVersion.isNotEmpty()) {
-                PluginLogger.Service.info("Showing What's New notification for version $CURRENT_VERSION (last seen: $lastSeenVersion)")
+                PluginLogger.Service.info(
+                    "Showing What's New notification for version $CURRENT_VERSION (last seen: $lastSeenVersion)"
+                )
                 showWhatsNewNotification(project)
 
                 // Update last seen version
@@ -83,4 +85,3 @@ class WhatsNewNotificationActivity : ProjectActivity {
             .notify(project)
     }
 }
-

@@ -253,7 +253,7 @@ object AIAssistantIntegrationHelper {
                             Messages.showInfoMessage(
                                 project,
                                 "Proxy server started successfully!\n\nURL: ${serverStatus.url}\n\n" +
-                                "Now configure AI Assistant to use this URL.",
+                                    "Now configure AI Assistant to use this URL.",
                                 "Proxy Server Started"
                             )
                         } else {
@@ -283,11 +283,11 @@ object AIAssistantIntegrationHelper {
         if (status != IntegrationStatus.READY) {
             ApplicationManager.getApplication().invokeLater {
                 val message = when (status) {
-                    IntegrationStatus.AI_ASSISTANT_NOT_AVAILABLE -> 
+                    IntegrationStatus.AI_ASSISTANT_NOT_AVAILABLE ->
                         "AI Assistant plugin not found. Install it to use OpenRouter models in AI Assistant."
-                    IntegrationStatus.OPENROUTER_NOT_CONFIGURED -> 
+                    IntegrationStatus.OPENROUTER_NOT_CONFIGURED ->
                         "OpenRouter not configured. Configure it to enable AI Assistant integration."
-                    IntegrationStatus.PROXY_SERVER_NOT_RUNNING -> 
+                    IntegrationStatus.PROXY_SERVER_NOT_RUNNING ->
                         "Proxy server not running. Start it to enable AI Assistant integration."
                     else -> ""
                 }

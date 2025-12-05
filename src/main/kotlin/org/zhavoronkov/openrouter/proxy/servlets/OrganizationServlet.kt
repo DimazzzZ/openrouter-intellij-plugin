@@ -35,7 +35,6 @@ class OrganizationServlet : OpenAIBaseServlet() {
 
             resp.writer.write(gson.toJson(organizationResponse))
             PluginLogger.Service.debug("Organization response sent successfully")
-
         }, resp, "organization")
     }
 

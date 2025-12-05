@@ -1,20 +1,17 @@
 package org.zhavoronkov.openrouter.ui
 
-import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.Timeout
-import org.junit.jupiter.api.BeforeEach
-import org.mockito.Mockito.*
 import com.intellij.openapi.project.Project
+import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import org.mockito.Mockito.*
+import org.zhavoronkov.openrouter.models.*
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
-import org.zhavoronkov.openrouter.models.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Tests for threading logic and concurrent execution
@@ -43,9 +40,15 @@ class OpenRouterStatsPopupThreadingTest {
         `when`(settingsService.isConfigured()).thenReturn(true)
         `when`(settingsService.getProvisioningKey()).thenReturn("test-key")
 
-        `when`(openRouterService.getApiKeysList()).thenReturn(CompletableFuture.completedFuture(createMockApiKeysResponse()))
-        `when`(openRouterService.getCredits()).thenReturn(CompletableFuture.completedFuture(createMockCreditsResponse()))
-        `when`(openRouterService.getActivity()).thenReturn(CompletableFuture.completedFuture(createMockActivityResponse()))
+        `when`(
+            openRouterService.getApiKeysList()
+        ).thenReturn(CompletableFuture.completedFuture(createMockApiKeysResponse()))
+        `when`(
+            openRouterService.getCredits()
+        ).thenReturn(CompletableFuture.completedFuture(createMockCreditsResponse()))
+        `when`(
+            openRouterService.getActivity()
+        ).thenReturn(CompletableFuture.completedFuture(createMockActivityResponse()))
 
         // When: Call the methods
         val configured = settingsService.isConfigured()

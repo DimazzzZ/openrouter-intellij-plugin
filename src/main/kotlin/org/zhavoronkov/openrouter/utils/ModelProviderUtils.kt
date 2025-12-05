@@ -11,6 +11,8 @@ object ModelProviderUtils {
     private const val UNKNOWN_PROVIDER = "Other"
     private const val CONTEXT_32K = 32000
     private const val CONTEXT_128K = 128000
+    private const val MILLION = 1000000
+    private const val THOUSAND = 1000
 
     /**
      * Extract provider name from model ID
@@ -76,9 +78,9 @@ object ModelProviderUtils {
      */
     fun hasToolsCapability(model: OpenRouterModelInfo): Boolean {
         val supportedParams = model.supportedParameters ?: return false
-        return supportedParams.any { 
-            it.equals("tools", ignoreCase = true) || 
-            it.equals("functions", ignoreCase = true) 
+        return supportedParams.any {
+            it.equals("tools", ignoreCase = true) ||
+                it.equals("functions", ignoreCase = true)
         }
     }
 
@@ -95,12 +97,12 @@ object ModelProviderUtils {
      */
     fun getCapabilities(model: OpenRouterModelInfo): List<String> {
         val capabilities = mutableListOf<String>()
-        
+
         if (hasVisionCapability(model)) capabilities.add("Vision")
         if (hasAudioCapability(model)) capabilities.add("Audio")
         if (hasToolsCapability(model)) capabilities.add("Tools")
         if (hasImageGenerationCapability(model)) capabilities.add("Image Gen")
-        
+
         return capabilities
     }
 
@@ -137,7 +139,7 @@ object ModelProviderUtils {
      */
     fun matchesContextRange(model: OpenRouterModelInfo, range: ContextRange): Boolean {
         val contextLength = model.contextLength ?: return range == ContextRange.ANY
-        
+
         return when (range) {
             ContextRange.ANY -> true
             ContextRange.SMALL -> contextLength < CONTEXT_32K
@@ -151,10 +153,10 @@ object ModelProviderUtils {
      */
     fun formatContextLength(contextLength: Int?): String {
         if (contextLength == null) return "—"
-        
+
         return when {
-            contextLength >= 1000000 -> "${contextLength / 1000000}M"
-            contextLength >= 1000 -> "${contextLength / 1000}K"
+            contextLength >= MILLION -> "${contextLength / MILLION}M"
+            contextLength >= THOUSAND -> "${contextLength / THOUSAND}K"
             else -> contextLength.toString()
         }
     }
@@ -180,9 +182,9 @@ object ModelProviderUtils {
     ): List<OpenRouterModelInfo> {
         return models.filter { model ->
             (!requireVision || hasVisionCapability(model)) &&
-            (!requireAudio || hasAudioCapability(model)) &&
-            (!requireTools || hasToolsCapability(model)) &&
-            (!requireImageGen || hasImageGenerationCapability(model))
+                (!requireAudio || hasAudioCapability(model)) &&
+                (!requireTools || hasToolsCapability(model)) &&
+                (!requireImageGen || hasImageGenerationCapability(model))
         }
     }
 
@@ -231,12 +233,11 @@ object ModelProviderUtils {
         if (searchText.isNotBlank()) {
             filtered = filtered.filter { model ->
                 model.id.contains(searchText, ignoreCase = true) ||
-                model.name.contains(searchText, ignoreCase = true) ||
-                model.description?.contains(searchText, ignoreCase = true) == true
+                    model.name.contains(searchText, ignoreCase = true) ||
+                    model.description?.contains(searchText, ignoreCase = true) == true
             }
         }
 
         return filtered
     }
 }
-

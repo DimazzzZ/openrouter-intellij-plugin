@@ -1,15 +1,14 @@
 package org.zhavoronkov.openrouter.settings
 
-import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Test
 import org.mockito.Mockito.*
-import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterService
-import javax.swing.JSpinner
+import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 
 @DisplayName("Proxy Settings Panel Tests")
 class ProxySettingsPanelTest {
@@ -87,8 +86,10 @@ class ProxySettingsPanelTest {
             val rangeConfig = config.copy(proxyPortRangeStart = 9000, proxyPortRangeEnd = 9010)
             assertEquals(9000, rangeConfig.proxyPortRangeStart, "Should set range start")
             assertEquals(9010, rangeConfig.proxyPortRangeEnd, "Should set range end")
-            assertTrue(rangeConfig.proxyPortRangeStart <= rangeConfig.proxyPortRangeEnd,
-                "Start should be <= end")
+            assertTrue(
+                rangeConfig.proxyPortRangeStart <= rangeConfig.proxyPortRangeEnd,
+                "Start should be <= end"
+            )
 
             // Test single port range
             val singlePortConfig = config.copy(proxyPortRangeStart = 8080, proxyPortRangeEnd = 8080)
@@ -113,8 +114,10 @@ class ProxySettingsPanelTest {
             )
             assertTrue(scenario1.proxyAutoStart, "Auto-start should be enabled")
             assertEquals(8888, scenario1.proxyPort, "Should use specific port")
-            assertTrue(scenario1.proxyPort in scenario1.proxyPortRangeStart..scenario1.proxyPortRangeEnd,
-                "Specific port should be within range")
+            assertTrue(
+                scenario1.proxyPort in scenario1.proxyPortRangeStart..scenario1.proxyPortRangeEnd,
+                "Specific port should be within range"
+            )
 
             // Scenario 2: Auto-start with range selection
             val scenario2 = org.zhavoronkov.openrouter.models.OpenRouterSettings(
@@ -151,8 +154,10 @@ class ProxySettingsPanelTest {
             // Validate range is reasonable
             val rangeSize = defaultConfig.proxyPortRangeEnd - defaultConfig.proxyPortRangeStart + 1
             assertTrue(rangeSize == 20, "Default range should have 20 ports")
-            assertTrue(defaultConfig.proxyPortRangeStart > 8000,
-                "Should avoid common development ports")
+            assertTrue(
+                defaultConfig.proxyPortRangeStart > 8000,
+                "Should avoid common development ports"
+            )
         }
 
         @Test
@@ -164,7 +169,7 @@ class ProxySettingsPanelTest {
             // Scenario: User changes specific port in UI but hasn't clicked Apply
             val configWithOldPort = org.zhavoronkov.openrouter.models.OpenRouterSettings(
                 proxyAutoStart = false,
-                proxyPort = 8880  // Old port in settings
+                proxyPort = 8880 // Old port in settings
             )
 
             // User changes to specific port in UI (simulated)
@@ -177,8 +182,11 @@ class ProxySettingsPanelTest {
             // When Start Proxy is clicked, new settings should be applied immediately
             // This is now handled by applyCurrentProxySettings() call in startProxyServer()
             val appliedConfig = uiConfig.copy()
-            assertEquals(newPort, appliedConfig.proxyPort,
-                "Settings should be applied immediately on proxy start")
+            assertEquals(
+                newPort,
+                appliedConfig.proxyPort,
+                "Settings should be applied immediately on proxy start"
+            )
 
             // Verify this works for all proxy settings
             val fullConfigChange = org.zhavoronkov.openrouter.models.OpenRouterSettings(

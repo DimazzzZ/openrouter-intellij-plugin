@@ -554,7 +554,9 @@ class FavoriteModelsSettingsPanel : Disposable {
                         updateProviderDropdown()
                         PluginLogger.Settings.debug("Set allAvailableModels, now calling filterAvailableModels()")
                         filterAvailableModels()
-                        PluginLogger.Settings.debug("After filterAvailableModels(), table has ${availableTableModel.rowCount} rows")
+                        PluginLogger.Settings.debug(
+                            "After filterAvailableModels(), table has ${availableTableModel.rowCount} rows"
+                        )
                         loadFavorites()
                         initialFavorites = getCurrentFavoriteIds()
                         PluginLogger.Settings.debug("Initial data load complete")
@@ -640,7 +642,7 @@ class FavoriteModelsSettingsPanel : Disposable {
 
         PluginLogger.Settings.debug(
             "Filtered models: ${availableToAdd.size} available " +
-            "(from ${allAvailableModels.size} total, filters: ${currentFilterCriteria.getActiveFiltersDescription()})"
+                "(from ${allAvailableModels.size} total, filters: ${currentFilterCriteria.getActiveFiltersDescription()})"
         )
         availableTableModel.items = availableToAdd
 
@@ -963,4 +965,3 @@ class FavoriteModelsSettingsPanel : Disposable {
         searchDebounceTimer = null
     }
 }
-
