@@ -297,6 +297,4 @@ class ModelsServlet(
 
         resp.writer.write(gson.toJson(errorResponse))
     }
-
-
 }

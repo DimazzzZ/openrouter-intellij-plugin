@@ -41,8 +41,17 @@ class OpenRouterProxyService {
 
                 PluginLogger.Service.info("Starting OpenRouter proxy server...")
                 proxyServer.start().get()
-            } catch (e: Exception) {
-                PluginLogger.Service.error("Failed to start proxy server", e)
+            } catch (e: java.net.BindException) {
+                PluginLogger.Service.error("Failed to start proxy server - port already in use", e)
+                false
+            } catch (e: java.util.concurrent.ExecutionException) {
+                PluginLogger.Service.error("Proxy server startup failed due to internal error", e)
+                false
+            } catch (e: java.util.concurrent.TimeoutException) {
+                PluginLogger.Service.error("Proxy server startup timed out", e)
+                false
+            } catch (e: IllegalStateException) {
+                PluginLogger.Service.error("Cannot start proxy server - invalid state", e)
                 false
             }
         }
@@ -62,8 +71,14 @@ class OpenRouterProxyService {
 
                 PluginLogger.Service.info("Stopping OpenRouter proxy server...")
                 proxyServer.stop().get()
-            } catch (e: Exception) {
-                PluginLogger.Service.error("Failed to stop proxy server", e)
+            } catch (e: java.util.concurrent.ExecutionException) {
+                PluginLogger.Service.error("Proxy server shutdown failed due to internal error", e)
+                false
+            } catch (e: java.util.concurrent.TimeoutException) {
+                PluginLogger.Service.error("Proxy server shutdown timed out", e)
+                false
+            } catch (e: IllegalStateException) {
+                PluginLogger.Service.error("Cannot stop proxy server - invalid state", e)
                 false
             }
         }
@@ -77,8 +92,14 @@ class OpenRouterProxyService {
             try {
                 PluginLogger.Service.info("Restarting OpenRouter proxy server...")
                 proxyServer.restart().get()
-            } catch (e: Exception) {
-                PluginLogger.Service.error("Failed to restart proxy server", e)
+            } catch (e: java.util.concurrent.ExecutionException) {
+                PluginLogger.Service.error("Proxy server restart failed due to internal error", e)
+                false
+            } catch (e: java.util.concurrent.TimeoutException) {
+                PluginLogger.Service.error("Proxy server restart timed out", e)
+                false
+            } catch (e: IllegalStateException) {
+                PluginLogger.Service.error("Cannot restart proxy server - invalid state", e)
                 false
             }
         }
@@ -118,8 +139,14 @@ class OpenRouterProxyService {
 
                 PluginLogger.Service.info("Auto-starting OpenRouter proxy server...")
                 startServer().get()
-            } catch (e: Exception) {
-                PluginLogger.Service.error("Failed to auto-start proxy server", e)
+            } catch (e: java.util.concurrent.ExecutionException) {
+                PluginLogger.Service.error("Auto-start failed due to proxy server error", e)
+                false
+            } catch (e: java.util.concurrent.TimeoutException) {
+                PluginLogger.Service.error("Auto-start timed out", e)
+                false
+            } catch (e: IllegalStateException) {
+                PluginLogger.Service.error("Auto-start failed - invalid proxy server state", e)
                 false
             }
         }
@@ -140,8 +167,17 @@ class OpenRouterProxyService {
 
                 PluginLogger.Service.info("Force-starting OpenRouter proxy server (test mode)...")
                 proxyServer.start().get()
-            } catch (e: Exception) {
-                PluginLogger.Service.error("Failed to force-start proxy server", e)
+            } catch (e: java.net.BindException) {
+                PluginLogger.Service.error("Force-start failed - port already in use", e)
+                false
+            } catch (e: java.util.concurrent.ExecutionException) {
+                PluginLogger.Service.error("Force-start failed due to internal server error", e)
+                false
+            } catch (e: java.util.concurrent.TimeoutException) {
+                PluginLogger.Service.error("Force-start timed out", e)
+                false
+            } catch (e: IllegalStateException) {
+                PluginLogger.Service.error("Force-start failed - invalid server state", e)
                 false
             }
         }

@@ -1,8 +1,11 @@
 package org.zhavoronkov.openrouter.ui
 
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.zhavoronkov.openrouter.models.*
+import org.zhavoronkov.openrouter.models.ActivityData
 import java.time.LocalDate
 
 /**

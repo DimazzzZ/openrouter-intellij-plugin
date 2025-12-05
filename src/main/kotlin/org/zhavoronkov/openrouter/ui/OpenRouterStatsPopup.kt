@@ -484,7 +484,8 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         creditsRemainingLabel.text = "Credits Remaining: Configure provisioning key in settings"
         activity24hLabel.text = "Last 24 hours: Configure provisioning key in settings"
         activityWeekLabel.text = "Last week: Configure provisioning key in settings"
-        activityModelsLabel.text = "<html>Recent Models:<br/>• Go to Settings → OpenRouter<br/>• Add your Provisioning Key<br/>• Get it from openrouter.ai/keys</html>"
+        activityModelsLabel.text =
+            "<html>Recent Models:<br/>• Go to Settings → OpenRouter<br/>• Add your Provisioning Key<br/>• Get it from openrouter.ai/keys</html>"
         setProgressBarState(text = "Provisioning Key Required - Click Settings")
     }
 

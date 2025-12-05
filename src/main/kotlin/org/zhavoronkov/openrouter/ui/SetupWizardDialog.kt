@@ -27,7 +27,9 @@ import java.awt.CardLayout
 import java.awt.Dimension
 import java.awt.Font
 import java.util.concurrent.TimeUnit
-import javax.swing.*
+import javax.swing.JComponent
+import javax.swing.JPanel
+import javax.swing.SwingUtilities
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.table.AbstractTableModel
@@ -94,7 +96,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     }
 
     override fun createCenterPanel(): JComponent {
-        cardPanel.preferredSize = Dimension(700, 500)
+        cardPanel.preferredSize = Dimension(DIALOG_WIDTH, DIALOG_HEIGHT)
         return cardPanel
     }
 
@@ -200,7 +202,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
             row {
                 val scrollPane = JBScrollPane(modelsTable)
-                scrollPane.preferredSize = Dimension(650, 280)
+                scrollPane.preferredSize = Dimension(MODELS_TABLE_WIDTH, MODELS_TABLE_HEIGHT)
                 cell(scrollPane)
                     .resizableColumn()
                     .align(AlignX.FILL)
@@ -247,7 +249,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                 val proxyUrl = OpenRouterProxyServer.buildProxyUrl(8080)
                 val urlLabel = JBLabel()
                 urlLabel.text = proxyUrl
-                urlLabel.font = Font(Font.MONOSPACED, Font.PLAIN, 12)
+                urlLabel.font = Font(Font.MONOSPACED, Font.PLAIN, URL_LABEL_FONT_SIZE)
                 urlLabel.foreground = JBColor.BLUE
                 cell(urlLabel)
                     .resizableColumn()
@@ -398,7 +400,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         // Validate by trying to fetch API keys list with the RAW key
         // (OpenRouter API expects the unencrypted key)
         openRouterService.getApiKeysList(key)
-            .orTimeout(10, TimeUnit.SECONDS)
+            .orTimeout(KEY_VALIDATION_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .thenAccept { response ->
                 ApplicationManager.getApplication().invokeLater({
                     isValidating = false
@@ -460,7 +462,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         updateButtons()
 
         favoriteModelsService.getAvailableModels(forceRefresh = false)
-            .orTimeout(30, TimeUnit.SECONDS)
+            .orTimeout(MODEL_LOADING_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .thenAccept { models ->
                 ApplicationManager.getApplication().invokeLater({
                     isLoadingModels = false
@@ -526,15 +528,15 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     private fun setupModelsTable() {
         modelsTable.setShowGrid(false)
         modelsTable.intercellSpacing = Dimension(0, 0)
-        modelsTable.rowHeight = 28
+        modelsTable.rowHeight = TABLE_ROW_HEIGHT
         modelsTable.tableHeader.reorderingAllowed = false
         modelsTable.autoCreateRowSorter = true // Enable sorting
 
         // Column widths
         val columnModel = modelsTable.columnModel
-        columnModel.getColumn(0).preferredWidth = 40 // Checkbox
-        columnModel.getColumn(0).maxWidth = 40
-        columnModel.getColumn(1).preferredWidth = 400 // Model name (wider, no provider column)
+        columnModel.getColumn(0).preferredWidth = CHECKBOX_COLUMN_WIDTH // Checkbox
+        columnModel.getColumn(0).maxWidth = CHECKBOX_COLUMN_WIDTH
+        columnModel.getColumn(1).preferredWidth = NAME_COLUMN_WIDTH // Model name (wider, no provider column)
 
         // Disable sorting on checkbox column
         val sorter = modelsTable.rowSorter as? javax.swing.table.TableRowSorter<*>
@@ -616,6 +618,22 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     }
 
     companion object {
+        // Dialog dimensions
+        private const val DIALOG_WIDTH = 700
+        private const val DIALOG_HEIGHT = 500
+        private const val MODELS_TABLE_WIDTH = 650
+        private const val MODELS_TABLE_HEIGHT = 280
+
+        // UI constants
+        private const val TABLE_ROW_HEIGHT = 28
+        private const val CHECKBOX_COLUMN_WIDTH = 40
+        private const val NAME_COLUMN_WIDTH = 400
+        private const val URL_LABEL_FONT_SIZE = 12
+
+        // Timeouts (seconds)
+        private const val KEY_VALIDATION_TIMEOUT_SECONDS = 10L
+        private const val MODEL_LOADING_TIMEOUT_SECONDS = 30L
+
         /**
          * Show the setup wizard dialog
          */

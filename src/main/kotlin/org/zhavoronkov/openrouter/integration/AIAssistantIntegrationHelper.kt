@@ -30,8 +30,11 @@ object AIAssistantIntegrationHelper {
             // The deprecation warning is acceptable as this API will remain functional for years
             @Suppress("DEPRECATION")
             plugin.isEnabled
-        } catch (e: Exception) {
-            PluginLogger.Service.debug("Error checking AI Assistant availability", e)
+        } catch (e: IllegalArgumentException) {
+            PluginLogger.Service.debug("Invalid plugin ID format: $AI_ASSISTANT_PLUGIN_ID", e)
+            false
+        } catch (e: RuntimeException) {
+            PluginLogger.Service.debug("Runtime error checking AI Assistant availability", e)
             false
         }
     }
@@ -44,8 +47,11 @@ object AIAssistantIntegrationHelper {
             val pluginId = PluginId.getId(AI_ASSISTANT_PLUGIN_ID)
             val plugin = PluginManagerCore.getPlugin(pluginId)
             plugin?.version
-        } catch (e: Exception) {
-            PluginLogger.Service.debug("Error getting AI Assistant version", e)
+        } catch (e: IllegalArgumentException) {
+            PluginLogger.Service.debug("Invalid plugin ID format: $AI_ASSISTANT_PLUGIN_ID", e)
+            null
+        } catch (e: RuntimeException) {
+            PluginLogger.Service.debug("Runtime error getting AI Assistant version", e)
             null
         }
     }
@@ -205,74 +211,89 @@ object AIAssistantIntegrationHelper {
 
     private fun handleWizardAction(project: Project?, status: IntegrationStatus) {
         when (status) {
-            IntegrationStatus.AI_ASSISTANT_NOT_AVAILABLE -> {
-                // Open plugin marketplace using ActionManager
-                try {
-                    val actionManager = com.intellij.openapi.actionSystem.ActionManager.getInstance()
-                    val action = actionManager.getAction("WelcomeScreen.Plugins")
-                        ?: actionManager.getAction("ShowPluginManager")
+            IntegrationStatus.AI_ASSISTANT_NOT_AVAILABLE -> handlePluginMarketplaceAction(project)
+            IntegrationStatus.OPENROUTER_NOT_CONFIGURED -> handleOpenRouterSettingsAction(project)
+            IntegrationStatus.PROXY_SERVER_NOT_RUNNING -> handleStartProxyServerAction(project)
+            IntegrationStatus.READY -> handleShowInstructionsAction(project)
+        }
+    }
 
-                    if (action != null) {
-                        val dataContext = if (project != null) {
-                            com.intellij.openapi.actionSystem.impl.SimpleDataContext.getProjectContext(project)
-                        } else {
-                            com.intellij.openapi.actionSystem.impl.SimpleDataContext.EMPTY_CONTEXT
-                        }
+    private fun handlePluginMarketplaceAction(project: Project?) {
+        try {
+            val actionManager = com.intellij.openapi.actionSystem.ActionManager.getInstance()
+            val action = actionManager.getAction("WelcomeScreen.Plugins")
+                ?: actionManager.getAction("ShowPluginManager")
 
-                        actionManager.tryToExecute(
-                            action,
-                            com.intellij.openapi.ui.playback.commands.ActionCommand.getInputEvent("ShowPluginManager"),
-                            null,
-                            null,
-                            true
-                        )
-                    } else {
-                        error("Plugin manager action not found")
-                    }
-                } catch (e: Exception) {
-                    PluginLogger.Service.error("Failed to open plugin marketplace", e)
-                    Messages.showErrorDialog(
-                        project,
-                        "Failed to open plugin marketplace. Please install AI Assistant manually.",
-                        "Error"
-                    )
+            if (action != null) {
+                val dataContext = if (project != null)
+                    com.intellij.openapi.actionSystem.impl.SimpleDataContext.getProjectContext(project)
+                else com.intellij.openapi.actionSystem.impl.SimpleDataContext.EMPTY_CONTEXT
+
+                actionManager.tryToExecute(
+                    action,
+                    com.intellij.openapi.ui.playback.commands.ActionCommand.getInputEvent("ShowPluginManager"),
+                    null, null, true
+                )
+            } else {
+                error("Plugin manager action not found")
+            }
+        } catch (e: IllegalStateException) {
+            PluginLogger.Service.error("Plugin marketplace action not available", e)
+            showPluginMarketplaceErrorDialog(project)
+        } catch (e: RuntimeException) {
+            PluginLogger.Service.error("Runtime error opening plugin marketplace", e)
+            showPluginMarketplaceErrorDialog(project)
+        }
+    }
+
+    private fun handleOpenRouterSettingsAction(project: Project?) {
+        com.intellij.openapi.options.ShowSettingsUtil.getInstance()
+            .showSettingsDialog(project, "OpenRouter")
+    }
+
+    private fun handleStartProxyServerAction(project: Project?) {
+        val proxyService = OpenRouterProxyService.getInstance()
+        proxyService.startServer().thenAccept { success ->
+            ApplicationManager.getApplication().invokeLater {
+                if (success) {
+                    showProxyServerSuccessDialog(project, proxyService)
+                } else {
+                    showProxyServerErrorDialog(project)
                 }
-            }
-            IntegrationStatus.OPENROUTER_NOT_CONFIGURED -> {
-                // Open OpenRouter settings
-                com.intellij.openapi.options.ShowSettingsUtil.getInstance()
-                    .showSettingsDialog(project, "OpenRouter")
-            }
-            IntegrationStatus.PROXY_SERVER_NOT_RUNNING -> {
-                // Start proxy server
-                val proxyService = OpenRouterProxyService.getInstance()
-                proxyService.startServer().thenAccept { success ->
-                    ApplicationManager.getApplication().invokeLater {
-                        if (success) {
-                            val serverStatus = proxyService.getServerStatus()
-                            Messages.showInfoMessage(
-                                project,
-                                "Proxy server started successfully!\n\nURL: ${serverStatus.url}\n\n" +
-                                    "Now configure AI Assistant to use this URL.",
-                                "Proxy Server Started"
-                            )
-                        } else {
-                            Messages.showErrorDialog(
-                                project,
-                                "Failed to start proxy server. Please check the logs and try again.",
-                                "Proxy Server Error"
-                            )
-                        }
-                    }
-                }
-            }
-            IntegrationStatus.READY -> {
-                // Show detailed instructions
-                val proxyService = OpenRouterProxyService.getInstance()
-                val instructions = proxyService.getAIAssistantConfigurationInstructions()
-                Messages.showInfoMessage(project, instructions, "AI Assistant Configuration")
             }
         }
+    }
+
+    private fun handleShowInstructionsAction(project: Project?) {
+        val proxyService = OpenRouterProxyService.getInstance()
+        val instructions = proxyService.getAIAssistantConfigurationInstructions()
+        Messages.showInfoMessage(project, instructions, "AI Assistant Configuration")
+    }
+
+    private fun showPluginMarketplaceErrorDialog(project: Project?) {
+        Messages.showErrorDialog(
+            project,
+            "Failed to open plugin marketplace. Please install AI Assistant manually.",
+            "Error"
+        )
+    }
+
+    private fun showProxyServerSuccessDialog(project: Project?, proxyService: OpenRouterProxyService) {
+        val serverStatus = proxyService.getServerStatus()
+        Messages.showInfoMessage(
+            project,
+            "Proxy server started successfully!\n\nURL: ${serverStatus.url}\n\n" +
+                "Now configure AI Assistant to use this URL.",
+            "Proxy Server Started"
+        )
+    }
+
+    private fun showProxyServerErrorDialog(project: Project?) {
+        Messages.showErrorDialog(
+            project,
+            "Failed to start proxy server. Please check the logs and try again.",
+            "Proxy Server Error"
+        )
     }
 
     /**

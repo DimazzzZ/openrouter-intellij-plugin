@@ -77,10 +77,22 @@ class ApiKeyManager(
                     "API Key Creation Failed"
                 )
             }
-        } catch (e: Exception) {
-            PluginLogger.Settings.error("Failed to create API key: ${e.message}", e)
+        } catch (e: java.util.concurrent.ExecutionException) {
+            PluginLogger.Settings.error("API call failed during key creation: ${e.message}", e)
             Messages.showErrorDialog(
-                "Failed to create API key: ${e.message}",
+                "Failed to create API key due to network or API error. Please try again.",
+                "API Key Creation Failed"
+            )
+        } catch (e: java.util.concurrent.TimeoutException) {
+            PluginLogger.Settings.error("Timeout occurred while creating API key: ${e.message}", e)
+            Messages.showErrorDialog(
+                "Request timed out while creating API key. Please try again.",
+                "API Key Creation Failed"
+            )
+        } catch (e: IllegalStateException) {
+            PluginLogger.Settings.error("Invalid state during API key creation: ${e.message}", e)
+            Messages.showErrorDialog(
+                "Invalid state occurred during API key creation. Please try again.",
                 "API Key Creation Failed"
             )
         }
@@ -119,10 +131,22 @@ class ApiKeyManager(
                         "Deletion Failed"
                     )
                 }
-            } catch (e: Exception) {
-                PluginLogger.Settings.error("Failed to delete API key: ${e.message}", e)
+            } catch (e: java.util.concurrent.ExecutionException) {
+                PluginLogger.Settings.error("API call failed during key deletion: ${e.message}", e)
                 Messages.showErrorDialog(
-                    "Failed to delete API key: ${e.message}",
+                    "Failed to delete API key due to network or API error. Please try again.",
+                    "Deletion Failed"
+                )
+            } catch (e: java.util.concurrent.TimeoutException) {
+                PluginLogger.Settings.error("Timeout occurred while deleting API key: ${e.message}", e)
+                Messages.showErrorDialog(
+                    "Request timed out while deleting API key. Please try again.",
+                    "Deletion Failed"
+                )
+            } catch (e: IllegalStateException) {
+                PluginLogger.Settings.error("Invalid state during API key deletion: ${e.message}", e)
+                Messages.showErrorDialog(
+                    "Invalid state occurred during API key deletion. Please try again.",
                     "Deletion Failed"
                 )
             }
@@ -210,7 +234,8 @@ class ApiKeyManager(
         val existingIntellijApiKey = currentApiKeys.find { it.name == INTELLIJ_API_KEY_NAME }
 
         PluginLogger.Settings.debug(
-            "ensureIntellijApiKeyExists: storedApiKey.length=${storedApiKey.length}, storedApiKey.isEmpty=${storedApiKey.isEmpty()}"
+            "ensureIntellijApiKeyExists: storedApiKey.length=${storedApiKey.length}, " +
+                "storedApiKey.isEmpty=${storedApiKey.isEmpty()}"
         )
         PluginLogger.Settings.debug(
             "ensureIntellijApiKeyExists: existingIntellijApiKey=${existingIntellijApiKey?.name ?: "null"}"

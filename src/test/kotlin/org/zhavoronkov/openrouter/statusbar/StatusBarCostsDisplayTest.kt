@@ -10,6 +10,7 @@ import org.zhavoronkov.openrouter.models.CreditsResponse
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import java.util.Locale
 import java.util.concurrent.CompletableFuture
 
 /**
@@ -55,7 +56,7 @@ class StatusBarCostsDisplayTest {
         // Format: "Status: Ready - $5.352/$10.00"
         val used = mockCreditsData.totalUsage
         val total = mockCreditsData.totalCredits
-        val expectedFormat = String.format("$%.3f/$%.2f", used, total)
+        val expectedFormat = String.format(Locale.US, "$%.3f/$%.2f", used, total)
 
         assertEquals("$5.352/$10.00", expectedFormat, "Status should show dollar amounts")
     }
@@ -86,7 +87,7 @@ class StatusBarCostsDisplayTest {
         val used = mockCreditsData.totalUsage
         val total = mockCreditsData.totalCredits
         val percentage = (used / total) * 100
-        val expectedPercentage = String.format("%.1f%%", percentage)
+        val expectedPercentage = String.format(Locale.US, "%.1f%%", percentage)
 
         assertEquals("53.5%", expectedPercentage, "Status should show percentage")
     }
@@ -125,7 +126,7 @@ class StatusBarCostsDisplayTest {
 
         testCases.forEach { (used, total, expected) ->
             // When: Formatting dollar amounts
-            val formatted = String.format("$%.3f/$%.2f", used, total)
+            val formatted = String.format(Locale.US, "$%.3f/$%.2f", used, total)
 
             // Then: Should match expected format
             assertEquals(expected, formatted, "Dollar amount should be formatted correctly")
@@ -147,7 +148,7 @@ class StatusBarCostsDisplayTest {
         testCases.forEach { (used, total, expected) ->
             // When: Formatting percentage
             val percentage = (used / total) * 100
-            val formatted = String.format("%.1f%%", percentage)
+            val formatted = String.format(Locale.US, "%.1f%%", percentage)
 
             // Then: Should match expected format
             assertEquals(expected, formatted, "Percentage should be formatted correctly")
@@ -184,8 +185,8 @@ class StatusBarCostsDisplayTest {
         val total = 10.0
 
         // When: Tooltip is formatted (simulated)
-        val tooltipWithCosts = String.format("OpenRouter Status: Ready - Usage: $%.3f/$%.2f", used, total)
-        val tooltipWithPercentage = String.format("OpenRouter Status: Ready - Usage: %.1f%% used", (used / total) * 100)
+        val tooltipWithCosts = String.format(Locale.US, "OpenRouter Status: Ready - Usage: $%.3f/$%.2f", used, total)
+        val tooltipWithPercentage = String.format(Locale.US, "OpenRouter Status: Ready - Usage: %.1f%% used", (used / total) * 100)
 
         // Then: Tooltip should contain usage information
         assertTrue(tooltipWithCosts.contains("Usage:"), "Tooltip should contain usage label")
@@ -204,7 +205,7 @@ class StatusBarCostsDisplayTest {
 
         // When: Formatting with zero credits
         val formatted = if (total > 0) {
-            String.format("$%.3f/$%.2f", used, total)
+            String.format(Locale.US, "$%.3f/$%.2f", used, total)
         } else {
             "No credits"
         }
@@ -222,7 +223,7 @@ class StatusBarCostsDisplayTest {
 
         // When: Formatting with unlimited credits
         val percentage = (used / total) * 100
-        val formatted = String.format("%.1f%%", percentage)
+        val formatted = String.format(Locale.US, "%.1f%%", percentage)
 
         // Then: Should show very small percentage
         assertEquals("0.0%", formatted, "Should show near-zero percentage for unlimited credits")

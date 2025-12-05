@@ -1,22 +1,19 @@
 package org.zhavoronkov.openrouter.settings
 
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.mockito.Mockito.*
+import org.mockito.Mockito.mock
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 
 @DisplayName("Proxy Settings Panel Tests")
 class ProxySettingsPanelTest {
-
-    private lateinit var settingsPanel: OpenRouterSettingsPanel
-    private lateinit var mockSettingsService: OpenRouterSettingsService
-    private lateinit var mockProxyService: OpenRouterProxyService
-    private lateinit var mockOpenRouterService: OpenRouterService
 
     @BeforeEach
     fun setUp() {

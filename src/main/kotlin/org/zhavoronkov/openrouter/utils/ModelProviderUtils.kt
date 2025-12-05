@@ -15,6 +15,30 @@ object ModelProviderUtils {
     private const val THOUSAND = 1000
 
     /**
+     * Provider name mappings for known OpenRouter providers
+     */
+    private val KNOWN_PROVIDERS = mapOf(
+        "openai" to "OpenAI",
+        "anthropic" to "Anthropic",
+        "google" to "Google",
+        "meta-llama" to "Meta",
+        "meta" to "Meta",
+        "mistralai" to "Mistral",
+        "mistral" to "Mistral",
+        "cohere" to "Cohere",
+        "ai21" to "AI21",
+        "microsoft" to "Microsoft",
+        "qwen" to "Qwen",
+        "deepseek" to "DeepSeek",
+        "x-ai" to "xAI",
+        "xai" to "xAI",
+        "perplexity" to "Perplexity",
+        "databricks" to "Databricks",
+        "nvidia" to "NVIDIA",
+        "01-ai" to "01.AI"
+    )
+
+    /**
      * Extract provider name from model ID
      * Examples:
      * - "openai/gpt-4o" -> "OpenAI"
@@ -27,24 +51,8 @@ object ModelProviderUtils {
         }
 
         val providerKey = modelId.substringBefore(PROVIDER_SEPARATOR).lowercase()
-        return when (providerKey) {
-            "openai" -> "OpenAI"
-            "anthropic" -> "Anthropic"
-            "google" -> "Google"
-            "meta-llama", "meta" -> "Meta"
-            "mistralai", "mistral" -> "Mistral"
-            "cohere" -> "Cohere"
-            "ai21" -> "AI21"
-            "microsoft" -> "Microsoft"
-            "qwen" -> "Qwen"
-            "deepseek" -> "DeepSeek"
-            "x-ai", "xai" -> "xAI"
-            "perplexity" -> "Perplexity"
-            "databricks" -> "Databricks"
-            "nvidia" -> "NVIDIA"
-            "01-ai" -> "01.AI"
-            else -> providerKey.replaceFirstChar { it.uppercase() }
-        }
+        return KNOWN_PROVIDERS[providerKey]
+            ?: providerKey.replaceFirstChar { it.uppercase() }
     }
 
     /**
@@ -135,6 +143,19 @@ object ModelProviderUtils {
     }
 
     /**
+     * Criteria for filtering models
+     */
+    data class FilterCriteria(
+        val provider: String = "All Providers",
+        val contextRange: ContextRange = ContextRange.ANY,
+        val requireVision: Boolean = false,
+        val requireAudio: Boolean = false,
+        val requireTools: Boolean = false,
+        val requireImageGen: Boolean = false,
+        val searchText: String = ""
+    )
+
+    /**
      * Check if model's context length matches the specified range
      */
     fun matchesContextRange(model: OpenRouterModelInfo, range: ContextRange): Boolean {
@@ -204,6 +225,44 @@ object ModelProviderUtils {
      */
     fun applyFilters(
         models: List<OpenRouterModelInfo>,
+        criteria: FilterCriteria
+    ): List<OpenRouterModelInfo> {
+        var filtered = models
+
+        // Apply provider filter
+        filtered = filterByProvider(filtered, criteria.provider)
+
+        // Apply context range filter
+        filtered = filterByContextRange(filtered, criteria.contextRange)
+
+        // Apply capability filters
+        filtered = filterByCapabilities(
+            filtered,
+            criteria.requireVision,
+            criteria.requireAudio,
+            criteria.requireTools,
+            criteria.requireImageGen
+        )
+
+        // Apply text search filter
+        if (criteria.searchText.isNotBlank()) {
+            filtered = filtered.filter { model ->
+                model.id.contains(criteria.searchText, ignoreCase = true) ||
+                    model.name.contains(criteria.searchText, ignoreCase = true) ||
+                    model.description?.contains(criteria.searchText, ignoreCase = true) == true
+            }
+        }
+
+        return filtered
+    }
+
+    /**
+     * Apply all filters to a list of models (legacy method with individual parameters)
+     * @deprecated Use applyFilters(models, FilterCriteria) instead
+     */
+    @Deprecated("Use applyFilters(models, FilterCriteria) instead")
+    fun applyFilters(
+        models: List<OpenRouterModelInfo>,
         provider: String = "All Providers",
         contextRange: ContextRange = ContextRange.ANY,
         requireVision: Boolean = false,
@@ -212,32 +271,15 @@ object ModelProviderUtils {
         requireImageGen: Boolean = false,
         searchText: String = ""
     ): List<OpenRouterModelInfo> {
-        var filtered = models
-
-        // Apply provider filter
-        filtered = filterByProvider(filtered, provider)
-
-        // Apply context range filter
-        filtered = filterByContextRange(filtered, contextRange)
-
-        // Apply capability filters
-        filtered = filterByCapabilities(
-            filtered,
-            requireVision,
-            requireAudio,
-            requireTools,
-            requireImageGen
+        val criteria = FilterCriteria(
+            provider = provider,
+            contextRange = contextRange,
+            requireVision = requireVision,
+            requireAudio = requireAudio,
+            requireTools = requireTools,
+            requireImageGen = requireImageGen,
+            searchText = searchText
         )
-
-        // Apply text search filter
-        if (searchText.isNotBlank()) {
-            filtered = filtered.filter { model ->
-                model.id.contains(searchText, ignoreCase = true) ||
-                    model.name.contains(searchText, ignoreCase = true) ||
-                    model.description?.contains(searchText, ignoreCase = true) == true
-            }
-        }
-
-        return filtered
+        return applyFilters(models, criteria)
     }
 }
