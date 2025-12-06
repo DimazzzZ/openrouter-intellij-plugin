@@ -1,3 +1,5 @@
+import org.jetbrains.intellij.tasks.PublishPluginTask
+
 plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "1.9.25"
@@ -56,6 +58,13 @@ detekt {
     allRules = false
     config.setFrom("$projectDir/config/detekt/detekt.yml")
     baseline = file("$projectDir/config/detekt/baseline.xml")
+}
+
+// Configure publishing token for publishPlugin task
+val publishPluginTask = tasks.named<PublishPluginTask>("publishPlugin")
+publishPluginTask.configure {
+    val publishToken = System.getenv("PUBLISH_TOKEN") ?: project.findProperty("publishToken") as String?
+    publishToken?.let { token.set(it) }
 }
 
 // Configure Detekt SARIF reporting task
