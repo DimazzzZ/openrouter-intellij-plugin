@@ -1,15 +1,15 @@
 package org.zhavoronkov.openrouter.settings
 
-import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Assertions.assertDoesNotThrow
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.Assertions.assertDoesNotThrow
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
-import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Test
 import org.zhavoronkov.openrouter.models.ApiKeyInfo
 import java.util.Locale
 import javax.swing.table.AbstractTableModel
@@ -134,8 +134,11 @@ class ApiKeysTableModelTest {
             val expectedColumns = arrayOf("Label", "Name", "Usage", "Limit", "Status")
 
             for (i in expectedColumns.indices) {
-                assertEquals(expectedColumns[i], tableModel.getColumnName(i),
-                    "Column $i should have correct name")
+                assertEquals(
+                    expectedColumns[i],
+                    tableModel.getColumnName(i),
+                    "Column $i should have correct name"
+                )
             }
         }
 
@@ -157,8 +160,10 @@ class ApiKeysTableModelTest {
 
             for (row in 0 until tableModel.rowCount) {
                 for (col in 0 until tableModel.columnCount) {
-                    assertFalse(tableModel.isCellEditable(row, col),
-                        "Cell at ($row, $col) should not be editable")
+                    assertFalse(
+                        tableModel.isCellEditable(row, col),
+                        "Cell at ($row, $col) should not be editable"
+                    )
                 }
             }
         }
@@ -179,8 +184,11 @@ class ApiKeysTableModelTest {
         fun testSetApiKeys() {
             tableModel.setApiKeys(sampleApiKeys)
 
-            assertEquals(sampleApiKeys.size, tableModel.rowCount,
-                "Row count should match API keys count")
+            assertEquals(
+                sampleApiKeys.size,
+                tableModel.rowCount,
+                "Row count should match API keys count"
+            )
         }
 
         @Test
@@ -212,8 +220,11 @@ class ApiKeysTableModelTest {
 
             for (i in sampleApiKeys.indices) {
                 val apiKey = tableModel.getApiKeyAt(i)
-                assertEquals(sampleApiKeys[i], apiKey,
-                    "API key at row $i should match original data")
+                assertEquals(
+                    sampleApiKeys[i],
+                    apiKey,
+                    "API key at row $i should match original data"
+                )
             }
         }
 
@@ -240,8 +251,11 @@ class ApiKeysTableModelTest {
         @DisplayName("Should return correct label values")
         fun testLabelColumn() {
             for (i in sampleApiKeys.indices) {
-                assertEquals(sampleApiKeys[i].label, tableModel.getValueAt(i, 0),
-                    "Label column should return correct value for row $i")
+                assertEquals(
+                    sampleApiKeys[i].label,
+                    tableModel.getValueAt(i, 0),
+                    "Label column should return correct value for row $i"
+                )
             }
         }
 
@@ -249,8 +263,11 @@ class ApiKeysTableModelTest {
         @DisplayName("Should return correct name values")
         fun testNameColumn() {
             for (i in sampleApiKeys.indices) {
-                assertEquals(sampleApiKeys[i].name, tableModel.getValueAt(i, 1),
-                    "Name column should return correct value for row $i")
+                assertEquals(
+                    sampleApiKeys[i].name,
+                    tableModel.getValueAt(i, 1),
+                    "Name column should return correct value for row $i"
+                )
             }
         }
 
@@ -258,48 +275,75 @@ class ApiKeysTableModelTest {
         @DisplayName("Should format usage values correctly")
         fun testUsageColumn() {
             // First key has significant usage
-            assertEquals("$25.500000", tableModel.getValueAt(0, 2),
-                "Usage should be formatted with 6 decimal places")
+            assertEquals(
+                "$25.500000",
+                tableModel.getValueAt(0, 2),
+                "Usage should be formatted with 6 decimal places"
+            )
 
             // Second key has zero usage
-            assertEquals("$0.000000", tableModel.getValueAt(1, 2),
-                "Zero usage should be formatted correctly")
+            assertEquals(
+                "$0.000000",
+                tableModel.getValueAt(1, 2),
+                "Zero usage should be formatted correctly"
+            )
 
             // Third key has very small usage
-            assertEquals("$0.000050", tableModel.getValueAt(2, 2),
-                "Very small usage should show 6 decimal places")
+            assertEquals(
+                "$0.000050",
+                tableModel.getValueAt(2, 2),
+                "Very small usage should show 6 decimal places"
+            )
         }
 
         @Test
         @DisplayName("Should format limit values correctly")
         fun testLimitColumn() {
             // First key has limit
-            assertEquals("$100.00", tableModel.getValueAt(0, 3),
-                "Limited key should show formatted limit")
+            assertEquals(
+                "$100.00",
+                tableModel.getValueAt(0, 3),
+                "Limited key should show formatted limit"
+            )
 
             // Second key has no limit
-            assertEquals("Unlimited", tableModel.getValueAt(1, 3),
-                "Unlimited key should show 'Unlimited'")
+            assertEquals(
+                "Unlimited",
+                tableModel.getValueAt(1, 3),
+                "Unlimited key should show 'Unlimited'"
+            )
 
             // Third key has limit
-            assertEquals("$50.00", tableModel.getValueAt(2, 3),
-                "Limited key should show formatted limit")
+            assertEquals(
+                "$50.00",
+                tableModel.getValueAt(2, 3),
+                "Limited key should show formatted limit"
+            )
         }
 
         @Test
         @DisplayName("Should format status values correctly")
         fun testStatusColumn() {
             // First key is enabled
-            assertEquals("Enabled", tableModel.getValueAt(0, 4),
-                "Enabled key should show 'Enabled'")
+            assertEquals(
+                "Enabled",
+                tableModel.getValueAt(0, 4),
+                "Enabled key should show 'Enabled'"
+            )
 
             // Second key is disabled
-            assertEquals("Disabled", tableModel.getValueAt(1, 4),
-                "Disabled key should show 'Disabled'")
+            assertEquals(
+                "Disabled",
+                tableModel.getValueAt(1, 4),
+                "Disabled key should show 'Disabled'"
+            )
 
             // Third key is enabled
-            assertEquals("Enabled", tableModel.getValueAt(2, 4),
-                "Enabled key should show 'Enabled'")
+            assertEquals(
+                "Enabled",
+                tableModel.getValueAt(2, 4),
+                "Enabled key should show 'Enabled'"
+            )
         }
 
         @Test
@@ -361,11 +405,17 @@ class ApiKeysTableModelTest {
                 tableModel.setApiKeys(listOf(apiKey))
 
                 // Column 2 is Usage (6 decimal places)
-                assertEquals(expectedUsage, tableModel.getValueAt(0, 2),
-                    "Usage formatting for $value")
+                assertEquals(
+                    expectedUsage,
+                    tableModel.getValueAt(0, 2),
+                    "Usage formatting for $value"
+                )
                 // Column 3 is Limit (2 decimal places)
-                assertEquals(expectedLimit, tableModel.getValueAt(0, 3),
-                    "Limit formatting for $value")
+                assertEquals(
+                    expectedLimit,
+                    tableModel.getValueAt(0, 3),
+                    "Limit formatting for $value"
+                )
             }
         }
 
@@ -386,8 +436,11 @@ class ApiKeysTableModelTest {
             tableModel.setApiKeys(listOf(apiKey))
 
             // Column 3 is Limit
-            assertEquals("Unlimited", tableModel.getValueAt(0, 3),
-                "Null limit should display as 'Unlimited'")
+            assertEquals(
+                "Unlimited",
+                tableModel.getValueAt(0, 3),
+                "Null limit should display as 'Unlimited'"
+            )
         }
 
         @Test
@@ -424,10 +477,16 @@ class ApiKeysTableModelTest {
             tableModel.addTableModelListener { event ->
                 eventFired = true
                 // Verify it's an UPDATE event for all columns
-                assertEquals(javax.swing.event.TableModelEvent.ALL_COLUMNS, event.column,
-                    "Event should affect all columns")
-                assertEquals(javax.swing.event.TableModelEvent.UPDATE, event.type,
-                    "Event type should be UPDATE")
+                assertEquals(
+                    javax.swing.event.TableModelEvent.ALL_COLUMNS,
+                    event.column,
+                    "Event should affect all columns"
+                )
+                assertEquals(
+                    javax.swing.event.TableModelEvent.UPDATE,
+                    event.type,
+                    "Event type should be UPDATE"
+                )
             }
 
             tableModel.setApiKeys(sampleApiKeys)

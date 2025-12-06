@@ -1,20 +1,20 @@
 package org.zhavoronkov.openrouter.proxy.servlets
 
 import com.google.gson.Gson
-import org.zhavoronkov.openrouter.proxy.translation.ResponseTranslator
-import org.zhavoronkov.openrouter.proxy.models.OpenAIModelsResponse
-import org.zhavoronkov.openrouter.proxy.models.OpenAIModel
-import org.zhavoronkov.openrouter.proxy.models.OpenAIPermission
-import org.zhavoronkov.openrouter.services.OpenRouterService
-import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
-import org.zhavoronkov.openrouter.utils.PluginLogger
 import jakarta.servlet.http.HttpServlet
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
-import java.util.concurrent.TimeUnit
+import org.zhavoronkov.openrouter.proxy.models.OpenAIModel
+import org.zhavoronkov.openrouter.proxy.models.OpenAIModelsResponse
+import org.zhavoronkov.openrouter.proxy.models.OpenAIPermission
+import org.zhavoronkov.openrouter.proxy.translation.ResponseTranslator
+import org.zhavoronkov.openrouter.services.OpenRouterService
+import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Servlet that provides OpenAI-compatible /v1/models endpoint
@@ -51,7 +51,9 @@ class ModelsServlet(
 
             PluginLogger.Service.info("═══════════════════════════════════════════════════════")
             PluginLogger.Service.info("[Models-$requestId] NEW /models REQUEST RECEIVED")
-            PluginLogger.Service.info("[Models-$requestId] URI: $requestURI${if (queryString != null) "?$queryString" else ""}")
+            PluginLogger.Service.info(
+                "[Models-$requestId] URI: $requestURI${if (queryString != null) "?$queryString" else ""}"
+            )
             PluginLogger.Service.info("[Models-$requestId] User-Agent: $userAgent")
             PluginLogger.Service.info("[Models-$requestId] Remote Address: ${req.remoteAddr}")
             PluginLogger.Service.info("═══════════════════════════════════════════════════════")
@@ -77,16 +79,23 @@ class ModelsServlet(
 
             val modelsResponse = when (mode) {
                 "all" -> getAllModelsResponse(search, provider, limit)
-                "search" -> if (search.isNullOrBlank()) createCoreModelsResponse() else searchModels(search, provider, limit)
+                "search" -> if (search.isNullOrBlank()) {
+                    createCoreModelsResponse()
+                } else {
+                    searchModels(
+                        search,
+                        provider,
+                        limit
+                    )
+                }
                 else -> createCoreModelsResponse() // Default to curated for fast loading
             }
 
             PluginLogger.Service.info("Returning ${modelsResponse.data.size} models (mode: $mode)")
-            
+
             resp.contentType = "application/json"
             resp.status = HttpServletResponse.SC_OK
             resp.writer.write(gson.toJson(modelsResponse))
-
         } catch (e: java.util.concurrent.TimeoutException) {
             PluginLogger.Service.error("[Models-$requestId] ❌ Models request timed out", e)
             sendErrorResponse(resp, "Request timed out", HttpServletResponse.SC_REQUEST_TIMEOUT)
@@ -188,7 +197,12 @@ class ModelsServlet(
     /**
      * Filter models based on search criteria
      */
-    private fun filterModels(models: OpenAIModelsResponse, search: String?, provider: String?, limit: Int?): OpenAIModelsResponse {
+    private fun filterModels(
+        models: OpenAIModelsResponse,
+        search: String?,
+        provider: String?,
+        limit: Int?
+    ): OpenAIModelsResponse {
         var filteredModels = models.data
 
         // Filter by search term
@@ -196,7 +210,7 @@ class ModelsServlet(
             val searchLower = search.lowercase()
             filteredModels = filteredModels.filter { model ->
                 model.id.lowercase().contains(searchLower) ||
-                model.owned_by.lowercase().contains(searchLower)
+                    model.owned_by.lowercase().contains(searchLower)
             }
         }
 
@@ -204,7 +218,7 @@ class ModelsServlet(
         if (!provider.isNullOrBlank()) {
             filteredModels = filteredModels.filter { model ->
                 model.owned_by.equals(provider, ignoreCase = true) ||
-                model.id.startsWith("$provider/", ignoreCase = true)
+                    model.id.startsWith("$provider/", ignoreCase = true)
             }
         }
 
@@ -222,7 +236,9 @@ class ModelsServlet(
     /**
      * Convert OpenRouter models to OpenAI format
      */
-    private fun convertOpenRouterModelsToOpenAI(openRouterModels: org.zhavoronkov.openrouter.models.OpenRouterModelsResponse): OpenAIModelsResponse {
+    private fun convertOpenRouterModelsToOpenAI(
+        openRouterModels: org.zhavoronkov.openrouter.models.OpenRouterModelsResponse
+    ): OpenAIModelsResponse {
         val openAIModels = openRouterModels.data.map { orModel ->
             OpenAIModel(
                 id = orModel.id,
@@ -279,14 +295,6 @@ class ModelsServlet(
             }
         )
 
-        resp.writer.write(gson.toJson(errorResponse))
-    }
-
-    private fun sendAuthErrorResponse(resp: HttpServletResponse) {
-        resp.status = HttpServletResponse.SC_UNAUTHORIZED
-        resp.contentType = "application/json"
-
-        val errorResponse = ResponseTranslator.createAuthErrorResponse()
         resp.writer.write(gson.toJson(errorResponse))
     }
 }

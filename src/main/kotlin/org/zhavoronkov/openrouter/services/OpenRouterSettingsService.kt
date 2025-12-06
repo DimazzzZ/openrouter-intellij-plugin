@@ -40,12 +40,16 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
         } else {
             encrypted
         }
-        PluginLogger.Service.info("getApiKey: encrypted.length=${encrypted.length}, encrypted.isEmpty=${encrypted.isEmpty()}, decrypted.length=${decrypted.length}, decrypted.isEmpty=${decrypted.isEmpty()}")
+        PluginLogger.Service.info(
+            "getApiKey: encrypted.length=${encrypted.length}, encrypted.isEmpty=${encrypted.isEmpty()}, decrypted.length=${decrypted.length}, decrypted.isEmpty=${decrypted.isEmpty()}"
+        )
         return decrypted
     }
 
     fun setApiKey(apiKey: String) {
-        PluginLogger.Service.info("setApiKey called: apiKey.length=${apiKey.length}, apiKey.isEmpty=${apiKey.isEmpty()}")
+        PluginLogger.Service.info(
+            "setApiKey called: apiKey.length=${apiKey.length}, apiKey.isEmpty=${apiKey.isEmpty()}"
+        )
 
         val encryptedKey = if (apiKey.isNotBlank()) {
             EncryptionUtil.encrypt(apiKey)
@@ -53,21 +57,27 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
             apiKey
         }
 
-        PluginLogger.Service.info("setApiKey: encrypted.length=${encryptedKey.length}, encrypted.isEmpty=${encryptedKey.isEmpty()}")
+        PluginLogger.Service.info(
+            "setApiKey: encrypted.length=${encryptedKey.length}, encrypted.isEmpty=${encryptedKey.isEmpty()}"
+        )
 
         // Modify the existing settings object directly (don't create a new copy)
         // This ensures the PersistentStateComponent properly detects the change
         val oldApiKey = settings.apiKey
         settings.apiKey = encryptedKey
 
-        PluginLogger.Service.info("setApiKey: settings.apiKey changed from length ${oldApiKey.length} to ${settings.apiKey.length}")
+        PluginLogger.Service.info(
+            "setApiKey: settings.apiKey changed from length ${oldApiKey.length} to ${settings.apiKey.length}"
+        )
         PluginLogger.Service.info("setApiKey: settings.apiKey.isEmpty=${settings.apiKey.isEmpty()}")
 
         notifyStateChanged()
 
         // Verify immediately after persistence
         val retrieved = getApiKey()
-        PluginLogger.Service.info("setApiKey: verification after persistence - retrieved.length=${retrieved.length}, retrieved.isEmpty=${retrieved.isEmpty()}")
+        PluginLogger.Service.info(
+            "setApiKey: verification after persistence - retrieved.length=${retrieved.length}, retrieved.isEmpty=${retrieved.isEmpty()}"
+        )
     }
 
     /**
@@ -166,7 +176,131 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
     }
 
     /**
+     * Get default max tokens setting
+     */
+    fun getDefaultMaxTokens(): Int {
+        return settings.defaultMaxTokens
+    }
+
+    /**
+     * Set default max tokens setting
+     */
+    fun setDefaultMaxTokens(maxTokens: Int) {
+        settings.defaultMaxTokens = maxTokens
+        notifyStateChanged()
+    }
+
+    /**
      * Notify the platform that the state has changed and should be persisted.
+     * Check if user has seen the welcome notification
+     */
+    fun hasSeenWelcome(): Boolean {
+        return settings.hasSeenWelcome
+    }
+
+    /**
+     * Mark that user has seen the welcome notification
+     */
+    fun setHasSeenWelcome(seen: Boolean) {
+        settings.hasSeenWelcome = seen
+        notifyStateChanged()
+    }
+
+    /**
+     * Check if user has completed initial setup
+     */
+    fun hasCompletedSetup(): Boolean {
+        return settings.hasCompletedSetup
+    }
+
+    /**
+     * Mark that user has completed initial setup
+     */
+    fun setHasCompletedSetup(completed: Boolean) {
+        settings.hasCompletedSetup = completed
+        notifyStateChanged()
+    }
+
+    // Proxy Server Configuration
+
+    /**
+     * Check if proxy server should auto-start on IDEA startup
+     */
+    fun isProxyAutoStartEnabled(): Boolean {
+        return settings.proxyAutoStart
+    }
+
+    /**
+     * Set proxy server auto-start behavior
+     */
+    fun setProxyAutoStart(enabled: Boolean) {
+        settings.proxyAutoStart = enabled
+        notifyStateChanged()
+    }
+
+    /**
+     * Get preferred proxy server port (0 means auto-select from range)
+     */
+    fun getProxyPort(): Int {
+        return settings.proxyPort
+    }
+
+    /**
+     * Set preferred proxy server port (0 means auto-select from range)
+     */
+    fun setProxyPort(port: Int) {
+        require(port == 0 || port in 1024..65535) { "Port must be 0 (auto) or between 1024-65535" }
+        settings.proxyPort = port
+        notifyStateChanged()
+    }
+
+    /**
+     * Get proxy server port range start
+     */
+    fun getProxyPortRangeStart(): Int {
+        return settings.proxyPortRangeStart
+    }
+
+    /**
+     * Set proxy server port range start
+     */
+    fun setProxyPortRangeStart(port: Int) {
+        require(port in 1024..65535) { "Port must be between 1024-65535" }
+        require(port <= settings.proxyPortRangeEnd) { "Start port must be <= end port" }
+        settings.proxyPortRangeStart = port
+        notifyStateChanged()
+    }
+
+    /**
+     * Get proxy server port range end
+     */
+    fun getProxyPortRangeEnd(): Int {
+        return settings.proxyPortRangeEnd
+    }
+
+    /**
+     * Set proxy server port range end
+     */
+    fun setProxyPortRangeEnd(port: Int) {
+        require(port in 1024..65535) { "Port must be between 1024-65535" }
+        require(port >= settings.proxyPortRangeStart) { "End port must be >= start port" }
+        settings.proxyPortRangeEnd = port
+        notifyStateChanged()
+    }
+
+    /**
+     * Set proxy server port range
+     */
+    fun setProxyPortRange(startPort: Int, endPort: Int) {
+        require(startPort in 1024..65535) { "Start port must be between 1024-65535" }
+        require(endPort in 1024..65535) { "End port must be between 1024-65535" }
+        require(startPort <= endPort) { "Start port must be <= end port" }
+        settings.proxyPortRangeStart = startPort
+        settings.proxyPortRangeEnd = endPort
+        notifyStateChanged()
+    }
+
+    /**
      * This is necessary when settings are modified outside of the standard
      * Configurable apply flow (e.g., from dialogs or background operations).
      *
@@ -175,11 +309,18 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
      */
     private fun notifyStateChanged() {
         try {
-            PluginLogger.Service.info("notifyStateChanged: About to call saveSettings()")
-            // Force immediate state persistence
-            // This is synchronous to ensure the state is saved before returning
-            ApplicationManager.getApplication().saveSettings()
-            PluginLogger.Service.info("Settings state persisted successfully")
+            val application = ApplicationManager.getApplication()
+            if (application != null) {
+                PluginLogger.Service.info("notifyStateChanged: About to call saveSettings()")
+                // Force immediate state persistence
+                // This is synchronous to ensure the state is saved before returning
+                application.saveSettings()
+                PluginLogger.Service.info("Settings state persisted successfully")
+            } else {
+                PluginLogger.Service.info(
+                    "notifyStateChanged: Application is null (likely test environment), skipping saveSettings()"
+                )
+            }
         } catch (e: Exception) {
             PluginLogger.Service.warn("Failed to persist settings state", e)
         }

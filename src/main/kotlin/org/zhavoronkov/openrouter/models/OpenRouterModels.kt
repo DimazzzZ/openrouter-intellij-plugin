@@ -252,7 +252,15 @@ data class OpenRouterSettings(
     var trackGenerations: Boolean = true,
     var maxTrackedGenerations: Int = 100,
     var favoriteModels: MutableList<String> = getDefaultFavoriteModels(),
-    var lastSeenVersion: String = "" // Track last seen version for "What's New" notifications
+    var lastSeenVersion: String = "", // Track last seen version for "What's New" notifications
+    var hasSeenWelcome: Boolean = false, // Track if user has seen welcome notification
+    var hasCompletedSetup: Boolean = false, // Track if user has completed initial setup
+    var defaultMaxTokens: Int = 0, // Configurable default max tokens for proxy requests (0 = disabled/pure passthrough)
+    // Proxy Server Configuration
+    var proxyAutoStart: Boolean = false, // Auto-start proxy server on IDEA startup
+    var proxyPort: Int = 0, // Preferred proxy server port (0 = auto-select from range)
+    var proxyPortRangeStart: Int = 8880, // Start of port range for auto-selection
+    var proxyPortRangeEnd: Int = 8899 // End of port range for auto-selection
 )
 
 /**

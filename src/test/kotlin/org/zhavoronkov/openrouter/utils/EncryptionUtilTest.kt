@@ -33,7 +33,7 @@ class EncryptionUtilTest {
         @DisplayName("Should encrypt API key successfully")
         fun testEncryptApiKey() {
             val encrypted = EncryptionUtil.encrypt(SAMPLE_API_KEY)
-            
+
             assertNotEquals(SAMPLE_API_KEY, encrypted, "Encrypted text should differ from plain text")
             assertTrue(encrypted.isNotBlank(), "Encrypted text should not be blank")
         }
@@ -42,7 +42,7 @@ class EncryptionUtilTest {
         @DisplayName("Should encrypt provisioning key successfully")
         fun testEncryptProvisioningKey() {
             val encrypted = EncryptionUtil.encrypt(SAMPLE_PROVISIONING_KEY)
-            
+
             assertNotEquals(SAMPLE_PROVISIONING_KEY, encrypted, "Encrypted text should differ from plain text")
             assertTrue(encrypted.isNotBlank(), "Encrypted text should not be blank")
         }
@@ -51,7 +51,7 @@ class EncryptionUtilTest {
         @DisplayName("Should encrypt short text")
         fun testEncryptShortText() {
             val encrypted = EncryptionUtil.encrypt(SHORT_TEXT)
-            
+
             assertNotEquals(SHORT_TEXT, encrypted, "Encrypted text should differ from plain text")
             assertTrue(encrypted.isNotBlank(), "Encrypted text should not be blank")
         }
@@ -61,7 +61,7 @@ class EncryptionUtilTest {
         fun testEncryptLongText() {
             val longText = "a".repeat(LONG_TEXT_SIZE)
             val encrypted = EncryptionUtil.encrypt(longText)
-            
+
             assertNotEquals(longText, encrypted, "Encrypted text should differ from plain text")
             assertTrue(encrypted.isNotBlank(), "Encrypted text should not be blank")
         }
@@ -70,7 +70,7 @@ class EncryptionUtilTest {
         @DisplayName("Should handle empty string encryption")
         fun testEncryptEmptyString() {
             val encrypted = EncryptionUtil.encrypt(EMPTY_STRING)
-            
+
             assertEquals(EMPTY_STRING, encrypted, "Empty string should remain empty")
         }
 
@@ -78,7 +78,7 @@ class EncryptionUtilTest {
         @DisplayName("Should encrypt special characters")
         fun testEncryptSpecialCharacters() {
             val encrypted = EncryptionUtil.encrypt(SPECIAL_CHARS)
-            
+
             assertNotEquals(SPECIAL_CHARS, encrypted, "Encrypted text should differ from plain text")
             assertTrue(encrypted.isNotBlank(), "Encrypted text should not be blank")
         }
@@ -87,7 +87,7 @@ class EncryptionUtilTest {
         @DisplayName("Should encrypt Unicode text")
         fun testEncryptUnicodeText() {
             val encrypted = EncryptionUtil.encrypt(UNICODE_TEXT)
-            
+
             assertNotEquals(UNICODE_TEXT, encrypted, "Encrypted text should differ from plain text")
             assertTrue(encrypted.isNotBlank(), "Encrypted text should not be blank")
         }
@@ -97,7 +97,7 @@ class EncryptionUtilTest {
         fun testEncryptionDeterministic() {
             val encrypted1 = EncryptionUtil.encrypt(SAMPLE_API_KEY)
             val encrypted2 = EncryptionUtil.encrypt(SAMPLE_API_KEY)
-            
+
             assertEquals(encrypted1, encrypted2, "Current implementation is deterministic")
         }
     }
@@ -111,7 +111,7 @@ class EncryptionUtilTest {
         fun testDecryptApiKey() {
             val encrypted = EncryptionUtil.encrypt(SAMPLE_API_KEY)
             val decrypted = EncryptionUtil.decrypt(encrypted)
-            
+
             assertEquals(SAMPLE_API_KEY, decrypted, "Decrypted text should match original")
         }
 
@@ -120,7 +120,7 @@ class EncryptionUtilTest {
         fun testDecryptProvisioningKey() {
             val encrypted = EncryptionUtil.encrypt(SAMPLE_PROVISIONING_KEY)
             val decrypted = EncryptionUtil.decrypt(encrypted)
-            
+
             assertEquals(SAMPLE_PROVISIONING_KEY, decrypted, "Decrypted text should match original")
         }
 
@@ -129,7 +129,7 @@ class EncryptionUtilTest {
         fun testDecryptShortText() {
             val encrypted = EncryptionUtil.encrypt(SHORT_TEXT)
             val decrypted = EncryptionUtil.decrypt(encrypted)
-            
+
             assertEquals(SHORT_TEXT, decrypted, "Decrypted text should match original")
         }
 
@@ -139,7 +139,7 @@ class EncryptionUtilTest {
             val longText = "a".repeat(LONG_TEXT_SIZE)
             val encrypted = EncryptionUtil.encrypt(longText)
             val decrypted = EncryptionUtil.decrypt(encrypted)
-            
+
             assertEquals(longText, decrypted, "Decrypted text should match original")
         }
 
@@ -147,7 +147,7 @@ class EncryptionUtilTest {
         @DisplayName("Should handle empty string decryption")
         fun testDecryptEmptyString() {
             val decrypted = EncryptionUtil.decrypt(EMPTY_STRING)
-            
+
             assertEquals(EMPTY_STRING, decrypted, "Empty string should remain empty")
         }
 
@@ -156,7 +156,7 @@ class EncryptionUtilTest {
         fun testDecryptSpecialCharacters() {
             val encrypted = EncryptionUtil.encrypt(SPECIAL_CHARS)
             val decrypted = EncryptionUtil.decrypt(encrypted)
-            
+
             assertEquals(SPECIAL_CHARS, decrypted, "Decrypted text should match original")
         }
 
@@ -165,7 +165,7 @@ class EncryptionUtilTest {
         fun testDecryptUnicodeText() {
             val encrypted = EncryptionUtil.encrypt(UNICODE_TEXT)
             val decrypted = EncryptionUtil.decrypt(encrypted)
-            
+
             assertEquals(UNICODE_TEXT, decrypted, "Decrypted text should match original")
         }
 
@@ -174,7 +174,7 @@ class EncryptionUtilTest {
         fun testDecryptInvalidText() {
             val invalidEncrypted = "not-valid-base64-!@#\$%"
             val decrypted = EncryptionUtil.decrypt(invalidEncrypted)
-            
+
             assertEquals(invalidEncrypted, decrypted, "Invalid encrypted text should be returned as-is")
         }
 
@@ -183,7 +183,7 @@ class EncryptionUtilTest {
         fun testDecryptPlainText() {
             val plainText = "plain-text-not-encrypted"
             val decrypted = EncryptionUtil.decrypt(plainText)
-            
+
             assertEquals(plainText, decrypted, "Plain text should be returned as-is")
         }
     }
@@ -196,7 +196,7 @@ class EncryptionUtilTest {
         @DisplayName("Should detect encrypted text")
         fun testIsEncryptedForEncryptedText() {
             val encrypted = EncryptionUtil.encrypt(SAMPLE_API_KEY)
-            
+
             assertTrue(EncryptionUtil.isEncrypted(encrypted), "Should detect encrypted text")
         }
 
@@ -221,7 +221,10 @@ class EncryptionUtilTest {
         @Test
         @DisplayName("Should not detect special characters as encrypted")
         fun testIsEncryptedForSpecialCharacters() {
-            assertFalse(EncryptionUtil.isEncrypted(SPECIAL_CHARS), "Special characters should not be detected as encrypted")
+            assertFalse(
+                EncryptionUtil.isEncrypted(SPECIAL_CHARS),
+                "Special characters should not be detected as encrypted"
+            )
         }
     }
 
@@ -244,7 +247,7 @@ class EncryptionUtilTest {
             testCases.forEach { original ->
                 val encrypted = EncryptionUtil.encrypt(original)
                 val decrypted = EncryptionUtil.decrypt(encrypted)
-                
+
                 assertEquals(original, decrypted, "Round-trip should preserve original text")
             }
         }
@@ -253,11 +256,11 @@ class EncryptionUtilTest {
         @DisplayName("Should handle multiple encrypt-decrypt cycles")
         fun testMultipleRoundTrips() {
             var text = SAMPLE_API_KEY
-            
+
             repeat(5) {
                 val encrypted = EncryptionUtil.encrypt(text)
                 val decrypted = EncryptionUtil.decrypt(encrypted)
-                
+
                 assertEquals(SAMPLE_API_KEY, decrypted, "Multiple round-trips should preserve original text")
                 text = decrypted
             }
@@ -273,7 +276,7 @@ class EncryptionUtilTest {
         fun testBlankString() {
             val blank = "   "
             val encrypted = EncryptionUtil.encrypt(blank)
-            
+
             assertEquals(blank, encrypted, "Blank string should remain unchanged")
         }
 
@@ -283,7 +286,7 @@ class EncryptionUtilTest {
             val textWithNewlines = "line1\nline2\nline3"
             val encrypted = EncryptionUtil.encrypt(textWithNewlines)
             val decrypted = EncryptionUtil.decrypt(encrypted)
-            
+
             assertEquals(textWithNewlines, decrypted, "Newlines should be preserved")
         }
 
@@ -293,9 +296,8 @@ class EncryptionUtilTest {
             val textWithTabs = "col1\tcol2\tcol3"
             val encrypted = EncryptionUtil.encrypt(textWithTabs)
             val decrypted = EncryptionUtil.decrypt(encrypted)
-            
+
             assertEquals(textWithTabs, decrypted, "Tabs should be preserved")
         }
     }
 }
-

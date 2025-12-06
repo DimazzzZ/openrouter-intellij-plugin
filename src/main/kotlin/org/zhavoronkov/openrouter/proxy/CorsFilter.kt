@@ -1,6 +1,5 @@
 package org.zhavoronkov.openrouter.proxy
 
-import org.zhavoronkov.openrouter.utils.PluginLogger
 import jakarta.servlet.Filter
 import jakarta.servlet.FilterChain
 import jakarta.servlet.FilterConfig
@@ -8,6 +7,7 @@ import jakarta.servlet.ServletRequest
 import jakarta.servlet.ServletResponse
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
+import org.zhavoronkov.openrouter.utils.PluginLogger
 
 /**
  * CORS filter to allow cross-origin requests from AI Assistant

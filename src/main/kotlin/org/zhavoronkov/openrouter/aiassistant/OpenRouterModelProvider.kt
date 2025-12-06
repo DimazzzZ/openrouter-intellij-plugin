@@ -1,7 +1,5 @@
 package org.zhavoronkov.openrouter.aiassistant
 
-import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.diagnostic.Logger
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.PluginLogger
@@ -9,22 +7,24 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
 /**
  * OpenRouter Model Provider for AI Assistant integration
  * This class serves as a bridge between OpenRouter API and IntelliJ AI Assistant plugin
- * 
+ *
  * Note: This implementation uses educated guesses about the AI Assistant plugin's API
  * since the exact interface specifications are not publicly documented.
  */
 class OpenRouterModelProvider {
-    
+
     private val openRouterService = OpenRouterService.getInstance()
     private val settingsService = OpenRouterSettingsService.getInstance()
-    
+
     companion object {
-        private val logger = Logger.getInstance(OpenRouterModelProvider::class.java)
-        
+        private const val PROVIDER_NAME = "OpenRouter"
+        private const val PROVIDER_DISPLAY_NAME = "OpenRouter (400+ AI Models)"
+        private const val PROVIDER_DESCRIPTION = "Access to 400+ AI models through OpenRouter.ai unified API"
+
         // Common OpenRouter models that work well for code assistance
         private val SUPPORTED_MODELS = listOf(
             "openai/gpt-4o",
-            "openai/gpt-4o-mini", 
+            "openai/gpt-4o-mini",
             "anthropic/claude-3.5-sonnet",
             "anthropic/claude-3-haiku",
             "google/gemini-pro-1.5",
@@ -33,23 +33,22 @@ class OpenRouterModelProvider {
             "qwen/qwen-2.5-72b-instruct"
         )
     }
-    
+
     /**
      * Get the provider name for AI Assistant
      */
-    fun getProviderName(): String = "OpenRouter"
-    
+    fun getProviderName(): String = PROVIDER_NAME
+
     /**
      * Get the provider display name for AI Assistant UI
      */
-    fun getProviderDisplayName(): String = "OpenRouter (400+ AI Models)"
-    
+    fun getProviderDisplayName(): String = PROVIDER_DISPLAY_NAME
+
     /**
      * Get the provider description
      */
-    fun getProviderDescription(): String = 
-        "Access to 400+ AI models through OpenRouter.ai unified API"
-    
+    fun getProviderDescription(): String = PROVIDER_DESCRIPTION
+
     /**
      * Check if the provider is available and configured
      */
@@ -61,7 +60,7 @@ class OpenRouterModelProvider {
             false
         }
     }
-    
+
     /**
      * Get list of available models from OpenRouter
      * Returns a subset of popular models suitable for code assistance
@@ -83,21 +82,21 @@ class OpenRouterModelProvider {
             emptyList()
         }
     }
-    
+
     /**
      * Get a specific model by ID
      */
     fun getModel(modelId: String): OpenRouterAIModel? {
         return getAvailableModels().find { it.id == modelId }
     }
-    
+
     /**
      * Test if the provider is working correctly
      */
     fun testConnection(): Boolean {
         return try {
             if (!isAvailable()) return false
-            
+
             // Use the existing OpenRouterService test connection method
             val future = openRouterService.testConnection()
             future.get(10, java.util.concurrent.TimeUnit.SECONDS) ?: false
@@ -106,7 +105,7 @@ class OpenRouterModelProvider {
             false
         }
     }
-    
+
     /**
      * Get configuration status for AI Assistant settings
      */
@@ -117,7 +116,7 @@ class OpenRouterModelProvider {
             else -> "Ready - ${getAvailableModels().size} models available"
         }
     }
-    
+
     private fun getModelDisplayName(modelId: String): String {
         return when {
             modelId.contains("gpt-4o-mini") -> "GPT-4o Mini"
@@ -132,7 +131,7 @@ class OpenRouterModelProvider {
                 .joinToString(" ") { it.replaceFirstChar { char -> char.uppercase() } }
         }
     }
-    
+
     private fun getModelDescription(modelId: String): String {
         return when {
             modelId.contains("gpt-4o") -> "OpenAI's latest multimodal model with improved reasoning"

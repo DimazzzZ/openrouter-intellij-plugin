@@ -1,9 +1,9 @@
 package org.zhavoronkov.openrouter.utils
 
-import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Test
 
 /**
  * Unit tests for OpenRouterRequestBuilder
@@ -75,7 +75,7 @@ class OpenRouterRequestBuilderTest {
         @DisplayName("Should build POST request with JSON body and API key")
         fun shouldBuildPostRequestWithApiKey() {
             val jsonBody = """{"model":"openai/gpt-4","messages":[{"role":"user","content":"Hello"}]}"""
-            
+
             val request = OpenRouterRequestBuilder.buildPostRequest(
                 url = "https://openrouter.ai/api/v1/chat/completions",
                 jsonBody = jsonBody,
@@ -96,7 +96,7 @@ class OpenRouterRequestBuilderTest {
         @DisplayName("Should build POST request with provisioning key")
         fun shouldBuildPostRequestWithProvisioningKey() {
             val jsonBody = """{"name":"Test API Key"}"""
-            
+
             val request = OpenRouterRequestBuilder.buildPostRequest(
                 url = "https://openrouter.ai/api/v1/keys",
                 jsonBody = jsonBody,
@@ -170,12 +170,18 @@ class OpenRouterRequestBuilderTest {
         @Test
         @DisplayName("Should return correct configuration values")
         fun shouldReturnCorrectConfigValues() {
-            assertEquals("https://github.com/DimazzzZ/openrouter-intellij-plugin", 
-                OpenRouterRequestBuilder.Config.getHttpReferer())
-            assertEquals("OpenRouter IntelliJ Plugin", 
-                OpenRouterRequestBuilder.Config.getXTitle())
-            assertEquals("application/json", 
-                OpenRouterRequestBuilder.Config.getContentType())
+            assertEquals(
+                "https://github.com/DimazzzZ/openrouter-intellij-plugin",
+                OpenRouterRequestBuilder.Config.getHttpReferer()
+            )
+            assertEquals(
+                "OpenRouter IntelliJ Plugin",
+                OpenRouterRequestBuilder.Config.getXTitle()
+            )
+            assertEquals(
+                "application/json",
+                OpenRouterRequestBuilder.Config.getContentType()
+            )
         }
     }
 }

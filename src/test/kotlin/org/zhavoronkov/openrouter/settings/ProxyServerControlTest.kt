@@ -1,16 +1,23 @@
 package org.zhavoronkov.openrouter.settings
 
+import com.intellij.ui.components.JBLabel
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.BeforeEach
-import org.mockito.Mockito.*
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.never
+import org.mockito.Mockito.times
+import org.mockito.Mockito.verify
+import org.mockito.Mockito.`when`
 import org.zhavoronkov.openrouter.proxy.OpenRouterProxyServer
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import java.util.concurrent.CompletableFuture
 import javax.swing.JButton
-import com.intellij.ui.components.JBLabel
 
 /**
  * Tests for proxy server start/stop functionality
@@ -220,7 +227,7 @@ class ProxyServerControlTest {
     fun testStartButtonDisabledWhenNotConfigured() {
         // Given: Proxy server is not configured
         `when`(mockSettingsService.isConfigured()).thenReturn(false)
-        
+
         val stoppedStatus = OpenRouterProxyServer.ProxyServerStatus(
             isRunning = false,
             port = null,
@@ -234,8 +241,11 @@ class ProxyServerControlTest {
 
         // Then: Start button should be disabled with appropriate text
         assertFalse(startButton.isEnabled, "Start button should be disabled when not configured")
-        assertEquals("Start Proxy (Configure First)", startButton.text, 
-            "Button text should indicate configuration is needed")
+        assertEquals(
+            "Start Proxy (Configure First)",
+            startButton.text,
+            "Button text should indicate configuration is needed"
+        )
     }
 
     @Test
@@ -279,4 +289,3 @@ class ProxyServerControlTest {
         assertNotNull(statusLabel.icon, "Status should have an icon")
     }
 }
-

@@ -14,6 +14,8 @@ This document provides comprehensive debugging information for the OpenRouter In
 | **Test Hanging** | `OutOfMemoryError` | test output | Use safe test runner |
 | **Duplicate Requests** | `🚨 DUPLICATE REQUEST DETECTED!` | idea.log | Check AI Assistant configuration |
 | **Missing Headers** | `X-Title header missing` | request logs | Verify OpenRouterRequestBuilder usage |
+| **Welcome Not Showing** | `hasSeenWelcome` flag | openrouter.xml | Reset flag to false |
+| **Wizard Validation** | `Validating provisioning key` | idea.log | Check API connectivity |
 
 ## 🔍 Log File Locations
 
@@ -482,11 +484,183 @@ After refactoring code to fix detekt warnings, verify the changes:
 
 After each refactoring:
 - [ ] Code compiles without errors
-- [ ] All tests pass (207/207)
+- [ ] All tests pass (270+/270+)
 - [ ] Detekt issue is resolved
 - [ ] No new detekt issues introduced
 - [ ] Code is more readable
 - [ ] Functionality unchanged
+
+---
+
+## 🚀 Debugging First-Run Experience
+
+### Welcome Notification Not Appearing
+
+**Problem**: Welcome notification doesn't show on first plugin load
+
+**Debug Steps**:
+1. Check if notification was already shown:
+   ```bash
+   # Find settings file
+   find ~/Library/Application\ Support/JetBrains -name "openrouter.xml"
+
+   # Check hasSeenWelcome flag
+   cat <path-to-file> | grep hasSeenWelcome
+   ```
+
+2. Reset the flag:
+   ```xml
+   <!-- Change this: -->
+   <option name="hasSeenWelcome" value="true" />
+   <!-- To this: -->
+   <option name="hasSeenWelcome" value="false" />
+   ```
+
+3. Restart IDE and open any project
+
+**Alternative**: Use development IDE with clean state:
+```bash
+./gradlew clean runIde
+```
+
+### Setup Wizard Validation Issues
+
+**Problem**: Provisioning key validation fails with valid key
+
+**Debug Steps**:
+1. Check logs for validation attempts:
+   ```bash
+   tail -f ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log | grep "Validating provisioning key"
+   ```
+
+2. Common issues:
+   - **401 Error**: Key is encrypted before validation (should use raw key)
+   - **Timeout**: Network connectivity issues or slow API response
+   - **Null Response**: API endpoint changed or unavailable
+
+3. Verify API connectivity:
+   ```bash
+   curl -H "Authorization: Bearer YOUR_KEY" https://openrouter.ai/api/v1/keys
+   ```
+
+**Fix**: Ensure validation uses raw (unencrypted) key for API call, then encrypts only after success.
+
+### Model Selection Issues
+
+**Problem**: Models show "true/false" instead of checkboxes
+
+**Debug Steps**:
+1. Check table model column types:
+   ```kotlin
+   override fun getColumnClass(columnIndex: Int): Class<*> = when (columnIndex) {
+       0 -> java.lang.Boolean::class.java  // Must be Boolean for checkbox
+       else -> String::class.java
+   }
+   ```
+
+2. Verify `isCellEditable` returns true for checkbox column
+
+**Problem**: Selected count doesn't update
+
+**Debug Steps**:
+1. Check if `updateSelectedCount()` is called in `setValueAt()`
+2. Verify `selectedModels` set is being modified correctly
+3. Check if `fireTableCellUpdated()` is called after changes
+
+### Settings Persistence
+
+**Problem**: Settings not saved after wizard completion
+
+**Debug Steps**:
+1. Check if `setHasCompletedSetup(true)` is called
+2. Verify provisioning key is encrypted and saved:
+   ```bash
+   cat ~/Library/Application\ Support/JetBrains/IntelliJIdea*/options/openrouter.xml
+   ```
+3. Look for `Settings state persisted` in logs
+
+**Settings File Location**:
+- **macOS**: `~/Library/Application Support/JetBrains/IntelliJIdea*/options/openrouter.xml`
+- **Windows**: `%APPDATA%\JetBrains\IntelliJIdea*\options\openrouter.xml`
+- **Linux**: `~/.config/JetBrains/IntelliJIdea*/options/openrouter.xml`
+
+### Development IDE Settings
+
+**Problem**: Changes in development IDE don't persist
+
+**Explanation**: Development IDE uses sandbox directory, separate from production IDE.
+
+**Sandbox Location**:
+```bash
+# Find sandbox settings
+find ~/Library/Application\ Support/JetBrains -name "openrouter.xml" | grep sandbox
+```
+
+**Reset Development IDE**:
+```bash
+# Clean build and run with fresh state
+./gradlew clean runIde
+```
+
+## 🔍 Advanced Filtering Debugging
+
+### Filter Issues
+
+**Symptoms**: Models not filtering correctly by provider/context/capabilities
+
+**Debug Steps**:
+1. Check active filter criteria:
+   ```bash
+   grep -E "Applying filters:|Provider:|Context:|Capabilities:" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+   ```
+
+2. Verify date parsing for context ranges:
+   ```bash
+   grep -E "Failed to parse date|Smart date parsing" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+   ```
+
+3. Test specific filter combinations:
+   ```bash
+   grep "Filtering.*vision.*tools" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+   ```
+
+### Model Search Debugging
+
+**Problem**: Search not working or returning unexpected results
+
+**Debug Steps**:
+1. Check search queries:
+   ```bash
+   grep -E "Search.*query|Filter.*text" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+   ```
+
+2. Verify model name matching:
+   ```bash
+   grep "Model.*matches.*search" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+   ```
+
+## 🪟 Modal Statistics Dialog Debugging
+
+### Dialog Behavior Issues
+
+**Problem**: Statistics not opening as modal dialog or behaving unexpectedly
+
+**Check**:
+1. DialogWrapper initialization:
+   ```bash
+   grep "Creating modal statistics dialog\|Failed to show statistics" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+   ```
+
+2. Verify DialogWrapper extension:
+   ```kotlin
+   // Should extend DialogWrapper, not JBPopup
+   class OpenRouterStatsPopup : DialogWrapper(project)
+   ```
+
+3. Check for EDT usage issues:
+   ```bash
+   grep "Modal dialog.*EDT\|DialogWrapper.*invokeLater" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+   ```
 
 ---
 

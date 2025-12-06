@@ -1,11 +1,11 @@
 package org.zhavoronkov.openrouter.proxy.servlets
 
 import com.google.gson.Gson
-import org.zhavoronkov.openrouter.proxy.translation.ResponseTranslator
-import org.zhavoronkov.openrouter.utils.PluginLogger
 import jakarta.servlet.http.HttpServlet
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
+import org.zhavoronkov.openrouter.proxy.translation.ResponseTranslator
+import org.zhavoronkov.openrouter.utils.PluginLogger
 
 /**
  * Health check endpoint for the proxy server
@@ -17,20 +17,20 @@ class HealthCheckServlet : HttpServlet() {
     override fun doGet(req: HttpServletRequest, resp: HttpServletResponse) {
         try {
             PluginLogger.Service.debug("Health check request received")
-            
+
             val healthResponse = ResponseTranslator.createHealthCheckResponse()
-            
+
             resp.contentType = "application/json"
             resp.status = HttpServletResponse.SC_OK
             resp.writer.write(gson.toJson(healthResponse))
-            
+
             PluginLogger.Service.debug("Health check response sent successfully")
         } catch (e: Exception) {
             PluginLogger.Service.error("Health check failed", e)
-            
+
             resp.status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR
             resp.contentType = "application/json"
-            
+
             val errorResponse = mapOf(
                 "status" to "error",
                 "message" to "Health check failed",

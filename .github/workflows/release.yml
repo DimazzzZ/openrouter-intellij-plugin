@@ -76,7 +76,7 @@ jobs:
         echo "Updated plugin version to ${{ needs.validate-version.outputs.version }}"
 
     - name: Build, test, and analyze
-      run: ./gradlew buildPlugin test detekt --build-cache
+      run: ./gradlew buildPlugin test detekt detektSarif --build-cache
       # Note: Plugin Verifier is skipped - JetBrains Marketplace will verify compatibility during publishing
     
     - name: Upload build artifacts

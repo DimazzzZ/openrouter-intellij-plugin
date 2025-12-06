@@ -2,33 +2,232 @@
 
 This document describes the testing infrastructure and procedures for the OpenRouter IntelliJ Plugin.
 
+## 📑 Table of Contents
+- [Test Overview](#-test-overview)
+- [Running Tests](#-running-tests)
+- [Testing First-Run Experience](#-testing-first-run-experience)
+- [Test Architecture](#-test-architecture)
+- [Debugging Tests](#-debugging-tests)
+
 ## 📊 Test Overview
 
-The plugin features a comprehensive test suite with 207+ tests ensuring reliability and stability:
+The plugin features a comprehensive test suite with 465+ total tests (388 active, 77 disabled) ensuring reliability and stability:
 
-| Test Suite | Tests | Coverage | Focus Area |
-|------------|-------|----------|------------|
-| **Unit Tests** | 109 | Core functionality, data models | Business logic |
-| **Integration Tests** | 50+ | API communication, servlet logic | External integration |
-| **Request Builder Tests** | 12 | HTTP request construction | Refactored code validation |
-| **Favorite Models Tests** | 11 | Favorite models management | User preferences |
-| **Encryption Tests** | 10 | Secure credential storage | Security |
-| **Settings Tests** | 15+ | Configuration management | User settings |
-| **Total** | **207+** | **Complete functionality coverage** | **Production ready** |
+| Test Suite | Tests | Status | Coverage | Focus Area |
+|------------|-------|--------|----------|------------|
+| **Unit Tests** | 109 | ✅ Active | Core functionality, data models | Business logic |
+| **Integration Tests** | 65+ | ⏸️ Disabled | API communication, servlet logic | External integration |
+| **E2E Tests** | 10+ | ⏸️ Disabled | Real OpenRouter API calls | End-to-end validation |
+| **Request Builder Tests** | 12 | ✅ Active | HTTP request construction | Refactored code validation |
+| **Favorite Models Tests** | 11 | ✅ Active | Favorite models management | User preferences |
+| **Model Filtering Tests** | 64 | ✅ Active | Provider/capability/context filtering | Enhanced filtering (Phase 1) |
+| **Proxy Configuration Tests** | 26+ | ✅ Active | Port selection, auto-start, settings validation | Proxy server configuration |
+| **Settings Panel Tests** | 15+ | ✅ Active | UI configuration and immediate application | User interface |
+| **UI Tests** | 2 | ⏸️ Disabled | UI component keyboard handling | User interface (headless skip) |
+| **Encryption Tests** | 10 | ✅ Active | Secure credential storage | Security |
+| **Settings Tests** | 15+ | ✅ Active | Configuration management | User settings |
+| **Total Active** | **388** | **✅ All passing** | **Production functionality coverage** | **CI/CD ready** |
+| **Total Disabled** | **77** | **⏸️ Available on-demand** | **Integration & E2E coverage** | **Manual testing** |
+| **Grand Total** | **465+** | **Complete test coverage** | **Development to production** | **Full validation** |
 
 ### 🎯 Recent Major Improvements
+- **Proxy Configuration Tests**: Added 26+ comprehensive tests for proxy server configuration, port selection, and settings validation
+- **Immediate Settings Application**: Implemented and tested instant proxy settings application without requiring Apply/OK
 - **Test Fixes**: Fixed all 11 failing FavoriteModelsService tests using dependency injection and mocking
 - **Code Refactoring**: Eliminated duplicate headers across 12+ locations using centralized `OpenRouterRequestBuilder`
 - **Test Infrastructure**: Fixed hanging tests and memory issues with proper timeouts and exclusions
+- **Headless Compatibility**: All UI tests properly skip in headless environments for CI/CD pipeline compatibility
 - **X-Title Header Fix**: Added missing attribution headers to all OpenRouter API requests
 - **Memory Management**: Reduced test memory usage from 3.6GB+ to 512MB with proper configuration
 - **Dependency Injection**: Made FavoriteModelsService testable with optional constructor parameters
 
 ### ✅ Test Status
-- **Build Status**: ✅ All tests passing (207 tests, 0 failures)
-- **Coverage**: 🎯 Core functionality fully covered including refactored code
+- **Build Status**: ✅ All active tests passing (388+ tests, 0 failures, 77 disabled)
+- **Coverage**: 🎯 Complete functionality coverage including proxy configuration improvements
 - **Reliability**: 🔒 No more hanging tests or memory issues
-- **Performance**: ⚡ Ultra-fast execution (3-8 seconds for full suite)
+- **Performance**: ⚡ Ultra-fast execution (3-8 seconds for active suite)
+
+## 🔧 Disabled Tests (77 Tests)
+
+The plugin includes 77 disabled tests that are **valuable but not run by default** for practical reasons:
+
+### 📊 Disabled Test Categories
+
+| Category | Count | Reason Disabled | When to Enable |
+|----------|-------|-----------------|----------------|
+| **Integration Tests** | ~65 | Memory issues in CI/CD | Local development, bug investigation |
+| **E2E Tests** | ~10 | Consume real API credits ($$) | Major releases, critical bug verification |
+| **UI Tests** | ~2 | Require graphical environment | Local UI testing, non-headless environments |
+
+### 🚀 How to Enable Disabled Tests
+
+#### **Method 1: Enable Specific Test Categories**
+
+**Integration Tests** (for local development):
+```bash
+# Enable integration tests by removing @Disabled annotation
+# Edit these files and comment out @Disabled lines:
+# - src/test/kotlin/org/zhavoronkov/openrouter/ApiIntegrationTest.kt
+# - src/test/kotlin/org/zhavoronkov/openrouter/services/OpenRouterServiceIntegrationTest.kt
+# - src/test/kotlin/org/zhavoronkov/openrouter/integration/ProxyServerIntegrationTest.kt
+# - src/test/kotlin/org/zhavoronkov/openrouter/proxy/servlets/*.kt
+
+# Run integration tests
+./gradlew test --tests "*Integration*"
+```
+
+**E2E Tests** (costs real API credits):
+```bash
+# 1. Create .env file with real OpenRouter credentials:
+echo "OPENROUTER_API_KEY=sk-or-v1-your-real-key" > .env
+echo "OPENROUTER_PROVISIONING_KEY=pk-your-real-provisioning-key" >> .env
+
+# 2. Enable E2E tests by removing @Disabled annotation in:
+# - src/test/kotlin/org/zhavoronkov/openrouter/integration/OpenRouterProxyE2ETest.kt
+# - src/test/kotlin/org/zhavoronkov/openrouter/integration/ProxyServerDuplicateTest.kt
+# - src/test/kotlin/org/zhavoronkov/openrouter/integration/SimpleProxyTest.kt
+
+# 3. Run E2E tests (⚠️ COSTS MONEY - real API calls)
+./gradlew test --tests "*E2E*" --tests "*Duplicate*" --tests "*SimpleProxy*"
+```
+
+**UI Tests** (require graphical environment):
+```bash
+# Run in non-headless environment
+export JAVA_AWT_HEADLESS=false
+./gradlew test --tests "*UI*" --tests "*SettingsPanel*"
+```
+
+#### **Method 2: Enable via Test Tags**
+
+```bash
+# Run integration tests by tag
+./gradlew test -Dgroups="integration"
+
+# Run E2E tests by tag (⚠️ COSTS MONEY)
+./gradlew test -Dgroups="e2e"
+```
+
+#### **Method 3: Temporary Enable All (Not Recommended)**
+
+```bash
+# ⚠️ WARNING: This will run E2E tests and cost money!
+# Only do this if you have .env setup and understand the cost
+
+# Find and temporarily comment out all @Disabled annotations
+find src/test -name "*.kt" -exec sed -i.bak 's/@Disabled/@_Disabled_TEMP/g' {} \;
+
+# Run all tests
+./gradlew test
+
+# Restore @Disabled annotations
+find src/test -name "*.kt" -exec sed -i '' 's/@_Disabled_TEMP/@Disabled/g' {} \;
+find src/test -name "*.bak" -delete
+```
+
+### 🎯 When to Use Disabled Tests
+
+| Scenario | Tests to Enable | Reason |
+|----------|----------------|---------|
+| **Local Development** | Integration Tests | Verify HTTP server, servlet, and API client behavior |
+| **Before Major Release** | Integration + E2E Tests | Full validation against real OpenRouter API |
+| **Bug Investigation** | Relevant Integration Tests | Deep dive into specific component issues |
+| **API Changes** | E2E Tests | Verify compatibility with OpenRouter API updates |
+| **UI Development** | UI Tests | Validate keyboard handling and component behavior |
+| **Performance Testing** | Integration Tests | Load testing and server behavior validation |
+
+### ⚠️ Important Notes
+
+1. **E2E Tests Cost Money**: They make real API calls to OpenRouter and consume credits
+2. **Integration Tests Use Memory**: May cause issues in CI/CD with limited memory
+3. **UI Tests Need Graphics**: Skip automatically in headless environments  
+4. **All Disabled Tests Are Maintained**: They're kept up-to-date and valuable for manual testing
+
+### 🔍 Finding Specific Tests
+
+```bash
+# Find all disabled integration tests
+grep -r "@Disabled" src/test/ --include="*Integration*"
+
+# Find all disabled E2E tests  
+grep -r "@Disabled" src/test/ --include="*E2E*"
+
+# Find all UI tests
+grep -r "headless" src/test/ --include="*UI*"
+
+# Count disabled tests per file
+find src/test -name "*.kt" -exec sh -c 'echo "=== {} ==="; grep -c "@Disabled\|@DisabledIf" "{}"' \;
+```
+
+### 🎯 Phase 1-3 Testing (UI Enhancements)
+- **Phase 1 Tests**: 64 unit tests for model filtering (ModelProviderUtils, ModelPresets, ModelFilterCriteria)
+- **Phase 2 Tests**: N/A (code simplification, no new functionality)
+- **Phase 3 Tests**: Manual testing required for first-run experience (welcome notification, setup wizard)
+- **Testing Guide**: See "Testing First-Run Experience" section below
+
+## 🚀 New Features Testing (v0.3.0)
+
+### Setup Wizard Testing
+The plugin includes a comprehensive multi-step setup wizard that requires manual testing to ensure proper first-run experience.
+
+**Quick Test Setup**:
+```bash
+# Start fresh development IDE with clean state
+./gradlew clean runIde
+# Wizard appears automatically on first project open
+```
+
+**Wizard Components to Test**:
+- **Welcome Notification**: Appears on first project open with "Quick Setup" button
+- **Step 0**: Introduction screen with proper formatting and icons
+- **Step 1**: Provisioning key validation with visual feedback (spinner → checkmark/error)
+- **Step 2**: Model selection with checkboxes, search, and real-time filtering
+- **Step 3**: Completion screen with proxy URL copy functionality
+
+**Testing Methods**:
+1. **Fresh Development IDE**: `./gradlew clean runIde`
+2. **Reset Settings**: Change `hasSeenWelcome/hasCompletedSetup` to false in settings.xml
+3. **Delete Settings**: Remove openrouter.xml for complete reset
+
+**Key Test Points**:
+- [ ] Buttons properly enabled/disabled based on validation
+- [ ] Checkboxes render correctly (not true/false text)
+- [ ] Search filters models in real-time
+- [ ] Navigation works with Back/Next buttons
+- [ ] Setup completion is properly tracked
+
+### Advanced Model Filtering Tests (64 Tests)
+```bash
+# Run all filtering-related tests
+./gradlew test --tests "ModelProviderUtilsTest"
+./gradlew test --tests "ModelPresetsTest"
+./gradlew test --tests "ModelFilterCriteriaTest"
+
+# Test specific filtering scenarios
+./gradlew test --tests "*ModelFilter*"
+```
+
+**Filtering Test Coverage**:
+- **Provider Filtering**: OpenAI, Anthropic, Google, Meta, Mistral optimization
+- **Context Window**: Smart date parsing (1K, 4K, 8K, 16K, 32K+ ranges)
+- **Capability Filtering**: Vision, Audio, Tools, Image Generation detection
+- **Preset Testing**: Multimodal, Coding, Cost-Effective predefined sets
+
+### Enhanced Statistics Dialog Tests (30+ Tests)
+```bash
+# Test modal dialog functionality
+./gradlew test --tests "*OpenRouterStatsPopup*"
+
+# Test configuration and threading
+./gradlew test --tests "*StatsPopupConfigurationTest*"
+./gradlew test --tests "*StatsPopupThreadingTest*"
+```
+
+**Dialog Test Categories**:
+- **Configuration Tests**: Different setup scenarios and validation
+- **Data Loading Tests**: Asynchronous operations and error handling
+- **Threading Tests**: EDT usage and UI safety verification
+- **Modal Behavior**: Proper IntelliJ DialogWrapper integration
 
 ## 🏗️ Test Architecture
 
@@ -73,6 +272,7 @@ src/test/kotlin/org/zhavoronkov/openrouter/
 - **🌐 Integration Tests**: OpenRouter API communication
 - **🤖 Proxy Tests**: AI Assistant integration proxy server (ChatCompletionServletTest)
 - **🔑 API Key Tests**: Comprehensive API key handling validation (ApiKeyHandlingIntegrationTest)
+- **🎨 UI Enhancement Tests**: Model filtering, presets, and criteria (Phase 1)
 - **📋 Mock Tests**: Simulated API responses for reliability
 - **🚨 Error Tests**: Edge cases and failure scenarios
 - **🌍 E2E Tests**: Complete workflows with real API calls (disabled by default)
@@ -87,7 +287,7 @@ src/test/kotlin/org/zhavoronkov/openrouter/
 # Run safe unit tests only (guaranteed to work)
 ./scripts/run-safe-tests.sh
 
-# Or run full unit test suite (159 tests in 3 seconds)
+# Or run full unit test suite (270+ tests in 3-8 seconds)
 ./gradlew test
 ```
 
@@ -98,6 +298,11 @@ src/test/kotlin/org/zhavoronkov/openrouter/
 
 # 🧪 Request builder tests (12 tests) - validates refactoring
 ./gradlew test --tests "OpenRouterRequestBuilderTest"
+
+# 🎨 Phase 1 filtering tests (64 tests)
+./gradlew test --tests "ModelProviderUtilsTest"
+./gradlew test --tests "ModelPresetsTest"
+./gradlew test --tests "ModelFilterCriteriaTest"
 
 # 🔑 Settings and API key tests
 ./gradlew test --tests "ApiKeysTableModelTest" --tests "OpenRouterSettingsServiceTest"
@@ -205,6 +410,36 @@ BUILD SUCCESSFUL in 15s
 - **Model Mapping**: Automatic model name translation
 - **Error Handling**: Proxy error scenarios and fallbacks
 
+### Proxy Configuration Testing (26+ Tests) - **NEW**
+- **Settings Service Tests**: Proxy auto-start, port validation, range constraints
+- **Port Selection Logic**: Specific port vs. range selection strategies
+- **Configuration Integration**: Complete proxy setup scenarios
+- **Settings Validation**: Port range constraints (1024-65535) and edge cases
+- **UI Configuration Tests**: Settings panel proxy controls (headless-compatible)
+- **Immediate Application**: "Start Proxy" applies current UI settings without Apply/OK
+- **Auto-start Scenarios**: Configurable proxy startup on IDEA launch
+- **Port Conflict Resolution**: Fallback from specific port to range selection
+
+#### Test Categories
+1. **OpenRouterSettingsServiceTest** (11 proxy tests)
+   - Default proxy settings verification
+   - Auto-start configuration and persistence
+   - Port validation (specific port and ranges)
+   - Port range constraint validation
+   - Edge case handling for invalid configurations
+
+2. **ProxyServerConfigurationTest** (11 configuration tests)
+   - Port selection strategy validation
+   - Configuration consistency across scenarios
+   - Auto-start behavior verification
+   - Port range validation and edge cases
+
+3. **ProxySettingsPanelTest** (4+ UI tests)
+   - Immediate settings application validation
+   - Configuration model consistency
+   - Headless environment compatibility
+   - Complete configuration scenario testing
+
 ## 🔧 Code Refactoring Validation
 
 ### OpenRouterRequestBuilder Testing
@@ -310,6 +545,94 @@ Tests are optimized for continuous integration:
 - [ ] Test coverage reporting
 - [ ] Performance regression detection
 - [ ] Compatibility matrix testing
+
+---
+
+## 🚀 Testing First-Run Experience
+
+The plugin includes a comprehensive first-run experience (Phase 3) that requires manual testing.
+
+### Quick Start
+```bash
+# Start fresh development IDE with clean state
+./gradlew clean runIde
+```
+
+### Components to Test
+
+#### 1. Welcome Notification
+- **Trigger**: Opens automatically on first project open
+- **Actions**: Quick Setup, Open Settings, Dismiss
+- **Verification**: Notification appears only once
+
+#### 2. Setup Wizard
+- **Step 0 (Welcome)**: Introduction with proper bullet formatting and icons
+- **Step 1 (Provisioning Key)**:
+  - Automatic validation with visual feedback (spinner → checkmark/error)
+  - "Next" button disabled until valid key entered
+  - Key encrypted and saved after validation
+- **Step 2 (Favorite Models)**:
+  - Embedded model selector with search
+  - Checkboxes (not true/false text)
+  - Selected count updates in real-time
+  - Table sortable by clicking column headers
+- **Step 3 (Completion)**:
+  - Proxy server URL displayed (http://127.0.0.1:8080/v1/)
+  - Copy button works
+  - Link to AI Assistant setup guide
+
+#### 3. Navigation
+- **Back Button**: Returns to previous step (not close wizard)
+- **Next Button**: Smart enable/disable based on validation
+- **Skip/Close**: Properly closes wizard
+
+### Testing Methods
+
+**Method 1: Fresh Development IDE (Recommended)**
+```bash
+./gradlew clean runIde
+# Opens new IDE instance with clean state
+# Welcome notification appears automatically
+```
+
+**Method 2: Reset Settings File**
+```bash
+# Find settings file
+find ~/Library/Application\ Support/JetBrains -name "openrouter.xml" | grep sandbox
+
+# Edit and change:
+# <option name="hasSeenWelcome" value="true" /> to false
+# <option name="hasCompletedSetup" value="true" /> to false
+
+# Restart development IDE
+./gradlew runIde
+```
+
+**Method 3: Delete Settings (Clean Slate)**
+```bash
+# Find and delete
+find ~/Library/Application\ Support/JetBrains -name "openrouter.xml" | grep sandbox | xargs rm
+
+# Restart
+./gradlew runIde
+```
+
+### Test Checklist
+
+- [ ] Welcome notification appears on first project open
+- [ ] "Quick Setup" button opens wizard
+- [ ] Step 0: Proper layout with icons and separators
+- [ ] Step 1: Invalid key shows error, valid key shows checkmark
+- [ ] Step 1: "Next" disabled until validation succeeds
+- [ ] Step 2: Checkboxes render properly (not true/false)
+- [ ] Step 2: Selected count updates when checking models
+- [ ] Step 2: Table sorts by clicking "Model" header
+- [ ] Step 2: Search filters models in real-time
+- [ ] Step 3: Proxy URL shows 127.0.0.1 (not localhost)
+- [ ] Step 3: Copy button copies correct URL
+- [ ] Back button navigates to previous step
+- [ ] Wizard can be skipped
+- [ ] Setup completion tracked correctly
 
 ---
 

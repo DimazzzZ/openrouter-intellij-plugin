@@ -131,7 +131,10 @@ object ResponseTranslator {
     fun createAuthErrorResponse(): OpenAIErrorResponse {
         return OpenAIErrorResponse(
             error = OpenAIError(
-                message = "You didn't provide an API key. You need to provide your API key in an Authorization header using Bearer auth (i.e. Authorization: Bearer YOUR_KEY), or as the password field (with blank username) if you're accessing the API from your browser and are prompted for a username and password. You can obtain an API key from https://platform.openai.com/account/api-keys.",
+                message = "You didn't provide an API key. You need to provide your API key in an Authorization header " +
+                    "using Bearer auth (i.e. Authorization: Bearer YOUR_KEY), or as the password field (with blank username) " +
+                    "if you're accessing the API from your browser and are prompted for a username and password. " +
+                    "You can obtain an API key from https://platform.openai.com/account/api-keys.",
                 type = "invalid_request_error",
                 code = "invalid_api_key"
             )
@@ -140,27 +143,6 @@ object ResponseTranslator {
 
     // REMOVED: Model mapping logic eliminated for simplicity
     // Models are now returned exactly as requested
-
-    /**
-     * Extracts the owner/provider from OpenRouter model ID
-     */
-    private fun extractOwner(modelId: String?): String {
-        if (modelId == null) return "unknown"
-        
-        val parts = modelId.split("/")
-        return if (parts.size >= 2) {
-            when (parts[0]) {
-                "openai" -> "openai"
-                "anthropic" -> "anthropic"
-                "google" -> "google"
-                "meta" -> "meta"
-                "mistral" -> "mistralai"
-                else -> parts[0]
-            }
-        } else {
-            "openrouter"
-        }
-    }
 
     /**
      * Creates default permission object for models
@@ -193,11 +175,11 @@ object ResponseTranslator {
     fun validateTranslatedResponse(response: OpenAIChatCompletionResponse): Boolean {
         return try {
             response.id.isNotBlank() &&
-            response.model.isNotBlank() &&
-            response.choices.isNotEmpty() &&
-            response.choices.all { choice ->
-                choice.message.role.isNotBlank() && choice.message.content.isNotBlank()
-            }
+                response.model.isNotBlank() &&
+                response.choices.isNotEmpty() &&
+                response.choices.all { choice ->
+                    choice.message.role.isNotBlank() && choice.message.content.isNotBlank()
+                }
         } catch (e: Exception) {
             PluginLogger.Service.error("Response validation failed", e)
             false

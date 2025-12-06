@@ -1,14 +1,10 @@
 package org.zhavoronkov.openrouter.proxy
 
-import com.google.gson.Gson
-import com.google.gson.JsonSyntaxException
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.eclipse.jetty.server.Server
 import org.eclipse.jetty.servlet.ServletContextHandler
 import org.eclipse.jetty.servlet.ServletHolder
-import jakarta.servlet.DispatcherType
-import java.util.EnumSet
 import org.zhavoronkov.openrouter.proxy.servlets.ChatCompletionServlet
 import org.zhavoronkov.openrouter.proxy.servlets.EnginesServlet
 import org.zhavoronkov.openrouter.proxy.servlets.HealthCheckServlet
@@ -29,9 +25,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 class OpenRouterProxyServer {
 
     companion object {
-        private const val DEFAULT_PORT = 8080
-        private const val MIN_PORT = 8080
-        private const val MAX_PORT = 8090
         private const val LOCALHOST = "127.0.0.1"
         private const val RESTART_DELAY_MS = 1000L
         private const val API_BASE_PATH = "/v1/"
@@ -57,7 +50,6 @@ class OpenRouterProxyServer {
     private var server: Server? = null
     private var currentPort: Int = 0
     private val isRunning = AtomicBoolean(false)
-    private val gson = Gson()
 
     private val openRouterService = OpenRouterService.getInstance()
     private val settingsService = OpenRouterSettingsService.getInstance()
@@ -74,9 +66,24 @@ class OpenRouterProxyServer {
                     return@supplyAsync true
                 }
 
-                port = findAvailablePort()
+                val preferredPort = settingsService.getProxyPort()
+                port = if (preferredPort > 0) {
+                    // Use specific port if configured
+                    if (isPortAvailable(preferredPort)) {
+                        preferredPort
+                    } else {
+                        PluginLogger.Service.warn("Preferred port $preferredPort is not available, searching range")
+                        findAvailablePortInRange()
+                    }
+                } else {
+                    // Auto-select from configured range
+                    findAvailablePortInRange()
+                }
+
                 if (port == -1) {
-                    PluginLogger.Service.error("No available ports found in range $MIN_PORT-$MAX_PORT")
+                    val rangeStart = settingsService.getProxyPortRangeStart()
+                    val rangeEnd = settingsService.getProxyPortRangeEnd()
+                    PluginLogger.Service.error("No available ports found in range $rangeStart-$rangeEnd")
                     return@supplyAsync false
                 }
 
@@ -232,7 +239,7 @@ class OpenRouterProxyServer {
         context.addServlet(chatServlet, "/v1/chat/completions")
         context.addServlet(organizationServlet, "/v1/organizations")
         context.addServlet(enginesServlet, "/v1/engines")
-        context.addServlet(rootServlet, "/")  // Root servlet handles /models and other routes
+        context.addServlet(rootServlet, "/") // Root servlet handles /models and other routes
 
         // Add CORS filter for browser compatibility
         context.addFilter(CorsFilter::class.java, "/*", null)
@@ -241,10 +248,13 @@ class OpenRouterProxyServer {
     }
 
     /**
-     * Finds an available port in the specified range
+     * Finds an available port in the configured range
      */
-    private fun findAvailablePort(): Int {
-        for (port in MIN_PORT..MAX_PORT) {
+    private fun findAvailablePortInRange(): Int {
+        val rangeStart = settingsService.getProxyPortRangeStart()
+        val rangeEnd = settingsService.getProxyPortRangeEnd()
+
+        for (port in rangeStart..rangeEnd) {
             if (isPortAvailable(port)) {
                 return port
             }

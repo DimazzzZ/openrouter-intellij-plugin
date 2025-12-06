@@ -1,14 +1,14 @@
 # OpenRouter IntelliJ Plugin
 
 [![JetBrains Plugin](https://img.shields.io/badge/JetBrains-Plugin-orange.svg)](https://plugins.jetbrains.com/plugin/28520)
-[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
+[![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.ai), providing access to 400+ AI models with usage monitoring, quota tracking, and seamless JetBrains AI Assistant integration.
 
 ## Features
 
-- **🤖 AI Assistant Proxy** - Local proxy server to connect JetBrains AI Assistant with OpenRouter's 400+ models
+- **🤖 AI Assistant Proxy** - Configurable local proxy server (ports 8880-8899 by default) with auto-start control and flexible port selection
 - **📊 Status Bar Widget** - Real-time usage display with comprehensive popup menu
 - **🔑 API Key Management** - Secure provisioning key support with automatic API key creation
 - **📈 Usage Analytics** - Track token consumption, costs, and model performance
@@ -19,7 +19,14 @@ An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.
 - **🔒 Security** - Encrypted API key storage with localhost-only proxy access
 - **🧪 Comprehensive Testing** - 207+ tests covering unit, integration, and E2E scenarios
 - **🛠️ Developer-Friendly** - Extensive documentation and debugging capabilities
-- **⭐ Favorite Models** - Quick access to your preferred AI models
+- **⭐ Favorite Models** - Quick access to your preferred AI models with advanced filtering:
+  - Filter by provider (OpenAI, Anthropic, Google, Meta, etc.)
+  - Filter by capabilities (Vision, Audio, Tools, Image Generation)
+  - Filter by context length (< 32K, 32K-128K, > 128K)
+  - Quick presets (Popular, Coding, Multimodal, Cost-Effective)
+  - Real-time search across 400+ models
+- **🚀 First-Run Experience** - Welcome notification and setup wizard for easy onboarding
+- **💡 Contextual Help** - GotIt tooltips guide you through key features
 - **🎨 Code Quality** - Maintained with detekt static analysis and comprehensive refactoring
 
 ## Installation
@@ -36,9 +43,30 @@ An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.
 
 ## Setup
 
+### First-Time Setup (Recommended)
+
+When you first install the plugin, a **welcome notification** will appear with a "Quick Setup" button. This launches a step-by-step wizard that guides you through:
+
+1. **Welcome** - Introduction to OpenRouter and what you'll need
+2. **Provisioning Key** - Add and automatically validate your key from [OpenRouter](https://openrouter.ai/settings/provisioning-keys)
+3. **Favorite Models** - Select your preferred models with embedded search and filtering
+4. **Completion** - Copy proxy server URL and configure AI Assistant
+
+**New in v0.2.0+:**
+- ✅ Automatic provisioning key validation with visual feedback
+- ✅ Embedded model selection UI with real-time search
+- ✅ Smart button states (Next/Finish only enabled when ready)
+- ✅ Polished layout with proper spacing and typography
+- ✅ Back button navigation between steps
+
+The wizard makes setup quick and easy, especially for first-time users!
+
+### Manual Setup
+
 1. **Get Provisioning Key**: Visit [OpenRouter Provisioning Keys](https://openrouter.ai/settings/provisioning-keys)
 2. **Configure**: `Settings` → `Tools` → `OpenRouter` → Enter Provisioning Key
-3. **Start Using**: Click status bar widget to access features
+3. **Select Models**: `Settings` → `Tools` → `OpenRouter` → `Favorite Models` → Choose your models
+4. **Start Using**: Click status bar widget to access features
 
 The plugin automatically creates and configures an API key when you provide a provisioning key.
 
@@ -48,7 +76,7 @@ The plugin automatically creates and configures an API key when you provide a pr
 
 ### Quick Start
 1. **Configure OpenRouter Plugin** (as above)
-2. **Start Proxy Server**: The server starts automatically when you configure your Provisioning Key
+2. **Configure Proxy Server**: Auto-start is disabled by default - manually start via Settings or enable auto-start
 3. **Configure AI Assistant**: Settings → Tools → AI Assistant → Models → Add custom model
    - **Provider**: Custom
    - **Server URL**: Copy from OpenRouter settings (e.g., `http://127.0.0.1:8080`)
@@ -88,10 +116,28 @@ The plugin automatically creates and configures an API key when you provide a pr
 - **Documentation**: Links to OpenRouter API documentation
 - **Logout**: Clear stored credentials
 
+### Proxy Server Configuration
+Access via `Settings` → `Tools` → `OpenRouter` → `Proxy Server` section:
+
+- **Auto-start**: Control whether proxy starts automatically on IDEA launch (disabled by default)
+- **Port Selection**: Choose specific port or auto-select from configurable range
+- **Port Range**: Configure port range for auto-selection (default: 8880-8899)
+- **Immediate Application**: Start Proxy button applies current settings without requiring Apply/OK
+- **Conflict Avoidance**: Default range avoids common development ports (8080, 8000, etc.)
+- **Manual Control**: Start/stop proxy server on demand from settings panel
+
+#### Configuration Options
+```kotlin
+proxyAutoStart = false           // Auto-start on IDEA launch
+proxyPort = 0                   // Specific port (0 = auto-select)  
+proxyPortRangeStart = 8880      // Range start for auto-selection
+proxyPortRangeEnd = 8899        // Range end for auto-selection
+```
+
 ## Architecture
 
 ### Core Components
-- **Jetty Proxy Server** - Embedded HTTP server (ports 8080-8090) for AI Assistant integration
+- **Jetty Proxy Server** - Configurable embedded HTTP server (default ports 8880-8899) with flexible port selection and auto-start control
 - **OpenRouter API Client** - Handles authentication, quota tracking, and model access
 - **Settings Management** - Encrypted credential storage with validation
 - **Status Bar Integration** - Real-time monitoring with minimal UI footprint
@@ -111,7 +157,7 @@ The plugin uses a sophisticated API key management system:
 ## Compatibility
 
 **Supported IDEs**: IntelliJ IDEA, WebStorm, PyCharm, PhpStorm, RubyMine, CLion, Android Studio, GoLand, Rider
-**IDE Versions**: 2023.2+ to 2025.2+
+**IDE Versions**: 2023.2+ to 2025.3+
 **Requirements**: OpenRouter.ai account with Provisioning Key
 
 ## Development

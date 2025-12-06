@@ -1,17 +1,17 @@
 package org.zhavoronkov.openrouter.icons
 
-import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Test
 
 /**
  * Tests for OpenRouter Icons
- * 
+ *
  * Note: Full icon loading tests require IntelliJ Platform initialization which is not
  * available in standard JUnit tests. These tests verify that icon resource files exist.
- * 
+ *
  * Icon rendering and display tests should be performed through IDE integration testing
  * using the runIde task.
  */
@@ -158,4 +158,3 @@ class OpenRouterIconsTest {
         }
     }
 }
-

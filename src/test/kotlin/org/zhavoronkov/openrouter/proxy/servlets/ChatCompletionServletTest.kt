@@ -3,14 +3,12 @@ package org.zhavoronkov.openrouter.proxy.servlets
 import com.google.gson.Gson
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
-import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Nested
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Test
 import org.mockito.Mockito.*
-import org.mockito.MockedStatic
-import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import java.io.BufferedReader
 import java.io.PrintWriter
@@ -47,7 +45,9 @@ class ChatCompletionServletTest {
                 val apiKey = settingsService.getApiKey()
                 if (apiKey.isBlank()) {
                     resp.status = HttpServletResponse.SC_UNAUTHORIZED
-                    resp.writer.write("""{"error":{"message":"OpenRouter API key not configured. Please configure it in Settings > Tools > OpenRouter","code":401}}""")
+                    resp.writer.write(
+                        """{"error":{"message":"OpenRouter API key not configured. Please configure it in Settings > Tools > OpenRouter","code":401}}"""
+                    )
                     return
                 }
 
@@ -61,8 +61,9 @@ class ChatCompletionServletTest {
 
                 // For testing, just return success
                 resp.status = HttpServletResponse.SC_OK
-                resp.writer.write("""{"id":"test-$requestId","object":"chat.completion","model":"openai/gpt-4-turbo","choices":[{"message":{"role":"assistant","content":"Test response"}}]}""")
-
+                resp.writer.write(
+                    """{"id":"test-$requestId","object":"chat.completion","model":"openai/gpt-4-turbo","choices":[{"message":{"role":"assistant","content":"Test response"}}]}"""
+                )
             } catch (e: Exception) {
                 resp.status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR
                 resp.writer.write("""{"error":{"message":"Internal server error: ${e.message}","code":500}}""")
@@ -209,8 +210,10 @@ class ChatCompletionServletTest {
                 verify(response).status = HttpServletResponse.SC_OK
 
                 val responseContent = responseWriter.toString()
-                assertTrue(responseContent.contains("\"object\":\"chat.completion\""),
-                    "Should return valid response regardless of Authorization header: $headerValue")
+                assertTrue(
+                    responseContent.contains("\"object\":\"chat.completion\""),
+                    "Should return valid response regardless of Authorization header: $headerValue"
+                )
             }
 
             // Verify settings service was called for each test
@@ -240,12 +243,18 @@ class ChatCompletionServletTest {
 
             // And: Should provide helpful error message
             val responseContent = responseWriter.toString()
-            assertTrue(responseContent.contains("OpenRouter API key not configured"),
-                "Error message should mention API key not configured")
-            assertTrue(responseContent.contains("Settings > Tools > OpenRouter"),
-                "Error message should tell user where to configure")
-            assertTrue(responseContent.contains("\"code\":401"),
-                "Error response should include 401 code")
+            assertTrue(
+                responseContent.contains("OpenRouter API key not configured"),
+                "Error message should mention API key not configured"
+            )
+            assertTrue(
+                responseContent.contains("Settings > Tools > OpenRouter"),
+                "Error message should tell user where to configure"
+            )
+            assertTrue(
+                responseContent.contains("\"code\":401"),
+                "Error response should include 401 code"
+            )
         }
 
         @Test
@@ -265,8 +274,10 @@ class ChatCompletionServletTest {
             verify(response).status = HttpServletResponse.SC_UNAUTHORIZED
 
             val responseContent = responseWriter.toString()
-            assertTrue(responseContent.contains("OpenRouter API key not configured"),
-                "Should handle null API key gracefully")
+            assertTrue(
+                responseContent.contains("OpenRouter API key not configured"),
+                "Should handle null API key gracefully"
+            )
         }
 
         @Test
@@ -287,8 +298,10 @@ class ChatCompletionServletTest {
 
             val responseContent = responseWriter.toString()
             val expectedMessage = "OpenRouter API key not configured. Please configure it in Settings > Tools > OpenRouter"
-            assertTrue(responseContent.contains(expectedMessage),
-                "Should provide exact helpful error message")
+            assertTrue(
+                responseContent.contains(expectedMessage),
+                "Should provide exact helpful error message"
+            )
 
             // And: Should be valid JSON error response
             assertTrue(responseContent.contains("\"error\":{"), "Should be JSON error format")
@@ -318,10 +331,14 @@ class ChatCompletionServletTest {
             verify(response).status = HttpServletResponse.SC_BAD_REQUEST
 
             val responseContent = responseWriter.toString()
-            assertTrue(responseContent.contains("Request body is required"),
-                "Should indicate request body is required")
-            assertTrue(responseContent.contains("\"code\":400"),
-                "Should include 400 error code")
+            assertTrue(
+                responseContent.contains("Request body is required"),
+                "Should indicate request body is required"
+            )
+            assertTrue(
+                responseContent.contains("\"code\":400"),
+                "Should include 400 error code"
+            )
         }
 
         @Test
@@ -341,8 +358,10 @@ class ChatCompletionServletTest {
             verify(response).status = HttpServletResponse.SC_BAD_REQUEST
 
             val responseContent = responseWriter.toString()
-            assertTrue(responseContent.contains("Request body is required"),
-                "Should handle blank request body")
+            assertTrue(
+                responseContent.contains("Request body is required"),
+                "Should handle blank request body"
+            )
         }
 
         @Test
@@ -370,10 +389,14 @@ class ChatCompletionServletTest {
             verify(response).status = HttpServletResponse.SC_OK
 
             val responseContent = responseWriter.toString()
-            assertTrue(responseContent.contains("\"object\":\"chat.completion\""),
-                "Should return chat completion response")
-            assertTrue(responseContent.contains("\"model\":\"openai/gpt-4-turbo\""),
-                "Should preserve model name unchanged")
+            assertTrue(
+                responseContent.contains("\"object\":\"chat.completion\""),
+                "Should return chat completion response"
+            )
+            assertTrue(
+                responseContent.contains("\"model\":\"openai/gpt-4-turbo\""),
+                "Should preserve model name unchanged"
+            )
         }
     }
 
@@ -398,10 +421,14 @@ class ChatCompletionServletTest {
             verify(response).status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR
 
             val responseContent = responseWriter.toString()
-            assertTrue(responseContent.contains("Internal server error"),
-                "Should return internal server error message")
-            assertTrue(responseContent.contains("\"code\":500"),
-                "Should include 500 error code")
+            assertTrue(
+                responseContent.contains("Internal server error"),
+                "Should return internal server error message"
+            )
+            assertTrue(
+                responseContent.contains("\"code\":500"),
+                "Should include 500 error code"
+            )
         }
 
         @Test
@@ -423,8 +450,10 @@ class ChatCompletionServletTest {
             verify(response).status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR
 
             val responseContent = responseWriter.toString()
-            assertTrue(responseContent.contains("Internal server error"),
-                "Should handle reader exceptions")
+            assertTrue(
+                responseContent.contains("Internal server error"),
+                "Should handle reader exceptions"
+            )
         }
     }
 
@@ -451,8 +480,10 @@ class ChatCompletionServletTest {
             verify(mockSettingsService).getApiKey()
 
             val responseContent = responseWriter.toString()
-            assertTrue(responseContent.contains("\"object\":\"chat.completion\""),
-                "Should accept valid API key format")
+            assertTrue(
+                responseContent.contains("\"object\":\"chat.completion\""),
+                "Should accept valid API key format"
+            )
         }
 
         @Test
@@ -473,9 +504,10 @@ class ChatCompletionServletTest {
             verify(response).status = HttpServletResponse.SC_OK
 
             val responseContent = responseWriter.toString()
-            assertTrue(responseContent.contains("\"object\":\"chat.completion\""),
-                "Should work with any non-blank API key")
+            assertTrue(
+                responseContent.contains("\"object\":\"chat.completion\""),
+                "Should work with any non-blank API key"
+            )
         }
     }
 }
-

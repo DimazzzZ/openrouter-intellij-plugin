@@ -5,30 +5,18 @@ import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.ui.Messages
-import com.intellij.ui.AnActionButton
 import com.intellij.ui.ToolbarDecorator
 import com.intellij.ui.components.*
 import com.intellij.ui.dsl.builder.*
 import com.intellij.ui.table.JBTable
-import com.intellij.ui.table.TableView
-import com.intellij.util.ui.UIUtil
-import com.intellij.util.ui.ColumnInfo
-import com.intellij.openapi.actionSystem.AnAction
-import com.intellij.openapi.actionSystem.AnActionEvent
 import org.zhavoronkov.openrouter.models.ApiKeyInfo
+import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
-import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
-import java.awt.Dimension
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
-import java.awt.event.KeyEvent
-import java.awt.event.MouseAdapter
-import java.awt.event.MouseEvent
-import java.util.Locale
-import java.util.concurrent.TimeUnit
 import javax.swing.*
 import javax.swing.table.AbstractTableModel
 
@@ -103,6 +91,8 @@ class OpenRouterSettingsPanel {
     private val autoRefreshCheckBox: JBCheckBox
     private val refreshIntervalSpinner: JSpinner
     private val showCostsCheckBox: JBCheckBox
+    private val defaultMaxTokensSpinner: JSpinner
+    private val enableDefaultMaxTokensCheckBox: JBCheckBox
     private val apiKeyTableModel = ApiKeyTableModel()
     private val apiKeyTable = JBTable(apiKeyTableModel)
     private val openRouterService = OpenRouterService.getInstance()
@@ -124,12 +114,28 @@ class OpenRouterSettingsPanel {
     private lateinit var stopServerButton: JButton
     private lateinit var copyUrlButton: JButton
 
+    // Proxy configuration components
+    private lateinit var proxyAutoStartCheckBox: JBCheckBox
+    private lateinit var useSpecificPortCheckBox: JBCheckBox
+    private lateinit var proxyPortSpinner: JSpinner
+    private lateinit var proxyPortRangeStartSpinner: JSpinner
+    private lateinit var proxyPortRangeEndSpinner: JSpinner
+
     companion object {
         private const val DEFAULT_REFRESH_INTERVAL = 300
         private const val MIN_REFRESH_INTERVAL = 60
         private const val MAX_REFRESH_INTERVAL = 300
         private const val REFRESH_INTERVAL_STEP = 10
         private const val LABEL_COLUMN_WIDTH = 170
+        private const val DEFAULT_MAX_TOKENS = 8000
+        private const val MIN_MAX_TOKENS = 1
+        private const val MAX_MAX_TOKENS = 128000
+        private const val MAX_TOKENS_STEP = 1000
+
+        // Proxy configuration constants
+        private const val MIN_PORT = 1024
+        private const val MAX_PORT = 65535
+        private const val DEFAULT_PROXY_PORT = 8880
     }
 
     init {
@@ -147,12 +153,59 @@ class OpenRouterSettingsPanel {
         autoRefreshCheckBox = JBCheckBox("Auto-refresh quota information")
         showCostsCheckBox = JBCheckBox("Show costs in status bar")
 
-        refreshIntervalSpinner = JSpinner(SpinnerNumberModel(
-            DEFAULT_REFRESH_INTERVAL,
-            MIN_REFRESH_INTERVAL,
-            MAX_REFRESH_INTERVAL,
-            REFRESH_INTERVAL_STEP
-        ))
+        refreshIntervalSpinner = JSpinner(
+            SpinnerNumberModel(
+                DEFAULT_REFRESH_INTERVAL,
+                MIN_REFRESH_INTERVAL,
+                MAX_REFRESH_INTERVAL,
+                REFRESH_INTERVAL_STEP
+            )
+        )
+
+        enableDefaultMaxTokensCheckBox = JBCheckBox("Enable default max tokens for proxy requests")
+        defaultMaxTokensSpinner = JSpinner(
+            SpinnerNumberModel(
+                DEFAULT_MAX_TOKENS, // Default value
+                MIN_MAX_TOKENS, // Minimum value
+                MAX_MAX_TOKENS, // Maximum value
+                MAX_TOKENS_STEP // Step
+            )
+        ).apply {
+            isEnabled = false // Disabled by default since feature is off by default
+        }
+
+        // Initialize proxy configuration components
+        proxyAutoStartCheckBox = JBCheckBox("Auto-start proxy server on IDEA startup")
+        useSpecificPortCheckBox = JBCheckBox("Use specific port")
+
+        proxyPortSpinner = JSpinner(
+            SpinnerNumberModel(
+                DEFAULT_PROXY_PORT, // Default value
+                MIN_PORT, // Minimum value
+                MAX_PORT, // Maximum value
+                1 // Step
+            )
+        ).apply {
+            isEnabled = false // Disabled by default since "Use specific port" is unchecked
+        }
+
+        proxyPortRangeStartSpinner = JSpinner(
+            SpinnerNumberModel(
+                8880, // Default start of range
+                MIN_PORT,
+                MAX_PORT,
+                1
+            )
+        )
+
+        proxyPortRangeEndSpinner = JSpinner(
+            SpinnerNumberModel(
+                8899, // Default end of range
+                MIN_PORT,
+                MAX_PORT,
+                1
+            )
+        )
 
         // Configure API key table
         apiKeyTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
@@ -202,6 +255,14 @@ class OpenRouterSettingsPanel {
                 }.layout(RowLayout.PARENT_GRID)
 
                 row {
+                    cell(enableDefaultMaxTokensCheckBox)
+                }.layout(RowLayout.PARENT_GRID)
+
+                row("Maximum tokens:") {
+                    cell(defaultMaxTokensSpinner)
+                }.layout(RowLayout.PARENT_GRID)
+
+                row {
                     cell(autoRefreshCheckBox)
                     cell(showCostsCheckBox)
                 }.layout(RowLayout.PARENT_GRID)
@@ -220,21 +281,44 @@ class OpenRouterSettingsPanel {
                 }.resizableRow()
             }
 
-            // AI Assistant Integration group
-            group("AI Assistant Integration") {
+            // Proxy Server group
+            group("Proxy Server") {
+                // Auto-start configuration
                 row {
+                    cell(proxyAutoStartCheckBox)
+                }.layout(RowLayout.PARENT_GRID)
+
+                // Port configuration
+                row {
+                    cell(useSpecificPortCheckBox)
+                }.layout(RowLayout.PARENT_GRID)
+
+                row("Specific port:") {
+                    cell(proxyPortSpinner)
+                }.layout(RowLayout.PARENT_GRID)
+
+                row("Port range start:") {
+                    cell(proxyPortRangeStartSpinner)
+                }.layout(RowLayout.PARENT_GRID)
+
+                row("Port range end:") {
+                    cell(proxyPortRangeEndSpinner)
+                }.layout(RowLayout.PARENT_GRID)
+
+                row {
+                    comment("When 'Use specific port' is unchecked, the proxy will auto-select from the specified range.")
+                }
+
+                // Proxy server controls
+                row("Status:") {
                     cell(statusLabel)
                 }.layout(RowLayout.PARENT_GRID)
 
                 row {
-                    startServerButton = button("Start Proxy Server") { startProxyServer() }.component
-                    stopServerButton = button("Stop Proxy Server") { stopProxyServer() }.component
-                    copyUrlButton = button("Copy URL") { copyProxyUrl() }.component
+                    startServerButton = button("Start Server") { startProxyServer() }.component
+                    stopServerButton = button("Stop Server") { stopProxyServer() }.component
+                    copyUrlButton = button("Copy Proxy URL") { copyProxyUrlToClipboard() }.component
                 }.layout(RowLayout.PARENT_GRID)
-
-                row {
-                    comment("Copy the URL above and paste it as the Base URL in AI Assistant settings: Tools > AI Assistant > Models > Add Model > Custom OpenAI-compatible. This proxy service can also be used with any other 3rd-party service to which you can add OpenAI-compatible server URL!")
-                }
             }
         }
 
@@ -243,8 +327,41 @@ class OpenRouterSettingsPanel {
             refreshIntervalSpinner.isEnabled = autoRefreshCheckBox.isSelected
         }
 
+        enableDefaultMaxTokensCheckBox.addActionListener {
+            defaultMaxTokensSpinner.isEnabled = enableDefaultMaxTokensCheckBox.isSelected
+        }
+
+        // Proxy configuration listeners
+        useSpecificPortCheckBox.addActionListener {
+            proxyPortSpinner.isEnabled = useSpecificPortCheckBox.isSelected
+            proxyPortRangeStartSpinner.isEnabled = !useSpecificPortCheckBox.isSelected
+            proxyPortRangeEndSpinner.isEnabled = !useSpecificPortCheckBox.isSelected
+        }
+
+        // Validate port range when values change
+        proxyPortRangeStartSpinner.addChangeListener {
+            validatePortRange()
+        }
+
+        proxyPortRangeEndSpinner.addChangeListener {
+            validatePortRange()
+        }
+
         // Initialize status
         updateProxyStatus()
+
+        // Show GotIt tooltips for first-time users
+        showGotItTooltips()
+    }
+
+    /**
+     * Show GotIt tooltips for first-time users
+     * Note: Tooltips are shown asynchronously to avoid blocking UI initialization
+     */
+    private fun showGotItTooltips() {
+        // GotIt tooltips are disabled for now to avoid memory leak issues
+        // They will be re-enabled in a future version with proper disposable management
+        // See: https://jetbrains.org/intellij/sdk/docs/basics/disposers.html
     }
 
     private fun setupApiKeysPanel() {
@@ -318,6 +435,10 @@ class OpenRouterSettingsPanel {
             return
         }
 
+        // Apply current proxy settings from UI before starting server
+        // This ensures the proxy uses the current UI values without requiring Apply/OK
+        applyCurrentProxySettings()
+
         startServerButton.isEnabled = false
         startServerButton.text = "Starting..."
 
@@ -369,7 +490,10 @@ class OpenRouterSettingsPanel {
         }
     }
 
-    private fun copyProxyUrl() {
+    /**
+     * Copy proxy URL to clipboard with improved messaging
+     */
+    private fun copyProxyUrlToClipboard() {
         val status = proxyService.getServerStatus()
         val url = if (status.isRunning && status.url != null) {
             status.url
@@ -380,7 +504,24 @@ class OpenRouterSettingsPanel {
         val clipboard = Toolkit.getDefaultToolkit().systemClipboard
         clipboard.setContents(StringSelection(url), null)
 
-        Messages.showInfoMessage("URL copied to clipboard: $url", "URL Copied")
+        if (status.isRunning) {
+            Messages.showInfoMessage(
+                "Proxy URL copied to clipboard:\n\n$url\n\nPaste this as the Base URL in AI Assistant settings.",
+                "Proxy URL Copied"
+            )
+        } else {
+            Messages.showWarningDialog(
+                "Proxy server is not running. Start the server first to get the URL.",
+                "Server Not Running"
+            )
+        }
+    }
+
+    /**
+     * Legacy method for backward compatibility
+     */
+    private fun copyProxyUrl() {
+        copyProxyUrlToClipboard()
     }
 
     private fun updateProxyStatus() {
@@ -428,6 +569,8 @@ class OpenRouterSettingsPanel {
         if (provisioningKey.isNotBlank()) {
             apiKeyManager.loadApiKeysWithoutAutoCreate()
         }
+        // Update proxy status to reflect current server state
+        updateProxyStatus()
     }
 
     fun isAutoRefreshEnabled(): Boolean = autoRefreshCheckBox.isSelected
@@ -447,5 +590,97 @@ class OpenRouterSettingsPanel {
 
     fun setShowCosts(show: Boolean) {
         showCostsCheckBox.isSelected = show
+    }
+
+    fun isDefaultMaxTokensEnabled(): Boolean = enableDefaultMaxTokensCheckBox.isSelected
+
+    fun setDefaultMaxTokensEnabled(enabled: Boolean) {
+        enableDefaultMaxTokensCheckBox.isSelected = enabled
+        defaultMaxTokensSpinner.isEnabled = enabled
+    }
+
+    fun getDefaultMaxTokens(): Int = defaultMaxTokensSpinner.value as Int
+
+    fun setDefaultMaxTokens(maxTokens: Int) {
+        defaultMaxTokensSpinner.value = maxTokens
+    }
+
+    // Proxy configuration methods
+
+    fun getProxyAutoStart(): Boolean = proxyAutoStartCheckBox.isSelected
+
+    fun setProxyAutoStart(enabled: Boolean) {
+        proxyAutoStartCheckBox.isSelected = enabled
+    }
+
+    fun getUseSpecificPort(): Boolean = useSpecificPortCheckBox.isSelected
+
+    fun setUseSpecificPort(useSpecific: Boolean) {
+        useSpecificPortCheckBox.isSelected = useSpecific
+        proxyPortSpinner.isEnabled = useSpecific
+        proxyPortRangeStartSpinner.isEnabled = !useSpecific
+        proxyPortRangeEndSpinner.isEnabled = !useSpecific
+    }
+
+    fun getProxyPort(): Int = proxyPortSpinner.value as Int
+
+    fun setProxyPort(port: Int) {
+        proxyPortSpinner.value = port
+    }
+
+    fun getProxyPortRangeStart(): Int = proxyPortRangeStartSpinner.value as Int
+
+    fun setProxyPortRangeStart(port: Int) {
+        proxyPortRangeStartSpinner.value = port
+        validatePortRange()
+    }
+
+    fun getProxyPortRangeEnd(): Int = proxyPortRangeEndSpinner.value as Int
+
+    fun setProxyPortRangeEnd(port: Int) {
+        proxyPortRangeEndSpinner.value = port
+        validatePortRange()
+    }
+
+    /**
+     * Applies current proxy settings from UI to settings service.
+     * This ensures immediate proxy server startup uses current UI values
+     * without requiring Apply/OK button click.
+     */
+    private fun applyCurrentProxySettings() {
+        try {
+            settingsService.setProxyAutoStart(getProxyAutoStart())
+
+            val port = if (getUseSpecificPort()) {
+                getProxyPort()
+            } else {
+                0 // 0 means auto-select from range
+            }
+            settingsService.setProxyPort(port)
+
+            settingsService.setProxyPortRange(
+                getProxyPortRangeStart(),
+                getProxyPortRangeEnd()
+            )
+
+            PluginLogger.Settings.debug(
+                "Applied current proxy settings: autoStart=${getProxyAutoStart()}, port=$port, range=${getProxyPortRangeStart()}-${getProxyPortRangeEnd()}"
+            )
+        } catch (e: Exception) {
+            PluginLogger.Settings.error("Failed to apply current proxy settings: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Validates that port range start <= end
+     */
+    private fun validatePortRange() {
+        val startPort = proxyPortRangeStartSpinner.value as Int
+        val endPort = proxyPortRangeEndSpinner.value as Int
+
+        if (startPort > endPort) {
+            // Automatically adjust the end port to be at least equal to start port
+            proxyPortRangeEndSpinner.value = startPort
+        }
     }
 }

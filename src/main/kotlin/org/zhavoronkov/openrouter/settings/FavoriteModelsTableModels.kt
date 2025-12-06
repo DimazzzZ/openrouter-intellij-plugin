@@ -187,9 +187,9 @@ class FavoriteModelsTableHelper {
             val lowerSearch = searchText.lowercase()
             return models.filter { display ->
                 display.model.id.lowercase().contains(lowerSearch) ||
-                display.provider.lowercase().contains(lowerSearch) ||
-                display.model.name.lowercase().contains(lowerSearch) ||
-                display.capabilities.lowercase().contains(lowerSearch)
+                    display.provider.lowercase().contains(lowerSearch) ||
+                    display.model.name.lowercase().contains(lowerSearch) ||
+                    display.capabilities.lowercase().contains(lowerSearch)
             }
         }
 
@@ -205,4 +205,3 @@ class FavoriteModelsTableHelper {
         }
     }
 }
-

@@ -6,12 +6,10 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
-import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.mockito.Mockito.mock
-import org.mockito.Mockito.`when`
 // import org.mockito.kotlin.whenever
 import com.intellij.ide.util.PropertiesComponent
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
@@ -202,6 +200,69 @@ class OpenRouterSettingsServiceTest {
 
             // Should either use default or handle gracefully
             assertTrue(loadedSettings.maxTrackedGenerations >= -5) // Allow the value to be stored as-is
+        }
+    }
+
+    @Nested
+    @DisplayName("Default Max Tokens Management")
+    inner class DefaultMaxTokensTests {
+
+        @Test
+        @DisplayName("Should store and retrieve default max tokens value")
+        fun testDefaultMaxTokensStorage() {
+            val service = OpenRouterSettingsService()
+            val testValue = 8000
+
+            service.setDefaultMaxTokens(testValue)
+
+            assertEquals(testValue, service.getDefaultMaxTokens())
+        }
+
+        @Test
+        @DisplayName("Should return 0 for unset default max tokens (disabled)")
+        fun testUnsetDefaultMaxTokens() {
+            val service = OpenRouterSettingsService()
+
+            // Should default to disabled (0)
+            assertEquals(0, service.getDefaultMaxTokens(), "Default should be disabled (0)")
+        }
+
+        @Test
+        @DisplayName("Should handle zero value for disabled feature")
+        fun testZeroValueForDisabled() {
+            val service = OpenRouterSettingsService()
+
+            service.setDefaultMaxTokens(0)
+
+            assertEquals(0, service.getDefaultMaxTokens(), "Zero indicates disabled feature")
+        }
+
+        @Test
+        @DisplayName("Should handle large max tokens values")
+        fun testLargeMaxTokensValue() {
+            val service = OpenRouterSettingsService()
+            val largeValue = 128000 // Large but realistic value
+
+            service.setDefaultMaxTokens(largeValue)
+
+            assertEquals(largeValue, service.getDefaultMaxTokens())
+        }
+
+        @Test
+        @DisplayName("Should handle settings persistence with default max tokens")
+        fun testDefaultMaxTokensPersistence() {
+            val service = OpenRouterSettingsService()
+            val testValue = 4000
+
+            // Set value
+            service.setDefaultMaxTokens(testValue)
+
+            // Verify it persists in state
+            val state = service.state
+            assertEquals(testValue, state.defaultMaxTokens, "Should persist defaultMaxTokens in state")
+
+            // Verify retrieval works
+            assertEquals(testValue, service.getDefaultMaxTokens())
         }
     }
 
@@ -443,6 +504,232 @@ class OpenRouterSettingsServiceTest {
             service.setApiKey(unicodeKey)
 
             assertEquals(unicodeKey, service.getApiKey())
+        }
+    }
+
+    @Nested
+    @DisplayName("Proxy Configuration Tests")
+    inner class ProxyConfigurationTests {
+
+        @Test
+        @DisplayName("Should have proper default proxy settings")
+        fun testDefaultProxySettings() {
+            val service = OpenRouterSettingsService()
+
+            // Default values should match the improved defaults
+            assertFalse(service.isProxyAutoStartEnabled(), "Auto-start should be disabled by default")
+            assertEquals(0, service.getProxyPort(), "Should default to auto port selection")
+            assertEquals(8880, service.getProxyPortRangeStart(), "Default start port should be 8880")
+            assertEquals(8899, service.getProxyPortRangeEnd(), "Default end port should be 8899")
+        }
+
+        @Test
+        @DisplayName("Should store and retrieve proxy auto-start setting")
+        fun testProxyAutoStart() {
+            val service = OpenRouterSettingsService()
+
+            // Initially disabled
+            assertFalse(service.isProxyAutoStartEnabled())
+
+            // Enable auto-start
+            service.setProxyAutoStart(true)
+            assertTrue(service.isProxyAutoStartEnabled())
+
+            // Disable auto-start
+            service.setProxyAutoStart(false)
+            assertFalse(service.isProxyAutoStartEnabled())
+        }
+
+        @Test
+        @DisplayName("Should store and retrieve specific proxy port")
+        fun testSpecificProxyPort() {
+            val service = OpenRouterSettingsService()
+
+            // Initially should be 0 (auto)
+            assertEquals(0, service.getProxyPort())
+
+            // Set specific port
+            service.setProxyPort(8888)
+            assertEquals(8888, service.getProxyPort())
+
+            // Set back to auto
+            service.setProxyPort(0)
+            assertEquals(0, service.getProxyPort())
+        }
+
+        @Test
+        @DisplayName("Should validate proxy port range")
+        fun testProxyPortValidation() {
+            val service = OpenRouterSettingsService()
+
+            // Valid ports should work
+            service.setProxyPort(1024)
+            assertEquals(1024, service.getProxyPort())
+
+            service.setProxyPort(65535)
+            assertEquals(65535, service.getProxyPort())
+
+            service.setProxyPort(0) // Auto is valid
+            assertEquals(0, service.getProxyPort())
+
+            // Invalid ports should throw
+            org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
+                service.setProxyPort(1023) // Too low
+            }
+
+            org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
+                service.setProxyPort(65536) // Too high
+            }
+
+            org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
+                service.setProxyPort(-1) // Negative
+            }
+        }
+
+        @Test
+        @DisplayName("Should store and retrieve proxy port range")
+        fun testProxyPortRange() {
+            val service = OpenRouterSettingsService()
+
+            // Test individual range setters - set end first to avoid constraint violation
+            service.setProxyPortRangeEnd(9010) // Set end first
+            service.setProxyPortRangeStart(9000) // Then set start
+
+            assertEquals(9000, service.getProxyPortRangeStart())
+            assertEquals(9010, service.getProxyPortRangeEnd())
+
+            // Test range setter
+            service.setProxyPortRange(8000, 8020)
+            assertEquals(8000, service.getProxyPortRangeStart())
+            assertEquals(8020, service.getProxyPortRangeEnd())
+        }
+
+        @Test
+        @DisplayName("Should validate proxy port range constraints")
+        fun testProxyPortRangeValidation() {
+            val service = OpenRouterSettingsService()
+
+            // Valid ranges should work
+            service.setProxyPortRange(8080, 8090)
+            assertEquals(8080, service.getProxyPortRangeStart())
+            assertEquals(8090, service.getProxyPortRangeEnd())
+
+            // Equal start and end should work
+            service.setProxyPortRange(8080, 8080)
+            assertEquals(8080, service.getProxyPortRangeStart())
+            assertEquals(8080, service.getProxyPortRangeEnd())
+
+            // Start > End should throw
+            org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
+                service.setProxyPortRange(8090, 8080)
+            }
+
+            // Invalid port numbers should throw
+            org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
+                service.setProxyPortRange(1023, 8080) // Start too low
+            }
+
+            org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
+                service.setProxyPortRange(8080, 65536) // End too high
+            }
+        }
+
+        @Test
+        @DisplayName("Should validate individual range port setters")
+        fun testIndividualRangePortValidation() {
+            val service = OpenRouterSettingsService()
+
+            // Set a valid range first
+            service.setProxyPortRange(8880, 8890)
+
+            // Valid individual changes should work
+            service.setProxyPortRangeStart(8870)
+            assertEquals(8870, service.getProxyPortRangeStart())
+            assertEquals(8890, service.getProxyPortRangeEnd())
+
+            service.setProxyPortRangeEnd(8900)
+            assertEquals(8870, service.getProxyPortRangeStart())
+            assertEquals(8900, service.getProxyPortRangeEnd())
+
+            // Start > End should throw
+            org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
+                service.setProxyPortRangeStart(8901) // Would make start > end
+            }
+
+            org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
+                service.setProxyPortRangeEnd(8869) // Would make end < start
+            }
+        }
+
+        @Test
+        @DisplayName("Should persist proxy configuration correctly")
+        fun testProxyConfigurationPersistence() {
+            val service = OpenRouterSettingsService()
+
+            // Set all proxy configuration
+            service.setProxyAutoStart(true)
+            service.setProxyPort(8888)
+            service.setProxyPortRange(9000, 9020)
+
+            // Verify state persistence
+            val state = service.state
+            assertTrue(state.proxyAutoStart)
+            assertEquals(8888, state.proxyPort)
+            assertEquals(9000, state.proxyPortRangeStart)
+            assertEquals(9020, state.proxyPortRangeEnd)
+
+            // Verify getters return correct values
+            assertTrue(service.isProxyAutoStartEnabled())
+            assertEquals(8888, service.getProxyPort())
+            assertEquals(9000, service.getProxyPortRangeStart())
+            assertEquals(9020, service.getProxyPortRangeEnd())
+        }
+
+        @Test
+        @DisplayName("Should load proxy configuration from state")
+        fun testProxyConfigurationStateLoading() {
+            val service = OpenRouterSettingsService()
+
+            // Create test state with proxy configuration
+            val testState = org.zhavoronkov.openrouter.models.OpenRouterSettings(
+                proxyAutoStart = true,
+                proxyPort = 8889,
+                proxyPortRangeStart = 7000,
+                proxyPortRangeEnd = 7010
+            )
+
+            // Load state
+            service.loadState(testState)
+
+            // Verify configuration is loaded
+            assertTrue(service.isProxyAutoStartEnabled())
+            assertEquals(8889, service.getProxyPort())
+            assertEquals(7000, service.getProxyPortRangeStart())
+            assertEquals(7010, service.getProxyPortRangeEnd())
+        }
+
+        @Test
+        @DisplayName("Should handle edge cases in proxy configuration")
+        fun testProxyConfigurationEdgeCases() {
+            val service = OpenRouterSettingsService()
+
+            // Test maximum valid port range
+            service.setProxyPortRange(1024, 65535)
+            assertEquals(1024, service.getProxyPortRangeStart())
+            assertEquals(65535, service.getProxyPortRangeEnd())
+
+            // Test minimum valid port range
+            service.setProxyPortRange(1024, 1024)
+            assertEquals(1024, service.getProxyPortRangeStart())
+            assertEquals(1024, service.getProxyPortRangeEnd())
+
+            // Test maximum valid specific port
+            service.setProxyPort(65535)
+            assertEquals(65535, service.getProxyPort())
+
+            // Test minimum valid specific port
+            service.setProxyPort(1024)
+            assertEquals(1024, service.getProxyPort())
         }
     }
 }

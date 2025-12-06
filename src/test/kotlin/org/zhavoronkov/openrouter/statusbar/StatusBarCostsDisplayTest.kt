@@ -1,16 +1,16 @@
 package org.zhavoronkov.openrouter.statusbar
 
-import org.junit.jupiter.api.DisplayName
-import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Test
 import org.mockito.Mockito.*
-import org.zhavoronkov.openrouter.models.ConnectionStatus
 import org.zhavoronkov.openrouter.models.CreditsData
 import org.zhavoronkov.openrouter.models.CreditsResponse
+import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
-import org.zhavoronkov.openrouter.services.OpenRouterProxyService
+import java.util.Locale
 import java.util.concurrent.CompletableFuture
 
 /**
@@ -56,8 +56,8 @@ class StatusBarCostsDisplayTest {
         // Format: "Status: Ready - $5.352/$10.00"
         val used = mockCreditsData.totalUsage
         val total = mockCreditsData.totalCredits
-        val expectedFormat = String.format("$%.3f/$%.2f", used, total)
-        
+        val expectedFormat = String.format(Locale.US, "$%.3f/$%.2f", used, total)
+
         assertEquals("$5.352/$10.00", expectedFormat, "Status should show dollar amounts")
     }
 
@@ -87,8 +87,8 @@ class StatusBarCostsDisplayTest {
         val used = mockCreditsData.totalUsage
         val total = mockCreditsData.totalCredits
         val percentage = (used / total) * 100
-        val expectedPercentage = String.format("%.1f%%", percentage)
-        
+        val expectedPercentage = String.format(Locale.US, "%.1f%%", percentage)
+
         assertEquals("53.5%", expectedPercentage, "Status should show percentage")
     }
 
@@ -97,17 +97,17 @@ class StatusBarCostsDisplayTest {
     fun testShowCostsSettingChangesUpdateFormat() {
         // Given: Initial state with show costs enabled
         `when`(mockSettingsService.shouldShowCosts()).thenReturn(true)
-        
+
         // When: Show costs is enabled
         var shouldShowCosts = mockSettingsService.shouldShowCosts()
-        
+
         // Then: Should return true
         assertTrue(shouldShowCosts, "Should show costs should be enabled")
 
         // When: Show costs is disabled
         `when`(mockSettingsService.shouldShowCosts()).thenReturn(false)
         shouldShowCosts = mockSettingsService.shouldShowCosts()
-        
+
         // Then: Should return false
         assertFalse(shouldShowCosts, "Should show costs should be disabled")
     }
@@ -126,8 +126,8 @@ class StatusBarCostsDisplayTest {
 
         testCases.forEach { (used, total, expected) ->
             // When: Formatting dollar amounts
-            val formatted = String.format("$%.3f/$%.2f", used, total)
-            
+            val formatted = String.format(Locale.US, "$%.3f/$%.2f", used, total)
+
             // Then: Should match expected format
             assertEquals(expected, formatted, "Dollar amount should be formatted correctly")
         }
@@ -148,8 +148,8 @@ class StatusBarCostsDisplayTest {
         testCases.forEach { (used, total, expected) ->
             // When: Formatting percentage
             val percentage = (used / total) * 100
-            val formatted = String.format("%.1f%%", percentage)
-            
+            val formatted = String.format(Locale.US, "%.1f%%", percentage)
+
             // Then: Should match expected format
             assertEquals(expected, formatted, "Percentage should be formatted correctly")
         }
@@ -160,19 +160,19 @@ class StatusBarCostsDisplayTest {
     fun testShowCostsSettingPersistence() {
         // Given: Show costs is set to false
         `when`(mockSettingsService.shouldShowCosts()).thenReturn(false)
-        
+
         // When: Setting is retrieved
         val showCosts1 = mockSettingsService.shouldShowCosts()
-        
+
         // Then: Should return false
         assertFalse(showCosts1, "Show costs should be false")
 
         // Given: Show costs is changed to true
         `when`(mockSettingsService.shouldShowCosts()).thenReturn(true)
-        
+
         // When: Setting is retrieved again
         val showCosts2 = mockSettingsService.shouldShowCosts()
-        
+
         // Then: Should return true
         assertTrue(showCosts2, "Show costs should be true after change")
     }
@@ -183,15 +183,15 @@ class StatusBarCostsDisplayTest {
         // Given: Credits data
         val used = 5.352
         val total = 10.0
-        
+
         // When: Tooltip is formatted (simulated)
-        val tooltipWithCosts = String.format("OpenRouter Status: Ready - Usage: $%.3f/$%.2f", used, total)
-        val tooltipWithPercentage = String.format("OpenRouter Status: Ready - Usage: %.1f%% used", (used / total) * 100)
-        
+        val tooltipWithCosts = String.format(Locale.US, "OpenRouter Status: Ready - Usage: $%.3f/$%.2f", used, total)
+        val tooltipWithPercentage = String.format(Locale.US, "OpenRouter Status: Ready - Usage: %.1f%% used", (used / total) * 100)
+
         // Then: Tooltip should contain usage information
         assertTrue(tooltipWithCosts.contains("Usage:"), "Tooltip should contain usage label")
         assertTrue(tooltipWithCosts.contains("$5.352/$10.00"), "Tooltip should show dollar amounts")
-        
+
         assertTrue(tooltipWithPercentage.contains("Usage:"), "Tooltip should contain usage label")
         assertTrue(tooltipWithPercentage.contains("53.5%"), "Tooltip should show percentage")
     }
@@ -202,14 +202,14 @@ class StatusBarCostsDisplayTest {
         // Given: Zero total credits
         val used = 0.0
         val total = 0.0
-        
+
         // When: Formatting with zero credits
         val formatted = if (total > 0) {
-            String.format("$%.3f/$%.2f", used, total)
+            String.format(Locale.US, "$%.3f/$%.2f", used, total)
         } else {
             "No credits"
         }
-        
+
         // Then: Should handle gracefully
         assertEquals("No credits", formatted, "Should handle zero credits gracefully")
     }
@@ -220,13 +220,12 @@ class StatusBarCostsDisplayTest {
         // Given: Very large credit limit (simulating unlimited)
         val used = 5.352
         val total = 999999.0
-        
+
         // When: Formatting with unlimited credits
         val percentage = (used / total) * 100
-        val formatted = String.format("%.1f%%", percentage)
-        
+        val formatted = String.format(Locale.US, "%.1f%%", percentage)
+
         // Then: Should show very small percentage
         assertEquals("0.0%", formatted, "Should show near-zero percentage for unlimited credits")
     }
 }
-

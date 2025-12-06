@@ -4,8 +4,8 @@ import com.google.gson.Gson
 import jakarta.servlet.http.HttpServlet
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
-import org.zhavoronkov.openrouter.utils.PluginLogger
 import org.zhavoronkov.openrouter.services.OpenRouterService
+import org.zhavoronkov.openrouter.utils.PluginLogger
 
 /**
  * Servlet that handles root endpoint (/)
@@ -22,7 +22,9 @@ class RootServlet(
             val servletPath = req.servletPath
             val pathInfo = req.pathInfo
 
-            PluginLogger.Service.info("🧪 Root servlet - URI: '$requestURI', servletPath: '$servletPath', pathInfo: '$pathInfo'")
+            PluginLogger.Service.info(
+                "🧪 Root servlet - URI: '$requestURI', servletPath: '$servletPath', pathInfo: '$pathInfo'"
+            )
 
             // Note: /models requests are now handled exclusively by ModelsServlet
             // This prevents duplicate endpoint handling and routing conflicts
@@ -46,7 +48,7 @@ class RootServlet(
                 ),
                 "endpoints" to listOf(
                     "/v1/models",
-                    "/models",  // AI Assistant compatibility alias
+                    "/models", // AI Assistant compatibility alias
                     "/v1/chat/completions",
                     "/v1/engines",
                     "/v1/organizations",
@@ -58,7 +60,6 @@ class RootServlet(
 
             resp.writer.write(gson.toJson(apiInfo))
             PluginLogger.Service.debug("Root response sent successfully")
-
         } catch (e: Exception) {
             PluginLogger.Service.error("Error in root endpoint", e)
             resp.status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR
@@ -86,7 +87,7 @@ class RootServlet(
 
     // Note: handleModelsRequest method removed - /models is now handled exclusively by ModelsServlet
 
-    private fun handleModelsOptions(req: HttpServletRequest, resp: HttpServletResponse) {
+    private fun handleModelsOptions(_req: HttpServletRequest, resp: HttpServletResponse) {
         resp.setHeader("Access-Control-Allow-Origin", "*")
         resp.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS")
         resp.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")

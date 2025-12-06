@@ -17,7 +17,7 @@ class ProxyServerManager(
     private val proxyService: OpenRouterProxyService,
     private val settingsService: OpenRouterSettingsService
 ) {
-    
+
     companion object {
         private const val STATUS_UPDATE_DELAY_MS = 1000
         private const val BUTTON_UPDATE_DELAY_MS = 500

@@ -11,32 +11,33 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
  * This integrates with the AI Assistant's smartChatEndpointProvider extension point
  */
 class OpenRouterSmartChatEndpointProvider {
-    
+
     private val settingsService = OpenRouterSettingsService.getInstance()
     private val openRouterService = OpenRouterService.getInstance()
-    
+
     companion object {
         private const val PROVIDER_ID = "openrouter"
         private const val PROVIDER_NAME = "OpenRouter"
         private const val PROVIDER_DESCRIPTION = "Access 400+ AI models through OpenRouter.ai"
         private const val BASE_URL = "https://openrouter.ai/api/v1"
+        private const val DEFAULT_MODEL = "openai/gpt-4o-mini"
     }
-    
+
     /**
      * Gets the provider identifier for AI Assistant
      */
     fun getProviderId(): String = PROVIDER_ID
-    
+
     /**
      * Gets the provider display name shown in AI Assistant settings
      */
     fun getProviderName(): String = PROVIDER_NAME
-    
+
     /**
      * Gets the provider description
      */
     fun getProviderDescription(): String = PROVIDER_DESCRIPTION
-    
+
     /**
      * Checks if the provider is available and properly configured
      */
@@ -45,14 +46,14 @@ class OpenRouterSmartChatEndpointProvider {
         PluginLogger.Settings.debug("OpenRouter provider availability check: configured=$configured")
         return configured
     }
-    
+
     /**
      * Gets the chat endpoint URL for OpenRouter
      */
     fun getChatEndpoint(): String {
         return "$BASE_URL/chat/completions"
     }
-    
+
     /**
      * Gets the API key for authentication
      */
@@ -60,7 +61,7 @@ class OpenRouterSmartChatEndpointProvider {
         val apiKey = settingsService.getApiKey()
         return if (apiKey.isNotBlank()) apiKey else null
     }
-    
+
     /**
      * Gets available models from OpenRouter
      */
@@ -152,27 +153,25 @@ class OpenRouterSmartChatEndpointProvider {
         contextLength = 32768,
         supportsStreaming = true
     )
-    
+
     /**
      * Gets the default model for this provider
      */
-    fun getDefaultModel(): String {
-        return "openai/gpt-4o-mini"
-    }
-    
+    fun getDefaultModel(): String = DEFAULT_MODEL
+
     /**
      * Gets provider-specific headers for API requests
      */
     fun getHeaders(): Map<String, String> {
         return OpenRouterRequestBuilder.getStandardHeaders(authToken = getApiKey())
     }
-    
+
     /**
      * Validates the provider configuration
      */
     fun validateConfiguration(project: Project?): ValidationResult {
         PluginLogger.Settings.debug("Validating OpenRouter configuration for AI Assistant")
-        
+
         if (!settingsService.isConfigured()) {
             return ValidationResult(
                 isValid = false,
@@ -180,7 +179,7 @@ class OpenRouterSmartChatEndpointProvider {
                 details = mapOf("needsSetup" to true)
             )
         }
-        
+
         val apiKey = getApiKey()
         if (apiKey.isNullOrBlank()) {
             return ValidationResult(
@@ -189,7 +188,7 @@ class OpenRouterSmartChatEndpointProvider {
                 details = mapOf("needsSetup" to true)
             )
         }
-        
+
         return ValidationResult(
             isValid = true,
             message = "OpenRouter is configured and ready to use.",
@@ -211,4 +210,3 @@ data class ChatEndpointModel(
     val supportsImages: Boolean = false,
     val supportsFunctions: Boolean = false
 )
-

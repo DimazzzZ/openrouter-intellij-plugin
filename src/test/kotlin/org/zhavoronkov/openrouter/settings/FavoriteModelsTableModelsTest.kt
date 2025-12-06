@@ -21,7 +21,7 @@ class FavoriteModelsTableModelsTest {
         fun `should extract provider from model ID`() {
             val model = createTestModel("openai/gpt-4")
             val display = AvailableModelDisplay.from(model)
-            
+
             assertEquals("openai", display.provider, "Should extract provider correctly")
         }
 
@@ -29,7 +29,7 @@ class FavoriteModelsTableModelsTest {
         fun `should handle model ID without provider`() {
             val model = createTestModel("gpt-4")
             val display = AvailableModelDisplay.from(model)
-            
+
             assertEquals("—", display.provider, "Should show unknown for missing provider")
         }
 
@@ -37,7 +37,7 @@ class FavoriteModelsTableModelsTest {
         fun `should format context window correctly`() {
             val model = createTestModel("openai/gpt-4", contextLength = 128000)
             val display = AvailableModelDisplay.from(model)
-            
+
             assertEquals("128K", display.contextWindow, "Should format context window")
         }
 
@@ -45,7 +45,7 @@ class FavoriteModelsTableModelsTest {
         fun `should handle missing context window`() {
             val model = createTestModel("openai/gpt-4", contextLength = null)
             val display = AvailableModelDisplay.from(model)
-            
+
             assertEquals("—", display.contextWindow, "Should show unknown for missing context")
         }
 
@@ -61,7 +61,7 @@ class FavoriteModelsTableModelsTest {
                 )
             )
             val display = AvailableModelDisplay.from(model)
-            
+
             assertTrue(display.capabilities.contains("Vision"), "Should detect vision capability")
         }
 
@@ -72,7 +72,7 @@ class FavoriteModelsTableModelsTest {
                 supportedParameters = listOf("temperature", "tools", "max_tokens")
             )
             val display = AvailableModelDisplay.from(model)
-            
+
             assertTrue(display.capabilities.contains("Tools"), "Should detect tools capability")
         }
 
@@ -80,7 +80,7 @@ class FavoriteModelsTableModelsTest {
         fun `should show unknown for no capabilities`() {
             val model = createTestModel("openai/gpt-4")
             val display = AvailableModelDisplay.from(model)
-            
+
             assertEquals("—", display.capabilities, "Should show unknown for no capabilities")
         }
     }
@@ -93,9 +93,9 @@ class FavoriteModelsTableModelsTest {
         fun `should mark model as available when in available list`() {
             val model = createTestModel("openai/gpt-4")
             val availableModels = listOf(model)
-            
+
             val display = FavoriteModelDisplay.from(model, availableModels)
-            
+
             assertTrue(display.isAvailable, "Model should be marked as available")
         }
 
@@ -103,9 +103,9 @@ class FavoriteModelsTableModelsTest {
         fun `should mark model as unavailable when not in available list`() {
             val model = createTestModel("openai/gpt-4")
             val availableModels = listOf(createTestModel("anthropic/claude-3"))
-            
+
             val display = FavoriteModelDisplay.from(model, availableModels)
-            
+
             assertFalse(display.isAvailable, "Model should be marked as unavailable")
         }
     }
@@ -120,9 +120,9 @@ class FavoriteModelsTableModelsTest {
                 createTestModel("openai/gpt-4"),
                 createTestModel("anthropic/claude-3")
             )
-            
+
             val displays = FavoriteModelsTableHelper.toAvailableDisplayItems(models)
-            
+
             assertEquals(2, displays.size, "Should convert all models")
             assertEquals("openai/gpt-4", displays[0].model.id, "First model should be gpt-4")
             assertEquals("anthropic/claude-3", displays[1].model.id, "Second model should be claude-3")
@@ -135,9 +135,9 @@ class FavoriteModelsTableModelsTest {
                 AvailableModelDisplay.from(createTestModel("anthropic/claude-3")),
                 AvailableModelDisplay.from(createTestModel("google/gemini-pro"))
             )
-            
+
             val filtered = FavoriteModelsTableHelper.filterModels(models, "openai")
-            
+
             assertEquals(1, filtered.size, "Should filter to matching models")
             assertEquals("openai/gpt-4", filtered[0].model.id, "Should match openai model")
         }
@@ -148,9 +148,9 @@ class FavoriteModelsTableModelsTest {
                 AvailableModelDisplay.from(createTestModel("openai/gpt-4")),
                 AvailableModelDisplay.from(createTestModel("anthropic/claude-3"))
             )
-            
+
             val filtered = FavoriteModelsTableHelper.filterModels(models, "")
-            
+
             assertEquals(2, filtered.size, "Should return all models for blank search")
         }
 
@@ -160,9 +160,9 @@ class FavoriteModelsTableModelsTest {
                 AvailableModelDisplay.from(createTestModel("openai/gpt-4")),
                 AvailableModelDisplay.from(createTestModel("anthropic/claude-3"))
             )
-            
+
             val filtered = FavoriteModelsTableHelper.filterModels(models, "OPENAI")
-            
+
             assertEquals(1, filtered.size, "Should filter case-insensitively")
             assertEquals("openai/gpt-4", filtered[0].model.id, "Should match regardless of case")
         }
@@ -174,13 +174,13 @@ class FavoriteModelsTableModelsTest {
                 AvailableModelDisplay.from(createTestModel("anthropic/claude-3")),
                 AvailableModelDisplay.from(createTestModel("google/gemini-pro"))
             )
-            
+
             val favorites = listOf(
                 FavoriteModelDisplay.from(createTestModel("openai/gpt-4"), emptyList())
             )
-            
+
             val excluded = FavoriteModelsTableHelper.excludeFavorites(available, favorites)
-            
+
             assertEquals(2, excluded.size, "Should exclude favorite from available")
             assertFalse(
                 excluded.any { it.model.id == "openai/gpt-4" },
@@ -196,7 +196,7 @@ class FavoriteModelsTableModelsTest {
         @Test
         fun `should create available models table model`() {
             val tableModel = AvailableModelsColumns.createTableModel()
-            
+
             assertEquals(4, tableModel.columnCount, "Should have 4 columns")
             assertEquals("Model ID", tableModel.getColumnName(0), "First column should be Model ID")
             assertEquals("Provider", tableModel.getColumnName(1), "Second column should be Provider")
@@ -207,7 +207,7 @@ class FavoriteModelsTableModelsTest {
         @Test
         fun `should create favorite models table model`() {
             val tableModel = FavoriteModelsColumns.createTableModel()
-            
+
             assertEquals(2, tableModel.columnCount, "Should have 2 columns")
             assertEquals("Model ID", tableModel.getColumnName(0), "First column should be Model ID")
             assertEquals("Status", tableModel.getColumnName(1), "Second column should be Status")
@@ -217,7 +217,7 @@ class FavoriteModelsTableModelsTest {
         fun `should get correct values from available model display`() {
             val model = createTestModel("openai/gpt-4", contextLength = 8192)
             val display = AvailableModelDisplay.from(model)
-            
+
             assertEquals("openai/gpt-4", AvailableModelsColumns.MODEL_ID.valueOf(display))
             assertEquals("openai", AvailableModelsColumns.PROVIDER.valueOf(display))
             assertEquals("8K", AvailableModelsColumns.CONTEXT.valueOf(display))
@@ -228,7 +228,7 @@ class FavoriteModelsTableModelsTest {
             val model = createTestModel("openai/gpt-4")
             val availableDisplay = FavoriteModelDisplay.from(model, listOf(model))
             val unavailableDisplay = FavoriteModelDisplay.from(model, emptyList())
-            
+
             assertEquals("Available", FavoriteModelsColumns.STATUS.valueOf(availableDisplay))
             assertEquals("Unavailable", FavoriteModelsColumns.STATUS.valueOf(unavailableDisplay))
         }
@@ -254,4 +254,3 @@ class FavoriteModelsTableModelsTest {
         )
     }
 }
-

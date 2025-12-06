@@ -1,16 +1,15 @@
 package org.zhavoronkov.openrouter.proxy.servlets
 
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.DisplayName
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.Tag
-import org.junit.jupiter.api.Nested
-import org.junit.jupiter.api.Assertions.*
-import org.mockito.Mockito.*
-import org.zhavoronkov.openrouter.services.OpenRouterService
-import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
+import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Tag
+import org.junit.jupiter.api.Test
+import org.mockito.Mockito.*
+import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import java.io.BufferedReader
 import java.io.PrintWriter
 import java.io.StringReader
@@ -45,7 +44,9 @@ class ApiKeyHandlingIntegrationTest {
                 val apiKey = settingsService.getApiKey()
                 if (apiKey.isBlank()) {
                     resp.status = HttpServletResponse.SC_UNAUTHORIZED
-                    resp.writer.write("""{"error":{"message":"OpenRouter API key not configured. Please configure it in Settings > Tools > OpenRouter","code":401}}""")
+                    resp.writer.write(
+                        """{"error":{"message":"OpenRouter API key not configured. Please configure it in Settings > Tools > OpenRouter","code":401}}"""
+                    )
                     return
                 }
 
@@ -73,8 +74,9 @@ class ApiKeyHandlingIntegrationTest {
 
                 // Simulate successful processing
                 resp.status = HttpServletResponse.SC_OK
-                resp.writer.write("""{"id":"test-$requestId","object":"chat.completion","model":"$modelName","choices":[{"message":{"role":"assistant","content":"Integration test response"}}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}""")
-
+                resp.writer.write(
+                    """{"id":"test-$requestId","object":"chat.completion","model":"$modelName","choices":[{"message":{"role":"assistant","content":"Integration test response"}}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}"""
+                )
             } catch (e: Exception) {
                 resp.status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR
                 resp.writer.write("""{"error":{"message":"Internal server error: ${e.message}","code":500}}""")
@@ -135,12 +137,18 @@ class ApiKeyHandlingIntegrationTest {
 
             // And: Response should be valid chat completion
             val responseContent = responseWriter.toString()
-            assertTrue(responseContent.contains("\"object\":\"chat.completion\""),
-                "Should return chat completion response")
-            assertTrue(responseContent.contains("\"model\":\"openai/gpt-4-turbo\""),
-                "Should preserve model name")
-            assertTrue(responseContent.contains("Integration test response"),
-                "Should contain response content")
+            assertTrue(
+                responseContent.contains("\"object\":\"chat.completion\""),
+                "Should return chat completion response"
+            )
+            assertTrue(
+                responseContent.contains("\"model\":\"openai/gpt-4-turbo\""),
+                "Should preserve model name"
+            )
+            assertTrue(
+                responseContent.contains("Integration test response"),
+                "Should contain response content"
+            )
 
             // This test verifies the fix: before the fix, "raspberry" would cause 401 error
             // After the fix, the Authorization header is ignored and settings API key is used
@@ -158,13 +166,13 @@ class ApiKeyHandlingIntegrationTest {
 
             // Test various problematic Authorization header values that should be ignored
             val problematicHeaders = listOf(
-                "Bearer raspberry",                    // The original problematic value
-                "Bearer invalid-key-123",              // Invalid format
-                "Bearer sk-wrong-prefix-123456789",    // Wrong prefix
-                "Bearer 123456789",                    // Too short
-                "InvalidFormat",                       // No Bearer prefix
-                "",                                    // Empty
-                null                                   // Missing
+                "Bearer raspberry", // The original problematic value
+                "Bearer invalid-key-123", // Invalid format
+                "Bearer sk-wrong-prefix-123456789", // Wrong prefix
+                "Bearer 123456789", // Too short
+                "InvalidFormat", // No Bearer prefix
+                "", // Empty
+                null // Missing
             )
 
             problematicHeaders.forEach { headerValue ->
@@ -185,8 +193,10 @@ class ApiKeyHandlingIntegrationTest {
                 verify(response).status = HttpServletResponse.SC_OK
 
                 val responseContent = responseWriter.toString()
-                assertTrue(responseContent.contains("\"object\":\"chat.completion\""),
-                    "Should work regardless of Authorization header value: $headerValue")
+                assertTrue(
+                    responseContent.contains("\"object\":\"chat.completion\""),
+                    "Should work regardless of Authorization header value: $headerValue"
+                )
             }
 
             // Verify settings service was called for each test
@@ -219,12 +229,18 @@ class ApiKeyHandlingIntegrationTest {
 
             // And: Should provide helpful error message
             val responseContent = responseWriter.toString()
-            assertTrue(responseContent.contains("OpenRouter API key not configured"),
-                "Should indicate API key not configured")
-            assertTrue(responseContent.contains("Settings > Tools > OpenRouter"),
-                "Should tell user where to configure")
-            assertTrue(responseContent.contains("\"code\":401"),
-                "Should include 401 error code")
+            assertTrue(
+                responseContent.contains("OpenRouter API key not configured"),
+                "Should indicate API key not configured"
+            )
+            assertTrue(
+                responseContent.contains("Settings > Tools > OpenRouter"),
+                "Should tell user where to configure"
+            )
+            assertTrue(
+                responseContent.contains("\"code\":401"),
+                "Should include 401 error code"
+            )
 
             // This verifies that the servlet checks settings, not Authorization header
             verify(mockSettingsService).getApiKey()
@@ -263,12 +279,18 @@ class ApiKeyHandlingIntegrationTest {
 
             // And: Response should be valid
             val responseContent = responseWriter.toString()
-            assertTrue(responseContent.contains("\"object\":\"chat.completion\""),
-                "Should return chat completion")
-            assertTrue(responseContent.contains("\"model\":\"anthropic/claude-3.5-sonnet\""),
-                "Should preserve model name unchanged")
-            assertTrue(responseContent.contains("\"usage\":{"),
-                "Should include usage information")
+            assertTrue(
+                responseContent.contains("\"object\":\"chat.completion\""),
+                "Should return chat completion"
+            )
+            assertTrue(
+                responseContent.contains("\"model\":\"anthropic/claude-3.5-sonnet\""),
+                "Should preserve model name unchanged"
+            )
+            assertTrue(
+                responseContent.contains("\"usage\":{"),
+                "Should include usage information"
+            )
         }
     }
 
@@ -311,8 +333,10 @@ class ApiKeyHandlingIntegrationTest {
                 verify(response).status = HttpServletResponse.SC_OK
 
                 val responseContent = responseWriter.toString()
-                assertTrue(responseContent.contains("\"model\":\"$modelName\""),
-                    "Should preserve model name unchanged: $modelName")
+                assertTrue(
+                    responseContent.contains("\"model\":\"$modelName\""),
+                    "Should preserve model name unchanged: $modelName"
+                )
             }
 
             // Verify settings service was called for each model
@@ -377,4 +401,3 @@ class ApiKeyHandlingIntegrationTest {
         }
     }
 }
-

@@ -16,9 +16,9 @@ import com.intellij.openapi.wm.impl.status.EditorBasedWidget
 import com.intellij.ui.awt.RelativePoint
 import com.intellij.util.Consumer
 import org.zhavoronkov.openrouter.models.ConnectionStatus
+import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
-import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.ui.OpenRouterStatsPopup
 import java.awt.event.MouseEvent
 import java.util.Locale
@@ -105,7 +105,10 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
             if (selectedValue.hasSubmenu) {
                 return selectedValue.createSubmenu()
             } else {
-                selectedValue.action?.invoke()
+                // Defer dialog display to avoid focus issues with popup menus
+                selectedValue.action?.let { action ->
+                    ApplicationManager.getApplication().invokeLater { action() }
+                }
                 return FINAL_CHOICE
             }
         }
@@ -125,16 +128,18 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
             )
         )
 
-        // Quota / Usage
+        // Quota / Usage (always show, but disable when not configured)
         items.add(
             PopupMenuItem(
                 text = "View Quota Usage",
                 icon = AllIcons.General.Information,
-                action = { showQuotaUsage() }
+                action = if (settingsService.isConfigured()) {
+                    { showQuotaUsage() }
+                } else {
+                    null // Disabled when not configured
+                }
             )
         )
-
-
 
         // Authentication
         if (settingsService.isConfigured()) {
@@ -154,8 +159,6 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
                 )
             )
         }
-
-
 
         // Settings (direct action, no submenu)
         items.add(
@@ -190,8 +193,8 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
     // Action methods
     private fun showQuotaUsage() {
         // Show quota usage in a modal dialog
-        val statsPopup = OpenRouterStatsPopup(project)
-        statsPopup.showCenteredInCurrentWindow()
+        val statsPopup = OpenRouterStatsPopup(project, openRouterService, settingsService)
+        statsPopup.showDialog()
     }
 
     private fun logout() {
@@ -226,10 +229,6 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
     private fun openFeedbackRepository() {
         BrowserUtil.browse("https://github.com/DimazzzZ/openrouter-intellij-plugin/issues")
     }
-
-
-
-
 
     /**
      * Update the widget with current quota information
