@@ -24,6 +24,7 @@ repositories {
 dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.11.0")
     implementation("com.google.code.gson:gson:2.10.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
 
     // Embedded HTTP server for AI Assistant integration
     implementation("org.eclipse.jetty:jetty-server:11.0.18")
