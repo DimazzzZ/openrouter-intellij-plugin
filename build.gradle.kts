@@ -58,6 +58,27 @@ detekt {
     baseline = file("$projectDir/config/detekt/baseline.xml")
 }
 
+// Configure Detekt SARIF reporting task
+tasks.register<io.gitlab.arturbosch.detekt.Detekt>("detektSarif") {
+    description = "Runs detekt and generates SARIF report for GitHub Code Scanning"
+    group = "verification"
+
+    setSource(files("src/main/kotlin"))
+    include("**/*.kt")
+    exclude("**/test/**", "**/*Test.kt")
+
+    reports {
+        sarif.required.set(true)
+        sarif.outputLocation.set(file("build/reports/detekt/detekt.sarif"))
+        html.required.set(false)
+        txt.required.set(true)
+        xml.required.set(false)
+    }
+
+    jvmTarget = "17"
+    ignoreFailures = true
+}
+
 tasks {
     // Set JVM compatibility versions
     withType<JavaCompile> {
