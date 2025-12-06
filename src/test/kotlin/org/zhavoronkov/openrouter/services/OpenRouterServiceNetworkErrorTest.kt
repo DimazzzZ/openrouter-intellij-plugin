@@ -4,9 +4,18 @@ import com.google.gson.Gson
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
-import org.junit.jupiter.api.*
-import org.junit.jupiter.api.Assertions.*
-import org.mockito.Mockito.*
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertDoesNotThrow
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Test
 import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
@@ -178,7 +187,7 @@ class OpenRouterServiceNetworkErrorTest {
             val result = try {
                 // Simulate network call that fails
                 throw UnknownHostException("openrouter.ai")
-            } catch (e: IOException) {
+            } catch (_: IOException) {
                 // Handle gracefully by returning null
                 null
             }

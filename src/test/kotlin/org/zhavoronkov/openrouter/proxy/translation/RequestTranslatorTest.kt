@@ -19,7 +19,7 @@ class RequestTranslatorTest {
                 OpenAIChatMessage(role = "user", content = "Hello")
             ),
             temperature = 0.7,
-            max_tokens = 150,
+            maxTokens = 150,
             stream = false
         )
 
@@ -115,10 +115,10 @@ class RequestTranslatorTest {
                 OpenAIChatMessage(role = "user", content = "Test")
             ),
             temperature = 1.2,
-            max_tokens = 500,
-            top_p = 0.9,
-            frequency_penalty = 0.5,
-            presence_penalty = 0.3,
+            maxTokens = 500,
+            topP = 0.9,
+            frequencyPenalty = 0.5,
+            presencePenalty = 0.3,
             stop = listOf("END", "STOP")
         )
 

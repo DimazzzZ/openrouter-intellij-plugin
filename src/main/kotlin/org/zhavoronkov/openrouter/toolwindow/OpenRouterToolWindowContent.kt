@@ -8,7 +8,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import org.zhavoronkov.openrouter.models.ActivityResponse
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
@@ -24,6 +23,23 @@ import javax.swing.SwingUtilities
  * Content for the OpenRouter tool window
  */
 class OpenRouterToolWindowContent(private val project: Project) {
+
+    companion object {
+        // UI Dimensions
+        private const val MAIN_PANEL_BORDER = 10
+        private const val TITLE_FONT_SIZE = 16f
+        private const val CONTENT_SPACING = 5
+        private const val LABEL_SPACING_SMALL = 3
+        private const val LABEL_SPACING_MEDIUM = 4
+        private const val LABEL_SPACING_LARGE = 20
+        private const val CONFIGURATION_PANEL_BORDER = 10
+
+        // Configuration section vertical offset
+        private const val CONFIGURATION_SECTION_OFFSET = 3
+
+        // Percentage constants
+        private const val PERCENTAGE_MULTIPLIER = 100
+    }
 
     private val contentPanel: JPanel
     private val settingsService = OpenRouterSettingsService.getInstance()
@@ -42,12 +58,12 @@ class OpenRouterToolWindowContent(private val project: Project) {
 
     private fun createMainPanel(): JPanel {
         val panel = JPanel(BorderLayout())
-        panel.border = JBUI.Borders.empty(10)
+        panel.border = JBUI.Borders.empty(MAIN_PANEL_BORDER)
 
         // Header
         val headerPanel = JPanel(BorderLayout())
         val titleLabel = JBLabel("OpenRouter API Status")
-        titleLabel.font = titleLabel.font.deriveFont(16f)
+        titleLabel.font = titleLabel.font.deriveFont(TITLE_FONT_SIZE)
         headerPanel.add(titleLabel, BorderLayout.WEST)
 
         val refreshButton = JButton("Refresh")
@@ -69,7 +85,7 @@ class OpenRouterToolWindowContent(private val project: Project) {
         val gbc = GridBagConstraints()
 
         gbc.anchor = GridBagConstraints.WEST
-        gbc.insets = JBUI.insets(5)
+        gbc.insets = JBUI.insets(CONTENT_SPACING)
 
         // Status
         gbc.gridx = 0
@@ -80,38 +96,38 @@ class OpenRouterToolWindowContent(private val project: Project) {
 
         // Model
         gbc.gridx = 0
-        gbc.gridy = 1
+        gbc.gridy = LABEL_SPACING_SMALL
         panel.add(JBLabel("Default Model:"), gbc)
         gbc.gridx = 1
         panel.add(modelLabel, gbc)
 
         // Quota
         gbc.gridx = 0
-        gbc.gridy = 2
+        gbc.gridy = LABEL_SPACING_MEDIUM
         panel.add(JBLabel("Quota:"), gbc)
         gbc.gridx = 1
         panel.add(quotaLabel, gbc)
 
         // Usage
         gbc.gridx = 0
-        gbc.gridy = 3
+        gbc.gridy = LABEL_SPACING_MEDIUM + 1
         panel.add(JBLabel("Usage:"), gbc)
         gbc.gridx = 1
         panel.add(usageLabel, gbc)
 
         // Activity
         gbc.gridx = 0
-        gbc.gridy = 4
+        gbc.gridy = LABEL_SPACING_MEDIUM + 2
         panel.add(JBLabel("Activity:"), gbc)
         gbc.gridx = 1
         panel.add(activityLabel, gbc)
 
         // Configuration section
         gbc.gridx = 0
-        gbc.gridy = 5
+        gbc.gridy = LABEL_SPACING_MEDIUM + CONFIGURATION_SECTION_OFFSET
         gbc.gridwidth = 2
         gbc.fill = GridBagConstraints.HORIZONTAL
-        gbc.insets = JBUI.insets(20, 5, 5, 5)
+        gbc.insets = JBUI.insets(LABEL_SPACING_LARGE, CONTENT_SPACING, CONTENT_SPACING, CONTENT_SPACING)
 
         if (!settingsService.isConfigured()) {
             val configPanel = createConfigurationPanel()
@@ -125,7 +141,7 @@ class OpenRouterToolWindowContent(private val project: Project) {
         val panel = JPanel(BorderLayout())
         panel.border = JBUI.Borders.compound(
             JBUI.Borders.customLine(JBUI.CurrentTheme.ToolWindow.borderColor()),
-            JBUI.Borders.empty(10)
+            JBUI.Borders.empty(CONFIGURATION_PANEL_BORDER)
         )
 
         val messageLabel = JBLabel(
@@ -146,79 +162,84 @@ class OpenRouterToolWindowContent(private val project: Project) {
 
     private fun refreshData() {
         if (!settingsService.isConfigured()) {
-            statusLabel.text = "Not configured"
-            modelLabel.text = "N/A"
-            quotaLabel.text = "N/A"
-            usageLabel.text = "N/A"
-            activityLabel.text = "N/A"
+            setUnconfiguredState()
             return
         }
 
         statusLabel.text = "Checking..."
-        // TODO: Future version - Default model selection
+        // NOTE: Future version - Default model selection
         // modelLabel.text = settingsService.getDefaultModel()
         modelLabel.text = "N/A" // Placeholder until model selection is implemented
         activityLabel.text = "Loading..."
 
         val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch { loadConnectionStatus() }
+        scope.launch { loadQuotaInfo() }
+        scope.launch { loadActivityInfo() }
+    }
 
-        // Test connection
-        scope.launch {
-            val result = openRouterService.testConnection()
-            SwingUtilities.invokeLater {
-                when (result) {
-                    is ApiResult.Success -> {
-                        statusLabel.text = if (result.data) "Connected" else "Connection failed"
-                    }
-                    is ApiResult.Error -> {
-                        statusLabel.text = "Connection failed"
-                    }
+    private fun setUnconfiguredState() {
+        statusLabel.text = "Not configured"
+        modelLabel.text = "N/A"
+        quotaLabel.text = "N/A"
+        usageLabel.text = "N/A"
+        activityLabel.text = "N/A"
+    }
+
+    private suspend fun loadConnectionStatus() {
+        val result = openRouterService.testConnection()
+        SwingUtilities.invokeLater {
+            when (result) {
+                is ApiResult.Success -> {
+                    statusLabel.text = if (result.data) "Connected" else "Connection failed"
+                }
+                is ApiResult.Error -> {
+                    statusLabel.text = "Connection failed"
                 }
             }
         }
+    }
 
-        // Get quota info
-        scope.launch {
-            val quotaResult = openRouterService.getQuotaInfo()
-            SwingUtilities.invokeLater {
-                when (quotaResult) {
-                    is ApiResult.Success -> {
-                        val quota = quotaResult.data
-                        quotaLabel.text = "$${String.format(Locale.US, "%.2f", quota.total ?: 0.0)}"
-                        val usedAmount = String.format(Locale.US, "%.2f", quota.used ?: 0.0)
-                        val percentage = String.format(
-                            Locale.US,
-                            "%.1f",
-                            ((quota.used ?: 0.0) / (quota.total ?: 1.0)) * 100
-                        )
-                        usageLabel.text = "$$usedAmount ($percentage%)"
-                    }
-                    is ApiResult.Error -> {
-                        quotaLabel.text = "Failed to load"
-                        usageLabel.text = "Failed to load"
-                    }
+    private suspend fun loadQuotaInfo() {
+        val quotaResult = openRouterService.getQuotaInfo()
+        SwingUtilities.invokeLater {
+            when (quotaResult) {
+                is ApiResult.Success -> {
+                    val quota = quotaResult.data
+                    quotaLabel.text = "$${String.format(Locale.US, "%.2f", quota.total ?: 0.0)}"
+                    val usedAmount = String.format(Locale.US, "%.2f", quota.used ?: 0.0)
+                    val percentage = String.format(
+                        Locale.US,
+                        "%.1f",
+                        ((quota.used ?: 0.0) / (quota.total ?: 1.0)) * PERCENTAGE_MULTIPLIER
+                    )
+                    usageLabel.text = "$$usedAmount ($percentage%)"
+                }
+                is ApiResult.Error -> {
+                    quotaLabel.text = "Failed to load"
+                    usageLabel.text = "Failed to load"
                 }
             }
         }
+    }
 
-        // Get activity info
-        scope.launch {
-            val activityResult = openRouterService.getActivity()
-            SwingUtilities.invokeLater {
-                when (activityResult) {
-                    is ApiResult.Success -> {
-                        val activityResponse = activityResult.data
-                        if (activityResponse.data.isNotEmpty()) {
-                            val totalRequests = activityResponse.data.sumOf { it.requests }
-                            val totalUsage = activityResponse.data.sumOf { it.usage }
-                            activityLabel.text = "$totalRequests requests, $${String.format(Locale.US, "%.4f", totalUsage)}"
-                        } else {
-                            activityLabel.text = "No recent activity"
-                        }
-                    }
-                    is ApiResult.Error -> {
+    private suspend fun loadActivityInfo() {
+        val activityResult = openRouterService.getActivity()
+        SwingUtilities.invokeLater {
+            when (activityResult) {
+                is ApiResult.Success -> {
+                    val activityResponse = activityResult.data
+                    if (activityResponse.data.isNotEmpty()) {
+                        val totalRequests = activityResponse.data.sumOf { it.requests }
+                        val totalUsage = activityResponse.data.sumOf { it.usage }
+                        val usageStr = String.format(Locale.US, "%.4f", totalUsage)
+                        activityLabel.text = "$totalRequests requests, $$usageStr"
+                    } else {
                         activityLabel.text = "No recent activity"
                     }
+                }
+                is ApiResult.Error -> {
+                    activityLabel.text = "No recent activity"
                 }
             }
         }

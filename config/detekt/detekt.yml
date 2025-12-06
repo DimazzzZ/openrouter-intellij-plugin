@@ -947,7 +947,7 @@ formatting:
     autoCorrect: true
   NoWildcardImports:
     active: true
-    packagesToUseImportOnDemandProperty: 'java.util.*,kotlinx.android.synthetic.**'
+    packagesToUseImportOnDemandProperty: 'java.util.*,kotlinx.android.synthetic.**,kotlinx.coroutines.**,com.intellij.ui.dsl.builder.**,com.intellij.openapi.ui.popup.**'
   NullableTypeSpacing:
     active: true
     autoCorrect: true

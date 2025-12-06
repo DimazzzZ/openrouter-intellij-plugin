@@ -4,16 +4,13 @@ import com.google.gson.Gson
 import jakarta.servlet.http.HttpServlet
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
-import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.utils.PluginLogger
 
 /**
  * Servlet that handles root endpoint (/)
  * Provides basic API information for OpenAI API compatibility
  */
-class RootServlet(
-    private val openRouterService: OpenRouterService
-) : HttpServlet() {
+class RootServlet : HttpServlet() {
     private val gson = Gson()
 
     override fun doGet(req: HttpServletRequest, resp: HttpServletResponse) {
@@ -74,7 +71,7 @@ class RootServlet(
         // Handle /models OPTIONS requests
         if (requestURI == "/models" || req.servletPath == "/models") {
             PluginLogger.Service.info("🧪 Root servlet handling /models OPTIONS request")
-            handleModelsOptions(req, resp)
+            handleModelsOptions(resp)
             return
         }
 
@@ -87,7 +84,7 @@ class RootServlet(
 
     // Note: handleModelsRequest method removed - /models is now handled exclusively by ModelsServlet
 
-    private fun handleModelsOptions(_req: HttpServletRequest, resp: HttpServletResponse) {
+    private fun handleModelsOptions(resp: HttpServletResponse) {
         resp.setHeader("Access-Control-Allow-Origin", "*")
         resp.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS")
         resp.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
@@ -97,5 +94,6 @@ class RootServlet(
 
     // Note: createCoreModelsResponse method removed - models are now handled exclusively by ModelsServlet
 
-    // Note: createModel and createDefaultPermission methods removed - models are now handled exclusively by ModelsServlet
+    // Note: createModel and createDefaultPermission methods removed -
+    // models are now handled exclusively by ModelsServlet
 }

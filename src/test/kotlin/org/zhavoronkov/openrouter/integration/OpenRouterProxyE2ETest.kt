@@ -5,8 +5,17 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import org.junit.jupiter.api.*
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.Disabled
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Tag
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
 import java.io.File
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -78,7 +87,7 @@ class OpenRouterProxyE2ETest {
     private fun loadEnvFile() {
         val envFile = File(".env")
         if (!envFile.exists()) {
-            throw IllegalStateException(
+            error(
                 "❌ .env file not found! Please create .env with OPENROUTER_API_KEY and OPENROUTER_PROVISIONING_KEY"
             )
         }
@@ -96,9 +105,9 @@ class OpenRouterProxyE2ETest {
         }
 
         apiKey = envVars["OPENROUTER_API_KEY"]
-            ?: throw IllegalStateException("❌ OPENROUTER_API_KEY not found in .env file")
+            ?: error("❌ OPENROUTER_API_KEY not found in .env file")
         provisioningKey = envVars["OPENROUTER_PROVISIONING_KEY"]
-            ?: throw IllegalStateException("❌ OPENROUTER_PROVISIONING_KEY not found in .env file")
+            ?: error("❌ OPENROUTER_PROVISIONING_KEY not found in .env file")
     }
 
     @Nested

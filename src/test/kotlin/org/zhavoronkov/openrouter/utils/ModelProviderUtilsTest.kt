@@ -1,6 +1,8 @@
 package org.zhavoronkov.openrouter.utils
 
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.zhavoronkov.openrouter.models.ModelArchitecture
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
@@ -63,63 +65,63 @@ class ModelProviderUtilsTest {
     }
 
     @Test
-    fun `hasVisionCapability should return true for models with image input`() {
+    fun `hasCapability should return true for models with vision`() {
         val model = createModel(
             "openai/gpt-4o",
             architecture = ModelArchitecture(inputModalities = listOf("text", "image"))
         )
 
-        assertTrue(ModelProviderUtils.hasVisionCapability(model))
+        assertTrue(ModelProviderUtils.hasCapability(model, ModelProviderUtils.Capability.VISION))
     }
 
     @Test
-    fun `hasVisionCapability should return false for models without image input`() {
+    fun `hasCapability should return false for models without vision`() {
         val model = createModel(
             "openai/gpt-4o",
             architecture = ModelArchitecture(inputModalities = listOf("text"))
         )
 
-        assertFalse(ModelProviderUtils.hasVisionCapability(model))
+        assertFalse(ModelProviderUtils.hasCapability(model, ModelProviderUtils.Capability.VISION))
     }
 
     @Test
-    fun `hasAudioCapability should return true for models with audio input`() {
+    fun `hasCapability should return true for models with audio`() {
         val model = createModel(
             "openai/gpt-4o",
             architecture = ModelArchitecture(inputModalities = listOf("text", "audio"))
         )
 
-        assertTrue(ModelProviderUtils.hasAudioCapability(model))
+        assertTrue(ModelProviderUtils.hasCapability(model, ModelProviderUtils.Capability.AUDIO))
     }
 
     @Test
-    fun `hasToolsCapability should return true for models with tools parameter`() {
+    fun `hasCapability should return true for models with tools`() {
         val model = createModel(
             "openai/gpt-4o",
             supportedParameters = listOf("temperature", "tools", "max_tokens")
         )
 
-        assertTrue(ModelProviderUtils.hasToolsCapability(model))
+        assertTrue(ModelProviderUtils.hasCapability(model, ModelProviderUtils.Capability.TOOLS))
     }
 
     @Test
-    fun `hasToolsCapability should return true for models with functions parameter`() {
+    fun `hasCapability should return true for models with functions`() {
         val model = createModel(
             "openai/gpt-3.5-turbo",
             supportedParameters = listOf("temperature", "functions", "max_tokens")
         )
 
-        assertTrue(ModelProviderUtils.hasToolsCapability(model))
+        assertTrue(ModelProviderUtils.hasCapability(model, ModelProviderUtils.Capability.TOOLS))
     }
 
     @Test
-    fun `hasImageGenerationCapability should return true for models with image output`() {
+    fun `hasCapability should return true for models with image generation`() {
         val model = createModel(
             "dall-e/3",
             architecture = ModelArchitecture(outputModalities = listOf("image"))
         )
 
-        assertTrue(ModelProviderUtils.hasImageGenerationCapability(model))
+        assertTrue(ModelProviderUtils.hasCapability(model, ModelProviderUtils.Capability.IMAGE_GENERATION))
     }
 
     @Test
@@ -266,13 +268,13 @@ class ModelProviderUtilsTest {
             )
         )
 
-        val filtered = ModelProviderUtils.applyFilters(
-            models = models,
+        val criteria = ModelProviderUtils.FilterCriteria(
             provider = "OpenAI",
             contextRange = ModelProviderUtils.ContextRange.MEDIUM,
             requireVision = true,
             requireTools = true
         )
+        val filtered = ModelProviderUtils.applyFilters(models, criteria)
 
         assertEquals(1, filtered.size)
         assertEquals("openai/gpt-4o", filtered[0].id)
@@ -286,10 +288,8 @@ class ModelProviderUtilsTest {
             createModel("anthropic/claude-3.5-sonnet")
         )
 
-        val filtered = ModelProviderUtils.applyFilters(
-            models = models,
-            searchText = "mini"
-        )
+        val criteria = ModelProviderUtils.FilterCriteria(searchText = "mini")
+        val filtered = ModelProviderUtils.applyFilters(models, criteria)
 
         assertEquals(1, filtered.size)
         assertEquals("openai/gpt-4o-mini", filtered[0].id)

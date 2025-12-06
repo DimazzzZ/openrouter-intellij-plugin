@@ -6,7 +6,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
-import org.zhavoronkov.openrouter.models.OpenRouterModelsResponse
 import org.zhavoronkov.openrouter.utils.PluginLogger
 
 /**
@@ -81,7 +80,7 @@ class FavoriteModelsService(
      * @return List of favorite model info objects
      */
     fun getFavoriteModels(): List<OpenRouterModelInfo> {
-        val favoriteIds = settings.getFavoriteModels()
+        val favoriteIds = settings.favoriteModelsManager.getFavoriteModels()
         return favoriteIds.map { modelId ->
             // Try to find full model info from cache, otherwise create minimal object
             cachedModels?.find { it.id == modelId } ?: createMinimalModelInfo(modelId)
@@ -94,7 +93,7 @@ class FavoriteModelsService(
      */
     fun setFavoriteModels(models: List<OpenRouterModelInfo>) {
         val modelIds = models.map { it.id }
-        settings.setFavoriteModels(modelIds)
+        settings.favoriteModelsManager.setFavoriteModels(modelIds)
     }
 
     /**
@@ -103,12 +102,12 @@ class FavoriteModelsService(
      * @return true if added, false if already exists
      */
     fun addFavoriteModel(model: OpenRouterModelInfo): Boolean {
-        val currentFavorites = settings.getFavoriteModels().toMutableList()
+        val currentFavorites = settings.favoriteModelsManager.getFavoriteModels().toMutableList()
         if (currentFavorites.contains(model.id)) {
             return false
         }
         currentFavorites.add(model.id)
-        settings.setFavoriteModels(currentFavorites)
+        settings.favoriteModelsManager.setFavoriteModels(currentFavorites)
         return true
     }
 
@@ -118,10 +117,10 @@ class FavoriteModelsService(
      * @return true if removed, false if not found
      */
     fun removeFavoriteModel(modelId: String): Boolean {
-        val currentFavorites = settings.getFavoriteModels().toMutableList()
+        val currentFavorites = settings.favoriteModelsManager.getFavoriteModels().toMutableList()
         val removed = currentFavorites.remove(modelId)
         if (removed) {
-            settings.setFavoriteModels(currentFavorites)
+            settings.favoriteModelsManager.setFavoriteModels(currentFavorites)
         }
         return removed
     }
@@ -132,14 +131,14 @@ class FavoriteModelsService(
      * @param toIndex Target index
      */
     fun reorderFavorites(fromIndex: Int, toIndex: Int) {
-        val currentFavorites = settings.getFavoriteModels().toMutableList()
+        val currentFavorites = settings.favoriteModelsManager.getFavoriteModels().toMutableList()
         if (!areIndicesValid(fromIndex, toIndex, currentFavorites.size)) {
             return
         }
 
         val model = currentFavorites.removeAt(fromIndex)
         currentFavorites.add(toIndex, model)
-        settings.setFavoriteModels(currentFavorites)
+        settings.favoriteModelsManager.setFavoriteModels(currentFavorites)
     }
 
     /**
@@ -155,14 +154,14 @@ class FavoriteModelsService(
      * @return true if model is favorited
      */
     fun isFavorite(modelId: String): Boolean {
-        return settings.isFavoriteModel(modelId)
+        return settings.favoriteModelsManager.isFavoriteModel(modelId)
     }
 
     /**
      * Clear all favorites
      */
     fun clearAllFavorites() {
-        settings.setFavoriteModels(emptyList())
+        settings.favoriteModelsManager.setFavoriteModels(emptyList())
     }
 
     /**

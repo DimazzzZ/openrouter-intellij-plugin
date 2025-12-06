@@ -1,17 +1,16 @@
 package org.zhavoronkov.openrouter.services
 
-import org.junit.jupiter.api.Test
+import com.intellij.ide.util.PropertiesComponent
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNotNull
-import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
-import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock
-// import org.mockito.kotlin.whenever
-import com.intellij.ide.util.PropertiesComponent
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
 
 @DisplayName("OpenRouter Settings Service Tests")
@@ -39,7 +38,7 @@ class OpenRouterSettingsServiceTest {
 
             // Since we can't mock the PropertiesComponent easily,
             // we'll test by setting and getting values
-            service.setProvisioningKey("")
+            service.apiKeyManager.setProvisioningKey("")
 
             assertFalse(service.isConfigured())
         }
@@ -49,7 +48,7 @@ class OpenRouterSettingsServiceTest {
         fun testIsConfiguredWithProvisioningKey() {
             val service = OpenRouterSettingsService()
 
-            service.setProvisioningKey("test-provisioning-key")
+            service.apiKeyManager.setProvisioningKey("test-provisioning-key")
 
             assertTrue(service.isConfigured())
         }
@@ -59,7 +58,7 @@ class OpenRouterSettingsServiceTest {
         fun testIsConfiguredWithBlankProvisioningKey() {
             val service = OpenRouterSettingsService()
 
-            service.setProvisioningKey("   ")
+            service.apiKeyManager.setProvisioningKey("   ")
 
             assertFalse(service.isConfigured())
         }
@@ -75,7 +74,7 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
             val testKey = "test-provisioning-key-123"
 
-            service.setProvisioningKey(testKey)
+            service.apiKeyManager.setProvisioningKey(testKey)
 
             assertEquals(testKey, service.getProvisioningKey())
         }
@@ -94,7 +93,7 @@ class OpenRouterSettingsServiceTest {
         fun testNullProvisioningKey() {
             val service = OpenRouterSettingsService()
 
-            service.setProvisioningKey("")
+            service.apiKeyManager.setProvisioningKey("")
 
             assertEquals("", service.getProvisioningKey())
         }
@@ -110,7 +109,7 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
             val testKey = "sk-or-v1-test-api-key"
 
-            service.setApiKey(testKey)
+            service.apiKeyManager.setApiKey(testKey)
 
             assertEquals(testKey, service.getApiKey())
         }
@@ -166,7 +165,7 @@ class OpenRouterSettingsServiceTest {
 
             assertEquals(testSettings.apiKey, loadedSettings.apiKey)
             assertEquals(testSettings.provisioningKey, loadedSettings.provisioningKey)
-            // TODO: Future version - Default model selection
+            // NOTE: Future version - Default model selection
             // assertEquals(testSettings.defaultModel, loadedSettings.defaultModel)
             assertEquals(testSettings.autoRefresh, loadedSettings.autoRefresh)
             assertEquals(testSettings.refreshInterval, loadedSettings.refreshInterval)
@@ -213,9 +212,9 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
             val testValue = 8000
 
-            service.setDefaultMaxTokens(testValue)
+            service.uiPreferencesManager.defaultMaxTokens = testValue
 
-            assertEquals(testValue, service.getDefaultMaxTokens())
+            assertEquals(testValue, service.uiPreferencesManager.defaultMaxTokens)
         }
 
         @Test
@@ -224,7 +223,7 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
 
             // Should default to disabled (0)
-            assertEquals(0, service.getDefaultMaxTokens(), "Default should be disabled (0)")
+            assertEquals(0, service.uiPreferencesManager.defaultMaxTokens, "Default should be disabled (0)")
         }
 
         @Test
@@ -232,9 +231,9 @@ class OpenRouterSettingsServiceTest {
         fun testZeroValueForDisabled() {
             val service = OpenRouterSettingsService()
 
-            service.setDefaultMaxTokens(0)
+            service.uiPreferencesManager.defaultMaxTokens = 0
 
-            assertEquals(0, service.getDefaultMaxTokens(), "Zero indicates disabled feature")
+            assertEquals(0, service.uiPreferencesManager.defaultMaxTokens, "Zero indicates disabled feature")
         }
 
         @Test
@@ -243,9 +242,9 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
             val largeValue = 128000 // Large but realistic value
 
-            service.setDefaultMaxTokens(largeValue)
+            service.uiPreferencesManager.defaultMaxTokens = largeValue
 
-            assertEquals(largeValue, service.getDefaultMaxTokens())
+            assertEquals(largeValue, service.uiPreferencesManager.defaultMaxTokens)
         }
 
         @Test
@@ -255,14 +254,14 @@ class OpenRouterSettingsServiceTest {
             val testValue = 4000
 
             // Set value
-            service.setDefaultMaxTokens(testValue)
+            service.uiPreferencesManager.defaultMaxTokens = testValue
 
             // Verify it persists in state
             val state = service.state
             assertEquals(testValue, state.defaultMaxTokens, "Should persist defaultMaxTokens in state")
 
             // Verify retrieval works
-            assertEquals(testValue, service.getDefaultMaxTokens())
+            assertEquals(testValue, service.uiPreferencesManager.defaultMaxTokens)
         }
     }
 
@@ -275,7 +274,7 @@ class OpenRouterSettingsServiceTest {
         fun testGetDefaultFavoriteModels() {
             val service = OpenRouterSettingsService()
 
-            val favorites = service.getFavoriteModels()
+            val favorites = service.favoriteModelsManager.getFavoriteModels()
 
             assertTrue(favorites.isNotEmpty(), "Should have default favorites")
             assertTrue(favorites.contains("openai/gpt-4o"), "Should include GPT-4o")
@@ -286,11 +285,11 @@ class OpenRouterSettingsServiceTest {
         @DisplayName("Should add favorite model")
         fun testAddFavoriteModel() {
             val service = OpenRouterSettingsService()
-            val initialCount = service.getFavoriteModels().size
+            val initialCount = service.favoriteModelsManager.getFavoriteModels().size
 
-            service.addFavoriteModel("google/gemini-pro-1.5")
+            service.favoriteModelsManager.addFavoriteModel("google/gemini-pro-1.5")
 
-            val favorites = service.getFavoriteModels()
+            val favorites = service.favoriteModelsManager.getFavoriteModels()
             assertEquals(initialCount + 1, favorites.size)
             assertTrue(favorites.contains("google/gemini-pro-1.5"))
         }
@@ -300,11 +299,11 @@ class OpenRouterSettingsServiceTest {
         fun testAddDuplicateFavoriteModel() {
             val service = OpenRouterSettingsService()
             val testModel = "openai/gpt-4o"
-            val initialCount = service.getFavoriteModels().size
+            val initialCount = service.favoriteModelsManager.getFavoriteModels().size
 
-            service.addFavoriteModel(testModel) // Should not add duplicate
+            service.favoriteModelsManager.addFavoriteModel(testModel) // Should not add duplicate
 
-            val favorites = service.getFavoriteModels()
+            val favorites = service.favoriteModelsManager.getFavoriteModels()
             assertEquals(initialCount, favorites.size) // Count should remain same
         }
 
@@ -313,11 +312,17 @@ class OpenRouterSettingsServiceTest {
         fun testRemoveFavoriteModel() {
             val service = OpenRouterSettingsService()
             val testModel = "openai/gpt-4o"
-            assertTrue(service.isFavoriteModel(testModel), "Model should be in favorites initially")
+            assertTrue(
+                service.favoriteModelsManager.isFavoriteModel(testModel),
+                "Model should be in favorites initially"
+            )
 
-            service.removeFavoriteModel(testModel)
+            service.favoriteModelsManager.removeFavoriteModel(testModel)
 
-            assertFalse(service.isFavoriteModel(testModel), "Model should be removed from favorites")
+            assertFalse(
+                service.favoriteModelsManager.isFavoriteModel(testModel),
+                "Model should be removed from favorites"
+            )
         }
 
         @Test
@@ -326,9 +331,9 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
             val newFavorites = listOf("anthropic/claude-3-opus", "openai/gpt-4-turbo")
 
-            service.setFavoriteModels(newFavorites)
+            service.favoriteModelsManager.setFavoriteModels(newFavorites)
 
-            val favorites = service.getFavoriteModels()
+            val favorites = service.favoriteModelsManager.getFavoriteModels()
             assertEquals(newFavorites.size, favorites.size)
             assertTrue(favorites.containsAll(newFavorites))
         }
@@ -338,8 +343,14 @@ class OpenRouterSettingsServiceTest {
         fun testIsFavoriteModel() {
             val service = OpenRouterSettingsService()
 
-            assertTrue(service.isFavoriteModel("openai/gpt-4o"), "GPT-4o should be favorite by default")
-            assertFalse(service.isFavoriteModel("some/unknown-model"), "Unknown model should not be favorite")
+            assertTrue(
+                service.favoriteModelsManager.isFavoriteModel("openai/gpt-4o"),
+                "GPT-4o should be favorite by default"
+            )
+            assertFalse(
+                service.favoriteModelsManager.isFavoriteModel("some/unknown-model"),
+                "Unknown model should not be favorite"
+            )
         }
     }
 
@@ -353,11 +364,11 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
 
             // Valid API key format
-            service.setApiKey("sk-or-v1-1234567890abcdef")
+            service.apiKeyManager.setApiKey("sk-or-v1-1234567890abcdef")
             assertEquals("sk-or-v1-1234567890abcdef", service.getApiKey())
 
             // Empty key should be allowed (for clearing)
-            service.setApiKey("")
+            service.apiKeyManager.setApiKey("")
             assertEquals("", service.getApiKey())
         }
 
@@ -367,11 +378,11 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
 
             // Valid provisioning key
-            service.setProvisioningKey("pk-1234567890abcdef")
+            service.apiKeyManager.setProvisioningKey("pk-1234567890abcdef")
             assertEquals("pk-1234567890abcdef", service.getProvisioningKey())
 
             // Empty key should be allowed
-            service.setProvisioningKey("")
+            service.apiKeyManager.setProvisioningKey("")
             assertEquals("", service.getProvisioningKey())
         }
     }
@@ -392,7 +403,7 @@ class OpenRouterSettingsServiceTest {
             val testApiKey = "sk-or-v1-direct-modification-test"
 
             // Modify the API key
-            service.setApiKey(testApiKey)
+            service.apiKeyManager.setApiKey(testApiKey)
 
             // The state object should be the same instance (modified directly)
             val afterState = service.state
@@ -415,18 +426,34 @@ class OpenRouterSettingsServiceTest {
             val testRefreshInterval = 120
             val testShowCosts = false
 
-            service.setApiKey(testApiKey)
-            service.setProvisioningKey(testProvisioningKey)
-            service.setAutoRefresh(testAutoRefresh)
-            service.setRefreshInterval(testRefreshInterval)
-            service.setShowCosts(testShowCosts)
+            service.apiKeyManager.setApiKey(testApiKey)
+            service.apiKeyManager.setProvisioningKey(testProvisioningKey)
+            service.uiPreferencesManager.autoRefresh = testAutoRefresh
+            service.uiPreferencesManager.refreshInterval = testRefreshInterval
+            service.uiPreferencesManager.showCosts = testShowCosts
 
             // All settings should be persisted correctly
             assertEquals(testApiKey, service.getApiKey(), "API key should be persisted")
-            assertEquals(testProvisioningKey, service.getProvisioningKey(), "Provisioning key should be persisted")
-            assertEquals(testAutoRefresh, service.isAutoRefreshEnabled(), "Auto refresh should be persisted")
-            assertEquals(testRefreshInterval, service.getRefreshInterval(), "Refresh interval should be persisted")
-            assertEquals(testShowCosts, service.shouldShowCosts(), "Show costs should be persisted")
+            assertEquals(
+                testProvisioningKey,
+                service.getProvisioningKey(),
+                "Provisioning key should be persisted"
+            )
+            assertEquals(
+                testAutoRefresh,
+                service.uiPreferencesManager.autoRefresh,
+                "Auto refresh should be persisted"
+            )
+            assertEquals(
+                testRefreshInterval,
+                service.uiPreferencesManager.refreshInterval,
+                "Refresh interval should be persisted"
+            )
+            assertEquals(
+                testShowCosts,
+                service.uiPreferencesManager.showCosts,
+                "Show costs should be persisted"
+            )
         }
 
         @Test
@@ -436,7 +463,7 @@ class OpenRouterSettingsServiceTest {
             val testApiKey = "sk-or-v1-encryption-test-key-with-sensitive-data"
 
             // Set the API key (which should encrypt it)
-            service.setApiKey(testApiKey)
+            service.apiKeyManager.setApiKey(testApiKey)
 
             // The stored value should be encrypted
             val state = service.state
@@ -454,13 +481,13 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
 
             // Test empty key
-            service.setApiKey("")
+            service.apiKeyManager.setApiKey("")
             assertEquals("", service.getApiKey(), "Empty API key should be stored as empty")
             assertEquals("", service.state.apiKey, "Empty API key should not be encrypted")
 
             // Test blank key
             val blankKey = "   "
-            service.setApiKey(blankKey)
+            service.apiKeyManager.setApiKey(blankKey)
             assertEquals(blankKey, service.getApiKey(), "Blank API key should be stored as-is")
             assertEquals(blankKey, service.state.apiKey, "Blank API key should not be encrypted")
         }
@@ -476,8 +503,8 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
             val longKey = "a".repeat(1000)
 
-            service.setApiKey(longKey)
-            service.setProvisioningKey(longKey)
+            service.apiKeyManager.setApiKey(longKey)
+            service.apiKeyManager.setProvisioningKey(longKey)
 
             assertEquals(longKey, service.getApiKey())
             assertEquals(longKey, service.getProvisioningKey())
@@ -490,7 +517,7 @@ class OpenRouterSettingsServiceTest {
             // Use realistic special characters that might appear in API keys
             val specialKey = "sk-or-v1-abc123_def456-ghi789"
 
-            service.setApiKey(specialKey)
+            service.apiKeyManager.setApiKey(specialKey)
 
             assertEquals(specialKey, service.getApiKey())
         }
@@ -501,7 +528,7 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
             val unicodeKey = "sk-or-v1-测试🔑"
 
-            service.setApiKey(unicodeKey)
+            service.apiKeyManager.setApiKey(unicodeKey)
 
             assertEquals(unicodeKey, service.getApiKey())
         }
@@ -517,10 +544,10 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
 
             // Default values should match the improved defaults
-            assertFalse(service.isProxyAutoStartEnabled(), "Auto-start should be disabled by default")
-            assertEquals(0, service.getProxyPort(), "Should default to auto port selection")
-            assertEquals(8880, service.getProxyPortRangeStart(), "Default start port should be 8880")
-            assertEquals(8899, service.getProxyPortRangeEnd(), "Default end port should be 8899")
+            assertFalse(service.proxyManager.isProxyAutoStartEnabled(), "Auto-start should be disabled by default")
+            assertEquals(0, service.proxyManager.getProxyPort(), "Should default to auto port selection")
+            assertEquals(8880, service.proxyManager.getProxyPortRangeStart(), "Default start port should be 8880")
+            assertEquals(8899, service.proxyManager.getProxyPortRangeEnd(), "Default end port should be 8899")
         }
 
         @Test
@@ -529,15 +556,15 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
 
             // Initially disabled
-            assertFalse(service.isProxyAutoStartEnabled())
+            assertFalse(service.proxyManager.isProxyAutoStartEnabled())
 
             // Enable auto-start
-            service.setProxyAutoStart(true)
-            assertTrue(service.isProxyAutoStartEnabled())
+            service.proxyManager.setProxyAutoStart(true)
+            assertTrue(service.proxyManager.isProxyAutoStartEnabled())
 
             // Disable auto-start
-            service.setProxyAutoStart(false)
-            assertFalse(service.isProxyAutoStartEnabled())
+            service.proxyManager.setProxyAutoStart(false)
+            assertFalse(service.proxyManager.isProxyAutoStartEnabled())
         }
 
         @Test
@@ -546,15 +573,15 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
 
             // Initially should be 0 (auto)
-            assertEquals(0, service.getProxyPort())
+            assertEquals(0, service.proxyManager.getProxyPort())
 
             // Set specific port
-            service.setProxyPort(8888)
-            assertEquals(8888, service.getProxyPort())
+            service.proxyManager.setProxyPort(8888)
+            assertEquals(8888, service.proxyManager.getProxyPort())
 
             // Set back to auto
-            service.setProxyPort(0)
-            assertEquals(0, service.getProxyPort())
+            service.proxyManager.setProxyPort(0)
+            assertEquals(0, service.proxyManager.getProxyPort())
         }
 
         @Test
@@ -563,26 +590,26 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
 
             // Valid ports should work
-            service.setProxyPort(1024)
-            assertEquals(1024, service.getProxyPort())
+            service.proxyManager.setProxyPort(1024)
+            assertEquals(1024, service.proxyManager.getProxyPort())
 
-            service.setProxyPort(65535)
-            assertEquals(65535, service.getProxyPort())
+            service.proxyManager.setProxyPort(65535)
+            assertEquals(65535, service.proxyManager.getProxyPort())
 
-            service.setProxyPort(0) // Auto is valid
-            assertEquals(0, service.getProxyPort())
+            service.proxyManager.setProxyPort(0) // Auto is valid
+            assertEquals(0, service.proxyManager.getProxyPort())
 
             // Invalid ports should throw
             org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
-                service.setProxyPort(1023) // Too low
+                service.proxyManager.setProxyPort(1023) // Too low
             }
 
             org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
-                service.setProxyPort(65536) // Too high
+                service.proxyManager.setProxyPort(65536) // Too high
             }
 
             org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
-                service.setProxyPort(-1) // Negative
+                service.proxyManager.setProxyPort(-1) // Negative
             }
         }
 
@@ -592,16 +619,16 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
 
             // Test individual range setters - set end first to avoid constraint violation
-            service.setProxyPortRangeEnd(9010) // Set end first
-            service.setProxyPortRangeStart(9000) // Then set start
+            service.proxyManager.setProxyPortRangeEnd(9010) // Set end first
+            service.proxyManager.setProxyPortRangeStart(9000) // Then set start
 
-            assertEquals(9000, service.getProxyPortRangeStart())
-            assertEquals(9010, service.getProxyPortRangeEnd())
+            assertEquals(9000, service.proxyManager.getProxyPortRangeStart())
+            assertEquals(9010, service.proxyManager.getProxyPortRangeEnd())
 
             // Test range setter
-            service.setProxyPortRange(8000, 8020)
-            assertEquals(8000, service.getProxyPortRangeStart())
-            assertEquals(8020, service.getProxyPortRangeEnd())
+            service.proxyManager.setProxyPortRange(8000, 8020)
+            assertEquals(8000, service.proxyManager.getProxyPortRangeStart())
+            assertEquals(8020, service.proxyManager.getProxyPortRangeEnd())
         }
 
         @Test
@@ -610,27 +637,27 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
 
             // Valid ranges should work
-            service.setProxyPortRange(8080, 8090)
-            assertEquals(8080, service.getProxyPortRangeStart())
-            assertEquals(8090, service.getProxyPortRangeEnd())
+            service.proxyManager.setProxyPortRange(8080, 8090)
+            assertEquals(8080, service.proxyManager.getProxyPortRangeStart())
+            assertEquals(8090, service.proxyManager.getProxyPortRangeEnd())
 
             // Equal start and end should work
-            service.setProxyPortRange(8080, 8080)
-            assertEquals(8080, service.getProxyPortRangeStart())
-            assertEquals(8080, service.getProxyPortRangeEnd())
+            service.proxyManager.setProxyPortRange(8080, 8080)
+            assertEquals(8080, service.proxyManager.getProxyPortRangeStart())
+            assertEquals(8080, service.proxyManager.getProxyPortRangeEnd())
 
             // Start > End should throw
             org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
-                service.setProxyPortRange(8090, 8080)
+                service.proxyManager.setProxyPortRange(8090, 8080)
             }
 
             // Invalid port numbers should throw
             org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
-                service.setProxyPortRange(1023, 8080) // Start too low
+                service.proxyManager.setProxyPortRange(1023, 8080) // Start too low
             }
 
             org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
-                service.setProxyPortRange(8080, 65536) // End too high
+                service.proxyManager.setProxyPortRange(8080, 65536) // End too high
             }
         }
 
@@ -640,24 +667,24 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
 
             // Set a valid range first
-            service.setProxyPortRange(8880, 8890)
+            service.proxyManager.setProxyPortRange(8880, 8890)
 
             // Valid individual changes should work
-            service.setProxyPortRangeStart(8870)
-            assertEquals(8870, service.getProxyPortRangeStart())
-            assertEquals(8890, service.getProxyPortRangeEnd())
+            service.proxyManager.setProxyPortRangeStart(8870)
+            assertEquals(8870, service.proxyManager.getProxyPortRangeStart())
+            assertEquals(8890, service.proxyManager.getProxyPortRangeEnd())
 
-            service.setProxyPortRangeEnd(8900)
-            assertEquals(8870, service.getProxyPortRangeStart())
-            assertEquals(8900, service.getProxyPortRangeEnd())
+            service.proxyManager.setProxyPortRangeEnd(8900)
+            assertEquals(8870, service.proxyManager.getProxyPortRangeStart())
+            assertEquals(8900, service.proxyManager.getProxyPortRangeEnd())
 
             // Start > End should throw
             org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
-                service.setProxyPortRangeStart(8901) // Would make start > end
+                service.proxyManager.setProxyPortRangeStart(8901) // Would make start > end
             }
 
             org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
-                service.setProxyPortRangeEnd(8869) // Would make end < start
+                service.proxyManager.setProxyPortRangeEnd(8869) // Would make end < start
             }
         }
 
@@ -667,9 +694,9 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
 
             // Set all proxy configuration
-            service.setProxyAutoStart(true)
-            service.setProxyPort(8888)
-            service.setProxyPortRange(9000, 9020)
+            service.proxyManager.setProxyAutoStart(true)
+            service.proxyManager.setProxyPort(8888)
+            service.proxyManager.setProxyPortRange(9000, 9020)
 
             // Verify state persistence
             val state = service.state
@@ -679,10 +706,10 @@ class OpenRouterSettingsServiceTest {
             assertEquals(9020, state.proxyPortRangeEnd)
 
             // Verify getters return correct values
-            assertTrue(service.isProxyAutoStartEnabled())
-            assertEquals(8888, service.getProxyPort())
-            assertEquals(9000, service.getProxyPortRangeStart())
-            assertEquals(9020, service.getProxyPortRangeEnd())
+            assertTrue(service.proxyManager.isProxyAutoStartEnabled())
+            assertEquals(8888, service.proxyManager.getProxyPort())
+            assertEquals(9000, service.proxyManager.getProxyPortRangeStart())
+            assertEquals(9020, service.proxyManager.getProxyPortRangeEnd())
         }
 
         @Test
@@ -702,10 +729,10 @@ class OpenRouterSettingsServiceTest {
             service.loadState(testState)
 
             // Verify configuration is loaded
-            assertTrue(service.isProxyAutoStartEnabled())
-            assertEquals(8889, service.getProxyPort())
-            assertEquals(7000, service.getProxyPortRangeStart())
-            assertEquals(7010, service.getProxyPortRangeEnd())
+            assertTrue(service.proxyManager.isProxyAutoStartEnabled())
+            assertEquals(8889, service.proxyManager.getProxyPort())
+            assertEquals(7000, service.proxyManager.getProxyPortRangeStart())
+            assertEquals(7010, service.proxyManager.getProxyPortRangeEnd())
         }
 
         @Test
@@ -714,22 +741,22 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
 
             // Test maximum valid port range
-            service.setProxyPortRange(1024, 65535)
-            assertEquals(1024, service.getProxyPortRangeStart())
-            assertEquals(65535, service.getProxyPortRangeEnd())
+            service.proxyManager.setProxyPortRange(1024, 65535)
+            assertEquals(1024, service.proxyManager.getProxyPortRangeStart())
+            assertEquals(65535, service.proxyManager.getProxyPortRangeEnd())
 
             // Test minimum valid port range
-            service.setProxyPortRange(1024, 1024)
-            assertEquals(1024, service.getProxyPortRangeStart())
-            assertEquals(1024, service.getProxyPortRangeEnd())
+            service.proxyManager.setProxyPortRange(1024, 1024)
+            assertEquals(1024, service.proxyManager.getProxyPortRangeStart())
+            assertEquals(1024, service.proxyManager.getProxyPortRangeEnd())
 
             // Test maximum valid specific port
-            service.setProxyPort(65535)
-            assertEquals(65535, service.getProxyPort())
+            service.proxyManager.setProxyPort(65535)
+            assertEquals(65535, service.proxyManager.getProxyPort())
 
             // Test minimum valid specific port
-            service.setProxyPort(1024)
-            assertEquals(1024, service.getProxyPort())
+            service.proxyManager.setProxyPort(1024)
+            assertEquals(1024, service.proxyManager.getProxyPort())
         }
     }
 }

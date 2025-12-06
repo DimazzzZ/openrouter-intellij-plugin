@@ -21,9 +21,9 @@ class WelcomeNotificationActivity : ProjectActivity {
         val settings = OpenRouterSettingsService.getInstance()
 
         // Only show welcome notification if user hasn't seen it yet
-        if (!settings.hasSeenWelcome()) {
+        if (!settings.setupStateManager.hasSeenWelcome()) {
             showWelcomeNotification(project)
-            settings.setHasSeenWelcome(true)
+            settings.setupStateManager.setHasSeenWelcome(true)
             PluginLogger.Startup.info("Welcome notification shown to first-time user")
         }
     }

@@ -1,8 +1,6 @@
 package org.zhavoronkov.openrouter.ui
 
 import com.intellij.openapi.application.ApplicationManager
-import kotlinx.coroutines.*
-import org.zhavoronkov.openrouter.models.ApiResult
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.components.JBLabel
@@ -13,8 +11,6 @@ import org.zhavoronkov.openrouter.models.ActivityData
 import org.zhavoronkov.openrouter.models.ActivityResponse
 import org.zhavoronkov.openrouter.models.ApiKeysListResponse
 import org.zhavoronkov.openrouter.models.CreditsResponse
-import org.zhavoronkov.openrouter.models.QuotaInfo
-// import org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService // TEMPORARILY COMMENTED OUT
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import java.awt.BorderLayout
@@ -59,22 +55,33 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
 
     private var openRouterServiceField: OpenRouterService? = null
     private var settingsServiceField: OpenRouterSettingsService? = null
+    private val dataLoader: StatsDataLoader by lazy {
+        StatsDataLoader(settingsService, openRouterService)
+    }
 
     private val openRouterService: OpenRouterService?
         get() = openRouterServiceField ?: try {
             OpenRouterService.getInstance()
-        } catch (e: Exception) {
+        } catch (e: IllegalStateException) {
             // Service not available in test environment or initialization error
             println("OpenRouterService not available: ${e.message}")
+            null
+        } catch (e: NoClassDefFoundError) {
+            // Service class not found
+            println("OpenRouterService class not found: ${e.message}")
             null
         }
 
     private val settingsService: OpenRouterSettingsService?
         get() = settingsServiceField ?: try {
             OpenRouterSettingsService.getInstance()
-        } catch (e: Exception) {
+        } catch (e: IllegalStateException) {
             // Service not available in test environment or initialization error
             println("OpenRouterSettingsService not available: ${e.message}")
+            null
+        } catch (e: NoClassDefFoundError) {
+            // Service class not found
+            println("OpenRouterSettingsService class not found: ${e.message}")
             null
         }
     // private val trackingService = OpenRouterGenerationTrackingService.getInstance() // TEMPORARILY COMMENTED OUT
@@ -89,6 +96,39 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
 
         private const val NO_RECENT_MODELS_HTML = "<html>Recent Models:<br/>• None</html>"
         private const val LOADING_MODELS_HTML = "<html>Recent Models:<br/>• Loading...</html>"
+
+        // UI Dimensions
+        private const val MAIN_PANEL_WIDTH = 450
+        private const val MAIN_PANEL_HEIGHT = 350
+        private const val MAIN_PANEL_MIN_HEIGHT = 300
+        private const val STATS_PANEL_WIDTH = 400
+        private const val STATS_PANEL_MIN_HEIGHT = 200
+        private const val STATS_PANEL_HEIGHT = 250
+        private const val MAIN_PANEL_BORDER = 12
+        private const val HEADER_ICON_GAP = 8
+        private const val STATS_PANEL_BORDER_TOP = 12
+        private const val FONT_SIZE_TITLE = 14f
+        private const val FONT_SIZE_LABEL = 12f
+        private const val PROGRESS_BAR_HEIGHT = 4
+        private const val LABEL_SPACING = 8
+        private const val ACTIVITY_SECTION_SPACING = 4
+
+        // Timing constants
+        private const val DIALOG_SHOW_DELAY_MS = 100
+        private const val ACTIVITY_DAYS_WEEK = 7
+        private const val ACTIVITY_DISPLAY_LIMIT = 5
+
+        // Percentage constants
+        private const val PERCENTAGE_MULTIPLIER = 100
+
+        // Currency formatting
+        private const val CURRENCY_DECIMAL_PLACES = 4
+
+        // Progress bar maximum value
+        private const val PROGRESS_BAR_MAX = 100
+
+        // Date string length for date-only format (YYYY-MM-DD)
+        private const val DATE_ONLY_LENGTH = 10
     }
 
     private lateinit var tierLabel: JBLabel
@@ -96,7 +136,7 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
     private lateinit var creditsUsageLabel: JBLabel
     private lateinit var creditsRemainingLabel: JBLabel
 
-    // TEMPORARILY COMMENTED OUT - TODO: Re-enable when local activity tracking is ready
+    // TEMPORARILY COMMENTED OUT - NOTE: Re-enable when local activity tracking is ready
     // private lateinit var recentCostLabel: JBLabel
     // private lateinit var recentTokensLabel: JBLabel
     // private lateinit var generationCountLabel: JBLabel
@@ -108,49 +148,45 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
     /**
      * Sets all labels to loading state
      */
-    private fun setLabelsToLoading() {
-        tierLabel.text = "Account: $DEFAULT_LOADING_TEXT"
-        totalCreditsLabel.text = "Total Credits: $DEFAULT_LOADING_TEXT"
-        creditsUsageLabel.text = "Credits Used: $DEFAULT_LOADING_TEXT"
-        creditsRemainingLabel.text = "Credits Remaining: $DEFAULT_LOADING_TEXT"
-        activity24hLabel.text = "Last 24 hours: $DEFAULT_LOADING_TEXT"
-        activityWeekLabel.text = "Last week: $DEFAULT_LOADING_TEXT"
-        activityModelsLabel.text = LOADING_MODELS_HTML
-        // recentCostLabel.text = "Recent Cost: $DEFAULT_LOADING_TEXT" // TEMPORARILY COMMENTED OUT
-        // recentTokensLabel.text = "Recent Tokens: $DEFAULT_LOADING_TEXT" // TEMPORARILY COMMENTED OUT
-        // generationCountLabel.text = "Tracked Calls: $DEFAULT_LOADING_TEXT" // TEMPORARILY COMMENTED OUT
+    private enum class LabelState {
+        LOADING, NOT_CONFIGURED, ERROR, NO_ACTIVITY
     }
 
-    /**
-     * Sets all labels to not configured state
-     */
-    private fun setLabelsToNotConfigured() {
-        tierLabel.text = "Account: $NOT_CONFIGURED_MESSAGE"
-        totalCreditsLabel.text = "Total Credits: $NOT_CONFIGURED_TEXT"
-        creditsUsageLabel.text = "Credits Used: $NOT_CONFIGURED_TEXT"
-        creditsRemainingLabel.text = "Credits Remaining: $NOT_CONFIGURED_TEXT"
-        activity24hLabel.text = "Last 24 hours: $NOT_CONFIGURED_TEXT"
-        activityWeekLabel.text = "Last week: $NOT_CONFIGURED_TEXT"
-        activityModelsLabel.text = "<html>Recent Models:<br/>• $NOT_CONFIGURED_TEXT</html>"
-        // recentCostLabel.text = "Recent Cost: $NOT_CONFIGURED_TEXT" // TEMPORARILY COMMENTED OUT
-        // recentTokensLabel.text = "Recent Tokens: $NOT_CONFIGURED_TEXT" // TEMPORARILY COMMENTED OUT
-        // generationCountLabel.text = "Recent Tokens: $NOT_CONFIGURED_TEXT" // TEMPORARILY COMMENTED OUT
-    }
-
-    /**
-     * Sets all labels to error state
-     */
-    private fun setLabelsToError() {
-        tierLabel.text = "Account: $ERROR_MESSAGE"
-        totalCreditsLabel.text = "Total Credits: $ERROR_TEXT"
-        creditsUsageLabel.text = "Credits Used: $ERROR_TEXT"
-        creditsRemainingLabel.text = "Credits Remaining: $ERROR_TEXT"
-        activity24hLabel.text = "Last 24 hours: $ERROR_TEXT"
-        activityWeekLabel.text = "Last week: $ERROR_TEXT"
-        activityModelsLabel.text = "<html>Recent Models:<br/>• $ERROR_TEXT</html>"
-        // recentCostLabel.text = "Recent Cost: $ERROR_TEXT" // TEMPORARILY COMMENTED OUT
-        // recentTokensLabel.text = "Recent Tokens: $ERROR_TEXT" // TEMPORARILY COMMENTED OUT
-        // generationCountLabel.text = "Recent Tokens: $ERROR_TEXT" // TEMPORARILY COMMENTED OUT
+    private fun setLabelsState(state: LabelState) {
+        when (state) {
+            LabelState.LOADING -> {
+                tierLabel.text = "Account: $DEFAULT_LOADING_TEXT"
+                totalCreditsLabel.text = "Total Credits: $DEFAULT_LOADING_TEXT"
+                creditsUsageLabel.text = "Credits Used: $DEFAULT_LOADING_TEXT"
+                creditsRemainingLabel.text = "Credits Remaining: $DEFAULT_LOADING_TEXT"
+                activity24hLabel.text = "Last 24 hours: $DEFAULT_LOADING_TEXT"
+                activityWeekLabel.text = "Last week: $DEFAULT_LOADING_TEXT"
+                activityModelsLabel.text = LOADING_MODELS_HTML
+            }
+            LabelState.NOT_CONFIGURED -> {
+                tierLabel.text = "Account: $NOT_CONFIGURED_MESSAGE"
+                totalCreditsLabel.text = "Total Credits: $NOT_CONFIGURED_TEXT"
+                creditsUsageLabel.text = "Credits Used: $NOT_CONFIGURED_TEXT"
+                creditsRemainingLabel.text = "Credits Remaining: $NOT_CONFIGURED_TEXT"
+                activity24hLabel.text = "Last 24 hours: $NOT_CONFIGURED_TEXT"
+                activityWeekLabel.text = "Last week: $NOT_CONFIGURED_TEXT"
+                activityModelsLabel.text = "<html>Recent Models:<br/>• $NOT_CONFIGURED_TEXT</html>"
+            }
+            LabelState.ERROR -> {
+                tierLabel.text = "Account: $ERROR_MESSAGE"
+                totalCreditsLabel.text = "Total Credits: $ERROR_TEXT"
+                creditsUsageLabel.text = "Credits Used: $ERROR_TEXT"
+                creditsRemainingLabel.text = "Credits Remaining: $ERROR_TEXT"
+                activity24hLabel.text = "Last 24 hours: $ERROR_TEXT"
+                activityWeekLabel.text = "Last week: $ERROR_TEXT"
+                activityModelsLabel.text = "<html>Recent Models:<br/>• $ERROR_TEXT</html>"
+            }
+            LabelState.NO_ACTIVITY -> {
+                activity24hLabel.text = "Last 24 hours: $NO_ACTIVITY_TEXT"
+                activityWeekLabel.text = "Last week: $NO_ACTIVITY_TEXT"
+                activityModelsLabel.text = NO_RECENT_MODELS_HTML
+            }
+        }
     }
 
     /**
@@ -162,15 +198,6 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         progressBar.isIndeterminate = indeterminate
     }
 
-    /**
-     * Sets activity state when no recent activity
-     */
-    private fun setActivityLabelsToNoActivity() {
-        activity24hLabel.text = "Last 24 hours: $NO_ACTIVITY_TEXT"
-        activityWeekLabel.text = "Last week: $NO_ACTIVITY_TEXT"
-        activityModelsLabel.text = NO_RECENT_MODELS_HTML
-    }
-
     fun showDialog() {
         show()
     }
@@ -180,7 +207,7 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         // This avoids the EDT blocking issue with super.show()
         Thread {
             // Wait a moment for dialog to be fully displayed
-            Thread.sleep(100)
+            Thread.sleep(DIALOG_SHOW_DELAY_MS.toLong())
             loadData()
         }.start()
 
@@ -193,30 +220,20 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
 
     override fun createActions(): Array<Action> {
         // Include Refresh, Settings, and Close buttons in the same line
-        return arrayOf(createRefreshAction(), createSettingsAction(), createCloseAction())
-    }
-
-    private fun createRefreshAction(): Action {
-        return object : DialogWrapperAction("Refresh") {
-            override fun doAction(e: java.awt.event.ActionEvent?) {
-                loadData()
-            }
-        }
-    }
-
-    private fun createSettingsAction(): Action {
-        return object : DialogWrapperAction("Settings") {
-            override fun doAction(e: java.awt.event.ActionEvent?) {
-                close(OK_EXIT_CODE) // Close this dialog first
-                openSettings()
-            }
-        }
-    }
-
-    private fun createCloseAction(): Action {
-        return object : DialogWrapperAction("Close") {
-            override fun doAction(e: java.awt.event.ActionEvent?) {
+        return arrayOf(
+            createDialogAction("Refresh") { loadData() },
+            createDialogAction("Settings") {
                 close(OK_EXIT_CODE)
+                openSettings()
+            },
+            createDialogAction("Close") { close(OK_EXIT_CODE) }
+        )
+    }
+
+    private fun createDialogAction(name: String, action: () -> Unit): Action {
+        return object : DialogWrapperAction(name) {
+            override fun doAction(e: java.awt.event.ActionEvent?) {
+                action()
             }
         }
     }
@@ -224,9 +241,9 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
     private fun createMainPanel(): JPanel {
         val mainPanel = JBPanel<JBPanel<*>>(BorderLayout()).apply {
             // Set minimum size but allow content to expand
-            preferredSize = Dimension(450, 350)
-            minimumSize = Dimension(450, 300)
-            border = JBUI.Borders.empty(12)
+            preferredSize = Dimension(MAIN_PANEL_WIDTH, MAIN_PANEL_HEIGHT)
+            minimumSize = Dimension(MAIN_PANEL_WIDTH, MAIN_PANEL_MIN_HEIGHT)
+            border = JBUI.Borders.empty(MAIN_PANEL_BORDER)
         }
 
         // Header with icon and title
@@ -247,11 +264,11 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
 
         val iconLabel = JBLabel(OpenRouterIcons.STATUS_BAR)
         val titleLabel = JBLabel("OpenRouter API").apply {
-            font = font.deriveFont(Font.BOLD, 14f)
+            font = font.deriveFont(Font.BOLD, FONT_SIZE_TITLE)
         }
 
         headerPanel.add(iconLabel)
-        headerPanel.add(Box.createHorizontalStrut(8))
+        headerPanel.add(Box.createHorizontalStrut(HEADER_ICON_GAP))
         headerPanel.add(titleLabel)
 
         return headerPanel
@@ -260,9 +277,9 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
     private fun createStatsPanel(): JPanel {
         val statsPanel = JBPanel<JBPanel<*>>().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
-            border = JBUI.Borders.empty(12, 0)
-            minimumSize = Dimension(400, 200)
-            preferredSize = Dimension(400, 250)
+            border = JBUI.Borders.empty(STATS_PANEL_BORDER_TOP, 0)
+            minimumSize = Dimension(STATS_PANEL_WIDTH, STATS_PANEL_MIN_HEIGHT)
+            preferredSize = Dimension(STATS_PANEL_WIDTH, STATS_PANEL_HEIGHT)
         }
 
         // Account information
@@ -276,7 +293,7 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         creditsRemainingLabel = JBLabel("Credits Remaining: Loading...")
 
         // Progress bar
-        progressBar = JProgressBar(0, 100).apply {
+        progressBar = JProgressBar(0, PROGRESS_BAR_MAX).apply {
             isStringPainted = true
             string = "Loading..."
         }
@@ -294,39 +311,39 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         }
 
         statsPanel.add(tierLabel)
-        statsPanel.add(Box.createVerticalStrut(8))
+        statsPanel.add(Box.createVerticalStrut(LABEL_SPACING))
 
         // Credits section
         statsPanel.add(totalCreditsLabel)
-        statsPanel.add(Box.createVerticalStrut(4))
+        statsPanel.add(Box.createVerticalStrut(ACTIVITY_SECTION_SPACING))
         statsPanel.add(creditsUsageLabel)
-        statsPanel.add(Box.createVerticalStrut(4))
+        statsPanel.add(Box.createVerticalStrut(ACTIVITY_SECTION_SPACING))
         statsPanel.add(creditsRemainingLabel)
-        statsPanel.add(Box.createVerticalStrut(8))
+        statsPanel.add(Box.createVerticalStrut(LABEL_SPACING))
 
         statsPanel.add(progressBar)
-        statsPanel.add(Box.createVerticalStrut(12))
+        statsPanel.add(Box.createVerticalStrut(PROGRESS_BAR_HEIGHT.toInt()))
 
         // Add separator
         val separator = JSeparator()
         statsPanel.add(separator)
-        statsPanel.add(Box.createVerticalStrut(8))
+        statsPanel.add(Box.createVerticalStrut(LABEL_SPACING))
 
         // Recent activity section
         val recentLabel = JBLabel("Recent Activity").apply {
-            font = font.deriveFont(Font.BOLD, 12f)
+            font = font.deriveFont(Font.BOLD, FONT_SIZE_LABEL)
         }
         statsPanel.add(recentLabel)
-        statsPanel.add(Box.createVerticalStrut(4))
+        statsPanel.add(Box.createVerticalStrut(ACTIVITY_SECTION_SPACING))
         statsPanel.add(activity24hLabel)
-        statsPanel.add(Box.createVerticalStrut(2))
+        statsPanel.add(Box.createVerticalStrut(2)) // Small spacing between activity items
         statsPanel.add(activityWeekLabel)
-        statsPanel.add(Box.createVerticalStrut(4))
+        statsPanel.add(Box.createVerticalStrut(ACTIVITY_SECTION_SPACING))
         statsPanel.add(activityModelsLabel)
-        statsPanel.add(Box.createVerticalStrut(8))
+        statsPanel.add(Box.createVerticalStrut(LABEL_SPACING))
 
         // Local tracking section - TEMPORARILY COMMENTED OUT
-        // TODO: Re-enable when local activity tracking is ready
+        // NOTE: Re-enable when local activity tracking is ready
         /*
         val localLabel = JBLabel("Local Tracking").apply {
             font = font.deriveFont(Font.BOLD, 12f)
@@ -344,76 +361,29 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
     }
 
     private fun loadData() {
-        val settings = settingsService
-        val routerService = openRouterService
-
-        if (settings == null || routerService == null) {
-            // In test environment, services might be null
-            showError()
-            return
-        }
-
-        if (!settings.isConfigured()) {
-            println("DEBUG: Settings not configured")
-            showNotConfigured()
-            return
-        }
-
-        // Check if provisioning key is available (required for quota endpoints)
-        val provisioningKey = settings.getProvisioningKey()
-        if (provisioningKey.isBlank()) {
-            println("DEBUG: No provisioning key configured - showing provisioning key error")
-            showProvisioningKeyError()
-            return
-        }
-
-        // Show loading state
         setLoadingState()
-
-        // Launch coroutine to fetch data
-        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-        scope.launch {
-            try {
-                // Fetch API keys, quota info, and activity concurrently
-                val apiKeysDeferred = async(Dispatchers.IO) { routerService.getApiKeysList() }
-                val quotaDeferred = async(Dispatchers.IO) { routerService.getQuotaInfo() }
-                val activityDeferred = async(Dispatchers.IO) { routerService.getActivity() }
-
-                val apiKeysResult = apiKeysDeferred.await()
-                val quotaResult = quotaDeferred.await()
-                val activityResult = activityDeferred.await()
-
-                ApplicationManager.getApplication().invokeLater {
-                    when {
-                        apiKeysResult is ApiResult.Success && quotaResult is ApiResult.Success -> {
-                            updateWithApiKeysList(apiKeysResult.data)
-                            updateWithCreditsFromQuota(quotaResult.data)
-                            // Update activity - pass data if successful, null otherwise
-                            val activityData = if (activityResult is ApiResult.Success) {
-                                activityResult.data
-                            } else {
-                                null
-                            }
-                            updateWithActivity(activityData)
-                        }
-                        apiKeysResult is ApiResult.Error || quotaResult is ApiResult.Error -> {
-                            showError()
-                        }
-                        else -> {
-                            showError()
-                        }
-                    }
+        dataLoader.loadData { result ->
+            when (result) {
+                is StatsDataLoader.LoadResult.Success -> {
+                    updateWithApiKeysList(result.data.apiKeysResponse)
+                    updateWithCredits(result.data.creditsResponse)
+                    updateWithActivity(result.data.activityResponse)
                 }
-            } catch (e: Exception) {
-                ApplicationManager.getApplication().invokeLater {
-                    showError()
+                is StatsDataLoader.LoadResult.Error -> {
+                    showErrorState(LabelState.ERROR, result.message)
+                }
+                is StatsDataLoader.LoadResult.NotConfigured -> {
+                    showErrorState(LabelState.NOT_CONFIGURED, NOT_CONFIGURED_MESSAGE)
+                }
+                is StatsDataLoader.LoadResult.ProvisioningKeyMissing -> {
+                    showProvisioningKeyError()
                 }
             }
         }
     }
 
     private fun setLoadingState() {
-        setLabelsToLoading()
+        setLabelsState(LabelState.LOADING)
         setProgressBarState(text = DEFAULT_LOADING_TEXT, indeterminate = true)
     }
 
@@ -422,10 +392,10 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         tierLabel.text = "Account: ${enabledKeys.size} API Key${if (enabledKeys.size != 1) "s" else ""} Active"
 
         // Update tracking information - TEMPORARILY COMMENTED OUT
-        // updateTrackingInfo() // TODO: Re-enable when local activity tracking is ready
+        // updateTrackingInfo() // NOTE: Re-enable when local activity tracking is ready
     }
 
-    // TEMPORARILY COMMENTED OUT - TODO: Re-enable when local activity tracking is ready
+    // TEMPORARILY COMMENTED OUT - NOTE: Re-enable when local activity tracking is ready
     /*
     private fun updateTrackingInfo() {
         val recentCost = trackingService.getTotalRecentCost(50)
@@ -439,9 +409,9 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
      */
 
     private fun updateWithCredits(creditsResponse: CreditsResponse) {
-        val creditsData = creditsResponse.data
-        val totalCredits = creditsData.totalCredits
-        val usedCredits = creditsData.totalUsage
+        val credits = creditsResponse.data
+        val totalCredits = credits.totalCredits
+        val usedCredits = credits.totalUsage
         val remainingCredits = totalCredits - usedCredits
 
         totalCreditsLabel.text = "Total Credits: $${formatCurrency(totalCredits)}"
@@ -450,28 +420,7 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
 
         // Update progress bar with credits information
         if (totalCredits > 0) {
-            val percentage = ((usedCredits / totalCredits) * 100).toInt()
-            setProgressBarState(
-                percentage,
-                "$percentage% used ($${formatCurrency(usedCredits)}/$${formatCurrency(totalCredits)})"
-            )
-        } else {
-            setProgressBarState(text = "No credits available")
-        }
-    }
-
-    private fun updateWithCreditsFromQuota(quotaInfo: QuotaInfo) {
-        val totalCredits = quotaInfo.total ?: 0.0
-        val usedCredits = quotaInfo.used ?: 0.0
-        val remainingCredits = quotaInfo.remaining ?: 0.0
-
-        totalCreditsLabel.text = "Total Credits: $${formatCurrency(totalCredits)}"
-        creditsUsageLabel.text = "Credits Used: $${formatCurrency(usedCredits)}"
-        creditsRemainingLabel.text = "Credits Remaining: $${formatCurrency(remainingCredits)}"
-
-        // Update progress bar with credits information
-        if (totalCredits > 0) {
-            val percentage = ((usedCredits / totalCredits) * 100).toInt()
+            val percentage = ((usedCredits / totalCredits) * PERCENTAGE_MULTIPLIER).toInt()
             setProgressBarState(
                 percentage,
                 "$percentage% used ($${formatCurrency(usedCredits)}/$${formatCurrency(totalCredits)})"
@@ -483,14 +432,14 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
 
     private fun updateWithActivity(activityResponse: ActivityResponse?) {
         if (activityResponse == null || activityResponse.data.isEmpty()) {
-            setActivityLabelsToNoActivity()
+            setLabelsState(LabelState.NO_ACTIVITY)
             return
         }
 
         val activities = activityResponse.data
         val today = LocalDate.now()
         val yesterday = today.minusDays(1)
-        val weekAgo = today.minusDays(7)
+        val weekAgo = today.minusDays(ACTIVITY_DAYS_WEEK.toLong())
 
         // Filter activities by time periods
         val last24h = filterActivitiesByTime(activities, today, yesterday, weekAgo, isLast24h = true)
@@ -508,14 +457,9 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         activityModelsLabel.text = buildModelsHtmlList(recentModelNames)
     }
 
-    private fun showNotConfigured() {
-        setLabelsToNotConfigured()
-        setProgressBarState(text = NOT_CONFIGURED_MESSAGE)
-    }
-
-    private fun showError() {
-        setLabelsToError()
-        setProgressBarState(text = ERROR_MESSAGE)
+    private fun showErrorState(state: LabelState, message: String) {
+        setLabelsState(state)
+        setProgressBarState(text = message)
     }
 
     private fun showProvisioningKeyError() {
@@ -525,8 +469,12 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         creditsRemainingLabel.text = "Credits Remaining: Configure provisioning key in settings"
         activity24hLabel.text = "Last 24 hours: Configure provisioning key in settings"
         activityWeekLabel.text = "Last week: Configure provisioning key in settings"
-        activityModelsLabel.text =
-            "<html>Recent Models:<br/>• Go to Settings → OpenRouter<br/>• Add your Provisioning Key<br/>• Get it from openrouter.ai/keys</html>"
+        activityModelsLabel.text = buildString {
+            append("<html>Recent Models:<br/>")
+            append("• Go to Settings → OpenRouter<br/>")
+            append("• Add your Provisioning Key<br/>")
+            append("• Get it from openrouter.ai/keys</html>")
+        }
         setProgressBarState(text = "Provisioning Key Required - Click Settings")
     }
 
@@ -548,7 +496,7 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
      * Creates formatted activity text for requests/usage
      */
     private fun formatActivityText(requests: Long, usage: Double): String {
-        return "$requests requests, $${formatCurrency(usage, 4)} spent"
+        return "$requests requests, $${formatCurrency(usage, CURRENCY_DECIMAL_PLACES)} spent"
     }
 
     /**
@@ -558,9 +506,13 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         return when {
             models.isEmpty() -> NO_RECENT_MODELS_HTML
             else -> {
-                val displayModels = models.take(5) // Show up to 5 models
+                val displayModels = models.take(ACTIVITY_DISPLAY_LIMIT) // Show up to 5 models
                 val bullets = displayModels.joinToString("<br/>") { "• $it" }
-                val moreText = if (models.size > 5) "<br/>• +${models.size - 5} more" else ""
+                val moreText = if (models.size > ACTIVITY_DISPLAY_LIMIT) {
+                    "<br/>• +${models.size - ACTIVITY_DISPLAY_LIMIT} more"
+                } else {
+                    ""
+                }
                 "<html>Recent Models:<br/>$bullets$moreText</html>"
             }
         }
@@ -620,16 +572,24 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
     private fun parseActivityDate(dateString: String): LocalDate? {
         return try {
             // Try parsing as date only first
-            if (dateString.length == 10) {
+            if (dateString.length == DATE_ONLY_LENGTH) {
                 LocalDate.parse(dateString)
             } else {
                 // Extract just the date part from datetime string
-                val datePart = dateString.substring(0, 10)
+                val datePart = dateString.substring(0, DATE_ONLY_LENGTH)
                 LocalDate.parse(datePart)
             }
-        } catch (e: Exception) {
+        } catch (e: java.time.format.DateTimeParseException) {
             // Log the problematic date format for debugging
             println("Failed to parse activity date: '$dateString' - ${e.message}")
+            null
+        } catch (_: StringIndexOutOfBoundsException) {
+            // Date string too short
+            println("Failed to parse activity date: '$dateString' - string too short")
+            null
+        } catch (expectedError: Exception) {
+            // Log the problematic date format for debugging
+            println("Failed to parse activity date: '$dateString' - ${expectedError.message}")
             null
         }
     }

@@ -1,11 +1,13 @@
 package org.zhavoronkov.openrouter.proxy.servlets
 
 import com.google.gson.Gson
+import com.google.gson.JsonSyntaxException
 import jakarta.servlet.http.HttpServlet
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.zhavoronkov.openrouter.proxy.translation.ResponseTranslator
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import java.io.IOException
 
 /**
  * Base servlet class that provides common OpenAI API compatibility functionality
@@ -13,9 +15,14 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
  */
 abstract class OpenAIBaseServlet : HttpServlet() {
 
+    companion object {
+        // Length of "Bearer " prefix in Authorization header
+        private const val AUTH_HEADER_PREFIX_LENGTH = 7
+    }
+
     protected val gson = Gson()
 
-    protected val AUTH_HEADER_PREFIX_LENGTH = 7
+    protected val authHeaderPrefixLength = AUTH_HEADER_PREFIX_LENGTH
 
     /**
      * Validates the Authorization header and extracts the API key
@@ -29,15 +36,15 @@ abstract class OpenAIBaseServlet : HttpServlet() {
             return null
         }
 
-        val apiKey = authHeader.substring(AUTH_HEADER_PREFIX_LENGTH).trim() // Remove "Bearer " prefix
-        if (apiKey.isBlank()) {
+        val apiKey = authHeader.substring(authHeaderPrefixLength).trim() // Remove "Bearer " prefix
+        return if (apiKey.isBlank()) {
             PluginLogger.Service.debug("Empty API key provided")
             sendAuthErrorResponse(resp)
-            return null
+            null
+        } else {
+            PluginLogger.Service.debug("Valid Authorization header provided")
+            apiKey
         }
-
-        PluginLogger.Service.debug("Valid Authorization header provided")
-        return apiKey
     }
 
     /**
@@ -99,9 +106,18 @@ abstract class OpenAIBaseServlet : HttpServlet() {
     ) {
         try {
             requestHandler()
-        } catch (e: Exception) {
-            PluginLogger.Service.error("Error in $errorContext endpoint", e)
+        } catch (e: IOException) {
+            PluginLogger.Service.error("IO error in $errorContext endpoint", e)
+            sendErrorResponse(resp, "Network error", HttpServletResponse.SC_SERVICE_UNAVAILABLE)
+        } catch (e: JsonSyntaxException) {
+            PluginLogger.Service.error("JSON parsing error in $errorContext endpoint", e)
+            sendErrorResponse(resp, "Invalid JSON", HttpServletResponse.SC_BAD_REQUEST)
+        } catch (e: IllegalStateException) {
+            PluginLogger.Service.error("Invalid state in $errorContext endpoint", e)
             sendErrorResponse(resp, "Internal server error", HttpServletResponse.SC_INTERNAL_SERVER_ERROR)
+        } catch (e: IllegalArgumentException) {
+            PluginLogger.Service.error("Invalid argument in $errorContext endpoint", e)
+            sendErrorResponse(resp, "Bad request", HttpServletResponse.SC_BAD_REQUEST)
         }
     }
 }

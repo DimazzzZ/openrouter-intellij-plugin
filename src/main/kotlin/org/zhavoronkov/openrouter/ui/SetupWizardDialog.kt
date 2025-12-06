@@ -10,20 +10,23 @@ import com.intellij.ui.SearchTextField
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBScrollPane
-import com.intellij.ui.dsl.builder.*
+import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.BottomGap
+import com.intellij.ui.dsl.builder.TopGap
+import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.proxy.OpenRouterProxyServer
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
-import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.EncryptionUtil
@@ -32,6 +35,7 @@ import java.awt.BorderLayout
 import java.awt.CardLayout
 import java.awt.Dimension
 import java.awt.Font
+import java.io.IOException
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.SwingUtilities
@@ -91,8 +95,16 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         cardPanel.add(completionPanel, "completion")
 
         // Setup listeners
-        setupProvisioningKeyListener()
-        setupSearchListener()
+        provisioningKeyField.document.addDocumentListener(object : DocumentListener {
+            override fun insertUpdate(e: DocumentEvent?) = handleKeyChange()
+            override fun removeUpdate(e: DocumentEvent?) = handleKeyChange()
+            override fun changedUpdate(e: DocumentEvent?) = handleKeyChange()
+        })
+        searchField.addDocumentListener(object : DocumentListener {
+            override fun insertUpdate(e: DocumentEvent?) = applyModelFilter()
+            override fun removeUpdate(e: DocumentEvent?) = applyModelFilter()
+            override fun changedUpdate(e: DocumentEvent?) = applyModelFilter()
+        })
 
         // Setup selected count label
         selectedCountLabel.foreground = UIUtil.getLabelInfoForeground()
@@ -186,7 +198,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
     private fun createModelsPanel(): JPanel {
         val panel = JPanel(BorderLayout())
-        panel.border = JBUI.Borders.empty(10)
+        panel.border = JBUI.Borders.empty(API_KEY_TRUNCATE_LENGTH)
 
         val contentPanel = panel {
             row {
@@ -252,7 +264,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
             }.bottomGap(BottomGap.SMALL)
 
             row {
-                val proxyUrl = OpenRouterProxyServer.buildProxyUrl(8080)
+                val proxyUrl = OpenRouterProxyServer.buildProxyUrl(DEFAULT_PROXY_PORT)
                 val urlLabel = JBLabel()
                 urlLabel.text = proxyUrl
                 urlLabel.font = Font(Font.MONOSPACED, Font.PLAIN, URL_LABEL_FONT_SIZE)
@@ -282,13 +294,13 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
     override fun doOKAction() {
         when (currentStep) {
-            0 -> {
+            STEP_WELCOME -> {
                 // Welcome -> Provisioning Key
-                currentStep = 1
+                currentStep = STEP_PROVISIONING
                 cardLayout.show(cardPanel, "provisioning")
                 updateButtons()
             }
-            1 -> {
+            STEP_PROVISIONING -> {
                 // Provisioning Key -> Models
                 // Key is already validated and saved
                 if (!isKeyValid) {
@@ -298,22 +310,22 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                 // Load models for next step
                 loadModels()
 
-                currentStep = 2
+                currentStep = STEP_MODELS
                 cardLayout.show(cardPanel, "models")
                 updateButtons()
             }
-            2 -> {
+            STEP_MODELS -> {
                 // Models -> Completion
                 // Save selected models
                 saveFavoriteModels()
 
-                currentStep = 3
+                currentStep = STEP_COMPLETION
                 cardLayout.show(cardPanel, "completion")
                 updateButtons()
             }
-            3 -> {
+            STEP_COMPLETION -> {
                 // Completion -> Close
-                settingsService.setHasCompletedSetup(true)
+                settingsService.setupStateManager.setHasCompletedSetup(true)
                 super.doOKAction()
             }
         }
@@ -321,26 +333,26 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
     override fun doCancelAction() {
         when (currentStep) {
-            0 -> {
+            STEP_WELCOME -> {
                 // User skipped the wizard
-                settingsService.setHasCompletedSetup(false)
+                settingsService.setupStateManager.setHasCompletedSetup(false)
                 super.doCancelAction()
             }
-            1 -> {
+            STEP_PROVISIONING -> {
                 // Back to welcome
-                currentStep = 0
+                currentStep = STEP_WELCOME
                 cardLayout.show(cardPanel, "welcome")
                 updateButtons()
             }
-            2 -> {
+            STEP_MODELS -> {
                 // Back to provisioning key
-                currentStep = 1
+                currentStep = STEP_PROVISIONING
                 cardLayout.show(cardPanel, "provisioning")
                 updateButtons()
             }
-            3 -> {
+            STEP_COMPLETION -> {
                 // Close button - same as finish
-                settingsService.setHasCompletedSetup(true)
+                settingsService.setupStateManager.setHasCompletedSetup(true)
                 super.doCancelAction()
             }
         }
@@ -348,22 +360,22 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
     private fun updateButtons() {
         when (currentStep) {
-            0 -> {
+            STEP_WELCOME -> {
                 setOKButtonText("Next")
                 setCancelButtonText("Skip")
                 okAction.isEnabled = true
             }
-            1 -> {
+            STEP_PROVISIONING -> {
                 setOKButtonText("Next")
                 setCancelButtonText("Back")
                 okAction.isEnabled = isKeyValid && !isValidating
             }
-            2 -> {
+            STEP_MODELS -> {
                 setOKButtonText("Next")
                 setCancelButtonText("Back")
                 okAction.isEnabled = !isLoadingModels
             }
-            3 -> {
+            STEP_COMPLETION -> {
                 setOKButtonText("Finish")
                 setCancelButtonText("Close")
                 okAction.isEnabled = true
@@ -373,18 +385,10 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
     // ========== Provisioning Key Validation ==========
 
-    private fun setupProvisioningKeyListener() {
-        provisioningKeyField.document.addDocumentListener(object : DocumentListener {
-            override fun insertUpdate(e: DocumentEvent?) = onKeyChanged()
-            override fun removeUpdate(e: DocumentEvent?) = onKeyChanged()
-            override fun changedUpdate(e: DocumentEvent?) = onKeyChanged()
-        })
-    }
-
-    private fun onKeyChanged() {
+    private fun handleKeyChange() {
         val key = String(provisioningKeyField.password)
         if (key.isBlank()) {
-            clearValidationStatus()
+            updateValidationStatus(ValidationStatus.CLEAR)
             isKeyValid = false
             updateButtons()
             return
@@ -400,7 +404,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         if (isValidating) return
 
         isValidating = true
-        showValidationInProgress()
+        updateValidationStatus(ValidationStatus.IN_PROGRESS)
         updateButtons()
 
         // Validate by trying to fetch API keys list with the RAW key
@@ -416,49 +420,85 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                         is ApiResult.Success -> {
                             // Valid key - encrypt and save it
                             val encrypted = EncryptionUtil.encrypt(key)
-                            settingsService.setProvisioningKey(encrypted)
+                            settingsService.apiKeyManager.setProvisioningKey(encrypted)
                             isKeyValid = true
-                            showValidationSuccess()
+                            updateValidationStatus(ValidationStatus.SUCCESS)
                         }
                         is ApiResult.Error -> {
                             isKeyValid = false
-                            showValidationError("Invalid provisioning key: ${result.message}")
+                            val errorMsg = "Invalid provisioning key: ${result.message}"
+                            updateValidationStatus(ValidationStatus.ERROR(errorMsg))
                         }
                     }
                     updateButtons()
                 }, ModalityState.any())
-            } catch (error: Throwable) {
-                ApplicationManager.getApplication().invokeLater({
-                    isValidating = false
-                    isKeyValid = false
-                    showValidationError("Validation failed: ${error.message}")
-                    updateButtons()
-                }, ModalityState.any())
+            } catch (error: TimeoutCancellationException) {
+                handleValidationFailure(
+                    "Key validation timeout",
+                    error,
+                    "Validation timeout: Please check your connection"
+                )
+            } catch (error: IOException) {
+                handleValidationFailure(
+                    "Key validation network error",
+                    error,
+                    "Network error: ${error.message ?: "Unknown error"}"
+                )
+            } catch (error: IllegalStateException) {
+                handleValidationFailure(
+                    "Key validation invalid state",
+                    error,
+                    "Invalid state: ${error.message}"
+                )
+            } catch (expectedError: Exception) {
+                handleValidationFailure(
+                    "Key validation failed",
+                    expectedError,
+                    "Validation failed: ${expectedError.message}"
+                )
             }
         }
     }
 
-    private fun clearValidationStatus() {
-        validationIcon.icon = null
-        validationStatusLabel.text = ""
+    private fun handleValidationFailure(logMessage: String, error: Throwable, userMessage: String) {
+        PluginLogger.Service.error(logMessage, error)
+        ApplicationManager.getApplication().invokeLater({
+            isValidating = false
+            isKeyValid = false
+            updateValidationStatus(ValidationStatus.ERROR(userMessage))
+            updateButtons()
+        }, ModalityState.any())
     }
 
-    private fun showValidationInProgress() {
-        validationIcon.icon = AllIcons.Process.Step_1
-        validationStatusLabel.text = "Validating..."
-        validationStatusLabel.foreground = UIUtil.getLabelInfoForeground()
+    private fun updateValidationStatus(status: ValidationStatus) {
+        when (status) {
+            ValidationStatus.CLEAR -> {
+                validationIcon.icon = null
+                validationStatusLabel.text = ""
+            }
+            ValidationStatus.IN_PROGRESS -> {
+                validationIcon.icon = AllIcons.Process.Step_1
+                validationStatusLabel.text = "Validating..."
+                validationStatusLabel.foreground = UIUtil.getLabelInfoForeground()
+            }
+            ValidationStatus.SUCCESS -> {
+                validationIcon.icon = AllIcons.General.InspectionsOK
+                validationStatusLabel.text = "Valid provisioning key"
+                validationStatusLabel.foreground = JBColor.GREEN
+            }
+            is ValidationStatus.ERROR -> {
+                validationIcon.icon = AllIcons.General.Error
+                validationStatusLabel.text = status.message
+                validationStatusLabel.foreground = JBColor.RED
+            }
+        }
     }
 
-    private fun showValidationSuccess() {
-        validationIcon.icon = AllIcons.General.InspectionsOK
-        validationStatusLabel.text = "Valid provisioning key"
-        validationStatusLabel.foreground = JBColor.GREEN
-    }
-
-    private fun showValidationError(message: String) {
-        validationIcon.icon = AllIcons.General.Error
-        validationStatusLabel.text = message
-        validationStatusLabel.foreground = JBColor.RED
+    private sealed class ValidationStatus {
+        object CLEAR : ValidationStatus()
+        object IN_PROGRESS : ValidationStatus()
+        object SUCCESS : ValidationStatus()
+        data class ERROR(val message: String) : ValidationStatus()
     }
 
     // ========== Models Loading and Filtering ==========
@@ -480,7 +520,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                     isLoadingModels = false
                     if (models != null) {
                         allModels = models
-                        filterModels()
+                        applyModelFilter()
 
                         // Pre-select some popular models
                         preselectPopularModels()
@@ -490,34 +530,42 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                     }
                     updateButtons()
                 }, ModalityState.any())
-            } catch (error: Throwable) {
+            } catch (error: TimeoutCancellationException) {
                 ApplicationManager.getApplication().invokeLater({
                     isLoadingModels = false
-                    PluginLogger.Settings.error("Error loading models in setup wizard", error)
+                    PluginLogger.Settings.error("Model loading timeout in setup wizard", error)
+                    updateButtons()
+                }, ModalityState.any())
+            } catch (error: IOException) {
+                ApplicationManager.getApplication().invokeLater({
+                    isLoadingModels = false
+                    PluginLogger.Settings.error("Model loading network error in setup wizard", error)
+                    updateButtons()
+                }, ModalityState.any())
+            } catch (error: IllegalStateException) {
+                ApplicationManager.getApplication().invokeLater({
+                    isLoadingModels = false
+                    PluginLogger.Settings.error("Model loading invalid state in setup wizard", error)
+                    updateButtons()
+                }, ModalityState.any())
+            } catch (expectedError: Exception) {
+                ApplicationManager.getApplication().invokeLater({
+                    isLoadingModels = false
+                    PluginLogger.Settings.error("Error loading models in setup wizard", expectedError)
                     updateButtons()
                 }, ModalityState.any())
             }
         }
     }
 
-    private fun setupSearchListener() {
-        searchField.addDocumentListener(object : DocumentListener {
-            override fun insertUpdate(e: DocumentEvent?) = filterModels()
-            override fun removeUpdate(e: DocumentEvent?) = filterModels()
-            override fun changedUpdate(e: DocumentEvent?) = filterModels()
-        })
-    }
-
-    private fun filterModels() {
+    private fun applyModelFilter() {
         val searchText = searchField.text.lowercase()
-
         filteredModels = allModels.filter { model ->
             searchText.isBlank() ||
                 model.id.lowercase().contains(searchText) ||
                 model.name.lowercase().contains(searchText) ||
                 model.description?.lowercase()?.contains(searchText) == true
         }
-
         modelsTableModel.fireTableDataChanged()
     }
 
@@ -531,8 +579,10 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
             val stringSelection = java.awt.datatransfer.StringSelection(url)
             clipboard.setContents(stringSelection, null)
             PluginLogger.Settings.info("Proxy URL copied to clipboard: $url")
-        } catch (e: Exception) {
-            PluginLogger.Settings.error("Failed to copy proxy URL to clipboard", e)
+        } catch (e: java.awt.HeadlessException) {
+            PluginLogger.Settings.warn("Clipboard not available in headless environment", e)
+        } catch (e: IllegalStateException) {
+            PluginLogger.Settings.error("Clipboard access denied", e)
         }
     }
 
@@ -574,7 +624,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
     private fun saveFavoriteModels() {
         if (selectedModels.isNotEmpty()) {
-            settingsService.setFavoriteModels(selectedModels.toList())
+            settingsService.favoriteModelsManager.setFavoriteModels(selectedModels.toList())
         }
     }
 
@@ -644,6 +694,18 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         // Timeouts (milliseconds)
         private const val KEY_VALIDATION_TIMEOUT_MS = 10000L
         private const val MODEL_LOADING_TIMEOUT_MS = 30000L
+
+        // Default proxy port
+        private const val DEFAULT_PROXY_PORT = 8080
+
+        // String truncation length
+        private const val API_KEY_TRUNCATE_LENGTH = 10
+
+        // Wizard step identifiers
+        private const val STEP_WELCOME = 0
+        private const val STEP_PROVISIONING = 1
+        private const val STEP_MODELS = 2
+        private const val STEP_COMPLETION = 3
 
         /**
          * Show the setup wizard dialog

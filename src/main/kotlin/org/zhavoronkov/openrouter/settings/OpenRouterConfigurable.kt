@@ -18,6 +18,7 @@ class OpenRouterConfigurable : Configurable {
 
     companion object {
         private const val PREFERRED_DEFAULT_MAX_TOKENS = 8000
+        private const val DEFAULT_PROXY_PORT = 8080
     }
 
     private var settingsPanel: OpenRouterSettingsPanel? = null
@@ -25,102 +26,62 @@ class OpenRouterConfigurable : Configurable {
     private val openRouterService = OpenRouterService.getInstance()
 
     /**
-     * Loads current settings from the service into the panel
+     * Synchronizes settings between panel and service
      */
-    private fun loadSettingsIntoPanel(panel: OpenRouterSettingsPanel) {
-        panel.setProvisioningKey(settingsService.getProvisioningKey())
-        panel.setAutoRefresh(settingsService.isAutoRefreshEnabled())
-        panel.setRefreshInterval(settingsService.getRefreshInterval())
-        panel.setShowCosts(settingsService.shouldShowCosts())
-        setPanelDefaultMaxTokens(panel)
-        setPanelProxySettings(panel)
-    }
-
-    /**
-     * Saves settings from the panel to the service
-     */
-    private fun saveSettingsFromPanel(panel: OpenRouterSettingsPanel) {
-        settingsService.setProvisioningKey(panel.getProvisioningKey())
-        settingsService.setAutoRefresh(panel.isAutoRefreshEnabled())
-        settingsService.setRefreshInterval(panel.getRefreshInterval())
-        settingsService.setShowCosts(panel.shouldShowCosts())
-        savePanelDefaultMaxTokens(panel)
-        savePanelProxySettings(panel)
-    }
-
-    /**
-     * Sets the panel's default max tokens configuration based on service state
-     */
-    private fun setPanelDefaultMaxTokens(panel: OpenRouterSettingsPanel) {
-        val currentMaxTokens = settingsService.getDefaultMaxTokens()
-        panel.setDefaultMaxTokensEnabled(currentMaxTokens > 0)
-        panel.setDefaultMaxTokens(currentMaxTokens.takeIf { it > 0 } ?: PREFERRED_DEFAULT_MAX_TOKENS)
-    }
-
-    /**
-     * Saves the default max tokens setting from panel to service
-     */
-    private fun savePanelDefaultMaxTokens(panel: OpenRouterSettingsPanel) {
-        val maxTokensValue = if (panel.isDefaultMaxTokensEnabled()) {
-            panel.getDefaultMaxTokens()
+    private fun syncSettings(panel: OpenRouterSettingsPanel, toService: Boolean) {
+        if (toService) {
+            settingsService.apiKeyManager.setProvisioningKey(panel.getProvisioningKey())
+            settingsService.uiPreferencesManager.autoRefresh = panel.isAutoRefreshEnabled()
+            settingsService.uiPreferencesManager.refreshInterval = panel.getRefreshInterval()
+            settingsService.uiPreferencesManager.showCosts = panel.shouldShowCosts()
         } else {
-            0 // 0 indicates disabled feature
+            panel.setProvisioningKey(settingsService.getProvisioningKey())
+            panel.setAutoRefresh(settingsService.uiPreferencesManager.autoRefresh)
+            panel.setRefreshInterval(settingsService.uiPreferencesManager.refreshInterval)
+            panel.setShowCosts(settingsService.uiPreferencesManager.showCosts)
         }
-        settingsService.setDefaultMaxTokens(maxTokensValue)
+        syncDefaultMaxTokens(panel, toService)
+        syncProxySettings(panel, toService)
     }
 
     /**
-     * Sets the panel's proxy configuration based on service state
+     * Synchronizes default max tokens setting between panel and service
      */
-    private fun setPanelProxySettings(panel: OpenRouterSettingsPanel) {
-        panel.setProxyAutoStart(settingsService.isProxyAutoStartEnabled())
-
-        val configuredPort = settingsService.getProxyPort()
-        panel.setUseSpecificPort(configuredPort > 0)
-        panel.setProxyPort(if (configuredPort > 0) configuredPort else 8080)
-
-        panel.setProxyPortRangeStart(settingsService.getProxyPortRangeStart())
-        panel.setProxyPortRangeEnd(settingsService.getProxyPortRangeEnd())
-    }
-
-    /**
-     * Saves proxy settings from panel to service
-     */
-    private fun savePanelProxySettings(panel: OpenRouterSettingsPanel) {
-        settingsService.setProxyAutoStart(panel.getProxyAutoStart())
-
-        val port = if (panel.getUseSpecificPort()) {
-            panel.getProxyPort()
+    private fun syncDefaultMaxTokens(panel: OpenRouterSettingsPanel, toService: Boolean) {
+        if (toService) {
+            val maxTokensValue = if (panel.isDefaultMaxTokensEnabled()) {
+                panel.getDefaultMaxTokens()
+            } else {
+                0 // 0 indicates disabled feature
+            }
+            settingsService.uiPreferencesManager.defaultMaxTokens = maxTokensValue
         } else {
-            0 // 0 means auto-select from range
+            val currentMaxTokens = settingsService.uiPreferencesManager.defaultMaxTokens
+            panel.setDefaultMaxTokensEnabled(currentMaxTokens > 0)
+            panel.setDefaultMaxTokens(currentMaxTokens.takeIf { it > 0 } ?: PREFERRED_DEFAULT_MAX_TOKENS)
         }
-        settingsService.setProxyPort(port)
-
-        settingsService.setProxyPortRange(
-            panel.getProxyPortRangeStart(),
-            panel.getProxyPortRangeEnd()
-        )
     }
 
     /**
-     * Checks if proxy settings have been modified
+     * Synchronizes proxy settings between panel and service
      */
-    private fun isProxySettingsModified(panel: OpenRouterSettingsPanel): Boolean {
-        val currentAutoStart = settingsService.isProxyAutoStartEnabled()
-        val currentPort = settingsService.getProxyPort()
-        val currentRangeStart = settingsService.getProxyPortRangeStart()
-        val currentRangeEnd = settingsService.getProxyPortRangeEnd()
-
-        val panelAutoStart = panel.getProxyAutoStart()
-        val panelUseSpecificPort = panel.getUseSpecificPort()
-        val panelPort = if (panelUseSpecificPort) panel.getProxyPort() else 0
-        val panelRangeStart = panel.getProxyPortRangeStart()
-        val panelRangeEnd = panel.getProxyPortRangeEnd()
-
-        return currentAutoStart != panelAutoStart ||
-            currentPort != panelPort ||
-            currentRangeStart != panelRangeStart ||
-            currentRangeEnd != panelRangeEnd
+    private fun syncProxySettings(panel: OpenRouterSettingsPanel, toService: Boolean) {
+        if (toService) {
+            settingsService.proxyManager.setProxyAutoStart(panel.getProxyAutoStart())
+            val port = if (panel.getUseSpecificPort()) panel.getProxyPort() else 0
+            settingsService.proxyManager.setProxyPort(port)
+            settingsService.proxyManager.setProxyPortRange(
+                panel.getProxyPortRangeStart(),
+                panel.getProxyPortRangeEnd()
+            )
+        } else {
+            panel.setProxyAutoStart(settingsService.proxyManager.isProxyAutoStartEnabled())
+            val configuredPort = settingsService.proxyManager.getProxyPort()
+            panel.setUseSpecificPort(configuredPort > 0)
+            panel.setProxyPort(if (configuredPort > 0) configuredPort else DEFAULT_PROXY_PORT)
+            panel.setProxyPortRangeStart(settingsService.proxyManager.getProxyPortRangeStart())
+            panel.setProxyPortRangeEnd(settingsService.proxyManager.getProxyPortRangeEnd())
+        }
     }
 
     override fun getDisplayName(): String = "OpenRouter"
@@ -131,7 +92,7 @@ class OpenRouterConfigurable : Configurable {
         // Load current settings into the panel
         // Note: setProvisioningKey() will automatically load API keys (with caching)
         val panel = settingsPanel ?: return null
-        loadSettingsIntoPanel(panel)
+        syncSettings(panel, toService = false)
 
         return panel.getPanel()
     }
@@ -139,29 +100,58 @@ class OpenRouterConfigurable : Configurable {
     override fun isModified(): Boolean {
         val panel = settingsPanel ?: return false
 
-        // Check if max tokens setting changed
-        val currentMaxTokensEnabled = settingsService.getDefaultMaxTokens() > 0
-        val currentMaxTokensValue = settingsService.getDefaultMaxTokens()
-        val panelMaxTokensEnabled = panel.isDefaultMaxTokensEnabled()
-        val panelMaxTokensValue = panel.getDefaultMaxTokens()
-
-        val maxTokensChanged = when {
-            // Both enabled: check if value changed
-            currentMaxTokensEnabled && panelMaxTokensEnabled -> panelMaxTokensValue != currentMaxTokensValue
-            // Panel enabled but current disabled: always modified
-            panelMaxTokensEnabled && !currentMaxTokensEnabled -> true
-            // Current enabled but panel disabled: always modified
-            !panelMaxTokensEnabled && currentMaxTokensEnabled -> true
-            // Both disabled: no change
-            else -> false
-        }
-
         return panel.getProvisioningKey() != settingsService.getProvisioningKey() ||
-            panel.isAutoRefreshEnabled() != settingsService.isAutoRefreshEnabled() ||
-            panel.getRefreshInterval() != settingsService.getRefreshInterval() ||
-            panel.shouldShowCosts() != settingsService.shouldShowCosts() ||
-            maxTokensChanged ||
-            isProxySettingsModified(panel)
+            panel.isAutoRefreshEnabled() != settingsService.uiPreferencesManager.autoRefresh ||
+            panel.getRefreshInterval() != settingsService.uiPreferencesManager.refreshInterval ||
+            panel.shouldShowCosts() != settingsService.uiPreferencesManager.showCosts ||
+            isSettingModified(panel, SettingType.DEFAULT_MAX_TOKENS) ||
+            isSettingModified(panel, SettingType.PROXY_SETTINGS)
+    }
+
+    /**
+     * Checks if a specific setting has been modified
+     */
+    private fun isSettingModified(panel: OpenRouterSettingsPanel, settingType: SettingType): Boolean {
+        return when (settingType) {
+            SettingType.DEFAULT_MAX_TOKENS -> {
+                val currentMaxTokensEnabled = settingsService.uiPreferencesManager.defaultMaxTokens > 0
+                val currentMaxTokensValue = settingsService.uiPreferencesManager.defaultMaxTokens
+                val panelMaxTokensEnabled = panel.isDefaultMaxTokensEnabled()
+                val panelMaxTokensValue = panel.getDefaultMaxTokens()
+
+                when {
+                    currentMaxTokensEnabled && panelMaxTokensEnabled -> panelMaxTokensValue != currentMaxTokensValue
+                    panelMaxTokensEnabled && !currentMaxTokensEnabled -> true
+                    !panelMaxTokensEnabled && currentMaxTokensEnabled -> true
+                    else -> false
+                }
+            }
+            SettingType.PROXY_SETTINGS -> {
+                val currentAutoStart = settingsService.proxyManager.isProxyAutoStartEnabled()
+                val currentPort = settingsService.proxyManager.getProxyPort()
+                val currentRangeStart = settingsService.proxyManager.getProxyPortRangeStart()
+                val currentRangeEnd = settingsService.proxyManager.getProxyPortRangeEnd()
+
+                val panelAutoStart = panel.getProxyAutoStart()
+                val panelUseSpecificPort = panel.getUseSpecificPort()
+                val panelPort = if (panelUseSpecificPort) panel.getProxyPort() else 0
+                val panelRangeStart = panel.getProxyPortRangeStart()
+                val panelRangeEnd = panel.getProxyPortRangeEnd()
+
+                currentAutoStart != panelAutoStart ||
+                    currentPort != panelPort ||
+                    currentRangeStart != panelRangeStart ||
+                    currentRangeEnd != panelRangeEnd
+            }
+        }
+    }
+
+    /**
+     * Enum for different setting types
+     */
+    private enum class SettingType {
+        DEFAULT_MAX_TOKENS,
+        PROXY_SETTINGS
     }
 
     override fun apply() {
@@ -171,7 +161,7 @@ class OpenRouterConfigurable : Configurable {
         val newProvisioningKey = panel.getProvisioningKey()
 
         // Update all settings from panel to service
-        saveSettingsFromPanel(panel)
+        syncSettings(panel, toService = true)
 
         // Refresh API keys table if provisioning key changed (force refresh to bypass cache)
         if (oldProvisioningKey != newProvisioningKey) {
@@ -191,7 +181,7 @@ class OpenRouterConfigurable : Configurable {
         val panel = settingsPanel ?: return
 
         // Load all current settings back into the panel
-        loadSettingsIntoPanel(panel)
+        syncSettings(panel, toService = false)
 
         // REMOVED: panel.refreshApiKeys() - No longer needed!
         // setProvisioningKey() already loads API keys with caching

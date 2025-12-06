@@ -2,7 +2,7 @@ import org.jetbrains.intellij.tasks.PublishPluginTask
 
 plugins {
     id("java")
-    id("org.jetbrains.kotlin.jvm") version "1.9.25"
+    id("org.jetbrains.kotlin.jvm") version "2.1.10"
     id("org.jetbrains.intellij") version "1.17.4"
     id("io.gitlab.arturbosch.detekt") version "1.23.4"
 }
@@ -24,7 +24,9 @@ repositories {
 dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.11.0")
     implementation("com.google.code.gson:gson:2.10.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+
+    // Use IntelliJ's bundled coroutines library to avoid classloader conflicts
+    compileOnly("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
 
     // Embedded HTTP server for AI Assistant integration
     implementation("org.eclipse.jetty:jetty-server:11.0.18")

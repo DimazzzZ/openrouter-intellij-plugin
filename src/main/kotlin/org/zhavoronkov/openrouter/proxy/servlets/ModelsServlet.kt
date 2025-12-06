@@ -32,6 +32,9 @@ class ModelsServlet(
         private const val CACHE_TTL_MINUTES = 15L // Cache models for 15 minutes
         private const val CACHE_TTL_MS = CACHE_TTL_MINUTES * 60 * 1000
 
+        // Auth header preview length for logging
+        private const val AUTH_HEADER_PREVIEW_LENGTH = 20
+
         // Cache for full models list
         private val modelsCache = ConcurrentHashMap<String, OpenAIModelsResponse>()
         private val cacheTimestamp = AtomicLong(0)
@@ -68,7 +71,8 @@ class ModelsServlet(
             val authHeader = req.getHeader("Authorization")
             if (authHeader != null) {
                 // Only log auth header in DEBUG mode
-                PluginLogger.Service.debug("Authorization header provided: ${authHeader.take(20)}...")
+                val authPreview = authHeader.take(AUTH_HEADER_PREVIEW_LENGTH)
+                PluginLogger.Service.debug("Authorization header provided: $authPreview...")
             }
 
             // Parse query parameters for filtering
@@ -122,7 +126,7 @@ class ModelsServlet(
     private fun createCoreModelsResponse(): OpenAIModelsResponse {
         // Return user's favorite models with FULL OpenRouter format (provider/model)
         // This is critical - OpenRouter API requires full model names with provider prefix
-        var favoriteModelIds = settingsService.getFavoriteModels()
+        var favoriteModelIds = settingsService.favoriteModelsManager.getFavoriteModels()
 
         // If no favorites are set, ensure we have defaults
         if (favoriteModelIds.isEmpty()) {
@@ -142,7 +146,7 @@ class ModelsServlet(
             OpenAIModel(
                 id = modelId,
                 created = System.currentTimeMillis() / 1000, // Use current timestamp
-                owned_by = "openrouter", // Use generic "openrouter" to avoid display issues
+                ownedBy = "openrouter", // Use generic "openrouter" to avoid display issues
                 permission = listOf(createDefaultPermission()),
                 root = modelId,
                 parent = null
@@ -168,7 +172,7 @@ class ModelsServlet(
         }
 
         // Fetch from OpenRouter API
-        try {
+        return try {
             val result = runBlocking {
                 withTimeout(REQUEST_TIMEOUT_MS) {
                     openRouterService.getModels()
@@ -185,18 +189,17 @@ class ModelsServlet(
                     cacheTimestamp.set(now)
 
                     PluginLogger.Service.info("Fetched and cached ${openAIModels.data.size} models from OpenRouter")
-                    return filterModels(openAIModels, search, provider, limit)
+                    filterModels(openAIModels, search, provider, limit)
                 }
                 is ApiResult.Error -> {
                     PluginLogger.Service.error("Failed to fetch models: ${result.message}")
+                    createCoreModelsResponse()
                 }
             }
         } catch (e: Exception) {
             PluginLogger.Service.warn("Failed to fetch models from OpenRouter, falling back to curated list", e)
+            createCoreModelsResponse()
         }
-
-        // Fallback to curated models
-        return createCoreModelsResponse()
     }
 
     /**
@@ -223,14 +226,14 @@ class ModelsServlet(
             val searchLower = search.lowercase()
             filteredModels = filteredModels.filter { model ->
                 model.id.lowercase().contains(searchLower) ||
-                    model.owned_by.lowercase().contains(searchLower)
+                    model.ownedBy.lowercase().contains(searchLower)
             }
         }
 
         // Filter by provider
         if (!provider.isNullOrBlank()) {
             filteredModels = filteredModels.filter { model ->
-                model.owned_by.equals(provider, ignoreCase = true) ||
+                model.ownedBy.equals(provider, ignoreCase = true) ||
                     model.id.startsWith("$provider/", ignoreCase = true)
             }
         }
@@ -256,7 +259,7 @@ class ModelsServlet(
             OpenAIModel(
                 id = orModel.id,
                 created = orModel.created,
-                owned_by = extractProvider(orModel.id),
+                ownedBy = extractProvider(orModel.id),
                 permission = listOf(createDefaultPermission()),
                 root = orModel.id,
                 parent = null
@@ -284,14 +287,14 @@ class ModelsServlet(
         return OpenAIPermission(
             id = "perm-chatcmpl-${System.currentTimeMillis()}",
             created = System.currentTimeMillis() / 1000,
-            allow_create_engine = false,
-            allow_sampling = true,
-            allow_logprobs = true,
-            allow_search_indices = false,
-            allow_view = true,
-            allow_fine_tuning = false,
+            allowCreateEngine = false,
+            allowSampling = true,
+            allowLogprobs = true,
+            allowSearchIndices = false,
+            allowView = true,
+            allowFineTuning = false,
             organization = "*",
-            is_blocking = false
+            isBlocking = false
         )
     }
 

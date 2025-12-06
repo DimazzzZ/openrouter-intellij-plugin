@@ -10,12 +10,17 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
  */
 class OrganizationServlet : OpenAIBaseServlet() {
 
+    companion object {
+        // Unix timestamp for organization creation date
+        private const val ORGANIZATION_CREATED_TIMESTAMP = 1677610602L
+    }
+
     override fun doGet(req: HttpServletRequest, resp: HttpServletResponse) {
         handleRequest({
             PluginLogger.Service.debug("Organization endpoint called")
 
-            // Validate authorization and extract API key
-            val _apiKey = validateAndExtractApiKey(resp, req) ?: return@handleRequest
+            // Validate authorization
+            validateAndExtractApiKey(resp, req) ?: return@handleRequest
 
             // Set response headers
             resp.contentType = "application/json"
@@ -30,7 +35,7 @@ class OrganizationServlet : OpenAIBaseServlet() {
                 "personal" to false,
                 "default" to true,
                 "role" to "owner",
-                "created" to 1677610602
+                "created" to ORGANIZATION_CREATED_TIMESTAMP
             )
 
             resp.writer.write(gson.toJson(organizationResponse))

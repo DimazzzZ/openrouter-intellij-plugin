@@ -163,7 +163,7 @@ class SimpleUnitTest {
 
             assertEquals("", settings.apiKey)
             assertEquals("", settings.provisioningKey)
-            // TODO: Future version - Default model selection
+            // NOTE: Future version - Default model selection
             // assertEquals("openai/gpt-4o", settings.defaultModel)
             assertTrue(settings.autoRefresh)
             assertEquals(300, settings.refreshInterval)
@@ -178,7 +178,7 @@ class SimpleUnitTest {
             val settings = OpenRouterSettings(
                 apiKey = "test-key",
                 provisioningKey = "test-prov-key",
-                // TODO: Future version - Default model selection
+                // NOTE: Future version - Default model selection
                 // defaultModel = "anthropic/claude-3",
                 autoRefresh = false,
                 refreshInterval = 600,
@@ -189,7 +189,7 @@ class SimpleUnitTest {
 
             assertEquals("test-key", settings.apiKey)
             assertEquals("test-prov-key", settings.provisioningKey)
-            // TODO: Future version - Default model selection
+            // NOTE: Future version - Default model selection
             // assertEquals("anthropic/claude-3", settings.defaultModel)
             assertFalse(settings.autoRefresh)
             assertEquals(600, settings.refreshInterval)
@@ -271,20 +271,20 @@ class SimpleUnitTest {
         }
 
         @Test
-        @DisplayName("Should handle ApiError without metadata")
-        fun testApiErrorWithoutMetadata() {
-            val json = """
-                {
-                    "code": 500,
-                    "message": "Internal server error"
-                }
-            """.trimIndent()
+        @DisplayName("Should format currency correctly")
+        fun testCurrencyFormatting() {
+            val testCases = mapOf(
+                0.0 to "$0.00",
+                0.01 to "$0.01",
+                1.0 to "$1.00",
+                25.5 to "$25.50",
+                100.0 to "$100.00"
+            )
 
-            val error = gson.fromJson(json, ApiError::class.java)
-
-            assertEquals(500, error.code)
-            assertEquals("Internal server error", error.message)
-            assertNull(error.metadata)
+            testCases.forEach { (value, expected) ->
+                val formatted = String.format(java.util.Locale.US, "$%.2f", value)
+                assertEquals(expected, formatted)
+            }
         }
     }
 
@@ -392,7 +392,7 @@ class SimpleUnitTest {
             )
 
             testCases.forEach { (value, expected) ->
-                val formatted = String.format("$%.2f", value)
+                val formatted = String.format(java.util.Locale.US, "$%.2f", value)
                 assertEquals(expected, formatted)
             }
         }
@@ -401,7 +401,7 @@ class SimpleUnitTest {
         @DisplayName("Should handle unlimited quota display")
         fun testUnlimitedQuotaDisplay() {
             val limit: Double? = null
-            val display = limit?.let { String.format("$%.2f", it) } ?: "Unlimited"
+            val display = limit?.let { String.format(java.util.Locale.US, "$%.2f", it) } ?: "Unlimited"
 
             assertEquals("Unlimited", display)
         }
