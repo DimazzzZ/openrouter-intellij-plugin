@@ -5,8 +5,17 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import org.junit.jupiter.api.*
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.Disabled
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Tag
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
 import java.io.File
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
@@ -63,7 +72,7 @@ class ProxyServerDuplicateTest {
     private fun loadEnvFile() {
         val envFile = File(".env")
         if (!envFile.exists()) {
-            throw IllegalStateException("❌ .env file not found! Please create .env with OPENROUTER_API_KEY")
+            error("❌ .env file not found! Please create .env with OPENROUTER_API_KEY and OPENROUTER_PROVISIONING_KEY")
         }
 
         val envVars = mutableMapOf<String, String>()
@@ -79,7 +88,7 @@ class ProxyServerDuplicateTest {
         }
 
         apiKey = envVars["OPENROUTER_API_KEY"]
-            ?: throw IllegalStateException("❌ OPENROUTER_API_KEY not found in .env file")
+            ?: error("❌ OPENROUTER_API_KEY not found in .env file")
     }
 
     @Nested
@@ -294,7 +303,7 @@ class ProxyServerDuplicateTest {
                 httpClient.newCall(request2).execute().use { it.code }
             }
 
-            val results = CompletableFuture.allOf(future1, future2).get(30, TimeUnit.SECONDS)
+            CompletableFuture.allOf(future1, future2).get(30, TimeUnit.SECONDS)
             val duration = System.currentTimeMillis() - startTime
             val code1 = future1.get()
             val code2 = future2.get()
@@ -358,7 +367,7 @@ class ProxyServerDuplicateTest {
                 }
             }
 
-            val results = CompletableFuture.allOf(future1, future2).get(60, TimeUnit.SECONDS)
+            CompletableFuture.allOf(future1, future2).get(60, TimeUnit.SECONDS)
             val duration = System.currentTimeMillis() - startTime
             val code1 = future1.get()
             val code2 = future2.get()

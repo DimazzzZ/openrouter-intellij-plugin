@@ -1,11 +1,14 @@
 package org.zhavoronkov.openrouter.statusbar
 
 import kotlinx.coroutines.runBlocking
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
-import org.mockito.Mockito.*
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.`when`
 import org.mockito.kotlin.whenever
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.CreditsData
@@ -13,6 +16,7 @@ import org.zhavoronkov.openrouter.models.CreditsResponse
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.services.settings.UIPreferencesManager
 import java.util.Locale
 
 /**
@@ -24,6 +28,7 @@ class StatusBarCostsDisplayTest {
     private lateinit var mockOpenRouterService: OpenRouterService
     private lateinit var mockSettingsService: OpenRouterSettingsService
     private lateinit var mockProxyService: OpenRouterProxyService
+    private lateinit var mockUIPreferencesManager: UIPreferencesManager
 
     @BeforeEach
     fun setUp() {
@@ -31,13 +36,17 @@ class StatusBarCostsDisplayTest {
         mockOpenRouterService = mock(OpenRouterService::class.java)
         mockSettingsService = mock(OpenRouterSettingsService::class.java)
         mockProxyService = mock(OpenRouterProxyService::class.java)
+        mockUIPreferencesManager = mock(UIPreferencesManager::class.java)
+
+        // Wire up the manager
+        `when`(mockSettingsService.uiPreferencesManager).thenReturn(mockUIPreferencesManager)
     }
 
     @Test
     @DisplayName("Show costs enabled - status bar displays dollar amounts")
     fun testShowCostsEnabledDisplaysDollarAmounts() = runBlocking {
         // Given: Show costs is enabled
-        `when`(mockSettingsService.shouldShowCosts()).thenReturn(true)
+        `when`(mockUIPreferencesManager.showCosts).thenReturn(true)
         `when`(mockSettingsService.isConfigured()).thenReturn(true)
         `when`(mockSettingsService.getProvisioningKey()).thenReturn("sk-or-v1-test-key")
 
@@ -49,7 +58,7 @@ class StatusBarCostsDisplayTest {
             .thenReturn(ApiResult.Success(mockCreditsResponse, 200))
 
         // When: Status is updated (simulated)
-        val shouldShowCosts = mockSettingsService.shouldShowCosts()
+        val shouldShowCosts = mockUIPreferencesManager.showCosts
 
         // Then: Should show costs is true
         assertTrue(shouldShowCosts, "Should show costs should be enabled")
@@ -67,7 +76,7 @@ class StatusBarCostsDisplayTest {
     @DisplayName("Show costs disabled - status bar displays percentage")
     fun testShowCostsDisabledDisplaysPercentage() = runBlocking {
         // Given: Show costs is disabled
-        `when`(mockSettingsService.shouldShowCosts()).thenReturn(false)
+        `when`(mockUIPreferencesManager.showCosts).thenReturn(false)
         `when`(mockSettingsService.isConfigured()).thenReturn(true)
         `when`(mockSettingsService.getProvisioningKey()).thenReturn("sk-or-v1-test-key")
 
@@ -79,7 +88,7 @@ class StatusBarCostsDisplayTest {
             .thenReturn(ApiResult.Success(mockCreditsResponse, 200))
 
         // When: Status is updated (simulated)
-        val shouldShowCosts = mockSettingsService.shouldShowCosts()
+        val shouldShowCosts = mockUIPreferencesManager.showCosts
 
         // Then: Should show costs is false
         assertFalse(shouldShowCosts, "Should show costs should be disabled")
@@ -98,17 +107,17 @@ class StatusBarCostsDisplayTest {
     @DisplayName("Show costs setting changes - status format updates accordingly")
     fun testShowCostsSettingChangesUpdateFormat() {
         // Given: Initial state with show costs enabled
-        `when`(mockSettingsService.shouldShowCosts()).thenReturn(true)
+        `when`(mockUIPreferencesManager.showCosts).thenReturn(true)
 
         // When: Show costs is enabled
-        var shouldShowCosts = mockSettingsService.shouldShowCosts()
+        var shouldShowCosts = mockUIPreferencesManager.showCosts
 
         // Then: Should return true
         assertTrue(shouldShowCosts, "Should show costs should be enabled")
 
         // When: Show costs is disabled
-        `when`(mockSettingsService.shouldShowCosts()).thenReturn(false)
-        shouldShowCosts = mockSettingsService.shouldShowCosts()
+        `when`(mockUIPreferencesManager.showCosts).thenReturn(false)
+        shouldShowCosts = mockUIPreferencesManager.showCosts
 
         // Then: Should return false
         assertFalse(shouldShowCosts, "Should show costs should be disabled")
@@ -161,19 +170,19 @@ class StatusBarCostsDisplayTest {
     @DisplayName("Show costs setting persists across sessions")
     fun testShowCostsSettingPersistence() {
         // Given: Show costs is set to false
-        `when`(mockSettingsService.shouldShowCosts()).thenReturn(false)
+        `when`(mockUIPreferencesManager.showCosts).thenReturn(false)
 
         // When: Setting is retrieved
-        val showCosts1 = mockSettingsService.shouldShowCosts()
+        val showCosts1 = mockUIPreferencesManager.showCosts
 
         // Then: Should return false
         assertFalse(showCosts1, "Show costs should be false")
 
         // Given: Show costs is changed to true
-        `when`(mockSettingsService.shouldShowCosts()).thenReturn(true)
+        `when`(mockUIPreferencesManager.showCosts).thenReturn(true)
 
         // When: Setting is retrieved again
-        val showCosts2 = mockSettingsService.shouldShowCosts()
+        val showCosts2 = mockUIPreferencesManager.showCosts
 
         // Then: Should return true
         assertTrue(showCosts2, "Show costs should be true after change")
@@ -188,7 +197,11 @@ class StatusBarCostsDisplayTest {
 
         // When: Tooltip is formatted (simulated)
         val tooltipWithCosts = String.format(Locale.US, "OpenRouter Status: Ready - Usage: $%.3f/$%.2f", used, total)
-        val tooltipWithPercentage = String.format(Locale.US, "OpenRouter Status: Ready - Usage: %.1f%% used", (used / total) * 100)
+        val tooltipWithPercentage = String.format(
+            Locale.US,
+            "OpenRouter Status: Ready - Usage: %.1f%% used",
+            (used / total) * 100
+        )
 
         // Then: Tooltip should contain usage information
         assertTrue(tooltipWithCosts.contains("Usage:"), "Tooltip should contain usage label")

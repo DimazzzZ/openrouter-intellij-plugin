@@ -1,5 +1,7 @@
 package org.zhavoronkov.openrouter.proxy.models
 
+import com.google.gson.annotations.SerializedName
+
 /**
  * OpenAI API compatible models for the proxy server
  * These models ensure compatibility with JetBrains AI Assistant
@@ -10,10 +12,10 @@ data class OpenAIChatCompletionRequest(
     val model: String,
     val messages: List<OpenAIChatMessage>,
     val temperature: Double? = null,
-    val max_tokens: Int? = null,
-    val top_p: Double? = null,
-    val frequency_penalty: Double? = null,
-    val presence_penalty: Double? = null,
+    @SerializedName("max_tokens") val maxTokens: Int? = null,
+    @SerializedName("top_p") val topP: Double? = null,
+    @SerializedName("frequency_penalty") val frequencyPenalty: Double? = null,
+    @SerializedName("presence_penalty") val presencePenalty: Double? = null,
     val stop: List<String>? = null,
     val stream: Boolean? = false,
     val user: String? = null
@@ -38,13 +40,13 @@ data class OpenAIChatCompletionResponse(
 data class OpenAIChatChoice(
     val index: Int,
     val message: OpenAIChatMessage,
-    val finish_reason: String? = null
+    @SerializedName("finish_reason") val finishReason: String? = null
 )
 
 data class OpenAIUsage(
-    val prompt_tokens: Int,
-    val completion_tokens: Int,
-    val total_tokens: Int
+    @SerializedName("prompt_tokens") val promptTokens: Int,
+    @SerializedName("completion_tokens") val completionTokens: Int,
+    @SerializedName("total_tokens") val totalTokens: Int
 )
 
 // Models List Response
@@ -57,7 +59,7 @@ data class OpenAIModel(
     val id: String,
     val `object`: String = "model",
     val created: Long,
-    val owned_by: String,
+    @SerializedName("owned_by") val ownedBy: String,
     val permission: List<OpenAIPermission> = emptyList(),
     val root: String? = null,
     val parent: String? = null
@@ -67,15 +69,15 @@ data class OpenAIPermission(
     val id: String,
     val `object`: String = "model_permission",
     val created: Long,
-    val allow_create_engine: Boolean = false,
-    val allow_sampling: Boolean = true,
-    val allow_logprobs: Boolean = true,
-    val allow_search_indices: Boolean = false,
-    val allow_view: Boolean = true,
-    val allow_fine_tuning: Boolean = false,
+    @SerializedName("allow_create_engine") val allowCreateEngine: Boolean = false,
+    @SerializedName("allow_sampling") val allowSampling: Boolean = true,
+    @SerializedName("allow_logprobs") val allowLogprobs: Boolean = true,
+    @SerializedName("allow_search_indices") val allowSearchIndices: Boolean = false,
+    @SerializedName("allow_view") val allowView: Boolean = true,
+    @SerializedName("allow_fine_tuning") val allowFineTuning: Boolean = false,
     val organization: String = "*",
     val group: String? = null,
-    val is_blocking: Boolean = false
+    @SerializedName("is_blocking") val isBlocking: Boolean = false
 )
 
 // Error Response Models
@@ -102,5 +104,5 @@ data class OpenAIStreamResponse(
 data class OpenAIStreamChoice(
     val index: Int,
     val delta: OpenAIChatMessage,
-    val finish_reason: String? = null
+    @SerializedName("finish_reason") val finishReason: String? = null
 )

@@ -24,6 +24,9 @@ class OpenRouterModelProvider {
         private const val PROVIDER_DISPLAY_NAME = "OpenRouter (400+ AI Models)"
         private const val PROVIDER_DESCRIPTION = "Access to 400+ AI models through OpenRouter.ai unified API"
 
+        // Connection test timeout (in milliseconds)
+        private const val CONNECTION_TEST_TIMEOUT_MS = 10000L
+
         // Common OpenRouter models that work well for code assistance
         private val SUPPORTED_MODELS = listOf(
             "openai/gpt-4o",
@@ -102,7 +105,7 @@ class OpenRouterModelProvider {
 
             // Use the existing OpenRouterService test connection method
             runBlocking {
-                withTimeout(10000L) {
+                withTimeout(CONNECTION_TEST_TIMEOUT_MS) {
                     val result = openRouterService.testConnection()
                     when (result) {
                         is ApiResult.Success -> result.data

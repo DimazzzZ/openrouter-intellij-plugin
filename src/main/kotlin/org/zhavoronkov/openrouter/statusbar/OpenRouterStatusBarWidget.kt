@@ -1,3 +1,4 @@
+
 package org.zhavoronkov.openrouter.statusbar
 
 import com.intellij.icons.AllIcons
@@ -15,25 +16,29 @@ import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.impl.status.EditorBasedWidget
 import com.intellij.ui.awt.RelativePoint
 import com.intellij.util.Consumer
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.ConnectionStatus
-import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.ui.OpenRouterStatsPopup
 import java.awt.event.MouseEvent
+import java.io.IOException
 import java.util.Locale
 import javax.swing.Icon
 
 /**
  * Enhanced status bar widget with comprehensive popup menu for OpenRouter
  */
+
 class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), StatusBarWidget.IconPresentation {
 
     private val openRouterService = OpenRouterService.getInstance()
     private val settingsService = OpenRouterSettingsService.getInstance()
-    private val proxyService = OpenRouterProxyService.getInstance()
 
     private var connectionStatus = ConnectionStatus.NOT_CONFIGURED
     private var currentText = "Status: Not Configured"
@@ -41,6 +46,19 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
     companion object {
         const val ID = "OpenRouterStatusBar"
+        const val STATUS_MENU_TEXT = "Status: "
+        const val QUOTA_MENU_TEXT = "View Quota Usage"
+        const val LOGIN_MENU_TEXT = "Login to OpenRouter.ai"
+        const val LOGOUT_MENU_TEXT = "Logout from OpenRouter.ai"
+        const val SETTINGS_MENU_TEXT = "Settings"
+        const val DOCUMENTATION_MENU_TEXT = "View OpenRouter Documentation..."
+        const val FEEDBACK_MENU_TEXT = "View Feedback Repository..."
+
+        // Time conversion: milliseconds per second
+        private const val MILLIS_PER_SECOND = 1000L
+
+        // Percentage calculation multiplier
+        private const val PERCENTAGE_MULTIPLIER = 100
     }
 
     override fun ID(): String = ID
@@ -120,74 +138,21 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
     private fun createMenuItems(): List<PopupMenuItem> {
         val items = mutableListOf<PopupMenuItem>()
+        val statusText = STATUS_MENU_TEXT + connectionStatus.displayName
+        items.add(PopupMenuItem(statusText, connectionStatus.icon, null))
 
-        // Status Display
-        items.add(
-            PopupMenuItem(
-                text = "Status: ${connectionStatus.displayName}",
-                icon = connectionStatus.icon,
-                action = null // Status display only
-            )
-        )
+        val quotaAction = if (settingsService.isConfigured()) { { showQuotaUsage() } } else { null }
+        items.add(PopupMenuItem(QUOTA_MENU_TEXT, AllIcons.General.Information, quotaAction))
 
-        // Quota / Usage (always show, but disable when not configured)
-        items.add(
-            PopupMenuItem(
-                text = "View Quota Usage",
-                icon = AllIcons.General.Information,
-                action = if (settingsService.isConfigured()) {
-                    { showQuotaUsage() }
-                } else {
-                    null // Disabled when not configured
-                }
-            )
-        )
-
-        // Authentication
         if (settingsService.isConfigured()) {
-            items.add(
-                PopupMenuItem(
-                    text = "Logout from OpenRouter.ai",
-                    icon = AllIcons.Actions.Exit,
-                    action = { logout() }
-                )
-            )
+            items.add(PopupMenuItem(LOGOUT_MENU_TEXT, AllIcons.Actions.Exit, { logout() }))
         } else {
-            items.add(
-                PopupMenuItem(
-                    text = "Login to OpenRouter.ai",
-                    icon = AllIcons.Actions.Execute,
-                    action = { openSettings() }
-                )
-            )
+            items.add(PopupMenuItem(LOGIN_MENU_TEXT, AllIcons.Actions.Execute, { openSettings() }))
         }
 
-        // Settings (direct action, no submenu)
-        items.add(
-            PopupMenuItem(
-                text = "Settings",
-                icon = AllIcons.General.Settings,
-                action = { openSettings() }
-            )
-        )
-
-        // Documentation
-        items.add(
-            PopupMenuItem(
-                text = "View OpenRouter Documentation...",
-                icon = AllIcons.Actions.Help,
-                action = { openDocumentation() }
-            )
-        )
-
-        // Feedback
-        items.add(
-            PopupMenuItem(
-                text = "View Feedback Repository...",
-                icon = AllIcons.Vcs.Vendors.Github,
-                action = { openFeedbackRepository() }
-            )
-        )
+        items.add(PopupMenuItem(SETTINGS_MENU_TEXT, AllIcons.General.Settings, { openSettings() }))
+        items.add(PopupMenuItem(DOCUMENTATION_MENU_TEXT, AllIcons.Actions.Help, { openDocumentation() }))
+        items.add(PopupMenuItem(FEEDBACK_MENU_TEXT, AllIcons.Vcs.Vendors.Github, { openFeedbackRepository() }))
 
         return items
     }
@@ -210,8 +175,8 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
             )
 
             if (result == Messages.YES) {
-                settingsService.setApiKey("")
-                settingsService.setProvisioningKey("")
+                settingsService.apiKeyManager.setApiKey("")
+                settingsService.apiKeyManager.setProvisioningKey("")
                 updateConnectionStatus()
                 Messages.showInfoMessage(project, "Successfully logged out from OpenRouter.ai", "Logout")
             }
@@ -245,52 +210,49 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         connectionStatus = ConnectionStatus.CONNECTING
         updateStatusBar()
 
-        // Launch coroutine to fetch quota information
+        // Launch coroutine to fetch credits information
         val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
         scope.launch {
             try {
-                val quotaResult = withContext(Dispatchers.IO) {
-                    openRouterService.getQuotaInfo()
+                val creditsResult = withContext(Dispatchers.IO) {
+                    openRouterService.getCredits()
                 }
 
                 ApplicationManager.getApplication().invokeLater {
-                    when (quotaResult) {
+                    when (creditsResult) {
                         is ApiResult.Success -> {
                             connectionStatus = ConnectionStatus.READY
-                            val quota = quotaResult.data
-
-                            currentText = if ((quota.total ?: 0.0) > 0) {
-                                if (settingsService.shouldShowCosts()) {
-                                    val usedFormatted = String.format(Locale.US, "%.3f", quota.used ?: 0.0)
-                                    val availableFormatted = String.format(Locale.US, "%.2f", quota.remaining ?: 0.0)
-                                    "Status: Ready - $$usedFormatted/${quota.total} avail"
-                                } else {
-                                    val percentage = ((quota.used ?: 0.0) / (quota.total ?: 1.0)) * 100
-                                    "Status: Ready - ${String.format(Locale.US, "%.1f", percentage)}% used"
-                                }
-                            } else {
-                                "Status: Ready - $${String.format(Locale.US, "%.3f", quota.used ?: 0.0)} (no credits)"
-                            }
-
-                            currentTooltip = if ((quota.total ?: 0.0) > 0) {
-                                "OpenRouter Status: ${connectionStatus.displayName} - Usage: $${String.format(Locale.US, "%.3f", quota.used ?: 0.0)} of $${String.format(Locale.US, "%.0f", quota.total ?: 0.0)}"
-                            } else {
-                                "OpenRouter Status: ${connectionStatus.displayName} - Usage: $${String.format(Locale.US, "%.3f", quota.used ?: 0.0)} (no credits)"
-                            }
+                            val credits = creditsResult.data.data
+                            currentText = formatStatusTextFromCredits(credits.totalUsage, credits.totalCredits)
+                            currentTooltip = formatStatusTooltipFromCredits(credits.totalUsage, credits.totalCredits)
                         }
                         is ApiResult.Error -> {
                             connectionStatus = ConnectionStatus.ERROR
                             currentText = "Status: Error"
-                            currentTooltip = "OpenRouter Status: Error - Usage: ${quotaResult.message}"
+                            currentTooltip = "OpenRouter Status: Error - Usage: ${creditsResult.message}"
                         }
                     }
                     updateStatusBar()
                 }
-            } catch (e: Exception) {
+            } catch (_: IllegalStateException) {
                 ApplicationManager.getApplication().invokeLater {
                     connectionStatus = ConnectionStatus.ERROR
                     currentText = "Status: Error"
-                    currentTooltip = "OpenRouter Status: Error - Usage: ${e.message}"
+                    currentTooltip = "OpenRouter Status: Error - Invalid state"
+                    updateStatusBar()
+                }
+            } catch (_: IOException) {
+                ApplicationManager.getApplication().invokeLater {
+                    connectionStatus = ConnectionStatus.ERROR
+                    currentText = "Status: Error"
+                    currentTooltip = "OpenRouter Status: Error - Network error"
+                    updateStatusBar()
+                }
+            } catch (expectedError: Exception) {
+                ApplicationManager.getApplication().invokeLater {
+                    connectionStatus = ConnectionStatus.ERROR
+                    currentText = "Status: Error"
+                    currentTooltip = "OpenRouter Status: Error - Usage: ${expectedError.message}"
                     updateStatusBar()
                 }
             }
@@ -319,35 +281,87 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         updateQuotaInfo()
 
         // Set up auto-refresh if enabled
-        if (settingsService.isAutoRefreshEnabled()) {
+        if (settingsService.uiPreferencesManager.autoRefresh) {
             startAutoRefresh()
         }
     }
 
     private fun startAutoRefresh() {
-        val refreshInterval = settingsService.getRefreshInterval()
+        val refreshInterval = settingsService.uiPreferencesManager.refreshInterval
         ApplicationManager.getApplication().executeOnPooledThread {
-            while (settingsService.isAutoRefreshEnabled()) {
+            var shouldContinueRefresh = true
+            while (settingsService.uiPreferencesManager.autoRefresh && shouldContinueRefresh) {
                 try {
-                    Thread.sleep(refreshInterval * 1000L)
+                    Thread.sleep(refreshInterval * MILLIS_PER_SECOND)
                     ApplicationManager.getApplication().invokeLater {
                         updateQuotaInfo()
                     }
                 } catch (e: InterruptedException) {
                     Thread.currentThread().interrupt()
-                    break
+                    shouldContinueRefresh = false
                 } catch (e: IllegalStateException) {
                     // Log error but continue
                     com.intellij.openapi.diagnostic.Logger.getInstance(OpenRouterStatusBarWidget::class.java)
                         .warn("Error in auto-refresh loop", e)
-                    break
+                    shouldContinueRefresh = false
                 } catch (e: SecurityException) {
                     // Log error but continue
                     com.intellij.openapi.diagnostic.Logger.getInstance(OpenRouterStatusBarWidget::class.java)
                         .warn("Security error in auto-refresh loop", e)
-                    break
+                    shouldContinueRefresh = false
                 }
             }
+        }
+    }
+
+    private fun formatStatusTextFromCredits(used: Double, total: Double): String {
+        return if (total > 0) {
+            if (settingsService.uiPreferencesManager.showCosts) {
+                val usedFormatted = String.format(Locale.US, "%.3f", used)
+                val totalFormatted = String.format(Locale.US, "%.2f", total)
+                "Status: Ready - $$usedFormatted/$$totalFormatted"
+            } else {
+                val percentage = (used / total) * PERCENTAGE_MULTIPLIER
+                "Status: Ready - ${String.format(Locale.US, "%.1f", percentage)}% used"
+            }
+        } else {
+            "Status: Ready - $${String.format(Locale.US, "%.3f", used)} (no credits)"
+        }
+    }
+
+    private fun formatStatusTooltipFromCredits(used: Double, total: Double): String {
+        val status = connectionStatus.displayName
+        return if (total > 0) {
+            "OpenRouter Status: $status - Usage: $${String.format(Locale.US, "%.3f", used)}/$${String.format(Locale.US, "%.0f", total)}"
+        } else {
+            "OpenRouter Status: $status - Usage: $${String.format(Locale.US, "%.3f", used)}/no credits"
+        }
+    }
+
+    @Deprecated("Use formatStatusTextFromCredits instead", ReplaceWith("formatStatusTextFromCredits"))
+    private fun formatStatusText(quota: org.zhavoronkov.openrouter.models.QuotaInfo): String {
+        return if ((quota.total ?: 0.0) > 0) {
+            if (settingsService.uiPreferencesManager.showCosts) {
+                val usedFormatted = String.format(Locale.US, "%.3f", quota.used ?: 0.0)
+                "Status: Ready - $$usedFormatted/${quota.total} avail"
+            } else {
+                val percentage = ((quota.used ?: 0.0) / (quota.total ?: 1.0)) * PERCENTAGE_MULTIPLIER
+                "Status: Ready - ${String.format(Locale.US, "%.1f", percentage)}% used"
+            }
+        } else {
+            "Status: Ready - $${String.format(Locale.US, "%.3f", quota.used ?: 0.0)} (no credits)"
+        }
+    }
+
+    @Deprecated("Use formatStatusTooltipFromCredits instead", ReplaceWith("formatStatusTooltipFromCredits"))
+    private fun formatStatusTooltip(quota: org.zhavoronkov.openrouter.models.QuotaInfo): String {
+        val status = connectionStatus.displayName
+        val usedStr = String.format(Locale.US, "%.3f", quota.used ?: 0.0)
+        return if ((quota.total ?: 0.0) > 0) {
+            val totalStr = String.format(Locale.US, "%.0f", quota.total ?: 0.0)
+            "OpenRouter Status: $status - Usage: $$usedStr of $$totalStr"
+        } else {
+            "OpenRouter Status: $status - Usage: $$usedStr (no credits)"
         }
     }
 }

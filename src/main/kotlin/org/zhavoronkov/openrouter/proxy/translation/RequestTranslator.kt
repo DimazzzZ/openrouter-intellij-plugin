@@ -15,8 +15,11 @@ object RequestTranslator {
     private val settingsService by lazy {
         try {
             OpenRouterSettingsService.getInstance()
-        } catch (e: Exception) {
-            // In test environment, return null or a mock
+        } catch (e: IllegalStateException) {
+            // In test environment or when service not initialized yet
+            null
+        } catch (e: RuntimeException) {
+            // Service creation failed
             null
         }
     }
@@ -34,8 +37,8 @@ object RequestTranslator {
         PluginLogger.Service.debug("Model: ${openAIRequest.model}, Stream: ${openAIRequest.stream}")
 
         // Apply default max tokens only if feature is enabled (defaultMaxTokens > 0)
-        val defaultMaxTokens = if (settingsService?.getDefaultMaxTokens() ?: 0 > 0) {
-            settingsService?.getDefaultMaxTokens()
+        val defaultMaxTokens = if (settingsService?.uiPreferencesManager?.defaultMaxTokens ?: 0 > 0) {
+            settingsService?.uiPreferencesManager?.defaultMaxTokens
         } else {
             null
         }
@@ -44,10 +47,10 @@ object RequestTranslator {
             model = openAIRequest.model, // Model name should already be normalized (e.g., "openai/gpt-4")
             messages = openAIRequest.messages.map { translateMessage(it) },
             temperature = openAIRequest.temperature ?: DEFAULT_TEMPERATURE,
-            maxTokens = openAIRequest.max_tokens ?: defaultMaxTokens,
-            topP = openAIRequest.top_p,
-            frequencyPenalty = openAIRequest.frequency_penalty,
-            presencePenalty = openAIRequest.presence_penalty,
+            maxTokens = openAIRequest.maxTokens ?: defaultMaxTokens,
+            topP = openAIRequest.topP,
+            frequencyPenalty = openAIRequest.frequencyPenalty,
+            presencePenalty = openAIRequest.presencePenalty,
             stop = openAIRequest.stop,
             stream = openAIRequest.stream ?: false // Pass through streaming flag as-is
         )
@@ -79,8 +82,11 @@ object RequestTranslator {
                 (request.temperature == null || request.temperature in 0.0..2.0) &&
                 (request.maxTokens == null || request.maxTokens > 0) &&
                 (request.topP == null || request.topP in 0.0..1.0)
-        } catch (e: Exception) {
-            PluginLogger.Service.error("Request validation failed", e)
+        } catch (e: NullPointerException) {
+            PluginLogger.Service.error("Request validation failed: null value encountered", e)
+            false
+        } catch (e: IllegalArgumentException) {
+            PluginLogger.Service.error("Request validation failed: invalid argument", e)
             false
         }
     }

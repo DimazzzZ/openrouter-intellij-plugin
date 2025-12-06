@@ -5,7 +5,11 @@ import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
-import org.zhavoronkov.openrouter.utils.EncryptionUtil
+import org.zhavoronkov.openrouter.services.settings.ApiKeySettingsManager
+import org.zhavoronkov.openrouter.services.settings.FavoriteModelsManager
+import org.zhavoronkov.openrouter.services.settings.ProxySettingsManager
+import org.zhavoronkov.openrouter.services.settings.SetupStateManager
+import org.zhavoronkov.openrouter.services.settings.UIPreferencesManager
 import org.zhavoronkov.openrouter.utils.PluginLogger
 
 /**
@@ -19,6 +23,29 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
 
     private var settings = OpenRouterSettings()
 
+    lateinit var apiKeyManager: ApiKeySettingsManager
+        private set
+    lateinit var proxyManager: ProxySettingsManager
+        private set
+    lateinit var uiPreferencesManager: UIPreferencesManager
+        private set
+    lateinit var setupStateManager: SetupStateManager
+        private set
+    lateinit var favoriteModelsManager: FavoriteModelsManager
+        private set
+
+    init {
+        initializeManagers()
+    }
+
+    private fun initializeManagers() {
+        apiKeyManager = ApiKeySettingsManager(settings) { notifyStateChanged() }
+        proxyManager = ProxySettingsManager(settings) { notifyStateChanged() }
+        uiPreferencesManager = UIPreferencesManager(settings) { notifyStateChanged() }
+        setupStateManager = SetupStateManager(settings) { notifyStateChanged() }
+        favoriteModelsManager = FavoriteModelsManager(settings) { notifyStateChanged() }
+    }
+
     companion object {
         fun getInstance(): OpenRouterSettingsService {
             return ApplicationManager.getApplication().getService(OpenRouterSettingsService::class.java)
@@ -31,274 +58,15 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
 
     override fun loadState(state: OpenRouterSettings) {
         this.settings = state
+        initializeManagers()
     }
 
-    fun getApiKey(): String {
-        val encrypted = settings.apiKey
-        val decrypted = if (EncryptionUtil.isEncrypted(encrypted)) {
-            EncryptionUtil.decrypt(encrypted)
-        } else {
-            encrypted
-        }
-        PluginLogger.Service.info(
-            "getApiKey: encrypted.length=${encrypted.length}, encrypted.isEmpty=${encrypted.isEmpty()}, decrypted.length=${decrypted.length}, decrypted.isEmpty=${decrypted.isEmpty()}"
-        )
-        return decrypted
-    }
+    // Convenience methods for frequently used operations
+    fun isConfigured(): Boolean = apiKeyManager.isConfigured()
 
-    fun setApiKey(apiKey: String) {
-        PluginLogger.Service.info(
-            "setApiKey called: apiKey.length=${apiKey.length}, apiKey.isEmpty=${apiKey.isEmpty()}"
-        )
+    fun getApiKey(): String = apiKeyManager.getApiKey()
 
-        val encryptedKey = if (apiKey.isNotBlank()) {
-            EncryptionUtil.encrypt(apiKey)
-        } else {
-            apiKey
-        }
-
-        PluginLogger.Service.info(
-            "setApiKey: encrypted.length=${encryptedKey.length}, encrypted.isEmpty=${encryptedKey.isEmpty()}"
-        )
-
-        // Modify the existing settings object directly (don't create a new copy)
-        // This ensures the PersistentStateComponent properly detects the change
-        val oldApiKey = settings.apiKey
-        settings.apiKey = encryptedKey
-
-        PluginLogger.Service.info(
-            "setApiKey: settings.apiKey changed from length ${oldApiKey.length} to ${settings.apiKey.length}"
-        )
-        PluginLogger.Service.info("setApiKey: settings.apiKey.isEmpty=${settings.apiKey.isEmpty()}")
-
-        notifyStateChanged()
-
-        // Verify immediately after persistence
-        val retrieved = getApiKey()
-        PluginLogger.Service.info(
-            "setApiKey: verification after persistence - retrieved.length=${retrieved.length}, retrieved.isEmpty=${retrieved.isEmpty()}"
-        )
-    }
-
-    /**
-     * Get the stored API key (used for endpoints that require API key authentication)
-     * This is typically the "IntelliJ IDEA Plugin" API key created automatically
-     */
-    fun getStoredApiKey(): String? {
-        val apiKey = getApiKey()
-        return if (apiKey.isNotBlank()) apiKey else null
-    }
-
-    fun getProvisioningKey(): String {
-        return if (EncryptionUtil.isEncrypted(settings.provisioningKey)) {
-            EncryptionUtil.decrypt(settings.provisioningKey)
-        } else {
-            settings.provisioningKey
-        }
-    }
-
-    fun setProvisioningKey(provisioningKey: String) {
-        val encryptedKey = if (provisioningKey.isNotBlank()) {
-            EncryptionUtil.encrypt(provisioningKey)
-        } else {
-            provisioningKey
-        }
-
-        // Modify the existing settings object directly (don't create a new copy)
-        settings.provisioningKey = encryptedKey
-        notifyStateChanged()
-    }
-
-    // TODO: Future version - Default model selection
-    // fun getDefaultModel(): String = settings.defaultModel
-    //
-    // fun setDefaultModel(model: String) {
-    //     settings.defaultModel = model
-    // }
-
-    fun isAutoRefreshEnabled(): Boolean = settings.autoRefresh
-
-    fun setAutoRefresh(enabled: Boolean) {
-        settings.autoRefresh = enabled
-    }
-
-    fun getRefreshInterval(): Int = settings.refreshInterval
-
-    fun setRefreshInterval(interval: Int) {
-        settings.refreshInterval = interval
-    }
-
-    fun shouldShowCosts(): Boolean = settings.showCosts
-
-    fun setShowCosts(show: Boolean) {
-        settings.showCosts = show
-    }
-
-    fun isTrackingEnabled(): Boolean = settings.trackGenerations
-
-    fun setTrackingEnabled(enabled: Boolean) {
-        settings.trackGenerations = enabled
-    }
-
-    fun getMaxTrackedGenerations(): Int = settings.maxTrackedGenerations
-
-    fun setMaxTrackedGenerations(max: Int) {
-        settings.maxTrackedGenerations = max
-    }
-
-    fun isConfigured(): Boolean {
-        val provisioningKey = getProvisioningKey()
-        return provisioningKey.isNotBlank()
-    }
-
-    // Favorite Models Management
-    fun getFavoriteModels(): List<String> {
-        return settings.favoriteModels.toList()
-    }
-
-    fun addFavoriteModel(modelId: String) {
-        if (!settings.favoriteModels.contains(modelId)) {
-            settings.favoriteModels.add(modelId)
-        }
-    }
-
-    fun removeFavoriteModel(modelId: String) {
-        settings.favoriteModels.remove(modelId)
-    }
-
-    fun setFavoriteModels(models: List<String>) {
-        settings.favoriteModels.clear()
-        settings.favoriteModels.addAll(models)
-    }
-
-    fun isFavoriteModel(modelId: String): Boolean {
-        return settings.favoriteModels.contains(modelId)
-    }
-
-    /**
-     * Get default max tokens setting
-     */
-    fun getDefaultMaxTokens(): Int {
-        return settings.defaultMaxTokens
-    }
-
-    /**
-     * Set default max tokens setting
-     */
-    fun setDefaultMaxTokens(maxTokens: Int) {
-        settings.defaultMaxTokens = maxTokens
-        notifyStateChanged()
-    }
-
-    /**
-     * Notify the platform that the state has changed and should be persisted.
-     * Check if user has seen the welcome notification
-     */
-    fun hasSeenWelcome(): Boolean {
-        return settings.hasSeenWelcome
-    }
-
-    /**
-     * Mark that user has seen the welcome notification
-     */
-    fun setHasSeenWelcome(seen: Boolean) {
-        settings.hasSeenWelcome = seen
-        notifyStateChanged()
-    }
-
-    /**
-     * Check if user has completed initial setup
-     */
-    fun hasCompletedSetup(): Boolean {
-        return settings.hasCompletedSetup
-    }
-
-    /**
-     * Mark that user has completed initial setup
-     */
-    fun setHasCompletedSetup(completed: Boolean) {
-        settings.hasCompletedSetup = completed
-        notifyStateChanged()
-    }
-
-    // Proxy Server Configuration
-
-    /**
-     * Check if proxy server should auto-start on IDEA startup
-     */
-    fun isProxyAutoStartEnabled(): Boolean {
-        return settings.proxyAutoStart
-    }
-
-    /**
-     * Set proxy server auto-start behavior
-     */
-    fun setProxyAutoStart(enabled: Boolean) {
-        settings.proxyAutoStart = enabled
-        notifyStateChanged()
-    }
-
-    /**
-     * Get preferred proxy server port (0 means auto-select from range)
-     */
-    fun getProxyPort(): Int {
-        return settings.proxyPort
-    }
-
-    /**
-     * Set preferred proxy server port (0 means auto-select from range)
-     */
-    fun setProxyPort(port: Int) {
-        require(port == 0 || port in 1024..65535) { "Port must be 0 (auto) or between 1024-65535" }
-        settings.proxyPort = port
-        notifyStateChanged()
-    }
-
-    /**
-     * Get proxy server port range start
-     */
-    fun getProxyPortRangeStart(): Int {
-        return settings.proxyPortRangeStart
-    }
-
-    /**
-     * Set proxy server port range start
-     */
-    fun setProxyPortRangeStart(port: Int) {
-        require(port in 1024..65535) { "Port must be between 1024-65535" }
-        require(port <= settings.proxyPortRangeEnd) { "Start port must be <= end port" }
-        settings.proxyPortRangeStart = port
-        notifyStateChanged()
-    }
-
-    /**
-     * Get proxy server port range end
-     */
-    fun getProxyPortRangeEnd(): Int {
-        return settings.proxyPortRangeEnd
-    }
-
-    /**
-     * Set proxy server port range end
-     */
-    fun setProxyPortRangeEnd(port: Int) {
-        require(port in 1024..65535) { "Port must be between 1024-65535" }
-        require(port >= settings.proxyPortRangeStart) { "End port must be >= start port" }
-        settings.proxyPortRangeEnd = port
-        notifyStateChanged()
-    }
-
-    /**
-     * Set proxy server port range
-     */
-    fun setProxyPortRange(startPort: Int, endPort: Int) {
-        require(startPort in 1024..65535) { "Start port must be between 1024-65535" }
-        require(endPort in 1024..65535) { "End port must be between 1024-65535" }
-        require(startPort <= endPort) { "Start port must be <= end port" }
-        settings.proxyPortRangeStart = startPort
-        settings.proxyPortRangeEnd = endPort
-        notifyStateChanged()
-    }
+    fun getProvisioningKey(): String = apiKeyManager.getProvisioningKey()
 
     /**
      * This is necessary when settings are modified outside of the standard

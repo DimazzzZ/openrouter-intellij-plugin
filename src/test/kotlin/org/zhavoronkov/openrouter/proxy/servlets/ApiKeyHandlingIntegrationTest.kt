@@ -2,13 +2,17 @@ package org.zhavoronkov.openrouter.proxy.servlets
 
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
-import org.mockito.Mockito.*
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.reset
+import org.mockito.Mockito.times
+import org.mockito.Mockito.verify
+import org.mockito.Mockito.`when`
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import java.io.BufferedReader
 import java.io.PrintWriter
@@ -44,8 +48,10 @@ class ApiKeyHandlingIntegrationTest {
                 val apiKey = settingsService.getApiKey()
                 if (apiKey.isBlank()) {
                     resp.status = HttpServletResponse.SC_UNAUTHORIZED
+                    val errorMsg = "OpenRouter API key not configured. " +
+                        "Please configure it in Settings > Tools > OpenRouter"
                     resp.writer.write(
-                        """{"error":{"message":"OpenRouter API key not configured. Please configure it in Settings > Tools > OpenRouter","code":401}}"""
+                        """{"error":{"message":"$errorMsg","code":401}}"""
                     )
                     return
                 }
@@ -68,15 +74,18 @@ class ApiKeyHandlingIntegrationTest {
                     } else {
                         "openai/gpt-4-turbo" // fallback
                     }
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     "openai/gpt-4-turbo" // fallback
                 }
 
                 // Simulate successful processing
                 resp.status = HttpServletResponse.SC_OK
-                resp.writer.write(
-                    """{"id":"test-$requestId","object":"chat.completion","model":"$modelName","choices":[{"message":{"role":"assistant","content":"Integration test response"}}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}"""
-                )
+                val responseJson = buildString {
+                    append("""{"id":"test-$requestId","object":"chat.completion","model":"$modelName",""")
+                    append(""""choices":[{"message":{"role":"assistant","content":"Integration test response"}}],""")
+                    append(""""usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}""")
+                }
+                resp.writer.write(responseJson)
             } catch (e: Exception) {
                 resp.status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR
                 resp.writer.write("""{"error":{"message":"Internal server error: ${e.message}","code":500}}""")

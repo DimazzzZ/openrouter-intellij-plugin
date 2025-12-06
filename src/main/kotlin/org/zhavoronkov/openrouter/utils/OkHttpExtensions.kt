@@ -39,23 +39,25 @@ suspend fun Call.await(): Response = withContext(Dispatchers.IO) {
 inline fun <reified T> Response.toApiResult(gson: Gson): ApiResult<T> {
     return use { resp ->
         val bodyString = resp.body?.string().orEmpty()
-        if (!resp.isSuccessful) {
-            return ApiResult.Error(
+        when {
+            !resp.isSuccessful -> ApiResult.Error(
                 message = bodyString.ifBlank { resp.message }
                     .ifBlank { "HTTP ${resp.code}" },
                 statusCode = resp.code
             )
-        }
-        val trimmed = bodyString.trimStart()
-        return try {
-            val data = gson.fromJson(trimmed, T::class.java)
-            ApiResult.Success(data, resp.code)
-        } catch (e: JsonSyntaxException) {
-            ApiResult.Error(
-                message = "Failed to parse response: ${e.message}",
-                statusCode = resp.code,
-                throwable = e
-            )
+            else -> {
+                val trimmed = bodyString.trimStart()
+                try {
+                    val data = gson.fromJson(trimmed, T::class.java)
+                    ApiResult.Success(data, resp.code)
+                } catch (e: JsonSyntaxException) {
+                    ApiResult.Error(
+                        message = "Failed to parse response: ${e.message}",
+                        statusCode = resp.code,
+                        throwable = e
+                    )
+                }
+            }
         }
     }
 }

@@ -1,14 +1,17 @@
 package org.zhavoronkov.openrouter.proxy.servlets
 
-import com.google.gson.Gson
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.mockito.Mockito.*
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.reset
+import org.mockito.Mockito.times
+import org.mockito.Mockito.verify
+import org.mockito.Mockito.`when`
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import java.io.BufferedReader
 import java.io.PrintWriter
@@ -30,7 +33,6 @@ class ChatCompletionServletTest {
     private lateinit var responseWriter: StringWriter
     private lateinit var printWriter: PrintWriter
     private lateinit var mockSettingsService: OpenRouterSettingsService
-    private val gson = Gson()
 
     // Test helper class that simulates the servlet behavior without inheritance
     private class TestableServletHelper(
@@ -45,8 +47,10 @@ class ChatCompletionServletTest {
                 val apiKey = settingsService.getApiKey()
                 if (apiKey.isBlank()) {
                     resp.status = HttpServletResponse.SC_UNAUTHORIZED
+                    val errorMsg = "OpenRouter API key not configured. " +
+                        "Please configure it in Settings > Tools > OpenRouter"
                     resp.writer.write(
-                        """{"error":{"message":"OpenRouter API key not configured. Please configure it in Settings > Tools > OpenRouter","code":401}}"""
+                        """{"error":{"message":"$errorMsg","code":401}}"""
                     )
                     return
                 }
@@ -61,9 +65,12 @@ class ChatCompletionServletTest {
 
                 // For testing, just return success
                 resp.status = HttpServletResponse.SC_OK
-                resp.writer.write(
-                    """{"id":"test-$requestId","object":"chat.completion","model":"openai/gpt-4-turbo","choices":[{"message":{"role":"assistant","content":"Test response"}}]}"""
-                )
+                val responseJson = buildString {
+                    append("""{"id":"test-$requestId","object":"chat.completion",""")
+                    append(""""model":"openai/gpt-4-turbo","choices":[{"message":""")
+                    append("""{"role":"assistant","content":"Test response"}}]}""")
+                }
+                resp.writer.write(responseJson)
             } catch (e: Exception) {
                 resp.status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR
                 resp.writer.write("""{"error":{"message":"Internal server error: ${e.message}","code":500}}""")
@@ -297,7 +304,8 @@ class ChatCompletionServletTest {
             verify(response).status = HttpServletResponse.SC_UNAUTHORIZED
 
             val responseContent = responseWriter.toString()
-            val expectedMessage = "OpenRouter API key not configured. Please configure it in Settings > Tools > OpenRouter"
+            val expectedMessage = "OpenRouter API key not configured. " +
+                "Please configure it in Settings > Tools > OpenRouter"
             assertTrue(
                 responseContent.contains(expectedMessage),
                 "Should provide exact helpful error message"

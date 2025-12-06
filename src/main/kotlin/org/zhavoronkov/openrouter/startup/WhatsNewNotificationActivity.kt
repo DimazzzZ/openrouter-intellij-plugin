@@ -1,3 +1,4 @@
+
 package org.zhavoronkov.openrouter.startup
 
 import com.intellij.ide.BrowserUtil
@@ -11,6 +12,7 @@ import com.intellij.openapi.startup.ProjectActivity
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.settings.OpenRouterConfigurable
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import java.io.IOException
 
 /**
  * Startup activity to show "What's New" notification after plugin update
@@ -25,7 +27,8 @@ class WhatsNewNotificationActivity : ProjectActivity {
 
     companion object {
         private const val CURRENT_VERSION = "0.3.0"
-        private const val CHANGELOG_URL = "https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/CHANGELOG.md"
+        private const val CHANGELOG_URL =
+            "https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/CHANGELOG.md"
     }
 
     override suspend fun execute(project: Project) {
@@ -50,8 +53,12 @@ class WhatsNewNotificationActivity : ProjectActivity {
             } else {
                 PluginLogger.Service.debug("Version $CURRENT_VERSION already seen, skipping What's New notification")
             }
-        } catch (e: Exception) {
-            PluginLogger.Service.error("Error in What's New notification activity", e)
+        } catch (e: IllegalStateException) {
+            PluginLogger.Service.error("Invalid state in What's New notification activity", e)
+        } catch (e: IOException) {
+            PluginLogger.Service.error("IO error in What's New notification activity", e)
+        } catch (expectedError: Exception) {
+            PluginLogger.Service.error("Error in What's New notification activity", expectedError)
         }
     }
 
