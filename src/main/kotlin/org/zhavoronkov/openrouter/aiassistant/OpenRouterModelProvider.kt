@@ -1,5 +1,8 @@
 package org.zhavoronkov.openrouter.aiassistant
 
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.PluginLogger
@@ -98,8 +101,15 @@ class OpenRouterModelProvider {
             if (!isAvailable()) return false
 
             // Use the existing OpenRouterService test connection method
-            val future = openRouterService.testConnection()
-            future.get(10, java.util.concurrent.TimeUnit.SECONDS) ?: false
+            runBlocking {
+                withTimeout(10000L) {
+                    val result = openRouterService.testConnection()
+                    when (result) {
+                        is ApiResult.Success -> result.data
+                        is ApiResult.Error -> false
+                    }
+                }
+            }
         } catch (e: Exception) {
             PluginLogger.Service.warn("OpenRouter connection test failed", e)
             false

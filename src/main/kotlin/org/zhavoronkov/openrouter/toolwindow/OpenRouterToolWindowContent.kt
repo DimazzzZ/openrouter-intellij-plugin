@@ -4,7 +4,12 @@ import com.intellij.openapi.project.Project
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.ui.JBUI
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.zhavoronkov.openrouter.models.ActivityResponse
+import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import java.awt.BorderLayout
@@ -155,41 +160,65 @@ class OpenRouterToolWindowContent(private val project: Project) {
         modelLabel.text = "N/A" // Placeholder until model selection is implemented
         activityLabel.text = "Loading..."
 
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
         // Test connection
-        openRouterService.testConnection().thenAccept { connected ->
+        scope.launch {
+            val result = openRouterService.testConnection()
             SwingUtilities.invokeLater {
-                statusLabel.text = if (connected) "Connected" else "Connection failed"
+                when (result) {
+                    is ApiResult.Success -> {
+                        statusLabel.text = if (result.data) "Connected" else "Connection failed"
+                    }
+                    is ApiResult.Error -> {
+                        statusLabel.text = "Connection failed"
+                    }
+                }
             }
         }
 
         // Get quota info
-        openRouterService.getQuotaInfo().thenAccept { quota: org.zhavoronkov.openrouter.models.QuotaInfo? ->
+        scope.launch {
+            val quotaResult = openRouterService.getQuotaInfo()
             SwingUtilities.invokeLater {
-                if (quota != null) {
-                    quotaLabel.text = "$${String.format(Locale.US, "%.2f", quota.total ?: 0.0)}"
-                    val usedAmount = String.format(Locale.US, "%.2f", quota.used ?: 0.0)
-                    val percentage = String.format(
-                        Locale.US,
-                        "%.1f",
-                        ((quota.used ?: 0.0) / (quota.total ?: 1.0)) * 100
-                    )
-                    usageLabel.text = "$$usedAmount ($percentage%)"
-                } else {
-                    quotaLabel.text = "Failed to load"
-                    usageLabel.text = "Failed to load"
+                when (quotaResult) {
+                    is ApiResult.Success -> {
+                        val quota = quotaResult.data
+                        quotaLabel.text = "$${String.format(Locale.US, "%.2f", quota.total ?: 0.0)}"
+                        val usedAmount = String.format(Locale.US, "%.2f", quota.used ?: 0.0)
+                        val percentage = String.format(
+                            Locale.US,
+                            "%.1f",
+                            ((quota.used ?: 0.0) / (quota.total ?: 1.0)) * 100
+                        )
+                        usageLabel.text = "$$usedAmount ($percentage%)"
+                    }
+                    is ApiResult.Error -> {
+                        quotaLabel.text = "Failed to load"
+                        usageLabel.text = "Failed to load"
+                    }
                 }
             }
         }
 
         // Get activity info
-        openRouterService.getActivity().thenAccept { activityResponse: ActivityResponse? ->
+        scope.launch {
+            val activityResult = openRouterService.getActivity()
             SwingUtilities.invokeLater {
-                if (activityResponse != null && activityResponse.data.isNotEmpty()) {
-                    val totalRequests = activityResponse.data.sumOf { it.requests }
-                    val totalUsage = activityResponse.data.sumOf { it.usage }
-                    activityLabel.text = "$totalRequests requests, $${String.format(Locale.US, "%.4f", totalUsage)}"
-                } else {
-                    activityLabel.text = "No recent activity"
+                when (activityResult) {
+                    is ApiResult.Success -> {
+                        val activityResponse = activityResult.data
+                        if (activityResponse.data.isNotEmpty()) {
+                            val totalRequests = activityResponse.data.sumOf { it.requests }
+                            val totalUsage = activityResponse.data.sumOf { it.usage }
+                            activityLabel.text = "$totalRequests requests, $${String.format(Locale.US, "%.4f", totalUsage)}"
+                        } else {
+                            activityLabel.text = "No recent activity"
+                        }
+                    }
+                    is ApiResult.Error -> {
+                        activityLabel.text = "No recent activity"
+                    }
                 }
             }
         }

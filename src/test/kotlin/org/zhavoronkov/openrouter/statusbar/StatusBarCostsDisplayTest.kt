@@ -1,17 +1,19 @@
 package org.zhavoronkov.openrouter.statusbar
 
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.*
+import org.mockito.kotlin.whenever
+import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.CreditsData
 import org.zhavoronkov.openrouter.models.CreditsResponse
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import java.util.Locale
-import java.util.concurrent.CompletableFuture
 
 /**
  * Tests for status bar costs display functionality
@@ -33,7 +35,7 @@ class StatusBarCostsDisplayTest {
 
     @Test
     @DisplayName("Show costs enabled - status bar displays dollar amounts")
-    fun testShowCostsEnabledDisplaysDollarAmounts() {
+    fun testShowCostsEnabledDisplaysDollarAmounts() = runBlocking {
         // Given: Show costs is enabled
         `when`(mockSettingsService.shouldShowCosts()).thenReturn(true)
         `when`(mockSettingsService.isConfigured()).thenReturn(true)
@@ -43,8 +45,8 @@ class StatusBarCostsDisplayTest {
         val mockCreditsData = CreditsData(totalCredits = 10.0, totalUsage = 5.352)
         val mockCreditsResponse = CreditsResponse(data = mockCreditsData)
 
-        `when`(mockOpenRouterService.getCredits())
-            .thenReturn(CompletableFuture.completedFuture(mockCreditsResponse))
+        whenever(mockOpenRouterService.getCredits())
+            .thenReturn(ApiResult.Success(mockCreditsResponse, 200))
 
         // When: Status is updated (simulated)
         val shouldShowCosts = mockSettingsService.shouldShowCosts()
@@ -63,7 +65,7 @@ class StatusBarCostsDisplayTest {
 
     @Test
     @DisplayName("Show costs disabled - status bar displays percentage")
-    fun testShowCostsDisabledDisplaysPercentage() {
+    fun testShowCostsDisabledDisplaysPercentage() = runBlocking {
         // Given: Show costs is disabled
         `when`(mockSettingsService.shouldShowCosts()).thenReturn(false)
         `when`(mockSettingsService.isConfigured()).thenReturn(true)
@@ -73,8 +75,8 @@ class StatusBarCostsDisplayTest {
         val mockCreditsData = CreditsData(totalCredits = 10.0, totalUsage = 5.352)
         val mockCreditsResponse = CreditsResponse(data = mockCreditsData)
 
-        `when`(mockOpenRouterService.getCredits())
-            .thenReturn(CompletableFuture.completedFuture(mockCreditsResponse))
+        whenever(mockOpenRouterService.getCredits())
+            .thenReturn(ApiResult.Success(mockCreditsResponse, 200))
 
         // When: Status is updated (simulated)
         val shouldShowCosts = mockSettingsService.shouldShowCosts()

@@ -26,10 +26,9 @@ object AIAssistantIntegrationHelper {
             val pluginId = PluginId.getId(AI_ASSISTANT_PLUGIN_ID)
             val plugin = PluginManagerCore.getPlugin(pluginId) ?: return false
 
-            // Using deprecated API as replacement is not available in stable IntelliJ Platform API
-            // The deprecation warning is acceptable as this API will remain functional for years
-            @Suppress("DEPRECATION")
-            plugin.isEnabled
+            // Use recommended JetBrains API for checking if plugin is enabled
+            // isDisabled() returns true if disabled, so we negate it to get isEnabled
+            !PluginManagerCore.isDisabled(pluginId)
         } catch (e: IllegalArgumentException) {
             PluginLogger.Service.debug("Invalid plugin ID format: $AI_ASSISTANT_PLUGIN_ID", e)
             false

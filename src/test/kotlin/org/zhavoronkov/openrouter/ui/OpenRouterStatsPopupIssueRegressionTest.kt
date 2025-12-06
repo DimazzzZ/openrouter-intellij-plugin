@@ -1,6 +1,7 @@
 package org.zhavoronkov.openrouter.ui
 
 import com.intellij.openapi.project.Project
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertDoesNotThrow
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -12,15 +13,16 @@ import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
+import org.mockito.kotlin.whenever
 import org.zhavoronkov.openrouter.models.ActivityData
 import org.zhavoronkov.openrouter.models.ActivityResponse
 import org.zhavoronkov.openrouter.models.ApiKeyInfo
 import org.zhavoronkov.openrouter.models.ApiKeysListResponse
+import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.CreditsData
 import org.zhavoronkov.openrouter.models.CreditsResponse
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
-import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -53,7 +55,7 @@ class OpenRouterStatsPopupIssueRegressionTest {
     // ========================================
 
     @Test
-    fun `show method should not block when scheduling data loading`() {
+    fun `show method should not block when scheduling data loading`() = runBlocking {
         // This test prevents regression of the EDT blocking issue
 
         // Given: Configured services
@@ -65,15 +67,9 @@ class OpenRouterStatsPopupIssueRegressionTest {
         val creditsResponse = createMockCreditsResponse()
         val activityResponse = createMockActivityResponse()
 
-        `when`(
-            openRouterService.getApiKeysList()
-        ).thenReturn(CompletableFuture.completedFuture(apiKeysResponse) as CompletableFuture<ApiKeysListResponse?>)
-        `when`(
-            openRouterService.getCredits()
-        ).thenReturn(CompletableFuture.completedFuture(creditsResponse) as CompletableFuture<CreditsResponse?>)
-        `when`(
-            openRouterService.getActivity()
-        ).thenReturn(CompletableFuture.completedFuture(activityResponse) as CompletableFuture<ActivityResponse?>)
+        whenever(openRouterService.getApiKeysList()).thenReturn(ApiResult.Success(apiKeysResponse, 200))
+        whenever(openRouterService.getCredits()).thenReturn(ApiResult.Success(creditsResponse, 200))
+        whenever(openRouterService.getActivity()).thenReturn(ApiResult.Success(activityResponse, 200))
 
         // When/Then: Constructor should not throw exceptions when run on EDT
         assertDoesNotThrow {
@@ -87,26 +83,17 @@ class OpenRouterStatsPopupIssueRegressionTest {
     }
 
     @Test
-    fun `background thread data loading should not block EDT`() {
+    fun `background thread data loading should not block EDT`() = runBlocking {
         // This test ensures data loading happens on background thread, not EDT
 
         // Given: Services configured
         `when`(settingsService.isConfigured()).thenReturn(true)
         `when`(settingsService.getProvisioningKey()).thenReturn("test-key")
 
-        // Create slow API responses to test threading
-        val slowFuture = CompletableFuture<ApiKeysListResponse?>()
-        `when`(openRouterService.getApiKeysList()).thenReturn(slowFuture)
-        `when`(
-            openRouterService.getCredits()
-        ).thenReturn(
-            CompletableFuture.completedFuture(createMockCreditsResponse()) as CompletableFuture<CreditsResponse?>
-        )
-        `when`(
-            openRouterService.getActivity()
-        ).thenReturn(
-            CompletableFuture.completedFuture(createMockActivityResponse()) as CompletableFuture<ActivityResponse?>
-        )
+        // Mock API responses
+        whenever(openRouterService.getApiKeysList()).thenReturn(ApiResult.Success(createMockApiKeysResponse(), 200))
+        whenever(openRouterService.getCredits()).thenReturn(ApiResult.Success(createMockCreditsResponse(), 200))
+        whenever(openRouterService.getActivity()).thenReturn(ApiResult.Success(createMockActivityResponse(), 200))
 
         // When: Create popup on EDT (this should not block)
         var popup: OpenRouterStatsPopup? = null
@@ -116,9 +103,6 @@ class OpenRouterStatsPopupIssueRegressionTest {
 
         // Then: Popup creation should be immediate (not blocked by slow API)
         assertNotNull(popup)
-
-        // Complete the slow future to clean up
-        slowFuture.complete(createMockApiKeysResponse())
     }
 
     // ========================================
@@ -126,21 +110,17 @@ class OpenRouterStatsPopupIssueRegressionTest {
     // ========================================
 
     @Test
-    fun `API responses should be processed without nested callback issues`() {
+    fun `API responses should be processed without nested callback issues`() = runBlocking {
         // This test prevents the nested callback chain breaking issue
 
         // Given: Services with different response timing
         `when`(settingsService.isConfigured()).thenReturn(true)
         `when`(settingsService.getProvisioningKey()).thenReturn("test-key")
 
-        // Create futures that complete at different times
-        val apiKeysFuture = CompletableFuture<ApiKeysListResponse?>()
-        val creditsFuture = CompletableFuture<CreditsResponse?>()
-        val activityFuture = CompletableFuture<ActivityResponse?>()
-
-        `when`(openRouterService.getApiKeysList()).thenReturn(apiKeysFuture)
-        `when`(openRouterService.getCredits()).thenReturn(creditsFuture)
-        `when`(openRouterService.getActivity()).thenReturn(activityFuture)
+        // Mock API responses - with coroutines, all calls happen in parallel
+        whenever(openRouterService.getApiKeysList()).thenReturn(ApiResult.Success(createMockApiKeysResponse(), 200))
+        whenever(openRouterService.getCredits()).thenReturn(ApiResult.Success(createMockCreditsResponse(), 200))
+        whenever(openRouterService.getActivity()).thenReturn(ApiResult.Success(createMockActivityResponse(), 200))
 
         // When: Create popup on EDT
         var popup: OpenRouterStatsPopup? = null
@@ -148,31 +128,22 @@ class OpenRouterStatsPopupIssueRegressionTest {
             popup = OpenRouterStatsPopup(project, openRouterService, settingsService)
         }
 
-        // Complete futures in different order to test parallel processing
-        activityFuture.complete(createMockActivityResponse())
-        apiKeysFuture.complete(createMockApiKeysResponse())
-        creditsFuture.complete(createMockCreditsResponse())
-
-        // Then: All futures should be processed regardless of completion order
-        // (This tests that we use CompletableFuture.allOf instead of nested callbacks)
+        // Then: All responses should be processed regardless of completion order
+        // (This tests that we use coroutines properly instead of nested callbacks)
         assertNotNull(popup)
     }
 
     @Test
-    fun `failed API responses should not break callback chain`() {
+    fun `failed API responses should not break callback chain`() = runBlocking {
         // This test ensures that failed responses don't leave the UI in loading state
 
         // Given: One API call fails
         `when`(settingsService.isConfigured()).thenReturn(true)
         `when`(settingsService.getProvisioningKey()).thenReturn("test-key")
 
-        `when`(openRouterService.getApiKeysList()).thenReturn(CompletableFuture.completedFuture(null))
-        `when`(
-            openRouterService.getCredits()
-        ).thenReturn(CompletableFuture.completedFuture(createMockCreditsResponse()))
-        `when`(
-            openRouterService.getActivity()
-        ).thenReturn(CompletableFuture.completedFuture(createMockActivityResponse()))
+        whenever(openRouterService.getApiKeysList()).thenReturn(ApiResult.Error("Failed"))
+        whenever(openRouterService.getCredits()).thenReturn(ApiResult.Success(createMockCreditsResponse(), 200))
+        whenever(openRouterService.getActivity()).thenReturn(ApiResult.Success(createMockActivityResponse(), 200))
 
         // When/Then: Should handle gracefully without exceptions
         assertDoesNotThrow {
@@ -185,7 +156,7 @@ class OpenRouterStatsPopupIssueRegressionTest {
     // ========================================
 
     @Test
-    fun `loadData should not execute duplicate API calls`() {
+    fun `loadData should not execute duplicate API calls`() = runBlocking {
         // This test prevents duplicate execution paths
 
         val apiCallCount = AtomicInteger(0)
@@ -196,17 +167,17 @@ class OpenRouterStatsPopupIssueRegressionTest {
         `when`(settingsService.isConfigured()).thenReturn(true)
         `when`(settingsService.getProvisioningKey()).thenReturn("test-key")
 
-        `when`(openRouterService.getApiKeysList()).thenAnswer {
+        whenever(openRouterService.getApiKeysList()).thenAnswer {
             apiCallCount.incrementAndGet()
-            CompletableFuture.completedFuture(createMockApiKeysResponse()) as CompletableFuture<ApiKeysListResponse?>
+            ApiResult.Success(createMockApiKeysResponse(), 200)
         }
-        `when`(openRouterService.getCredits()).thenAnswer {
+        whenever(openRouterService.getCredits()).thenAnswer {
             creditsCallCount.incrementAndGet()
-            CompletableFuture.completedFuture(createMockCreditsResponse()) as CompletableFuture<CreditsResponse?>
+            ApiResult.Success(createMockCreditsResponse(), 200)
         }
-        `when`(openRouterService.getActivity()).thenAnswer {
+        whenever(openRouterService.getActivity()).thenAnswer {
             activityCallCount.incrementAndGet()
-            CompletableFuture.completedFuture(createMockActivityResponse()) as CompletableFuture<ActivityResponse?>
+            ApiResult.Success(createMockActivityResponse(), 200)
         }
 
         // When: Create popup and simulate refresh
@@ -231,7 +202,7 @@ class OpenRouterStatsPopupIssueRegressionTest {
     // ========================================
 
     @Test
-    fun `missing provisioning key should show appropriate error`() {
+    fun `missing provisioning key should show appropriate error`() = runBlocking {
         // This test ensures provisioning key validation works correctly
 
         // Given: No provisioning key configured
@@ -242,15 +213,17 @@ class OpenRouterStatsPopupIssueRegressionTest {
         val popup = createPopupOnEdt(project, openRouterService, settingsService)
 
         // Then: Should not make API calls when provisioning key is missing
-        verify(openRouterService, never()).getApiKeysList()
-        verify(openRouterService, never()).getCredits()
-        verify(openRouterService, never()).getActivity()
+        runBlocking {
+            verify(openRouterService, never()).getApiKeysList()
+            verify(openRouterService, never()).getCredits()
+            verify(openRouterService, never()).getActivity()
+        }
 
         assertNotNull(popup)
     }
 
     @Test
-    fun `blank provisioning key should show appropriate error`() {
+    fun `blank provisioning key should show appropriate error`() = runBlocking {
         // Given: Blank provisioning key
         `when`(settingsService.isConfigured()).thenReturn(true)
         `when`(settingsService.getProvisioningKey()).thenReturn("   ")
@@ -259,33 +232,23 @@ class OpenRouterStatsPopupIssueRegressionTest {
         val popup = createPopupOnEdt(project, openRouterService, settingsService)
 
         // Then: Should not make API calls
-        verify(openRouterService, never()).getApiKeysList()
+        runBlocking {
+            verify(openRouterService, never()).getApiKeysList()
+        }
         assertNotNull(popup)
     }
 
     @Test
-    fun `valid provisioning key should allow popup initialization`() {
+    fun `valid provisioning key should allow popup initialization`() = runBlocking {
         // This test ensures that valid provisioning key configuration allows popup to initialize
 
         // Given: Valid provisioning key
         `when`(settingsService.isConfigured()).thenReturn(true)
         `when`(settingsService.getProvisioningKey()).thenReturn("valid-key")
 
-        `when`(
-            openRouterService.getApiKeysList()
-        ).thenReturn(
-            CompletableFuture.completedFuture(createMockApiKeysResponse()) as CompletableFuture<ApiKeysListResponse?>
-        )
-        `when`(
-            openRouterService.getCredits()
-        ).thenReturn(
-            CompletableFuture.completedFuture(createMockCreditsResponse()) as CompletableFuture<CreditsResponse?>
-        )
-        `when`(
-            openRouterService.getActivity()
-        ).thenReturn(
-            CompletableFuture.completedFuture(createMockActivityResponse()) as CompletableFuture<ActivityResponse?>
-        )
+        whenever(openRouterService.getApiKeysList()).thenReturn(ApiResult.Success(createMockApiKeysResponse(), 200))
+        whenever(openRouterService.getCredits()).thenReturn(ApiResult.Success(createMockCreditsResponse(), 200))
+        whenever(openRouterService.getActivity()).thenReturn(ApiResult.Success(createMockActivityResponse(), 200))
 
         // When: Create popup
         val popup = createPopupOnEdt(project, openRouterService, settingsService)
@@ -305,22 +268,16 @@ class OpenRouterStatsPopupIssueRegressionTest {
 
     @Test
     @Timeout(value = 5, unit = TimeUnit.SECONDS)
-    fun `concurrent UI updates should not cause deadlocks`() {
+    fun `concurrent UI updates should not cause deadlocks`() = runBlocking {
         // This test ensures thread safety in UI updates
 
         // Given: Services with concurrent responses
         `when`(settingsService.isConfigured()).thenReturn(true)
         `when`(settingsService.getProvisioningKey()).thenReturn("test-key")
 
-        `when`(
-            openRouterService.getApiKeysList()
-        ).thenReturn(CompletableFuture.completedFuture(createMockApiKeysResponse()))
-        `when`(
-            openRouterService.getCredits()
-        ).thenReturn(CompletableFuture.completedFuture(createMockCreditsResponse()))
-        `when`(
-            openRouterService.getActivity()
-        ).thenReturn(CompletableFuture.completedFuture(createMockActivityResponse()))
+        whenever(openRouterService.getApiKeysList()).thenReturn(ApiResult.Success(createMockApiKeysResponse(), 200))
+        whenever(openRouterService.getCredits()).thenReturn(ApiResult.Success(createMockCreditsResponse(), 200))
+        whenever(openRouterService.getActivity()).thenReturn(ApiResult.Success(createMockActivityResponse(), 200))
 
         // When: Create popup (should complete within timeout)
         val popup = createPopupOnEdt(project, openRouterService, settingsService)
@@ -337,7 +294,7 @@ class OpenRouterStatsPopupIssueRegressionTest {
     // ========================================
 
     @Test
-    fun `activity date parsing should handle various formats`() {
+    fun `activity date parsing should handle various formats`() = runBlocking {
         // This test ensures robust date parsing for activity data
 
         // Given: Services configured
@@ -352,13 +309,9 @@ class OpenRouterStatsPopupIssueRegressionTest {
         )
         val activityResponse = ActivityResponse(activityData)
 
-        `when`(
-            openRouterService.getApiKeysList()
-        ).thenReturn(CompletableFuture.completedFuture(createMockApiKeysResponse()))
-        `when`(
-            openRouterService.getCredits()
-        ).thenReturn(CompletableFuture.completedFuture(createMockCreditsResponse()))
-        `when`(openRouterService.getActivity()).thenReturn(CompletableFuture.completedFuture(activityResponse))
+        whenever(openRouterService.getApiKeysList()).thenReturn(ApiResult.Success(createMockApiKeysResponse(), 200))
+        whenever(openRouterService.getCredits()).thenReturn(ApiResult.Success(createMockCreditsResponse(), 200))
+        whenever(openRouterService.getActivity()).thenReturn(ApiResult.Success(activityResponse, 200))
 
         // When: Create popup
         val popup = createPopupOnEdt(project, openRouterService, settingsService)

@@ -15,6 +15,10 @@ import com.intellij.ui.table.TableView
 import com.intellij.util.ui.ColumnInfo
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.ListTableModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
@@ -539,9 +543,11 @@ class FavoriteModelsSettingsPanel : Disposable {
         loadError = null
         loadingPanel.startLoading()
 
-        // getAvailableModels() already returns a CompletableFuture that executes asynchronously
-        favoriteModelsService.getAvailableModels(forceRefresh = false)
-            .thenAccept { models ->
+        // getAvailableModels() now returns synchronously (with internal caching)
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        scope.launch {
+            try {
+                val models = favoriteModelsService.getAvailableModels(forceRefresh = false)
                 PluginLogger.Settings.debug("Received models from service: ${models?.size ?: 0}")
                 ApplicationManager.getApplication().invokeLater({
                     PluginLogger.Settings.debug("EDT callback executing...")
@@ -566,8 +572,7 @@ class FavoriteModelsSettingsPanel : Disposable {
                         PluginLogger.Settings.warn("Models response was null")
                     }
                 }, ModalityState.any())
-            }
-            .exceptionally { throwable ->
+            } catch (throwable: Throwable) {
                 ApplicationManager.getApplication().invokeLater({
                     isLoading = false
                     loadingPanel.stopLoading()
@@ -575,8 +580,8 @@ class FavoriteModelsSettingsPanel : Disposable {
                     showErrorState()
                     PluginLogger.Settings.error("Failed to load models", throwable)
                 }, ModalityState.any())
-                null
             }
+        }
     }
 
     /**
@@ -589,9 +594,11 @@ class FavoriteModelsSettingsPanel : Disposable {
         loadError = null
         loadingPanel.startLoading()
 
-        // getAvailableModels() already returns a CompletableFuture that executes asynchronously
-        favoriteModelsService.getAvailableModels(forceRefresh = true)
-            .thenAccept { models ->
+        // getAvailableModels() now returns synchronously (with internal caching)
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        scope.launch {
+            try {
+                val models = favoriteModelsService.getAvailableModels(forceRefresh = true)
                 ApplicationManager.getApplication().invokeLater({
                     isLoading = false
                     loadingPanel.stopLoading()
@@ -606,16 +613,15 @@ class FavoriteModelsSettingsPanel : Disposable {
                         showErrorState()
                     }
                 }, ModalityState.any())
-            }
-            .exceptionally { throwable ->
+            } catch (throwable: Throwable) {
                 ApplicationManager.getApplication().invokeLater({
                     isLoading = false
                     loadingPanel.stopLoading()
                     loadError = "Error refreshing models: ${throwable.message}"
                     PluginLogger.Settings.error("Failed to refresh models", throwable)
                 }, ModalityState.any())
-                null
             }
+        }
     }
 
     /**

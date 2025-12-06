@@ -14,6 +14,12 @@ import com.intellij.ui.dsl.builder.*
 import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
+import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.proxy.OpenRouterProxyServer
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
@@ -26,7 +32,6 @@ import java.awt.BorderLayout
 import java.awt.CardLayout
 import java.awt.Dimension
 import java.awt.Font
-import java.util.concurrent.TimeUnit
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.SwingUtilities
@@ -42,6 +47,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     private val settingsService = OpenRouterSettingsService.getInstance()
     private val openRouterService = OpenRouterService.getInstance()
     private val favoriteModelsService = FavoriteModelsService.getInstance()
+    private val coroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     private val cardLayout = CardLayout()
     private val cardPanel = JPanel(cardLayout)
@@ -399,33 +405,37 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
         // Validate by trying to fetch API keys list with the RAW key
         // (OpenRouter API expects the unencrypted key)
-        openRouterService.getApiKeysList(key)
-            .orTimeout(KEY_VALIDATION_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-            .thenAccept { response ->
+        coroutineScope.launch {
+            try {
+                val result = withTimeout(KEY_VALIDATION_TIMEOUT_MS) {
+                    openRouterService.getApiKeysList(key)
+                }
                 ApplicationManager.getApplication().invokeLater({
                     isValidating = false
-                    if (response != null) {
-                        // Valid key - encrypt and save it
-                        val encrypted = EncryptionUtil.encrypt(key)
-                        settingsService.setProvisioningKey(encrypted)
-                        isKeyValid = true
-                        showValidationSuccess()
-                    } else {
-                        isKeyValid = false
-                        showValidationError("Invalid provisioning key")
+                    when (result) {
+                        is ApiResult.Success -> {
+                            // Valid key - encrypt and save it
+                            val encrypted = EncryptionUtil.encrypt(key)
+                            settingsService.setProvisioningKey(encrypted)
+                            isKeyValid = true
+                            showValidationSuccess()
+                        }
+                        is ApiResult.Error -> {
+                            isKeyValid = false
+                            showValidationError("Invalid provisioning key: ${result.message}")
+                        }
                     }
                     updateButtons()
                 }, ModalityState.any())
-            }
-            .exceptionally { error ->
+            } catch (error: Throwable) {
                 ApplicationManager.getApplication().invokeLater({
                     isValidating = false
                     isKeyValid = false
                     showValidationError("Validation failed: ${error.message}")
                     updateButtons()
                 }, ModalityState.any())
-                null
             }
+        }
     }
 
     private fun clearValidationStatus() {
@@ -461,9 +471,11 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         isLoadingModels = true
         updateButtons()
 
-        favoriteModelsService.getAvailableModels(forceRefresh = false)
-            .orTimeout(MODEL_LOADING_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-            .thenAccept { models ->
+        coroutineScope.launch {
+            try {
+                val models = withTimeout(MODEL_LOADING_TIMEOUT_MS) {
+                    favoriteModelsService.getAvailableModels(forceRefresh = false)
+                }
                 ApplicationManager.getApplication().invokeLater({
                     isLoadingModels = false
                     if (models != null) {
@@ -478,15 +490,14 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                     }
                     updateButtons()
                 }, ModalityState.any())
-            }
-            .exceptionally { error ->
+            } catch (error: Throwable) {
                 ApplicationManager.getApplication().invokeLater({
                     isLoadingModels = false
                     PluginLogger.Settings.error("Error loading models in setup wizard", error)
                     updateButtons()
                 }, ModalityState.any())
-                null
             }
+        }
     }
 
     private fun setupSearchListener() {
@@ -630,9 +641,9 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         private const val NAME_COLUMN_WIDTH = 400
         private const val URL_LABEL_FONT_SIZE = 12
 
-        // Timeouts (seconds)
-        private const val KEY_VALIDATION_TIMEOUT_SECONDS = 10L
-        private const val MODEL_LOADING_TIMEOUT_SECONDS = 30L
+        // Timeouts (milliseconds)
+        private const val KEY_VALIDATION_TIMEOUT_MS = 10000L
+        private const val MODEL_LOADING_TIMEOUT_MS = 30000L
 
         /**
          * Show the setup wizard dialog

@@ -1,17 +1,19 @@
 package org.zhavoronkov.openrouter.ui
 
 import com.intellij.openapi.application.ApplicationManager
+import kotlinx.coroutines.*
+import org.zhavoronkov.openrouter.models.ApiResult
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.util.ui.JBUI
 import org.zhavoronkov.openrouter.icons.OpenRouterIcons
-
 import org.zhavoronkov.openrouter.models.ActivityData
 import org.zhavoronkov.openrouter.models.ActivityResponse
 import org.zhavoronkov.openrouter.models.ApiKeysListResponse
 import org.zhavoronkov.openrouter.models.CreditsResponse
+import org.zhavoronkov.openrouter.models.QuotaInfo
 // import org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService // TEMPORARILY COMMENTED OUT
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
@@ -20,11 +22,9 @@ import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.Font
 import java.time.LocalDate
-
 import javax.swing.Action
 import javax.swing.Box
 import javax.swing.BoxLayout
-
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.JProgressBar
@@ -134,7 +134,7 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         activityModelsLabel.text = "<html>Recent Models:<br/>• $NOT_CONFIGURED_TEXT</html>"
         // recentCostLabel.text = "Recent Cost: $NOT_CONFIGURED_TEXT" // TEMPORARILY COMMENTED OUT
         // recentTokensLabel.text = "Recent Tokens: $NOT_CONFIGURED_TEXT" // TEMPORARILY COMMENTED OUT
-        // generationCountLabel.text = "Tracked Calls: $NOT_CONFIGURED_TEXT" // TEMPORARILY COMMENTED OUT
+        // generationCountLabel.text = "Recent Tokens: $NOT_CONFIGURED_TEXT" // TEMPORARILY COMMENTED OUT
     }
 
     /**
@@ -370,26 +370,46 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         // Show loading state
         setLoadingState()
 
-        // Execute API calls on background thread and update UI directly
-        Thread {
+        // Launch coroutine to fetch data
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch {
             try {
-                // Fetch API keys, credits, and activity information synchronously
-                val apiKeysResponse = routerService.getApiKeysList().get()
-                val creditsResponse = routerService.getCredits().get()
-                val activityResponse = routerService.getActivity().get()
+                // Fetch API keys, quota info, and activity concurrently
+                val apiKeysDeferred = async(Dispatchers.IO) { routerService.getApiKeysList() }
+                val quotaDeferred = async(Dispatchers.IO) { routerService.getQuotaInfo() }
+                val activityDeferred = async(Dispatchers.IO) { routerService.getActivity() }
 
-                // Update UI directly from background thread (works in this context)
-                if (apiKeysResponse != null && creditsResponse != null) {
-                    updateWithApiKeysList(apiKeysResponse)
-                    updateWithCredits(creditsResponse)
-                    updateWithActivity(activityResponse)
-                } else {
+                val apiKeysResult = apiKeysDeferred.await()
+                val quotaResult = quotaDeferred.await()
+                val activityResult = activityDeferred.await()
+
+                ApplicationManager.getApplication().invokeLater {
+                    when {
+                        apiKeysResult is ApiResult.Success && quotaResult is ApiResult.Success -> {
+                            updateWithApiKeysList(apiKeysResult.data)
+                            updateWithCreditsFromQuota(quotaResult.data)
+                            // Update activity - pass data if successful, null otherwise
+                            val activityData = if (activityResult is ApiResult.Success) {
+                                activityResult.data
+                            } else {
+                                null
+                            }
+                            updateWithActivity(activityData)
+                        }
+                        apiKeysResult is ApiResult.Error || quotaResult is ApiResult.Error -> {
+                            showError()
+                        }
+                        else -> {
+                            showError()
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                ApplicationManager.getApplication().invokeLater {
                     showError()
                 }
-            } catch (_: Exception) {
-                ApplicationManager.getApplication().invokeLater { showError() }
             }
-        }.start()
+        }
     }
 
     private fun setLoadingState() {
@@ -423,6 +443,27 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         val totalCredits = creditsData.totalCredits
         val usedCredits = creditsData.totalUsage
         val remainingCredits = totalCredits - usedCredits
+
+        totalCreditsLabel.text = "Total Credits: $${formatCurrency(totalCredits)}"
+        creditsUsageLabel.text = "Credits Used: $${formatCurrency(usedCredits)}"
+        creditsRemainingLabel.text = "Credits Remaining: $${formatCurrency(remainingCredits)}"
+
+        // Update progress bar with credits information
+        if (totalCredits > 0) {
+            val percentage = ((usedCredits / totalCredits) * 100).toInt()
+            setProgressBarState(
+                percentage,
+                "$percentage% used ($${formatCurrency(usedCredits)}/$${formatCurrency(totalCredits)})"
+            )
+        } else {
+            setProgressBarState(text = "No credits available")
+        }
+    }
+
+    private fun updateWithCreditsFromQuota(quotaInfo: QuotaInfo) {
+        val totalCredits = quotaInfo.total ?: 0.0
+        val usedCredits = quotaInfo.used ?: 0.0
+        val remainingCredits = quotaInfo.remaining ?: 0.0
 
         totalCreditsLabel.text = "Total Credits: $${formatCurrency(totalCredits)}"
         creditsUsageLabel.text = "Credits Used: $${formatCurrency(usedCredits)}"

@@ -4,6 +4,9 @@ import com.google.gson.Gson
 import jakarta.servlet.http.HttpServlet
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.proxy.models.OpenAIModel
 import org.zhavoronkov.openrouter.proxy.models.OpenAIModelsResponse
 import org.zhavoronkov.openrouter.proxy.models.OpenAIPermission
@@ -12,7 +15,6 @@ import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 
@@ -26,7 +28,7 @@ class ModelsServlet(
     private val settingsService = OpenRouterSettingsService.getInstance()
 
     companion object {
-        private const val REQUEST_TIMEOUT_SECONDS = 30L
+        private const val REQUEST_TIMEOUT_MS = 30000L // 30 seconds
         private const val CACHE_TTL_MINUTES = 15L // Cache models for 15 minutes
         private const val CACHE_TTL_MS = CACHE_TTL_MINUTES * 60 * 1000
 
@@ -167,16 +169,27 @@ class ModelsServlet(
 
         // Fetch from OpenRouter API
         try {
-            val openRouterModels = openRouterService.getModels().get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-            if (openRouterModels != null) {
-                val openAIModels = convertOpenRouterModelsToOpenAI(openRouterModels)
+            val result = runBlocking {
+                withTimeout(REQUEST_TIMEOUT_MS) {
+                    openRouterService.getModels()
+                }
+            }
 
-                // Cache the result
-                modelsCache["all"] = openAIModels
-                cacheTimestamp.set(now)
+            when (result) {
+                is ApiResult.Success -> {
+                    val openRouterModels = result.data
+                    val openAIModels = convertOpenRouterModelsToOpenAI(openRouterModels)
 
-                PluginLogger.Service.info("Fetched and cached ${openAIModels.data.size} models from OpenRouter")
-                return filterModels(openAIModels, search, provider, limit)
+                    // Cache the result
+                    modelsCache["all"] = openAIModels
+                    cacheTimestamp.set(now)
+
+                    PluginLogger.Service.info("Fetched and cached ${openAIModels.data.size} models from OpenRouter")
+                    return filterModels(openAIModels, search, provider, limit)
+                }
+                is ApiResult.Error -> {
+                    PluginLogger.Service.error("Failed to fetch models: ${result.message}")
+                }
             }
         } catch (e: Exception) {
             PluginLogger.Service.warn("Failed to fetch models from OpenRouter, falling back to curated list", e)

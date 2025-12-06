@@ -1,6 +1,7 @@
 package org.zhavoronkov.openrouter.ui
 
 import com.intellij.openapi.project.Project
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertDoesNotThrow
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -9,13 +10,14 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.*
+import org.mockito.kotlin.whenever
 import org.zhavoronkov.openrouter.models.ApiKeyInfo
 import org.zhavoronkov.openrouter.models.ApiKeysListResponse
+import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.CreditsData
 import org.zhavoronkov.openrouter.models.CreditsResponse
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
-import java.util.concurrent.CompletableFuture
 
 class OpenRouterStatsPopupDataLoadTest {
 
@@ -79,17 +81,17 @@ class OpenRouterStatsPopupDataLoadTest {
         assertEquals("test-key", apiKeysResponse.data[0].name, "API key should have correct name")
         assertEquals(false, apiKeysResponse.data[0].disabled, "API key should not be disabled")
 
-        // And: Verify CompletableFuture can be created with these responses
+        // And: Verify ApiResult can be created with these responses
         assertDoesNotThrow {
-            val creditsFuture = CompletableFuture.completedFuture(creditsResponse)
-            val apiKeysFuture = CompletableFuture.completedFuture(apiKeysResponse)
-            assertNotNull(creditsFuture, "Credits future should be created")
-            assertNotNull(apiKeysFuture, "API keys future should be created")
+            val creditsResult = ApiResult.Success(creditsResponse, 200)
+            val apiKeysResult = ApiResult.Success(apiKeysResponse, 200)
+            assertNotNull(creditsResult, "Credits result should be created")
+            assertNotNull(apiKeysResult, "API keys result should be created")
         }
     }
 
     @Test
-    fun `service mocking should work for quota data loading verification`() {
+    fun `service mocking should work for quota data loading verification`() = runBlocking {
         // Test that verifies the service mocking setup works correctly
 
         // Given: Services are configured
@@ -112,24 +114,26 @@ class OpenRouterStatsPopupDataLoadTest {
         )
         val apiKeysResponse = ApiKeysListResponse(apiKeyInfo)
 
-        `when`(openRouterService.getCredits()).thenReturn(CompletableFuture.completedFuture(creditsResponse))
-        `when`(openRouterService.getApiKeysList()).thenReturn(CompletableFuture.completedFuture(apiKeysResponse))
-        `when`(openRouterService.getActivity()).thenReturn(CompletableFuture.completedFuture(null))
+        whenever(openRouterService.getCredits()).thenReturn(ApiResult.Success(creditsResponse, 200))
+        whenever(openRouterService.getApiKeysList()).thenReturn(ApiResult.Success(apiKeysResponse, 200))
+        whenever(openRouterService.getActivity()).thenReturn(ApiResult.Error("No activity data"))
 
         // Then: Verify service mocks work as expected
         assertTrue(settingsService.isConfigured(), "Settings service should be configured")
 
-        val creditsFuture = openRouterService.getCredits()
-        assertNotNull(creditsFuture, "Credits future should not be null")
-        assertEquals(creditsResponse, creditsFuture.get(), "Credits future should return mocked response")
+        val creditsResult = openRouterService.getCredits()
+        assertNotNull(creditsResult, "Credits result should not be null")
+        assertTrue(creditsResult is ApiResult.Success, "Credits should be success")
+        assertEquals(creditsResponse, (creditsResult as ApiResult.Success).data, "Credits should return mocked response")
 
-        val apiKeysFuture = openRouterService.getApiKeysList()
-        assertNotNull(apiKeysFuture, "API keys future should not be null")
-        assertEquals(apiKeysResponse, apiKeysFuture.get(), "API keys future should return mocked response")
+        val apiKeysResult = openRouterService.getApiKeysList()
+        assertNotNull(apiKeysResult, "API keys result should not be null")
+        assertTrue(apiKeysResult is ApiResult.Success, "API keys should be success")
+        assertEquals(apiKeysResponse, (apiKeysResult as ApiResult.Success).data, "API keys should return mocked response")
 
-        val activityFuture = openRouterService.getActivity()
-        assertNotNull(activityFuture, "Activity future should not be null")
-        assertNull(activityFuture.get(), "Activity future should return null as mocked")
+        val activityResult = openRouterService.getActivity()
+        assertNotNull(activityResult, "Activity result should not be null")
+        assertTrue(activityResult is ApiResult.Error, "Activity should be error")
 
         // Verify API calls were made
         verify(settingsService).isConfigured()

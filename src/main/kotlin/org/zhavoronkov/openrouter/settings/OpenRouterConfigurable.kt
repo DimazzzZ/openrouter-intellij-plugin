@@ -2,6 +2,11 @@ package org.zhavoronkov.openrouter.settings
 
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.ui.Messages
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import javax.swing.JComponent
@@ -197,17 +202,29 @@ class OpenRouterConfigurable : Configurable {
     }
 
     private fun testConnection() {
-        openRouterService.testConnection().thenAccept { success ->
-            if (success) {
-                Messages.showInfoMessage(
-                    "Successfully connected to OpenRouter API!",
-                    "Connection Test"
-                )
-            } else {
-                Messages.showErrorDialog(
-                    "Failed to connect to OpenRouter API. Please check your API key.",
-                    "Connection Test Failed"
-                )
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch {
+            val result = openRouterService.testConnection()
+            when (result) {
+                is ApiResult.Success -> {
+                    if (result.data) {
+                        Messages.showInfoMessage(
+                            "Successfully connected to OpenRouter API!",
+                            "Connection Test"
+                        )
+                    } else {
+                        Messages.showErrorDialog(
+                            "Failed to connect to OpenRouter API. Please check your API key.",
+                            "Connection Test Failed"
+                        )
+                    }
+                }
+                is ApiResult.Error -> {
+                    Messages.showErrorDialog(
+                        "Failed to connect to OpenRouter API: ${result.message}",
+                        "Connection Test Failed"
+                    )
+                }
             }
         }
     }

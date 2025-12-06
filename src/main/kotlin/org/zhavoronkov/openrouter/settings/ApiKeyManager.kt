@@ -7,7 +7,13 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.zhavoronkov.openrouter.models.ApiKeyInfo
+import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.PluginLogger
@@ -65,36 +71,31 @@ class ApiKeyManager(
             return
         }
 
-        try {
-            val apiKey = openRouterService.createApiKey(label).get()
-            if (apiKey != null) {
-                PluginLogger.Settings.info("Successfully created API key with label: $label")
-                showApiKeyDialog(apiKey.key, label)
-                refreshApiKeys()
-            } else {
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch {
+            try {
+                val result = openRouterService.createApiKey(label)
+                when (result) {
+                    is ApiResult.Success -> {
+                        PluginLogger.Settings.info("Successfully created API key with label: $label")
+                        showApiKeyDialog(result.data.key, label)
+                        refreshApiKeys()
+                    }
+                    is ApiResult.Error -> {
+                        PluginLogger.Settings.error("API call failed during key creation: ${result.message}")
+                        Messages.showErrorDialog(
+                            "Failed to create API key: ${result.message}",
+                            "API Key Creation Failed"
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                PluginLogger.Settings.error("Exception during key creation: ${e.message}", e)
                 Messages.showErrorDialog(
-                    "Failed to create API key. Please check your Provisioning Key.",
+                    "Failed to create API key due to error. Please try again.",
                     "API Key Creation Failed"
                 )
             }
-        } catch (e: java.util.concurrent.ExecutionException) {
-            PluginLogger.Settings.error("API call failed during key creation: ${e.message}", e)
-            Messages.showErrorDialog(
-                "Failed to create API key due to network or API error. Please try again.",
-                "API Key Creation Failed"
-            )
-        } catch (e: java.util.concurrent.TimeoutException) {
-            PluginLogger.Settings.error("Timeout occurred while creating API key: ${e.message}", e)
-            Messages.showErrorDialog(
-                "Request timed out while creating API key. Please try again.",
-                "API Key Creation Failed"
-            )
-        } catch (e: IllegalStateException) {
-            PluginLogger.Settings.error("Invalid state during API key creation: ${e.message}", e)
-            Messages.showErrorDialog(
-                "Invalid state occurred during API key creation. Please try again.",
-                "API Key Creation Failed"
-            )
         }
     }
 
@@ -119,36 +120,38 @@ class ApiKeyManager(
         )
 
         if (result == Messages.YES) {
-            try {
-                val deleteResponse = openRouterService.deleteApiKey(apiKey.hash).get()
-                if (deleteResponse?.deleted == true) {
-                    PluginLogger.Settings.info("Successfully deleted API key: ${apiKey.name}")
-                    apiKeyTableModel.removeApiKey(selectedRow)
-                    Messages.showInfoMessage("API key deleted successfully.", "Success")
-                } else {
+            val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+            scope.launch {
+                try {
+                    val deleteResult = openRouterService.deleteApiKey(apiKey.hash)
+                    when (deleteResult) {
+                        is ApiResult.Success -> {
+                            if (deleteResult.data.deleted) {
+                                PluginLogger.Settings.info("Successfully deleted API key: ${apiKey.name}")
+                                apiKeyTableModel.removeApiKey(selectedRow)
+                                Messages.showInfoMessage("API key deleted successfully.", "Success")
+                            } else {
+                                Messages.showErrorDialog(
+                                    "Failed to delete API key. Please try again.",
+                                    "Deletion Failed"
+                                )
+                            }
+                        }
+                        is ApiResult.Error -> {
+                            PluginLogger.Settings.error("API call failed during key deletion: ${deleteResult.message}")
+                            Messages.showErrorDialog(
+                                "Failed to delete API key: ${deleteResult.message}",
+                                "Deletion Failed"
+                            )
+                        }
+                    }
+                } catch (e: Exception) {
+                    PluginLogger.Settings.error("Exception during key deletion: ${e.message}", e)
                     Messages.showErrorDialog(
-                        "Failed to delete API key. Please try again.",
+                        "Failed to delete API key due to error. Please try again.",
                         "Deletion Failed"
                     )
                 }
-            } catch (e: java.util.concurrent.ExecutionException) {
-                PluginLogger.Settings.error("API call failed during key deletion: ${e.message}", e)
-                Messages.showErrorDialog(
-                    "Failed to delete API key due to network or API error. Please try again.",
-                    "Deletion Failed"
-                )
-            } catch (e: java.util.concurrent.TimeoutException) {
-                PluginLogger.Settings.error("Timeout occurred while deleting API key: ${e.message}", e)
-                Messages.showErrorDialog(
-                    "Request timed out while deleting API key. Please try again.",
-                    "Deletion Failed"
-                )
-            } catch (e: IllegalStateException) {
-                PluginLogger.Settings.error("Invalid state during API key deletion: ${e.message}", e)
-                Messages.showErrorDialog(
-                    "Invalid state occurred during API key deletion. Please try again.",
-                    "Deletion Failed"
-                )
             }
         }
     }
@@ -192,28 +195,33 @@ class ApiKeyManager(
         }
 
         // Fetch from API
-        try {
-            val response = openRouterService.getApiKeysList(settingsService.getProvisioningKey()).get()
-            val apiKeys = response?.data
-            if (apiKeys != null) {
-                PluginLogger.Settings.info("Loaded ${apiKeys.size} API keys from OpenRouter")
+        runBlocking {
+            try {
+                val result = openRouterService.getApiKeysList(settingsService.getProvisioningKey())
+                when (result) {
+                    is ApiResult.Success -> {
+                        val apiKeys = result.data.data
+                        PluginLogger.Settings.info("Loaded ${apiKeys.size} API keys from OpenRouter")
 
-                // Update cache
-                cachedApiKeys = apiKeys
-                cacheTimestamp = System.currentTimeMillis()
-                PluginLogger.Settings.debug("Updated API keys cache (${apiKeys.size} keys)")
+                        // Update cache
+                        cachedApiKeys = apiKeys
+                        cacheTimestamp = System.currentTimeMillis()
+                        PluginLogger.Settings.debug("Updated API keys cache (${apiKeys.size} keys)")
 
-                apiKeyTableModel.setApiKeys(apiKeys)
-                ensureIntellijApiKeyExists(apiKeys)
-            } else {
-                PluginLogger.Settings.warn("Failed to load API keys - received null response")
+                        apiKeyTableModel.setApiKeys(apiKeys)
+                        ensureIntellijApiKeyExists(apiKeys)
+                    }
+                    is ApiResult.Error -> {
+                        PluginLogger.Settings.warn("Failed to load API keys: ${result.message}")
+                        apiKeyTableModel.setApiKeys(emptyList())
+                        clearCache()
+                    }
+                }
+            } catch (e: Exception) {
+                PluginLogger.Settings.error("Failed to refresh API keys: ${e.message}", e)
                 apiKeyTableModel.setApiKeys(emptyList())
                 clearCache()
             }
-        } catch (e: Exception) {
-            PluginLogger.Settings.error("Failed to refresh API keys: ${e.message}", e)
-            apiKeyTableModel.setApiKeys(emptyList())
-            clearCache()
         }
     }
 
@@ -260,38 +268,45 @@ class ApiKeyManager(
     fun createIntellijApiKeyOnce() {
         isCreatingApiKey = true
 
-        try {
-            val apiKey = openRouterService.createApiKey(INTELLIJ_API_KEY_NAME).get()
-            if (apiKey != null) {
-                PluginLogger.Settings.info(
-                    "Successfully created IntelliJ API key automatically: ${apiKey.key.take(20)}..."
-                )
-                PluginLogger.Settings.info("About to save new API key to settings (automatic creation)...")
+        // Use runBlocking since this is called during settings initialization
+        runBlocking {
+            try {
+                val result = openRouterService.createApiKey(INTELLIJ_API_KEY_NAME)
+                when (result) {
+                    is ApiResult.Success -> {
+                        val apiKey = result.data
+                        PluginLogger.Settings.info(
+                            "Successfully created IntelliJ API key automatically: ${apiKey.key.take(20)}..."
+                        )
+                        PluginLogger.Settings.info("About to save new API key to settings (automatic creation)...")
 
-                settingsService.setApiKey(apiKey.key)
+                        settingsService.setApiKey(apiKey.key)
 
-                // Verify the key was saved
-                val savedKey = settingsService.getApiKey()
-                PluginLogger.Settings.info(
-                    "Verification (automatic): saved key length=${savedKey.length}, matches=${savedKey == apiKey.key}"
-                )
+                        // Verify the key was saved
+                        val savedKey = settingsService.getApiKey()
+                        PluginLogger.Settings.info(
+                            "Verification (automatic): saved key length=${savedKey.length}, matches=${savedKey == apiKey.key}"
+                        )
 
-                if (savedKey != apiKey.key) {
-                    PluginLogger.Settings.error("CRITICAL: API key was not saved correctly during automatic creation!")
-                    PluginLogger.Settings.error("Expected: ${apiKey.key.take(20)}...")
-                    PluginLogger.Settings.error("Got: ${savedKey.take(20)}...")
+                        if (savedKey != apiKey.key) {
+                            PluginLogger.Settings.error("CRITICAL: API key was not saved correctly during automatic creation!")
+                            PluginLogger.Settings.error("Expected: ${apiKey.key.take(20)}...")
+                            PluginLogger.Settings.error("Got: ${savedKey.take(20)}...")
+                        }
+
+                        refreshApiKeys()
+                    }
+                    is ApiResult.Error -> {
+                        PluginLogger.Settings.error("Failed to create IntelliJ API key automatically: ${result.message}")
+                        // No longer showing dialog - just log the error
+                    }
                 }
-
-                refreshApiKeys()
-            } else {
-                PluginLogger.Settings.error("Failed to create IntelliJ API key automatically")
+            } catch (e: Exception) {
+                PluginLogger.Settings.error("Exception creating IntelliJ API key: ${e.message}", e)
                 // No longer showing dialog - just log the error
+            } finally {
+                isCreatingApiKey = false
             }
-        } catch (e: Exception) {
-            PluginLogger.Settings.error("Exception creating IntelliJ API key: ${e.message}", e)
-            // No longer showing dialog - just log the error
-        } finally {
-            isCreatingApiKey = false
         }
     }
 
@@ -300,13 +315,22 @@ class ApiKeyManager(
         val existingIntellijApiKey = currentApiKeys.find { it.name == INTELLIJ_API_KEY_NAME }
 
         if (existingIntellijApiKey != null) {
-            try {
-                val deleteResponse = openRouterService.deleteApiKey(existingIntellijApiKey.hash).get()
-                if (deleteResponse?.deleted != true) {
-                    PluginLogger.Settings.warn("Failed to delete existing IntelliJ API key")
+            runBlocking {
+                try {
+                    val deleteResult = openRouterService.deleteApiKey(existingIntellijApiKey.hash)
+                    when (deleteResult) {
+                        is ApiResult.Success -> {
+                            if (!deleteResult.data.deleted) {
+                                PluginLogger.Settings.warn("Failed to delete existing IntelliJ API key")
+                            }
+                        }
+                        is ApiResult.Error -> {
+                            PluginLogger.Settings.warn("Failed to delete existing IntelliJ API key: ${deleteResult.message}")
+                        }
+                    }
+                } catch (e: Exception) {
+                    PluginLogger.Settings.error("Exception deleting existing IntelliJ API key: ${e.message}", e)
                 }
-            } catch (e: Exception) {
-                PluginLogger.Settings.error("Exception deleting existing IntelliJ API key: ${e.message}", e)
             }
         }
 
@@ -345,19 +369,29 @@ class ApiKeyManager(
             return
         }
 
-        try {
-            PluginLogger.Settings.debug("Deleting existing remote IntelliJ API key")
-            val deleteResponse = openRouterService.deleteApiKey(existingIntellijApiKey.hash).get()
-            if (deleteResponse?.deleted != true) {
-                PluginLogger.Settings.error("Failed to delete existing IntelliJ API key during silent regeneration")
-                return
+        runBlocking {
+            try {
+                PluginLogger.Settings.debug("Deleting existing remote IntelliJ API key")
+                val deleteResult = openRouterService.deleteApiKey(existingIntellijApiKey.hash)
+                when (deleteResult) {
+                    is ApiResult.Success -> {
+                        if (!deleteResult.data.deleted) {
+                            PluginLogger.Settings.error("Failed to delete existing IntelliJ API key during silent regeneration")
+                            return@runBlocking
+                        }
+                        PluginLogger.Settings.debug("Successfully deleted existing remote IntelliJ API key")
+                    }
+                    is ApiResult.Error -> {
+                        PluginLogger.Settings.error("Failed to delete existing IntelliJ API key: ${deleteResult.message}")
+                        return@runBlocking
+                    }
+                }
+            } catch (e: Exception) {
+                PluginLogger.Settings.error(
+                    "Exception deleting existing IntelliJ API key during silent regeneration: ${e.message}",
+                    e
+                )
             }
-            PluginLogger.Settings.debug("Successfully deleted existing remote IntelliJ API key")
-        } catch (e: Exception) {
-            PluginLogger.Settings.error(
-                "Exception deleting existing IntelliJ API key during silent regeneration: ${e.message}",
-                e
-            )
         }
     }
 
@@ -365,23 +399,28 @@ class ApiKeyManager(
      * Create new IntelliJ API key silently
      */
     private fun createNewIntellijApiKeySilently() {
-        try {
-            PluginLogger.Settings.debug("Creating new IntelliJ API key")
-            val apiKey = openRouterService.createApiKey(INTELLIJ_API_KEY_NAME).get()
+        runBlocking {
+            try {
+                PluginLogger.Settings.debug("Creating new IntelliJ API key")
+                val result = openRouterService.createApiKey(INTELLIJ_API_KEY_NAME)
 
-            if (apiKey == null) {
-                PluginLogger.Settings.error("Failed to create new IntelliJ API key during silent regeneration")
-                return
+                when (result) {
+                    is ApiResult.Success -> {
+                        val apiKey = result.data
+                        saveAndVerifyApiKey(apiKey.key)
+                        refreshStatusBarWidget()
+                        refreshApiKeys()
+                    }
+                    is ApiResult.Error -> {
+                        PluginLogger.Settings.error("Failed to create new IntelliJ API key during silent regeneration: ${result.message}")
+                    }
+                }
+            } catch (e: Exception) {
+                PluginLogger.Settings.error(
+                    "Exception creating new IntelliJ API key during silent regeneration: ${e.message}",
+                    e
+                )
             }
-
-            saveAndVerifyApiKey(apiKey.key)
-            refreshStatusBarWidget()
-            refreshApiKeys()
-        } catch (e: Exception) {
-            PluginLogger.Settings.error(
-                "Exception creating new IntelliJ API key during silent regeneration: ${e.message}",
-                e
-            )
         }
     }
 
@@ -415,48 +454,64 @@ class ApiKeyManager(
 
         // Delete existing key if found
         if (existingIntellijApiKey != null) {
-            try {
-                val deleteResponse = openRouterService.deleteApiKey(existingIntellijApiKey.hash).get()
-                if (deleteResponse?.deleted != true) {
-                    showErrorDialog("Failed to delete the existing API key. Please try again.")
-                    return
+            runBlocking {
+                try {
+                    val deleteResult = openRouterService.deleteApiKey(existingIntellijApiKey.hash)
+                    when (deleteResult) {
+                        is ApiResult.Success -> {
+                            if (!deleteResult.data.deleted) {
+                                showErrorDialog("Failed to delete the existing API key. Please try again.")
+                                return@runBlocking
+                            }
+                        }
+                        is ApiResult.Error -> {
+                            showErrorDialog("Error deleting existing key: ${deleteResult.message}")
+                            return@runBlocking
+                        }
+                    }
+                } catch (e: Exception) {
+                    PluginLogger.Settings.error("Exception deleting existing IntelliJ API key: ${e.message}", e)
+                    showErrorDialog("Error deleting existing key: ${e.message}")
+                    return@runBlocking
                 }
-            } catch (e: Exception) {
-                PluginLogger.Settings.error("Exception deleting existing IntelliJ API key: ${e.message}", e)
-                showErrorDialog("Error deleting existing key: ${e.message}")
-                return
             }
         }
 
         // Create new key
-        try {
-            val apiKey = openRouterService.createApiKey(INTELLIJ_API_KEY_NAME).get()
-            if (apiKey != null) {
-                PluginLogger.Settings.info("Successfully recreated IntelliJ API key: ${apiKey.key.take(20)}...")
-                PluginLogger.Settings.info("About to save new API key to settings...")
+        runBlocking {
+            try {
+                val result = openRouterService.createApiKey(INTELLIJ_API_KEY_NAME)
+                when (result) {
+                    is ApiResult.Success -> {
+                        val apiKey = result.data
+                        PluginLogger.Settings.info("Successfully recreated IntelliJ API key: ${apiKey.key.take(20)}...")
+                        PluginLogger.Settings.info("About to save new API key to settings...")
 
-                settingsService.setApiKey(apiKey.key)
+                        settingsService.setApiKey(apiKey.key)
 
-                // Verify the key was saved correctly
-                val savedKey = settingsService.getApiKey()
-                PluginLogger.Settings.info(
-                    "Verification: saved key length=${savedKey.length}, matches=${savedKey == apiKey.key}"
-                )
+                        // Verify the key was saved correctly
+                        val savedKey = settingsService.getApiKey()
+                        PluginLogger.Settings.info(
+                            "Verification: saved key length=${savedKey.length}, matches=${savedKey == apiKey.key}"
+                        )
 
-                if (savedKey != apiKey.key) {
-                    PluginLogger.Settings.error("CRITICAL: API key was not saved correctly!")
-                    PluginLogger.Settings.error("Expected: ${apiKey.key.take(20)}...")
-                    PluginLogger.Settings.error("Got: ${savedKey.take(20)}...")
+                        if (savedKey != apiKey.key) {
+                            PluginLogger.Settings.error("CRITICAL: API key was not saved correctly!")
+                            PluginLogger.Settings.error("Expected: ${apiKey.key.take(20)}...")
+                            PluginLogger.Settings.error("Got: ${savedKey.take(20)}...")
+                        }
+
+                        showNewApiKeyDialog(apiKey.key)
+                        refreshApiKeys()
+                    }
+                    is ApiResult.Error -> {
+                        showErrorDialog("Failed to create new API key: ${result.message}")
+                    }
                 }
-
-                showNewApiKeyDialog(apiKey.key)
-                refreshApiKeys()
-            } else {
-                showErrorDialog("Failed to create new API key. Please check your Provisioning Key.")
+            } catch (e: Exception) {
+                PluginLogger.Settings.error("Exception creating IntelliJ API key: ${e.message}", e)
+                showErrorDialog("Error creating new key: ${e.message}")
             }
-        } catch (e: Exception) {
-            PluginLogger.Settings.error("Exception creating IntelliJ API key: ${e.message}", e)
-            showErrorDialog("Error creating new key: ${e.message}")
         }
     }
 

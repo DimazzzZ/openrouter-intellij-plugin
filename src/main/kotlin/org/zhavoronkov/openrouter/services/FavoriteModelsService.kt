@@ -2,11 +2,12 @@ package org.zhavoronkov.openrouter.services
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.models.OpenRouterModelsResponse
 import org.zhavoronkov.openrouter.utils.PluginLogger
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.TimeUnit
 
 /**
  * Service for managing favorite models with caching and API interaction
@@ -19,7 +20,7 @@ class FavoriteModelsService(
 
     companion object {
         private const val CACHE_DURATION_MS = 300000L // 5 minutes
-        private const val API_TIMEOUT_SECONDS = 30L
+        private const val API_TIMEOUT_MS = 30000L // 30 seconds
 
         fun getInstance(): FavoriteModelsService {
             return ApplicationManager.getApplication().getService(FavoriteModelsService::class.java)
@@ -38,35 +39,41 @@ class FavoriteModelsService(
     /**
      * Get all available models from OpenRouter API with caching
      * @param forceRefresh If true, bypass cache and fetch fresh data
-     * @return CompletableFuture with list of models or null on error
+     * @return List of models or null on error
      */
-    fun getAvailableModels(forceRefresh: Boolean = false): CompletableFuture<List<OpenRouterModelInfo>?> {
+    fun getAvailableModels(forceRefresh: Boolean = false): List<OpenRouterModelInfo>? {
         val now = System.currentTimeMillis()
         val isCacheValid = cachedModels != null && (now - cacheTimestamp) < CACHE_DURATION_MS
 
         if (!forceRefresh && isCacheValid) {
             PluginLogger.Service.debug("Returning cached models (${cachedModels?.size} models)")
-            return CompletableFuture.completedFuture(cachedModels)
+            return cachedModels
         }
 
         PluginLogger.Service.debug("Fetching models from API (forceRefresh: $forceRefresh)")
-        return routerService.getModels()
-            .orTimeout(API_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-            .thenApply { response: OpenRouterModelsResponse? ->
-                if (response?.data != null) {
-                    cachedModels = response.data
-                    cacheTimestamp = System.currentTimeMillis()
-                    PluginLogger.Service.debug("Cached ${cachedModels?.size} models")
-                    cachedModels
-                } else {
-                    PluginLogger.Service.warn("Failed to fetch models: response is null or has no data")
-                    null
+        return try {
+            runBlocking {
+                withTimeout(API_TIMEOUT_MS) {
+                    val result = routerService.getModels()
+                    when (result) {
+                        is ApiResult.Success -> {
+                            val response = result.data
+                            cachedModels = response.data
+                            cacheTimestamp = System.currentTimeMillis()
+                            PluginLogger.Service.debug("Cached ${cachedModels?.size} models")
+                            cachedModels
+                        }
+                        is ApiResult.Error -> {
+                            PluginLogger.Service.warn("Failed to fetch models: ${result.message}")
+                            null
+                        }
+                    }
                 }
             }
-            .exceptionally { throwable ->
-                PluginLogger.Service.error("Error fetching models from API", throwable)
-                null
-            }
+        } catch (throwable: Throwable) {
+            PluginLogger.Service.error("Error fetching models from API", throwable)
+            null
+        }
     }
 
     /**

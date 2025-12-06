@@ -59,7 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### IDE Support Extension
 - **JetBrains IDE 2025.3.X Support** - Extended compatibility for newest IDE versions including Rider
-- **Deprecated API Updates** - Replaced deprecated PluginDescriptor.isEnabled() with PluginManagerCore.isPluginEnabled()
+- **Deprecated API Updates** - Replaced deprecated PluginDescriptor.isEnabled() with PluginManagerCore.isDisabled() (negated)
 - **Backward Compatibility** - Seamless upgrade path for existing users from 2023.2+
 
 #### Build System Updates
