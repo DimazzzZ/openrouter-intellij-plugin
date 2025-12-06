@@ -47,15 +47,15 @@ import java.util.concurrent.TimeUnit
  *    - /api/v1/providers (list of available AI providers)
  *    - Publicly accessible information
  */
-class OpenRouterService {
-
-    private val gson = Gson()
-    private val client = OkHttpClient.Builder()
+class OpenRouterService(
+    private val gson: Gson = Gson(),
+    private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .build()
-    private val settingsService = OpenRouterSettingsService.getInstance()
+        .build(),
+    private val settingsService: OpenRouterSettingsService = OpenRouterSettingsService.getInstance()
+) {
 
     companion object {
         private const val BASE_URL = "https://openrouter.ai/api/v1"
