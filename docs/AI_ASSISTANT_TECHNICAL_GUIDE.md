@@ -218,12 +218,11 @@ PluginLogger.Service.debug("[AI Assistant] Integration status: ...")
 ```kotlin
 private fun checkAIAssistantInstalled(): Boolean {
     return try {
-        val pluginManager = com.intellij.ide.plugins.PluginManagerCore.getPlugins()
-        val aiPlugin = pluginManager.find { 
-            it.pluginId.idString == "com.intellij.ml.llm" 
-        }
-        PluginLogger.Settings.debug("AI Assistant plugin: $aiPlugin, enabled: ${aiPlugin?.isEnabled}")
-        aiPlugin != null && aiPlugin.isEnabled
+        val pluginId = com.intellij.openapi.extensions.PluginId.getId("com.intellij.ml.llm")
+        val aiPlugin = com.intellij.ide.plugins.PluginManagerCore.getPlugin(pluginId)
+        val isEnabled = aiPlugin != null && !com.intellij.ide.plugins.PluginManagerCore.isDisabled(pluginId)
+        PluginLogger.Settings.debug("AI Assistant plugin: $aiPlugin, enabled: $isEnabled")
+        isEnabled
     } catch (e: Exception) {
         PluginLogger.Settings.debug("Could not check AI Assistant plugin status: ${e.message}")
         false

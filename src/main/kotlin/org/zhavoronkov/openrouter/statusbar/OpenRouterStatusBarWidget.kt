@@ -15,6 +15,8 @@ import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.impl.status.EditorBasedWidget
 import com.intellij.ui.awt.RelativePoint
 import com.intellij.util.Consumer
+import kotlinx.coroutines.*
+import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.ConnectionStatus
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterService
@@ -243,38 +245,54 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         connectionStatus = ConnectionStatus.CONNECTING
         updateStatusBar()
 
-        openRouterService.getCredits().thenAccept { creditsResponse: org.zhavoronkov.openrouter.models.CreditsResponse? ->
-            ApplicationManager.getApplication().invokeLater {
-                if (creditsResponse != null) {
-                    connectionStatus = ConnectionStatus.READY
-                    val data = creditsResponse.data
-                    val used = data.totalUsage // Credits used (e.g., $0.792)
-                    val total = data.totalCredits // Total credits (e.g., $10.002)
+        // Launch coroutine to fetch quota information
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope.launch {
+            try {
+                val quotaResult = withContext(Dispatchers.IO) {
+                    openRouterService.getQuotaInfo()
+                }
 
-                    currentText = if (total > 0) {
-                        if (settingsService.shouldShowCosts()) {
-                            val usedFormatted = String.format(Locale.US, "%.3f", used)
-                            val totalFormatted = String.format(Locale.US, "%.2f", total)
-                            "Status: Ready - $$usedFormatted/$$totalFormatted"
-                        } else {
-                            val percentage = (used / total) * 100
-                            "Status: Ready - ${String.format(Locale.US, "%.1f", percentage)}% used"
+                ApplicationManager.getApplication().invokeLater {
+                    when (quotaResult) {
+                        is ApiResult.Success -> {
+                            connectionStatus = ConnectionStatus.READY
+                            val quota = quotaResult.data
+
+                            currentText = if ((quota.total ?: 0.0) > 0) {
+                                if (settingsService.shouldShowCosts()) {
+                                    val usedFormatted = String.format(Locale.US, "%.3f", quota.used ?: 0.0)
+                                    val availableFormatted = String.format(Locale.US, "%.2f", quota.remaining ?: 0.0)
+                                    "Status: Ready - $$usedFormatted/${quota.total} avail"
+                                } else {
+                                    val percentage = ((quota.used ?: 0.0) / (quota.total ?: 1.0)) * 100
+                                    "Status: Ready - ${String.format(Locale.US, "%.1f", percentage)}% used"
+                                }
+                            } else {
+                                "Status: Ready - $${String.format(Locale.US, "%.3f", quota.used ?: 0.0)} (no credits)"
+                            }
+
+                            currentTooltip = if ((quota.total ?: 0.0) > 0) {
+                                "OpenRouter Status: ${connectionStatus.displayName} - Usage: $${String.format(Locale.US, "%.3f", quota.used ?: 0.0)} of $${String.format(Locale.US, "%.0f", quota.total ?: 0.0)}"
+                            } else {
+                                "OpenRouter Status: ${connectionStatus.displayName} - Usage: $${String.format(Locale.US, "%.3f", quota.used ?: 0.0)} (no credits)"
+                            }
                         }
-                    } else {
-                        "Status: Ready - $${String.format(Locale.US, "%.3f", used)} (no credits)"
+                        is ApiResult.Error -> {
+                            connectionStatus = ConnectionStatus.ERROR
+                            currentText = "Status: Error"
+                            currentTooltip = "OpenRouter Status: Error - Usage: ${quotaResult.message}"
+                        }
                     }
-
-                    currentTooltip = if (total > 0) {
-                        "OpenRouter Status: ${connectionStatus.displayName} - Usage: $${String.format(Locale.US, "%.3f", used)}/$${String.format(Locale.US, "%.0f", total)}"
-                    } else {
-                        "OpenRouter Status: ${connectionStatus.displayName} - Usage: $${String.format(Locale.US, "%.3f", used)}/no credits"
-                    }
-                } else {
+                    updateStatusBar()
+                }
+            } catch (e: Exception) {
+                ApplicationManager.getApplication().invokeLater {
                     connectionStatus = ConnectionStatus.ERROR
                     currentText = "Status: Error"
-                    currentTooltip = "OpenRouter Status: Error - Usage: Unable to load"
+                    currentTooltip = "OpenRouter Status: Error - Usage: ${e.message}"
+                    updateStatusBar()
                 }
-                updateStatusBar()
             }
         }
     }
