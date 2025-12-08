@@ -114,11 +114,8 @@ object OpenRouterRequestBuilder {
                 // GET requests don't have a body
             }
             HttpMethod.POST -> {
-                if (requestBody != null) {
-                    builder.post(requestBody)
-                } else {
-                    throw IllegalArgumentException("POST requests require a request body")
-                }
+                require(requestBody != null) { "POST requests require a request body" }
+                builder.post(requestBody)
             }
             HttpMethod.DELETE -> {
                 builder.delete()

@@ -10,6 +10,7 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
  * OpenRouter Model Configuration Provider for AI Assistant integration
  * Handles configuration aspects and settings integration
  */
+
 class OpenRouterModelConfigurationProvider {
 
     private val settingsService = OpenRouterSettingsService.getInstance()
@@ -26,14 +27,14 @@ class OpenRouterModelConfigurationProvider {
     fun getProviderId(): String = PROVIDER_ID
 
     /**
-     * Get the provider display name for AI Assistant UI
+     * Get provider information (display name and description)
      */
-    fun getProviderDisplayName(): String = modelProvider.getProviderDisplayName()
-
-    /**
-     * Get provider description
-     */
-    fun getProviderDescription(): String = modelProvider.getProviderDescription()
+    fun getProviderInfo(): ProviderInfo {
+        return ProviderInfo(
+            displayName = modelProvider.getProviderDisplayName(),
+            description = modelProvider.getProviderDescription()
+        )
+    }
 
     /**
      * Check if the provider is properly configured
@@ -55,13 +56,13 @@ class OpenRouterModelConfigurationProvider {
     fun getConfigurationInstructions(): String {
         return """
             To configure OpenRouter for AI Assistant:
-            
+
             1. Get a Provisioning Key from https://openrouter.ai/settings/provisioning-keys
             2. Open IntelliJ IDEA Settings → Tools → OpenRouter
             3. Enter your Provisioning Key
             4. Click "Test Connection" to verify setup
             5. OpenRouter models will appear in AI Assistant → Models
-            
+
             The OpenRouter plugin will automatically create an API key for AI Assistant usage.
         """.trimIndent()
     }
@@ -119,50 +120,26 @@ class OpenRouterModelConfigurationProvider {
      */
     fun validateModelConfiguration(modelId: String): ValidationResult {
         return try {
-            validateConfiguration(modelId)
+            when {
+                !isConfigured() -> ValidationResult(
+                    isValid = false,
+                    message = "OpenRouter not configured. ${getConfigurationInstructions()}"
+                )
+                modelProvider.getModel(modelId) == null -> ValidationResult(
+                    isValid = false,
+                    message = "Model '$modelId' is not available through OpenRouter"
+                )
+                !modelProvider.testConnection() -> ValidationResult(
+                    isValid = false,
+                    message = "Connection test failed. Please check your API key."
+                )
+                else -> ValidationResult(isValid = true, message = "Model configuration is valid")
+            }
         } catch (e: Exception) {
             PluginLogger.Service.error("Error validating model configuration", e)
             ValidationResult(
                 isValid = false,
                 message = "Validation error: ${e.message}"
-            )
-        }
-    }
-
-    /**
-     * Perform the actual validation logic
-     */
-    private fun validateConfiguration(modelId: String): ValidationResult {
-        if (!isConfigured()) {
-            return ValidationResult(
-                isValid = false,
-                message = "OpenRouter not configured. ${getConfigurationInstructions()}"
-            )
-        }
-
-        val model = modelProvider.getModel(modelId)
-        if (model == null) {
-            return ValidationResult(
-                isValid = false,
-                message = "Model '$modelId' is not available through OpenRouter"
-            )
-        }
-
-        return validateConnection()
-    }
-
-    /**
-     * Validate the connection to OpenRouter
-     */
-    private fun validateConnection(): ValidationResult {
-        val testResult = modelProvider.testConnection()
-
-        return if (testResult) {
-            ValidationResult(isValid = true, message = "Model configuration is valid")
-        } else {
-            ValidationResult(
-                isValid = false,
-                message = "Connection test failed. Please check your API key."
             )
         }
     }
@@ -181,29 +158,20 @@ class OpenRouterModelConfigurationProvider {
     }
 
     /**
-     * Handle provider activation - called when user enables OpenRouter in AI Assistant
+     * Handle provider activation/deactivation
      */
-    fun onProviderActivated() {
+    fun onProviderStateChanged(activated: Boolean) {
         try {
-            PluginLogger.Service.info("OpenRouter provider activated for AI Assistant")
-
-            if (!isConfigured()) {
-                PluginLogger.Service.info("OpenRouter not configured - prompting user for setup")
-                // Could potentially show a notification here directing user to settings
+            if (activated) {
+                PluginLogger.Service.info("OpenRouter provider activated for AI Assistant")
+                if (!isConfigured()) {
+                    PluginLogger.Service.info("OpenRouter not configured - prompting user for setup")
+                }
+            } else {
+                PluginLogger.Service.info("OpenRouter provider deactivated for AI Assistant")
             }
         } catch (e: Exception) {
-            PluginLogger.Service.error("Error handling provider activation", e)
-        }
-    }
-
-    /**
-     * Handle provider deactivation - called when user disables OpenRouter in AI Assistant
-     */
-    fun onProviderDeactivated() {
-        try {
-            PluginLogger.Service.info("OpenRouter provider deactivated for AI Assistant")
-        } catch (e: Exception) {
-            PluginLogger.Service.error("Error handling provider deactivation", e)
+            PluginLogger.Service.error("Error handling provider state change", e)
         }
     }
 }
@@ -236,4 +204,9 @@ data class ValidationResult(
     val isValid: Boolean,
     val message: String,
     val details: Map<String, Any> = emptyMap()
+)
+
+data class ProviderInfo(
+    val displayName: String,
+    val description: String
 )

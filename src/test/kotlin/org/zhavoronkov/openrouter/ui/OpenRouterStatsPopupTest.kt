@@ -91,10 +91,12 @@ class OpenRouterStatsPopupTest {
     fun `buildModelsHtmlList handles more than 5 models with truncation`() {
         val models = listOf("model1", "model2", "model3", "model4", "model5", "model6")
         val html = OpenRouterStatsUtils.buildModelsHtmlList(models)
-        assertEquals(
-            "<html>Recent Models:<br/>• model1<br/>• model2<br/>• model3<br/>• model4<br/>• model5<br/>• +1 more</html>",
-            html
-        )
+        val expected = buildString {
+            append("<html>Recent Models:<br/>")
+            append("• model1<br/>• model2<br/>• model3<br/>• model4<br/>• model5<br/>")
+            append("• +1 more</html>")
+        }
+        assertEquals(expected, html)
     }
 
     @Test

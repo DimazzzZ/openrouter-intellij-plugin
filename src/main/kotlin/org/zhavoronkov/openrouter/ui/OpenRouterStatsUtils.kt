@@ -2,6 +2,7 @@ package org.zhavoronkov.openrouter.ui
 
 import org.zhavoronkov.openrouter.models.ActivityData
 import java.time.LocalDate
+import java.time.format.DateTimeParseException
 import java.util.Locale
 
 /**
@@ -11,6 +12,15 @@ import java.util.Locale
 object OpenRouterStatsUtils {
 
     private const val NO_RECENT_MODELS_HTML = "<html>Recent Models:<br/>• None</html>"
+
+    // Maximum number of recent models to display
+    private const val MAX_RECENT_MODELS = 5
+
+    // Date string length for date-only format (YYYY-MM-DD)
+    private const val DATE_ONLY_LENGTH = 10
+
+    // Currency formatting precision
+    private const val CURRENCY_PRECISION = 4
 
     /**
      * Formats a currency value as a string with dollar sign and appropriate precision
@@ -33,9 +43,13 @@ object OpenRouterStatsUtils {
         return when {
             models.isEmpty() -> NO_RECENT_MODELS_HTML
             else -> {
-                val displayModels = models.take(5) // Show up to 5 models
+                val displayModels = models.take(MAX_RECENT_MODELS) // Show up to 5 models
                 val bullets = displayModels.joinToString("<br/>") { "• $it" }
-                val moreText = if (models.size > 5) "<br/>• +${models.size - 5} more" else ""
+                val moreText = if (models.size > MAX_RECENT_MODELS) {
+                    "<br/>• +${models.size - MAX_RECENT_MODELS} more"
+                } else {
+                    ""
+                }
                 "<html>Recent Models:<br/>$bullets$moreText</html>"
             }
         }
@@ -45,7 +59,7 @@ object OpenRouterStatsUtils {
      * Creates formatted activity text for requests/usage
      */
     fun formatActivityText(requests: Long, usage: Double): String {
-        return "$requests requests, $${formatCurrency(usage, 4)} spent"
+        return "$requests requests, $${formatCurrency(usage, CURRENCY_PRECISION)} spent"
     }
 
     /**
@@ -102,16 +116,20 @@ object OpenRouterStatsUtils {
     fun parseActivityDate(dateString: String): LocalDate? {
         return try {
             // Try parsing as date only first
-            if (dateString.length == 10) {
+            if (dateString.length == DATE_ONLY_LENGTH) {
                 LocalDate.parse(dateString)
             } else {
                 // Extract just the date part from datetime string
-                val datePart = dateString.substring(0, 10)
+                val datePart = dateString.substring(0, DATE_ONLY_LENGTH)
                 LocalDate.parse(datePart)
             }
-        } catch (e: Exception) {
+        } catch (e: DateTimeParseException) {
             // Log the problematic date format for debugging
             println("Failed to parse activity date: '$dateString' - ${e.message}")
+            null
+        } catch (e: StringIndexOutOfBoundsException) {
+            // Handle case where dateString is shorter than expected
+            println("Invalid activity date format (too short): '$dateString'")
             null
         }
     }

@@ -1,3 +1,4 @@
+
 package org.zhavoronkov.openrouter.settings
 
 import com.intellij.icons.AllIcons
@@ -7,6 +8,7 @@ import com.intellij.ui.components.JBLabel
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import java.io.IOException
 import javax.swing.JButton
 import javax.swing.Timer
 
@@ -68,33 +70,51 @@ class ProxyServerManager(
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
                 val success = proxyService.startServer().get()
-                ApplicationManager.getApplication().invokeLater({
-                    if (success) {
-                        PluginLogger.Settings.info("Proxy server started successfully")
-                        updateProxyStatusLabel(statusLabel)
-                        updateProxyButtons(startButton, stopButton)
-                    } else {
-                        PluginLogger.Settings.error("Failed to start proxy server")
-                        Messages.showErrorDialog(
-                            "Failed to start proxy server. Check logs for details.",
-                            "Proxy Start Failed"
-                        )
-                        startButton.isEnabled = true
-                        startButton.text = "Start Proxy"
-                    }
-                }, com.intellij.openapi.application.ModalityState.any())
-            } catch (e: Exception) {
-                PluginLogger.Settings.error("Exception starting proxy server: ${e.message}", e)
-                ApplicationManager.getApplication().invokeLater({
-                    Messages.showErrorDialog(
-                        "Failed to start proxy server: ${e.message}",
-                        "Proxy Start Failed"
-                    )
-                    startButton.isEnabled = true
-                    startButton.text = "Start Proxy"
-                }, com.intellij.openapi.application.ModalityState.any())
+                handleProxyStartResult(success, statusLabel, startButton, stopButton)
+            } catch (e: IllegalStateException) {
+                handleProxyStartError("Invalid state starting proxy server: ${e.message}", e, startButton)
+            } catch (e: IOException) {
+                handleProxyStartError("IO error starting proxy server: ${e.message}", e, startButton)
+            } catch (expectedError: Exception) {
+                val errorMsg = "Exception starting proxy server: ${expectedError.message}"
+                handleProxyStartError(errorMsg, expectedError, startButton)
             }
         }
+    }
+
+    private fun handleProxyStartResult(
+        success: Boolean,
+        statusLabel: JBLabel,
+        startButton: JButton,
+        stopButton: JButton
+    ) {
+        ApplicationManager.getApplication().invokeLater({
+            if (success) {
+                PluginLogger.Settings.info("Proxy server started successfully")
+                updateProxyStatusLabel(statusLabel)
+                updateProxyButtons(startButton, stopButton)
+            } else {
+                PluginLogger.Settings.error("Failed to start proxy server")
+                Messages.showErrorDialog(
+                    "Failed to start proxy server. Check logs for details.",
+                    "Proxy Start Failed"
+                )
+                startButton.isEnabled = true
+                startButton.text = "Start Proxy"
+            }
+        }, com.intellij.openapi.application.ModalityState.any())
+    }
+
+    private fun handleProxyStartError(message: String, throwable: Throwable, startButton: JButton) {
+        PluginLogger.Settings.error(message, throwable)
+        ApplicationManager.getApplication().invokeLater({
+            Messages.showErrorDialog(
+                "Failed to start proxy server: ${throwable.message}",
+                "Proxy Start Failed"
+            )
+            startButton.isEnabled = true
+            startButton.text = "Start Proxy"
+        }, com.intellij.openapi.application.ModalityState.any())
     }
 
     fun stopProxyServer(statusLabel: JBLabel, startButton: JButton, stopButton: JButton) {
@@ -110,11 +130,31 @@ class ProxyServerManager(
                     updateProxyButtons(startButton, stopButton)
                     stopButton.text = "Stop Proxy"
                 }, com.intellij.openapi.application.ModalityState.any())
-            } catch (e: Exception) {
-                PluginLogger.Settings.error("Exception stopping proxy server: ${e.message}", e)
+            } catch (e: IllegalStateException) {
+                PluginLogger.Settings.error("Invalid state stopping proxy server: ${e.message}", e)
                 ApplicationManager.getApplication().invokeLater({
                     Messages.showErrorDialog(
-                        "Failed to stop proxy server: ${e.message}",
+                        "Failed to stop proxy server: Invalid state",
+                        "Proxy Stop Failed"
+                    )
+                    stopButton.isEnabled = true
+                    stopButton.text = "Stop Proxy"
+                }, com.intellij.openapi.application.ModalityState.any())
+            } catch (e: IOException) {
+                PluginLogger.Settings.error("IO error stopping proxy server: ${e.message}", e)
+                ApplicationManager.getApplication().invokeLater({
+                    Messages.showErrorDialog(
+                        "Failed to stop proxy server: ${e.message ?: "Unknown error"}",
+                        "Proxy Stop Failed"
+                    )
+                    stopButton.isEnabled = true
+                    stopButton.text = "Stop Proxy"
+                }, com.intellij.openapi.application.ModalityState.any())
+            } catch (expectedError: Exception) {
+                PluginLogger.Settings.error("Exception stopping proxy server: ${expectedError.message}", expectedError)
+                ApplicationManager.getApplication().invokeLater({
+                    Messages.showErrorDialog(
+                        "Failed to stop proxy server: ${expectedError.message}",
                         "Proxy Stop Failed"
                     )
                     stopButton.isEnabled = true

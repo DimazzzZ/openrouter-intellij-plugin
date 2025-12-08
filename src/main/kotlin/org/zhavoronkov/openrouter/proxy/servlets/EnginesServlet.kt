@@ -10,12 +10,19 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
  */
 class EnginesServlet : OpenAIBaseServlet() {
 
+    companion object {
+        // Unix timestamps for model creation dates
+        private const val GPT4_CREATED_TIMESTAMP = 1687882411L
+        private const val GPT4_TURBO_CREATED_TIMESTAMP = 1712361441L
+        private const val GPT35_TURBO_CREATED_TIMESTAMP = 1677610602L
+    }
+
     override fun doGet(req: HttpServletRequest, resp: HttpServletResponse) {
         handleRequest({
             PluginLogger.Service.debug("Engines endpoint called")
 
-            // Validate authorization and extract API key
-            val _apiKey = validateAndExtractApiKey(resp, req) ?: return@handleRequest
+            // Validate authorization
+            validateAndExtractApiKey(resp, req) ?: return@handleRequest
 
             // Set response headers
             resp.contentType = "application/json"
@@ -28,21 +35,21 @@ class EnginesServlet : OpenAIBaseServlet() {
                     "object" to "engine",
                     "owner" to "openai",
                     "ready" to true,
-                    "created" to 1687882411
+                    "created" to GPT4_CREATED_TIMESTAMP
                 ),
                 mapOf(
                     "id" to "gpt-4-turbo",
                     "object" to "engine",
                     "owner" to "openai",
                     "ready" to true,
-                    "created" to 1712361441
+                    "created" to GPT4_TURBO_CREATED_TIMESTAMP
                 ),
                 mapOf(
                     "id" to "gpt-3.5-turbo",
                     "object" to "engine",
                     "owner" to "openai",
                     "ready" to true,
-                    "created" to 1677610602
+                    "created" to GPT35_TURBO_CREATED_TIMESTAMP
                 )
             )
 

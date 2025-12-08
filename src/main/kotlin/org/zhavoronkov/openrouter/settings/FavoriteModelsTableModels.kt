@@ -18,6 +18,7 @@ data class AvailableModelDisplay(
         private const val UNKNOWN_VALUE = "—"
         private const val CONTEXT_SUFFIX = "K"
         private const val CAPABILITIES_SEPARATOR = ", "
+        private const val CONTEXT_LENGTH_DIVISOR = 1000
 
         fun from(model: OpenRouterModelInfo): AvailableModelDisplay {
             val provider = extractProvider(model.id)
@@ -39,7 +40,7 @@ data class AvailableModelDisplay(
 
         private fun formatContextWindow(contextLength: Int?): String {
             return if (contextLength != null && contextLength > 0) {
-                "${contextLength / 1000}$CONTEXT_SUFFIX"
+                "${contextLength / CONTEXT_LENGTH_DIVISOR}$CONTEXT_SUFFIX"
             } else {
                 UNKNOWN_VALUE
             }
@@ -154,7 +155,7 @@ object FavoriteModelsColumns {
 /**
  * Helper class for managing table model operations
  */
-class FavoriteModelsTableHelper {
+class FavoriteModelsTableHelper private constructor() {
     companion object {
         /**
          * Convert models to available display items

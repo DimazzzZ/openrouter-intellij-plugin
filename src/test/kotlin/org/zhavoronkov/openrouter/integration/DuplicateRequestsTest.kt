@@ -1,7 +1,8 @@
 package org.zhavoronkov.openrouter.integration
 
-import org.junit.jupiter.api.*
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Test
 
 /**
  * Unit test to verify that the proxy server configuration doesn't create duplicate endpoints

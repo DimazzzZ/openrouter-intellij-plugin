@@ -15,6 +15,7 @@ class OpenRouterChatContextProvider {
     companion object {
         private const val PROVIDER_ID = "openrouter"
         private const val PROVIDER_NAME = "OpenRouter"
+        private const val APPROXIMATE_MODEL_COUNT = 400
     }
 
     /**
@@ -29,15 +30,19 @@ class OpenRouterChatContextProvider {
 
     /**
      * Checks if the provider is available and configured
+     * @param project The project context (currently unused, reserved for future use)
      */
     fun isAvailable(project: Project?): Boolean {
+        // Project parameter reserved for future project-specific configuration
         return settingsService.isConfigured()
     }
 
     /**
      * Provides context information for chat conversations
+     * @param project The project context (currently unused, reserved for future use)
      */
     fun getContextInfo(project: Project?): Map<String, Any> {
+        // Project parameter reserved for future project-specific context
         PluginLogger.Settings.debug("Providing chat context for OpenRouter")
 
         return mapOf(
@@ -52,7 +57,7 @@ class OpenRouterChatContextProvider {
                 "streaming",
                 "multiple_models"
             ),
-            "modelCount" to 400 // OpenRouter supports 400+ models
+            "modelCount" to APPROXIMATE_MODEL_COUNT
         )
     }
 

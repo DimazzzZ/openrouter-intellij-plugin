@@ -1,11 +1,12 @@
 package org.zhavoronkov.openrouter.proxy
 
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.mockito.Mockito.*
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
 
 @DisplayName("Proxy Server Configuration Tests")

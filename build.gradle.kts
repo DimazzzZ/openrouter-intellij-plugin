@@ -1,8 +1,10 @@
+import org.jetbrains.intellij.tasks.PublishPluginTask
+
 plugins {
     id("java")
-    id("org.jetbrains.kotlin.jvm") version "1.9.25"
+    id("org.jetbrains.kotlin.jvm") version "2.1.10"
     id("org.jetbrains.intellij") version "1.17.4"
-    id("io.gitlab.arturbosch.detekt") version "1.23.4"
+    id("io.gitlab.arturbosch.detekt") version "1.23.7"
 }
 
 group = project.findProperty("pluginGroup") ?: "org.zhavoronkov"
@@ -23,6 +25,9 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.11.0")
     implementation("com.google.code.gson:gson:2.10.1")
 
+    // Use IntelliJ's bundled coroutines library to avoid classloader conflicts
+    compileOnly("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+
     // Embedded HTTP server for AI Assistant integration
     implementation("org.eclipse.jetty:jetty-server:11.0.18")
     implementation("org.eclipse.jetty:jetty-servlet:11.0.18")
@@ -34,12 +39,13 @@ dependencies {
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.2")
     testImplementation("org.mockito:mockito-core:5.7.0")
     testImplementation("org.mockito:mockito-junit-jupiter:5.7.0")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:5.1.0")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.11.0")
     testImplementation("org.assertj:assertj-core:3.24.2")
 
 
     // Detekt plugins
-    detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.4")
+    detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.7")
 }
 
 // Configure IntelliJ Plugin
@@ -56,6 +62,13 @@ detekt {
     allRules = false
     config.setFrom("$projectDir/config/detekt/detekt.yml")
     baseline = file("$projectDir/config/detekt/baseline.xml")
+}
+
+// Configure publishing token for publishPlugin task
+val publishPluginTask = tasks.named<PublishPluginTask>("publishPlugin")
+publishPluginTask.configure {
+    val publishToken = System.getenv("PUBLISH_TOKEN") ?: project.findProperty("publishToken") as String?
+    publishToken?.let { token.set(it) }
 }
 
 // Configure Detekt SARIF reporting task

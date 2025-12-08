@@ -3,11 +3,13 @@ package org.zhavoronkov.openrouter.services
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import com.intellij.openapi.application.ApplicationManager
-import okhttp3.MediaType.Companion.toMediaType
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
-import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import org.zhavoronkov.openrouter.models.ActivityResponse
 import org.zhavoronkov.openrouter.models.ApiKeysListResponse
+import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatCompletionResponse
 import org.zhavoronkov.openrouter.models.CreateApiKeyRequest
@@ -22,8 +24,9 @@ import org.zhavoronkov.openrouter.models.ProvidersResponse
 import org.zhavoronkov.openrouter.models.QuotaInfo
 import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import org.zhavoronkov.openrouter.utils.await
+import org.zhavoronkov.openrouter.utils.toApiResult
 import java.io.IOException
-import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
 /**
@@ -47,15 +50,16 @@ import java.util.concurrent.TimeUnit
  *    - /api/v1/providers (list of available AI providers)
  *    - Publicly accessible information
  */
-class OpenRouterService {
 
-    private val gson = Gson()
-    private val client = OkHttpClient.Builder()
+class OpenRouterService(
+    private val gson: Gson = Gson(),
+    private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .build()
-    private val settingsService = OpenRouterSettingsService.getInstance()
+        .build(),
+    private val settingsService: OpenRouterSettingsService = OpenRouterSettingsService.getInstance()
+) {
 
     companion object {
         private const val BASE_URL = "https://openrouter.ai/api/v1"
@@ -77,6 +81,19 @@ class OpenRouterService {
         // Public endpoints (no authentication required)
         private const val PROVIDERS_ENDPOINT = "$BASE_URL/providers"
         private const val MODELS_ENDPOINT = "$BASE_URL/models"
+
+        // Retry and delay constants
+        private const val RETRY_DELAY_SECONDS = 8L
+        private const val RETRY_DELAY_MS = 8000L
+        private const val NANOSECONDS_TO_MILLISECONDS = 1_000_000L
+        private const val ACTIVITY_CACHE_TIMEOUT_MS = 10000L
+
+        // String truncation constants
+        private const val STRING_TRUNCATE_LENGTH = 10
+
+        // Response preview constants
+        private const val RESPONSE_PREVIEW_LENGTH = 500
+        private const val RESPONSE_PREVIEW_LENGTH_SMALL = 200
 
         fun getInstance(): OpenRouterService {
             return ApplicationManager.getApplication().getService(OpenRouterService::class.java)
@@ -101,8 +118,8 @@ class OpenRouterService {
     /**
      * Get usage statistics for a specific generation
      */
-    fun getGenerationStats(generationId: String): CompletableFuture<GenerationResponse?> {
-        return CompletableFuture.supplyAsync {
+    suspend fun getGenerationStats(generationId: String): ApiResult<GenerationResponse> =
+        withContext(Dispatchers.IO) {
             try {
                 val request = OpenRouterRequestBuilder.buildGetRequest(
                     url = "$GENERATION_ENDPOINT?id=$generationId",
@@ -110,53 +127,30 @@ class OpenRouterService {
                     authToken = settingsService.getApiKey()
                 )
 
-                client.newCall(request).execute().use { response ->
-                    if (response.isSuccessful) {
-                        response.body?.string()?.let { responseBody ->
-                            try {
-                                gson.fromJson(responseBody, GenerationResponse::class.java)
-                            } catch (e: JsonSyntaxException) {
-                                PluginLogger.Service.warn("Failed to parse generation response", e)
-                                null
-                            }
-                        }
-                    } else {
-                        PluginLogger.Service.warn(
-                            "Failed to get generation stats: ${response.code} ${response.message}"
-                        )
-                        null
-                    }
-                }
+                val response = client.newCall(request).await()
+                response.toApiResult(gson)
             } catch (e: IOException) {
                 handleNetworkError(e, "Error getting generation stats")
-                null
+                ApiResult.Error(message = e.message ?: "Network error", throwable = e)
             }
         }
-    }
 
     /**
      * Create a chat completion using OpenRouter API
      */
-    fun createChatCompletion(request: ChatCompletionRequest): CompletableFuture<ChatCompletionResponse?> {
-        return CompletableFuture.supplyAsync {
+
+    suspend fun createChatCompletion(request: ChatCompletionRequest): ApiResult<ChatCompletionResponse> =
+        withContext(Dispatchers.IO) {
             val startNs = System.nanoTime()
             try {
-                val apiKey = settingsService.getStoredApiKey()
+                val apiKey = settingsService.apiKeyManager.getStoredApiKey()
                 if (apiKey.isNullOrBlank()) {
                     PluginLogger.Service.error("[OR] No API key configured for chat completion")
-                    return@supplyAsync null
+                    return@withContext ApiResult.Error("No API key configured")
                 }
 
                 val jsonBody = gson.toJson(request)
-                val requestBody = jsonBody.toRequestBody("application/json".toMediaType())
-
-                PluginLogger.Service.info("[OR] POST $CHAT_COMPLETIONS_ENDPOINT")
-                PluginLogger.Service.debug(
-                    "[OR] Headers: Authorization=Bearer ${apiKey.take(8)}…(redacted), Content-Type=application/json"
-                )
-                PluginLogger.Service.debug(
-                    "[OR] Outgoing JSON: ${jsonBody.take(8000)}${if (jsonBody.length > 8000) "…(truncated)" else ""}"
-                )
+                logOutgoingRequest(apiKey, jsonBody)
 
                 val httpRequest = OpenRouterRequestBuilder.buildPostRequest(
                     url = CHAT_COMPLETIONS_ENDPOINT,
@@ -165,51 +159,76 @@ class OpenRouterService {
                     authToken = apiKey
                 )
 
-                client.newCall(httpRequest).execute().use { response ->
-                    val responseBody = response.body?.string() ?: ""
-                    val durationMs = (System.nanoTime() - startNs) / 1_000_000
-                    val contentType = response.header("Content-Type") ?: ""
-                    PluginLogger.Service.info(
-                        "[OR] Response ${response.code} from OpenRouter in ${durationMs}ms (Content-Type=$contentType)"
-                    )
-                    PluginLogger.Service.debug(
-                        "[OR] Response body: ${responseBody.take(
-                            10000
-                        )}${if (responseBody.length > 10000) "…(truncated)" else ""}"
-                    )
+                val response = client.newCall(httpRequest).await()
+                val responseBody = response.body?.string().orEmpty()
+                val durationMs = (System.nanoTime() - startNs) / NANOSECONDS_TO_MILLISECONDS
+                logIncomingResponse(response, responseBody, durationMs)
 
-                    if (!response.isSuccessful) {
-                        PluginLogger.Service.error(
-                            "[OR] Chat completion failed: ${response.code} ${response.message} - $responseBody"
-                        )
-                        return@use null
-                    }
-
-                    val trimmed = responseBody.trimStart()
-                    try {
-                        val result = gson.fromJson(trimmed, ChatCompletionResponse::class.java)
-                        PluginLogger.Service.debug("[OR] Parsed ChatCompletionResponse successfully")
-                        return@use result
-                    } catch (e: JsonSyntaxException) {
-                        PluginLogger.Service.error("[OR] Failed to parse chat completion response: $responseBody", e)
-                        return@use null
-                    }
-                }
+                handleChatCompletionResponse(response, responseBody)
             } catch (e: IOException) {
                 PluginLogger.Service.error("[OR] Chat completion network error: ${e.message}", e)
-                null
+                ApiResult.Error(message = e.message ?: "Network error", throwable = e)
             } catch (e: Exception) {
                 PluginLogger.Service.error("[OR] Chat completion unexpected error: ${e.message}", e)
-                null
+                ApiResult.Error(message = e.message ?: "Unexpected error", throwable = e)
             }
+        }
+
+    private fun logOutgoingRequest(apiKey: String, jsonBody: String) {
+        PluginLogger.Service.info("[OR] POST $CHAT_COMPLETIONS_ENDPOINT")
+        val keyPreview = apiKey.take(RETRY_DELAY_SECONDS.toInt())
+        PluginLogger.Service.debug(
+            "[OR] Headers: Authorization=Bearer $keyPreview…(redacted), Content-Type=application/json"
+        )
+        val bodyPreview = jsonBody.take(RETRY_DELAY_MS.toInt())
+        val isTruncated = jsonBody.length > RETRY_DELAY_MS.toInt()
+        PluginLogger.Service.debug(
+            "[OR] Outgoing JSON: $bodyPreview${if (isTruncated) "…(truncated)" else ""}"
+        )
+    }
+
+    private fun logIncomingResponse(response: Response, responseBody: String, durationMs: Long) {
+        val contentType = response.header("Content-Type").orEmpty()
+        PluginLogger.Service.info(
+            "[OR] Response ${response.code} from OpenRouter in ${durationMs}ms (Content-Type=$contentType)"
+        )
+        PluginLogger.Service.debug(
+            "[OR] Response body: ${responseBody.take(
+                ACTIVITY_CACHE_TIMEOUT_MS.toInt()
+            )}${if (responseBody.length > ACTIVITY_CACHE_TIMEOUT_MS.toInt()) "…(truncated)" else ""}"
+        )
+    }
+
+    private fun handleChatCompletionResponse(
+        response: Response,
+        responseBody: String
+    ): ApiResult<ChatCompletionResponse> {
+        return if (response.isSuccessful) {
+            try {
+                val trimmed = responseBody.trimStart()
+                val result = gson.fromJson(trimmed, ChatCompletionResponse::class.java)
+                PluginLogger.Service.debug("[OR] Parsed ChatCompletionResponse successfully")
+                ApiResult.Success(result, response.code)
+            } catch (e: JsonSyntaxException) {
+                PluginLogger.Service.error("[OR] Failed to parse chat completion response: $responseBody", e)
+                ApiResult.Error("Failed to parse response", statusCode = response.code, throwable = e)
+            }
+        } else {
+            PluginLogger.Service.error(
+                "[OR] Chat completion failed: ${response.code} ${response.message} - $responseBody"
+            )
+            ApiResult.Error(
+                message = responseBody.ifBlank { response.message ?: "Chat completion failed" },
+                statusCode = response.code
+            )
         }
     }
 
     /**
      * Test API connection with a simple request
      */
-    fun testConnection(): CompletableFuture<Boolean> {
-        return CompletableFuture.supplyAsync {
+    suspend fun testConnection(): ApiResult<Boolean> =
+        withContext(Dispatchers.IO) {
             try {
                 val jsonBody = gson.toJson(
                     mapOf(
@@ -228,36 +247,46 @@ class OpenRouterService {
                     authToken = settingsService.getApiKey()
                 )
 
-                client.newCall(request).execute().use { response ->
-                    response.isSuccessful
+                val response = client.newCall(request).await()
+                if (response.isSuccessful) {
+                    ApiResult.Success(true, response.code)
+                } else {
+                    ApiResult.Error(
+                        message = "Connection test failed",
+                        statusCode = response.code
+                    )
                 }
             } catch (e: IOException) {
                 handleNetworkError(e, "Connection test failed")
-                false
+                ApiResult.Error(message = e.message ?: "Network error", throwable = e)
             } catch (e: JsonSyntaxException) {
                 PluginLogger.Service.warn("Connection test failed - invalid JSON response", e)
-                false
+                ApiResult.Error(message = "Invalid JSON response", throwable = e)
             }
         }
-    }
 
     /**
      * Get API keys list with usage information
      * NOTE: This endpoint requires Provisioning Key authentication
      */
-    fun getApiKeysList(): CompletableFuture<ApiKeysListResponse?> {
-        return getApiKeysList(settingsService.getProvisioningKey())
-    }
+    suspend fun getApiKeysList(): ApiResult<ApiKeysListResponse> =
+        getApiKeysList(settingsService.getProvisioningKey())
 
     /**
      * Get API keys list with usage information using a specific provisioning key
      * NOTE: This endpoint requires Provisioning Key authentication
      */
-    fun getApiKeysList(provisioningKey: String): CompletableFuture<ApiKeysListResponse?> {
-        return CompletableFuture.supplyAsync {
+    suspend fun getApiKeysList(provisioningKey: String): ApiResult<ApiKeysListResponse> =
+        withContext(Dispatchers.IO) {
             try {
+                if (provisioningKey.isBlank()) {
+                    PluginLogger.Service.warn("Provisioning key is blank - cannot fetch API keys list")
+                    return@withContext ApiResult.Error("Provisioning key is required")
+                }
+
+                val keyPreview = provisioningKey.take(STRING_TRUNCATE_LENGTH)
                 PluginLogger.Service.debug(
-                    "Fetching API keys list from OpenRouter with provisioning key: ${provisioningKey.take(10)}..."
+                    "Fetching API keys list from OpenRouter with provisioning key: $keyPreview..."
                 )
                 PluginLogger.Service.debug("Making request to: $API_KEYS_ENDPOINT")
 
@@ -267,85 +296,80 @@ class OpenRouterService {
                     authToken = provisioningKey
                 )
 
-                client.newCall(request).execute().use { response ->
-                    val responseBody = response.body?.string() ?: ""
-                    PluginLogger.Service.debug("OpenRouter API keys list response code: ${response.code}")
-                    PluginLogger.Service.debug("OpenRouter API keys list response: $responseBody")
-
-                    if (response.isSuccessful) {
-                        try {
-                            PluginLogger.Service.debug("Attempting to parse JSON response...")
-                            val result = gson.fromJson(responseBody, ApiKeysListResponse::class.java)
-                            PluginLogger.Service.info("Successfully parsed ${result?.data?.size ?: 0} API keys")
-                            PluginLogger.Service.debug(
-                                "Parsed API keys: ${result?.data?.map { it.name } ?: emptyList()}"
-                            )
-                            result
-                        } catch (e: JsonSyntaxException) {
-                            PluginLogger.Service.warn("Failed to parse API keys list response: $responseBody", e)
-                            PluginLogger.Service.debug("JSON parsing error details: ${e.message}")
-                            null
-                        } catch (e: Exception) {
-                            PluginLogger.Service.warn("Unexpected error parsing API keys list response", e)
-                            null
-                        }
-                    } else {
-                        PluginLogger.Service.warn(
-                            "Failed to get API keys list: ${response.code} ${response.message} - $responseBody"
-                        )
-                        null
-                    }
-                }
+                val response = client.newCall(request).await()
+                response.toApiResult(gson)
             } catch (e: IOException) {
                 handleNetworkError(e, "Error getting API keys list")
-                null
+                ApiResult.Error(message = e.message ?: "Network error", throwable = e)
             }
         }
-    }
 
     /**
      * Get current quota information based on API keys list
      */
-    fun getQuotaInfo(): CompletableFuture<QuotaInfo?> {
-        return getApiKeysList().thenApply { apiKeysResponse ->
-            apiKeysResponse?.let { response ->
-                // Sum up limits from all enabled keys (usage not available from this endpoint)
-                val enabledKeys = response.data.filter { !it.disabled }
-                val totalUsed = 0.0 // Usage not available from keys list endpoint
-                val totalLimit = enabledKeys.mapNotNull { it.limit }.sum()
-                val remaining = if (totalLimit > 0) totalLimit - totalUsed else Double.MAX_VALUE
-
-                QuotaInfo(
-                    remaining = remaining,
-                    total = totalLimit,
-                    used = totalUsed,
-                    resetDate = null // OpenRouter doesn't provide reset date in this endpoint
-                )
-            }
+    suspend fun getQuotaInfo(): ApiResult<QuotaInfo> {
+        val provisioningKey = settingsService.getProvisioningKey()
+        if (provisioningKey.isBlank()) {
+            PluginLogger.Service.warn("No provisioning key available for quota info")
+            return ApiResult.Error("No provisioning key configured")
         }
+
+        return runCatching { getApiKeysList(provisioningKey) }
+            .fold(
+                onSuccess = { apiKeysResult ->
+                    when (apiKeysResult) {
+                        is ApiResult.Success -> {
+                            val response = apiKeysResult.data
+                            // Sum up usage and limits from all enabled keys
+                            val enabledKeys = response.data.filter { !it.disabled }
+                            val totalUsed = enabledKeys.sumOf { it.usage }
+                            val totalLimit = enabledKeys.mapNotNull { it.limit }.sum()
+                            val remaining = if (totalLimit > 0) totalLimit - totalUsed else Double.MAX_VALUE
+
+                            val quotaInfo = QuotaInfo(
+                                remaining = remaining,
+                                total = totalLimit,
+                                used = totalUsed,
+                                resetDate = null // OpenRouter doesn't provide reset date in this endpoint
+                            )
+                            ApiResult.Success(quotaInfo, apiKeysResult.statusCode)
+                        }
+                        is ApiResult.Error -> apiKeysResult.copy()
+                    }
+                },
+                onFailure = { e ->
+                    ApiResult.Error(message = "Failed to get quota info", throwable = e)
+                }
+            )
     }
 
     /**
      * Get key info for backward compatibility - returns summary of all keys
      */
-    fun getKeyInfo(): CompletableFuture<KeyInfoResponse?> {
-        return getApiKeysList().thenApply { apiKeysResponse ->
-            apiKeysResponse?.let { response ->
-                val enabledKeys = response.data.filter { !it.disabled }
-                val totalUsed = 0.0 // Usage not available from keys list endpoint
+    suspend fun getKeyInfo(): ApiResult<KeyInfoResponse> {
+        val result = getApiKeysList(settingsService.getProvisioningKey())
+        return when (result) {
+            is ApiResult.Success -> {
+                val apiKeysResponse = result.data
+                val enabledKeys = apiKeysResponse.data.filter { !it.disabled }
+                val totalUsed = enabledKeys.sumOf { it.usage }
                 val totalLimit = enabledKeys.mapNotNull { it.limit }.sum()
                 val hasLimit = totalLimit > 0
 
                 // Create a summary KeyInfoResponse
-                KeyInfoResponse(
-                    data = KeyData(
-                        label = "All Keys Summary",
-                        usage = totalUsed,
-                        limit = if (hasLimit) totalLimit else null,
-                        isFreeTier = false // Assume paid if using provisioning keys
-                    )
+                ApiResult.Success(
+                    KeyInfoResponse(
+                        data = KeyData(
+                            label = "All Keys Summary",
+                            usage = totalUsed,
+                            limit = if (hasLimit) totalLimit else null,
+                            isFreeTier = false // Assume paid if using provisioning keys
+                        )
+                    ),
+                    result.statusCode
                 )
             }
+            is ApiResult.Error -> result.copy()
         }
     }
 
@@ -353,16 +377,17 @@ class OpenRouterService {
      * Create a new API key
      * NOTE: This endpoint requires Provisioning Key authentication
      */
-    fun createApiKey(name: String, limit: Double? = null): CompletableFuture<CreateApiKeyResponse?> {
-        return CompletableFuture.supplyAsync {
+    suspend fun createApiKey(name: String, limit: Double? = null): ApiResult<CreateApiKeyResponse> =
+        withContext(Dispatchers.IO) {
             try {
                 // API key creation requires provisioning key
                 val provisioningKey = settingsService.getProvisioningKey()
                 val requestBody = CreateApiKeyRequest(name = name, limit = limit)
                 val json = gson.toJson(requestBody)
 
+                val keyPreview = provisioningKey.take(STRING_TRUNCATE_LENGTH)
                 PluginLogger.Service.debug(
-                    "Creating API key with name: $name using provisioning key: ${provisioningKey.take(10)}..."
+                    "Creating API key with name: $name using provisioning key: $keyPreview..."
                 )
                 PluginLogger.Service.debug("Making POST request to: $API_KEYS_ENDPOINT")
                 PluginLogger.Service.debug("Request body: $json")
@@ -374,43 +399,41 @@ class OpenRouterService {
                     authToken = provisioningKey
                 )
 
-                client.newCall(request).execute().use { response ->
-                    val responseBody = response.body?.string() ?: ""
-                    PluginLogger.Service.debug("Create API key response code: ${response.code}")
-                    PluginLogger.Service.debug("Create API key response: $responseBody")
+                val response = client.newCall(request).await()
+                val responseBody = response.body?.string().orEmpty()
+                PluginLogger.Service.debug("Create API key response code: ${response.code}")
+                PluginLogger.Service.debug("Create API key response: $responseBody")
 
-                    if (response.isSuccessful) {
-                        try {
-                            val result = gson.fromJson(responseBody, CreateApiKeyResponse::class.java)
-                            PluginLogger.Service.info("Successfully created API key: ${result?.data?.name}")
-                            result
-                        } catch (e: JsonSyntaxException) {
-                            PluginLogger.Service.warn("Failed to parse create API key response: $responseBody", e)
-                            null
-                        }
-                    } else {
-                        PluginLogger.Service.warn(
-                            "Failed to create API key: ${response.code} ${response.message} - $responseBody"
-                        )
-                        null
+                if (response.isSuccessful) {
+                    try {
+                        val result = gson.fromJson(responseBody, CreateApiKeyResponse::class.java)
+                        PluginLogger.Service.info("Successfully created API key: ${result.data.name}")
+                        ApiResult.Success(result, response.code)
+                    } catch (e: JsonSyntaxException) {
+                        PluginLogger.Service.warn("Failed to parse create API key response: $responseBody", e)
+                        ApiResult.Error("Failed to parse response", statusCode = response.code, throwable = e)
                     }
+                } else {
+                    PluginLogger.Service.warn(
+                        "Failed to create API key: ${response.code} ${response.message} - $responseBody"
+                    )
+                    ApiResult.Error(
+                        message = responseBody.ifBlank { "Failed to create API key" },
+                        statusCode = response.code
+                    )
                 }
             } catch (e: IOException) {
-                PluginLogger.Service.error("Error creating API key - network issue", e)
-                null
-            } catch (e: JsonSyntaxException) {
-                PluginLogger.Service.error("Error creating API key - invalid JSON response", e)
-                null
+                handleNetworkError(e, "Error creating API key")
+                ApiResult.Error(message = e.message ?: "Network error", throwable = e)
             }
         }
-    }
 
     /**
      * Delete an API key by hash
      * NOTE: This endpoint requires Provisioning Key authentication
      */
-    fun deleteApiKey(keyHash: String): CompletableFuture<DeleteApiKeyResponse?> {
-        return CompletableFuture.supplyAsync {
+    suspend fun deleteApiKey(keyHash: String): ApiResult<DeleteApiKeyResponse> =
+        withContext(Dispatchers.IO) {
             try {
                 // API key deletion requires provisioning key and uses hash in URL
                 val request = OpenRouterRequestBuilder.buildDeleteRequest(
@@ -421,43 +444,48 @@ class OpenRouterService {
 
                 PluginLogger.Service.debug("Deleting API key with hash: $keyHash")
 
-                client.newCall(request).execute().use { response ->
-                    val responseBody = response.body?.string() ?: ""
-                    PluginLogger.Service.debug("Delete API key response: $responseBody")
+                val response = client.newCall(request).await()
+                val responseBody = response.body?.string().orEmpty()
+                PluginLogger.Service.debug("Delete API key response: $responseBody")
 
-                    if (response.isSuccessful) {
-                        gson.fromJson(responseBody, DeleteApiKeyResponse::class.java)
-                    } else {
-                        PluginLogger.Service.warn("Failed to delete API key: ${response.code} - $responseBody")
-                        null
+                if (response.isSuccessful) {
+                    try {
+                        val result = gson.fromJson(responseBody, DeleteApiKeyResponse::class.java)
+                        ApiResult.Success(result, response.code)
+                    } catch (e: JsonSyntaxException) {
+                        PluginLogger.Service.warn("Failed to parse delete API key response: $responseBody", e)
+                        ApiResult.Error("Failed to parse response", statusCode = response.code, throwable = e)
                     }
+                } else {
+                    PluginLogger.Service.warn("Failed to delete API key: ${response.code} - $responseBody")
+                    ApiResult.Error(
+                        message = responseBody.ifBlank { "Failed to delete API key" },
+                        statusCode = response.code
+                    )
                 }
             } catch (e: IOException) {
-                PluginLogger.Service.error("Error deleting API key - network issue", e)
-                null
-            } catch (e: JsonSyntaxException) {
-                PluginLogger.Service.error("Error deleting API key - invalid JSON response", e)
-                null
+                handleNetworkError(e, "Error deleting API key")
+                ApiResult.Error(message = e.message ?: "Network error", throwable = e)
             }
         }
-    }
 
     /**
      * Get credits information from OpenRouter
      * NOTE: This endpoint requires Provisioning Key authentication, not API Key
      */
-    fun getCredits(): CompletableFuture<CreditsResponse?> {
-        return CompletableFuture.supplyAsync {
+    suspend fun getCredits(): ApiResult<CreditsResponse> =
+        withContext(Dispatchers.IO) {
             try {
                 // Credits endpoint requires provisioning key, not API key
                 val provisioningKey = settingsService.getProvisioningKey()
                 if (provisioningKey.isBlank()) {
                     PluginLogger.Service.warn("No provisioning key available for credits endpoint")
-                    return@supplyAsync null
+                    return@withContext ApiResult.Error("No provisioning key configured")
                 }
 
+                val keyPreview = provisioningKey.take(STRING_TRUNCATE_LENGTH)
                 PluginLogger.Service.debug(
-                    "Fetching credits from OpenRouter with provisioning key: ${provisioningKey.take(10)}..."
+                    "Fetching credits from OpenRouter with provisioning key: $keyPreview..."
                 )
                 PluginLogger.Service.debug("Making request to: $CREDITS_ENDPOINT")
 
@@ -467,43 +495,48 @@ class OpenRouterService {
                     authToken = provisioningKey
                 )
 
-                val response = client.newCall(request).execute()
-                val responseBody = response.body?.string() ?: ""
+                val response = client.newCall(request).await()
+                val responseBody = response.body?.string().orEmpty()
                 PluginLogger.Service.debug("Credits response: ${response.code} - $responseBody")
 
                 if (response.isSuccessful) {
-                    val creditsResponse = gson.fromJson(responseBody, CreditsResponse::class.java)
-                    PluginLogger.Service.info("Successfully parsed credits response: ${creditsResponse.data}")
-                    creditsResponse
+                    try {
+                        val creditsResponse = gson.fromJson(responseBody, CreditsResponse::class.java)
+                        PluginLogger.Service.info("Successfully parsed credits response: ${creditsResponse.data}")
+                        ApiResult.Success(creditsResponse, response.code)
+                    } catch (e: JsonSyntaxException) {
+                        PluginLogger.Service.error("Error fetching credits - invalid JSON response", e)
+                        ApiResult.Error("Failed to parse response", statusCode = response.code, throwable = e)
+                    }
                 } else {
                     PluginLogger.Service.warn("Failed to fetch credits: ${response.code} - $responseBody")
-                    null
+                    ApiResult.Error(
+                        message = responseBody.ifBlank { "Failed to fetch credits" },
+                        statusCode = response.code
+                    )
                 }
             } catch (e: IOException) {
                 handleNetworkError(e, "Error fetching credits")
-                null
-            } catch (e: JsonSyntaxException) {
-                PluginLogger.Service.error("Error fetching credits - invalid JSON response", e)
-                null
+                ApiResult.Error(message = e.message ?: "Network error", throwable = e)
             }
         }
-    }
 
     /**
      * Get activity analytics from OpenRouter
      * NOTE: This endpoint requires Provisioning Key authentication
      */
-    fun getActivity(): CompletableFuture<ActivityResponse?> {
-        return CompletableFuture.supplyAsync {
+    suspend fun getActivity(): ApiResult<ActivityResponse> =
+        withContext(Dispatchers.IO) {
             try {
                 val provisioningKey = settingsService.getProvisioningKey()
                 if (provisioningKey.isBlank()) {
                     PluginLogger.Service.warn("No provisioning key available for activity endpoint")
-                    return@supplyAsync null
+                    return@withContext ApiResult.Error("No provisioning key configured")
                 }
 
+                val keyPreview = provisioningKey.take(STRING_TRUNCATE_LENGTH)
                 PluginLogger.Service.debug(
-                    "Fetching activity from OpenRouter with provisioning key: ${provisioningKey.take(10)}..."
+                    "Fetching activity from OpenRouter with provisioning key: $keyPreview..."
                 )
                 PluginLogger.Service.debug("Making request to: $ACTIVITY_ENDPOINT")
 
@@ -513,107 +546,108 @@ class OpenRouterService {
                     authToken = provisioningKey
                 )
 
-                val response = client.newCall(request).execute()
-                val responseBody = response.body?.string() ?: ""
+                val response = client.newCall(request).await()
+                val responseBody = response.body?.string().orEmpty()
                 PluginLogger.Service.debug("Activity response: ${response.code} - $responseBody")
 
                 if (response.isSuccessful) {
-                    val activityResponse = gson.fromJson(responseBody, ActivityResponse::class.java)
-                    PluginLogger.Service.info(
-                        "Successfully parsed activity response with ${activityResponse.data.size} entries"
-                    )
-                    activityResponse
+                    try {
+                        val activityResponse = gson.fromJson(responseBody, ActivityResponse::class.java)
+                        PluginLogger.Service.info(
+                            "Successfully parsed activity response with ${activityResponse.data.size} entries"
+                        )
+                        ApiResult.Success(activityResponse, response.code)
+                    } catch (e: JsonSyntaxException) {
+                        PluginLogger.Service.error("Error fetching activity - invalid JSON response", e)
+                        ApiResult.Error("Failed to parse response", statusCode = response.code, throwable = e)
+                    }
                 } else {
                     PluginLogger.Service.warn("Failed to fetch activity: ${response.code} - $responseBody")
-                    null
+                    ApiResult.Error(
+                        message = responseBody.ifBlank { "Failed to fetch activity" },
+                        statusCode = response.code
+                    )
                 }
             } catch (e: IOException) {
                 handleNetworkError(e, "Error fetching activity")
-                null
-            } catch (e: JsonSyntaxException) {
-                PluginLogger.Service.error("Error fetching activity - invalid JSON response", e)
-                null
+                ApiResult.Error(message = e.message ?: "Network error", throwable = e)
             }
         }
-    }
 
     /**
      * Get list of available models from OpenRouter
      * NOTE: This is a public endpoint that requires no authentication
      */
-    fun getModels(): CompletableFuture<OpenRouterModelsResponse?> {
-        return CompletableFuture.supplyAsync {
-            try {
-                PluginLogger.Service.debug("Fetching models list from OpenRouter (public endpoint)")
-                PluginLogger.Service.debug("Making request to: $MODELS_ENDPOINT")
-
-                // Models endpoint is public - no authentication required
-                val request = OpenRouterRequestBuilder.buildGetRequest(
-                    url = MODELS_ENDPOINT,
-                    authType = OpenRouterRequestBuilder.AuthType.NONE
-                )
-
-                val response = client.newCall(request).execute()
-                val responseBody = response.body?.string() ?: ""
-                PluginLogger.Service.debug("Models response: ${response.code} - ${responseBody.take(500)}...")
-
-                if (response.isSuccessful) {
-                    val modelsResponse = gson.fromJson(responseBody, OpenRouterModelsResponse::class.java)
-                    PluginLogger.Service.info("Successfully parsed models response: ${modelsResponse.data.size} models")
-                    modelsResponse
-                } else {
-                    PluginLogger.Service.warn("Failed to fetch models: ${response.code} - $responseBody")
-                    null
-                }
-            } catch (e: IOException) {
-                handleNetworkError(e, "Error fetching models")
-                null
-            } catch (e: JsonSyntaxException) {
-                PluginLogger.Service.error("Error fetching models - invalid JSON response", e)
-                null
-            }
+    suspend fun getModels(): ApiResult<OpenRouterModelsResponse> =
+        fetchPublicEndpoint(
+            MODELS_ENDPOINT,
+            "models",
+            RESPONSE_PREVIEW_LENGTH,
+            "Error fetching models"
+        ) { responseBody ->
+            gson.fromJson(responseBody, OpenRouterModelsResponse::class.java)
         }
-    }
 
     /**
      * Get list of available providers from OpenRouter
      * NOTE: This is a public endpoint that requires no authentication
      */
-    fun getProviders(): CompletableFuture<ProvidersResponse?> {
-        return CompletableFuture.supplyAsync {
-            try {
-                PluginLogger.Service.debug("Fetching providers list from OpenRouter (public endpoint)")
-                PluginLogger.Service.debug("Making request to: $PROVIDERS_ENDPOINT")
+    suspend fun getProviders(): ApiResult<ProvidersResponse> =
+        fetchPublicEndpoint(
+            PROVIDERS_ENDPOINT,
+            "providers",
+            RESPONSE_PREVIEW_LENGTH_SMALL,
+            "Error fetching providers"
+        ) { responseBody ->
+            gson.fromJson(responseBody, ProvidersResponse::class.java)
+        }
 
-                // Providers endpoint is public - no authentication required
+    /**
+     * Generic method to fetch data from public endpoints
+     */
+    private suspend inline fun <reified T> fetchPublicEndpoint(
+        url: String,
+        name: String,
+        previewLength: Int,
+        errorContext: String,
+        crossinline parseResponse: (String) -> T
+    ): ApiResult<T> =
+        withContext(Dispatchers.IO) {
+            try {
+                PluginLogger.Service.debug("Fetching $name list from OpenRouter (public endpoint)")
+                PluginLogger.Service.debug("Making request to: $url")
+
                 val request = OpenRouterRequestBuilder.buildGetRequest(
-                    url = PROVIDERS_ENDPOINT,
+                    url = url,
                     authType = OpenRouterRequestBuilder.AuthType.NONE
                 )
 
-                val response = client.newCall(request).execute()
+                val response = client.newCall(request).await()
                 val responseBody = response.body?.string() ?: ""
-                PluginLogger.Service.debug("Providers response: ${response.code} - ${responseBody.take(200)}...")
+                val responsePreview = responseBody.take(previewLength)
+                PluginLogger.Service.debug("$name response: ${response.code} - $responsePreview...")
 
                 if (response.isSuccessful) {
-                    val providersResponse = gson.fromJson(responseBody, ProvidersResponse::class.java)
-                    PluginLogger.Service.info(
-                        "Successfully parsed providers response: ${providersResponse.data.size} providers"
-                    )
-                    providersResponse
+                    try {
+                        val result = parseResponse(responseBody)
+                        PluginLogger.Service.info("Successfully parsed $name response")
+                        ApiResult.Success(result, response.code)
+                    } catch (e: JsonSyntaxException) {
+                        PluginLogger.Service.error("Error fetching $name - invalid JSON response", e)
+                        ApiResult.Error("Failed to parse $name response", statusCode = response.code, throwable = e)
+                    }
                 } else {
-                    PluginLogger.Service.warn("Failed to fetch providers: ${response.code} - $responseBody")
-                    null
+                    PluginLogger.Service.warn("Failed to fetch $name: ${response.code} - $responseBody")
+                    ApiResult.Error(
+                        message = responseBody.ifBlank { "Failed to fetch $name" },
+                        statusCode = response.code
+                    )
                 }
             } catch (e: IOException) {
-                handleNetworkError(e, "Error fetching providers")
-                null
-            } catch (e: JsonSyntaxException) {
-                PluginLogger.Service.error("Error fetching providers - invalid JSON response", e)
-                null
+                handleNetworkError(e, errorContext)
+                ApiResult.Error(message = e.message ?: "Network error", throwable = e)
             }
         }
-    }
 
     /**
      * Check if the service is properly configured

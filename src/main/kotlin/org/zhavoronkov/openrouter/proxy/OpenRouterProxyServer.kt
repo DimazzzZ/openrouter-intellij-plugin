@@ -66,7 +66,7 @@ class OpenRouterProxyServer {
                     return@supplyAsync true
                 }
 
-                val preferredPort = settingsService.getProxyPort()
+                val preferredPort = settingsService.proxyManager.getProxyPort()
                 port = if (preferredPort > 0) {
                     // Use specific port if configured
                     if (isPortAvailable(preferredPort)) {
@@ -81,8 +81,8 @@ class OpenRouterProxyServer {
                 }
 
                 if (port == -1) {
-                    val rangeStart = settingsService.getProxyPortRangeStart()
-                    val rangeEnd = settingsService.getProxyPortRangeEnd()
+                    val rangeStart = settingsService.proxyManager.getProxyPortRangeStart()
+                    val rangeEnd = settingsService.proxyManager.getProxyPortRangeEnd()
                     PluginLogger.Service.error("No available ports found in range $rangeStart-$rangeEnd")
                     return@supplyAsync false
                 }
@@ -223,10 +223,10 @@ class OpenRouterProxyServer {
         context.contextPath = "/"
 
         // Add servlets
-        val rootServlet = ServletHolder(RootServlet(openRouterService))
+        val rootServlet = ServletHolder(RootServlet())
         val healthServlet = ServletHolder(HealthCheckServlet())
         val modelsServlet = ServletHolder(ModelsServlet(openRouterService))
-        val chatServlet = ServletHolder(ChatCompletionServlet(openRouterService))
+        val chatServlet = ServletHolder(ChatCompletionServlet())
         val organizationServlet = ServletHolder(OrganizationServlet())
         val enginesServlet = ServletHolder(EnginesServlet())
 
@@ -251,8 +251,8 @@ class OpenRouterProxyServer {
      * Finds an available port in the configured range
      */
     private fun findAvailablePortInRange(): Int {
-        val rangeStart = settingsService.getProxyPortRangeStart()
-        val rangeEnd = settingsService.getProxyPortRangeEnd()
+        val rangeStart = settingsService.proxyManager.getProxyPortRangeStart()
+        val rangeEnd = settingsService.proxyManager.getProxyPortRangeEnd()
 
         for (port in rangeStart..rangeEnd) {
             if (isPortAvailable(port)) {
@@ -268,10 +268,10 @@ class OpenRouterProxyServer {
     private fun isPortAvailable(port: Int): Boolean {
         return try {
             ServerSocket(port).use { true }
-        } catch (e: java.net.BindException) {
+        } catch (_: java.net.BindException) {
             PluginLogger.Service.debug("Port $port is not available (bind exception)")
             false
-        } catch (e: java.io.IOException) {
+        } catch (_: java.io.IOException) {
             PluginLogger.Service.debug("Port $port is not available (IO exception)")
             false
         }

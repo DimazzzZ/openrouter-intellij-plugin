@@ -10,9 +10,7 @@ import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
-import org.zhavoronkov.openrouter.models.ActivityData
 import org.zhavoronkov.openrouter.models.ActivityResponse
-import org.zhavoronkov.openrouter.models.ApiKeyInfo
 import org.zhavoronkov.openrouter.models.ApiKeysListResponse
 import org.zhavoronkov.openrouter.models.CreditsData
 import org.zhavoronkov.openrouter.models.CreditsResponse
@@ -127,50 +125,5 @@ class OpenRouterStatsPopupConfigurationTest {
         val emptyActivityResponse = ActivityResponse(emptyList())
         assertNotNull(emptyActivityResponse)
         assertTrue(emptyActivityResponse.data.isEmpty())
-    }
-
-    // ========================================
-    // Helper Methods Tests
-    // ========================================
-
-    private fun createMockApiKeysResponse(): ApiKeysListResponse {
-        val apiKeyInfo = ApiKeyInfo(
-            name = "test-key",
-            label = "Test Key",
-            limit = 100.0,
-            usage = 10.0,
-            disabled = false,
-            createdAt = "2024-01-01T00:00:00Z",
-            updatedAt = null,
-            hash = "test-hash"
-        )
-        return ApiKeysListResponse(listOf(apiKeyInfo))
-    }
-
-    private fun createMockCreditsResponse(): CreditsResponse {
-        val creditsData = CreditsData(
-            totalCredits = 100.0,
-            totalUsage = 25.0
-        )
-        return CreditsResponse(creditsData)
-    }
-
-    private fun createMockActivityResponse(): ActivityResponse {
-        val activityData = listOf(
-            ActivityData(
-                date = "2024-12-05",
-                model = "gpt-4",
-                modelPermaslug = "gpt-4",
-                endpointId = "test-endpoint",
-                providerName = "openai",
-                usage = 1.5,
-                byokUsageInference = 0.0,
-                requests = 5,
-                promptTokens = 100,
-                completionTokens = 50,
-                reasoningTokens = 0
-            )
-        )
-        return ActivityResponse(activityData)
     }
 }

@@ -19,6 +19,13 @@ class OpenRouterChatModelProvider {
         private const val MAX_TOKENS_DEFAULT = 2000
         private const val TEMPERATURE_DEFAULT = 0.7
         private const val SUPPORTS_STREAMING = true
+
+        // Token estimation: ~4 characters per token for most models
+        private const val CHARS_PER_TOKEN = 4
+
+        // HTTP client timeouts (in seconds)
+        private const val CONNECT_TIMEOUT_SECONDS = 30L
+        private const val READ_TIMEOUT_SECONDS = 60L
     }
 
     /**
@@ -83,16 +90,19 @@ class OpenRouterChatModelProvider {
 
     /**
      * Check if streaming is supported for the given model
+     * @param modelId The model ID (currently unused, all models support streaming)
      */
-    fun supportsStreaming(_modelId: String): Boolean = SUPPORTS_STREAMING
+    fun supportsStreaming(modelId: String): Boolean {
+        // All OpenRouter models support streaming, parameter reserved for future model-specific logic
+        return SUPPORTS_STREAMING
+    }
 
     /**
      * Get the estimated token count for a message
      * This is a rough approximation since we don't have access to the exact tokenizer
      */
     fun estimateTokenCount(text: String): Int {
-        // Rough estimation: ~4 characters per token for most models
-        return (text.length / 4).coerceAtLeast(1)
+        return (text.length / CHARS_PER_TOKEN).coerceAtLeast(1)
     }
 
     private fun createChatRequestBody(
@@ -122,8 +132,8 @@ class OpenRouterChatModelProvider {
             )
 
             val client = okhttp3.OkHttpClient.Builder()
-                .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-                .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+                .connectTimeout(CONNECT_TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(READ_TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS)
                 .build()
 
             client.newCall(request).execute().use { response ->
@@ -142,38 +152,43 @@ class OpenRouterChatModelProvider {
 
     private fun parseOpenRouterResponse(responseBody: String?): ChatResponse {
         return try {
-            if (responseBody.isNullOrBlank()) {
-                return ChatResponse.error("Empty response from OpenRouter")
-            }
-
-            val responseMap = gson.fromJson(responseBody, Map::class.java) as? Map<String, Any>
-                ?: return ChatResponse.error("Invalid response format")
-
-            // Check for error in response
-            val error = responseMap["error"] as? Map<String, Any>
-            if (error != null) {
-                val errorMessage = error["message"] as? String ?: "Unknown error"
-                return ChatResponse.error(errorMessage)
-            }
-
-            // Parse successful response
-            val choices = responseMap["choices"] as? List<Map<String, Any>>
-            if (choices.isNullOrEmpty()) {
-                return ChatResponse.error("No choices in response")
-            }
-
-            val firstChoice = choices[0]
-            val message = firstChoice["message"] as? Map<String, Any>
-            val content = message?.get("content") as? String
-
-            if (content != null) {
-                ChatResponse.success(content)
-            } else {
-                ChatResponse.error("No content in response")
+            when {
+                responseBody.isNullOrBlank() -> ChatResponse.error("Empty response from OpenRouter")
+                else -> parseValidResponse(responseBody)
             }
         } catch (e: Exception) {
             PluginLogger.Service.error("Error parsing OpenRouter response", e)
             ChatResponse.error("Response parsing failed: ${e.message}")
+        }
+    }
+
+    private fun parseValidResponse(responseBody: String): ChatResponse {
+        val responseMap = gson.fromJson(responseBody, Map::class.java) as? Map<String, Any>
+            ?: return ChatResponse.error("Invalid response format")
+        return parseResponseMap(responseMap)
+    }
+
+    private fun parseResponseMap(responseMap: Map<String, Any>): ChatResponse {
+        // Check for error in response
+        val error = responseMap["error"] as? Map<String, Any>
+        if (error != null) {
+            val errorMessage = error["message"] as? String ?: "Unknown error"
+            return ChatResponse.error(errorMessage)
+        }
+
+        // Parse successful response
+        val choices = responseMap["choices"] as? List<Map<String, Any>>
+        val content = if (choices != null && choices.isNotEmpty()) {
+            val firstChoice = choices[0]
+            val message = firstChoice["message"] as? Map<String, Any>
+            message?.get("content") as? String
+        } else {
+            null
+        }
+        return if (content != null) {
+            ChatResponse.success(content)
+        } else {
+            ChatResponse.error("No choices or content in response")
         }
     }
 }

@@ -1,12 +1,20 @@
 package org.zhavoronkov.openrouter.services
 
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertDoesNotThrow
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.mockito.Mockito.*
+import org.mockito.ArgumentMatchers.anyList
+import org.mockito.ArgumentMatchers.anyString
+import org.mockito.Mockito.doAnswer
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.`when`
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
+import org.zhavoronkov.openrouter.services.settings.FavoriteModelsManager
 
 /**
  * Tests for FavoriteModelsService
@@ -19,26 +27,31 @@ class FavoriteModelsServiceTest {
 
     private lateinit var service: FavoriteModelsService
     private lateinit var mockSettingsService: OpenRouterSettingsService
+    private lateinit var mockFavoriteModelsManager: FavoriteModelsManager
     private val favoriteModelsStorage = mutableListOf<String>()
 
     @BeforeEach
     fun setup() {
-        // Create mock settings service
+        // Create mock settings service and manager
         mockSettingsService = mock(OpenRouterSettingsService::class.java)
+        mockFavoriteModelsManager = mock(FavoriteModelsManager::class.java)
 
         // Setup mock behavior to use in-memory storage
         favoriteModelsStorage.clear()
-        `when`(mockSettingsService.getFavoriteModels()).thenAnswer { favoriteModelsStorage.toList() }
+        `when`(mockFavoriteModelsManager.getFavoriteModels()).thenAnswer { favoriteModelsStorage.toList() }
         doAnswer { invocation ->
             val models = invocation.getArgument<List<String>>(0)
             favoriteModelsStorage.clear()
             favoriteModelsStorage.addAll(models)
             null
-        }.`when`(mockSettingsService).setFavoriteModels(anyList())
-        `when`(mockSettingsService.isFavoriteModel(anyString())).thenAnswer { invocation ->
+        }.`when`(mockFavoriteModelsManager).setFavoriteModels(anyList())
+        `when`(mockFavoriteModelsManager.isFavoriteModel(anyString())).thenAnswer { invocation ->
             val modelId = invocation.getArgument<String>(0)
             favoriteModelsStorage.contains(modelId)
         }
+
+        // Wire the manager to the settings service
+        `when`(mockSettingsService.favoriteModelsManager).thenReturn(mockFavoriteModelsManager)
 
         // Create service instance with mocked settings
         service = FavoriteModelsService(mockSettingsService)
@@ -167,7 +180,7 @@ class FavoriteModelsServiceTest {
 
             service.setFavoriteModels(models)
 
-            val savedIds = mockSettingsService.getFavoriteModels()
+            val savedIds = mockSettingsService.favoriteModelsManager.getFavoriteModels()
             assertEquals(2, savedIds.size, "Should have 2 saved favorites")
             assertTrue(savedIds.contains("openai/gpt-4"), "Should contain gpt-4")
             assertTrue(savedIds.contains("anthropic/claude-3"), "Should contain claude-3")
@@ -175,7 +188,7 @@ class FavoriteModelsServiceTest {
 
         @Test
         fun `should load favorites from settings`() {
-            mockSettingsService.setFavoriteModels(listOf("openai/gpt-4", "anthropic/claude-3"))
+            mockSettingsService.favoriteModelsManager.setFavoriteModels(listOf("openai/gpt-4", "anthropic/claude-3"))
 
             val favorites = service.getFavoriteModels()
 

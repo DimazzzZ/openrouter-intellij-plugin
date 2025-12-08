@@ -2,7 +2,7 @@ package org.zhavoronkov.openrouter.utils
 
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
-import java.util.*
+import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.spec.SecretKeySpec
 
@@ -87,7 +87,7 @@ object EncryptionUtil {
             Base64.getDecoder().decode(text)
             // If it's valid Base64 and doesn't look like a typical API key format, assume it's encrypted
             !text.matches(Regex("^[a-zA-Z0-9_-]+$")) || text.length > MAX_API_KEY_LENGTH
-        } catch (e: IllegalArgumentException) {
+        } catch (_: IllegalArgumentException) {
             PluginLogger.Service.debug("Invalid Base64 format in isEncrypted check")
             false
         }

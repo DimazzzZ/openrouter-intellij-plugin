@@ -1,3 +1,4 @@
+
 package org.zhavoronkov.openrouter.startup
 
 import com.intellij.openapi.project.Project
@@ -5,6 +6,7 @@ import com.intellij.openapi.startup.ProjectActivity
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import java.io.IOException
 
 /**
  * Startup activity to auto-start the proxy server when a project opens
@@ -42,7 +44,7 @@ class ProxyServerStartupActivity : ProjectActivity {
                     PluginLogger.Service.error("Error during proxy server force-start", throwable)
                     null
                 }
-            } else if (settingsService.isConfigured() && settingsService.isProxyAutoStartEnabled()) {
+            } else if (settingsService.isConfigured() && settingsService.proxyManager.isProxyAutoStartEnabled()) {
                 PluginLogger.Service.info(
                     "OpenRouter is configured and auto-start is enabled, attempting to auto-start proxy server"
                 )
@@ -70,8 +72,12 @@ class ProxyServerStartupActivity : ProjectActivity {
             }
 
             // Note: AI Assistant integration check removed - plugin works independently
-        } catch (e: Exception) {
-            PluginLogger.Service.error("Error in OpenRouter startup activity", e)
+        } catch (e: IllegalStateException) {
+            PluginLogger.Service.error("Invalid state in OpenRouter startup activity", e)
+        } catch (e: IOException) {
+            PluginLogger.Service.error("IO error in OpenRouter startup activity", e)
+        } catch (expectedError: Exception) {
+            PluginLogger.Service.error("Error in OpenRouter startup activity", expectedError)
         }
     }
 }

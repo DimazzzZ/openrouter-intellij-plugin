@@ -1,3 +1,4 @@
+
 package org.zhavoronkov.openrouter.settings
 
 import com.intellij.icons.AllIcons
@@ -6,8 +7,11 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.ToolbarDecorator
-import com.intellij.ui.components.*
-import com.intellij.ui.dsl.builder.*
+import com.intellij.ui.components.JBCheckBox
+import com.intellij.ui.components.JBPasswordField
+import com.intellij.ui.dsl.builder.Align
+import com.intellij.ui.dsl.builder.RowLayout
+import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.table.JBTable
 import org.zhavoronkov.openrouter.models.ApiKeyInfo
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
@@ -17,13 +21,29 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
-import javax.swing.*
+import javax.swing.JButton
+import javax.swing.JLabel
+import javax.swing.JPanel
+import javax.swing.JScrollPane
+import javax.swing.JSpinner
+import javax.swing.JTable
+import javax.swing.ListSelectionModel
+import javax.swing.SpinnerNumberModel
 import javax.swing.table.AbstractTableModel
 
 /**
  * Table model for API keys
  */
 class ApiKeyTableModel : AbstractTableModel() {
+    companion object {
+        // Table column indices
+        private const val COLUMN_LABEL = 0
+        private const val COLUMN_NAME = 1
+        private const val COLUMN_USAGE = 2
+        private const val COLUMN_LIMIT = 3
+        private const val COLUMN_STATUS = 4
+    }
+
     private val columnNames = arrayOf("Label", "Name", "Usage", "Limit", "Status")
     private val apiKeys = mutableListOf<ApiKeyInfo>()
 
@@ -34,11 +54,11 @@ class ApiKeyTableModel : AbstractTableModel() {
     override fun getValueAt(rowIndex: Int, columnIndex: Int): Any {
         val key = apiKeys[rowIndex]
         return when (columnIndex) {
-            0 -> key.label ?: ""
-            1 -> key.name ?: ""
-            2 -> formatUsage(key.usage)
-            3 -> formatLimit(key.limit)
-            4 -> if (!key.disabled) "Active" else "Inactive"
+            COLUMN_LABEL -> key.label ?: ""
+            COLUMN_NAME -> key.name ?: ""
+            COLUMN_USAGE -> formatUsage(key.usage)
+            COLUMN_LIMIT -> formatLimit(key.limit)
+            COLUMN_STATUS -> if (!key.disabled) "Active" else "Inactive"
             else -> ""
         }
     }
@@ -102,9 +122,6 @@ class OpenRouterSettingsPanel {
     // API Keys panel
     private val apiKeysPanel = JPanel(BorderLayout())
 
-    // State tracking
-    private var isCreatingApiKey = false
-
     // Helper classes for managing different aspects
     private val apiKeyManager: ApiKeyManager
 
@@ -126,7 +143,6 @@ class OpenRouterSettingsPanel {
         private const val MIN_REFRESH_INTERVAL = 60
         private const val MAX_REFRESH_INTERVAL = 300
         private const val REFRESH_INTERVAL_STEP = 10
-        private const val LABEL_COLUMN_WIDTH = 170
         private const val DEFAULT_MAX_TOKENS = 8000
         private const val MIN_MAX_TOKENS = 1
         private const val MAX_MAX_TOKENS = 128000
@@ -136,6 +152,16 @@ class OpenRouterSettingsPanel {
         private const val MIN_PORT = 1024
         private const val MAX_PORT = 65535
         private const val DEFAULT_PROXY_PORT = 8880
+
+        // UI dimensions
+        private const val PASSWORD_FIELD_COLUMNS = 32
+
+        // Proxy port range defaults
+        private const val DEFAULT_PROXY_PORT_RANGE_START = 8880
+        private const val DEFAULT_PROXY_PORT_RANGE_END = 8899
+
+        // Status update delay
+        private const val STATUS_UPDATE_DELAY_SECONDS = 5
     }
 
     init {
@@ -147,7 +173,7 @@ class OpenRouterSettingsPanel {
 
         // Initialize components
         provisioningKeyField = JBPasswordField().apply {
-            columns = 32
+            columns = PASSWORD_FIELD_COLUMNS
         }
 
         autoRefreshCheckBox = JBCheckBox("Auto-refresh quota information")
@@ -191,7 +217,7 @@ class OpenRouterSettingsPanel {
 
         proxyPortRangeStartSpinner = JSpinner(
             SpinnerNumberModel(
-                8880, // Default start of range
+                DEFAULT_PROXY_PORT_RANGE_START, // Default start of range
                 MIN_PORT,
                 MAX_PORT,
                 1
@@ -200,7 +226,7 @@ class OpenRouterSettingsPanel {
 
         proxyPortRangeEndSpinner = JSpinner(
             SpinnerNumberModel(
-                8899, // Default end of range
+                DEFAULT_PROXY_PORT_RANGE_END, // Default end of range
                 MIN_PORT,
                 MAX_PORT,
                 1
@@ -233,7 +259,6 @@ class OpenRouterSettingsPanel {
                 row("Provisioning Key:") {
                     cell(provisioningKeyField)
                         .resizableColumn()
-                        .columns(32)
                     button("Paste") { pasteFromClipboard() }
                 }.layout(RowLayout.PARENT_GRID)
 
@@ -306,7 +331,10 @@ class OpenRouterSettingsPanel {
                 }.layout(RowLayout.PARENT_GRID)
 
                 row {
-                    comment("When 'Use specific port' is unchecked, the proxy will auto-select from the specified range.")
+                    comment(
+                        "When 'Use specific port' is unchecked, the proxy will " +
+                            "auto-select from the specified range."
+                    )
                 }
 
                 // Proxy server controls
@@ -403,8 +431,14 @@ class OpenRouterSettingsPanel {
             val clipboard = Toolkit.getDefaultToolkit().systemClipboard
             val data = clipboard.getData(java.awt.datatransfer.DataFlavor.stringFlavor) as String
             provisioningKeyField.text = data.trim()
-        } catch (e: Exception) {
-            PluginLogger.Settings.warn("Failed to paste from clipboard: ${e.message}")
+        } catch (e: java.awt.HeadlessException) {
+            PluginLogger.Settings.warn("Clipboard not available in headless environment", e)
+        } catch (e: java.awt.datatransfer.UnsupportedFlavorException) {
+            PluginLogger.Settings.warn("Clipboard data format not supported", e)
+        } catch (e: IllegalStateException) {
+            PluginLogger.Settings.warn("Invalid state accessing clipboard", e)
+        } catch (expectedError: Exception) {
+            PluginLogger.Settings.warn("Failed to paste from clipboard: ${expectedError.message}")
         }
     }
 
@@ -517,14 +551,7 @@ class OpenRouterSettingsPanel {
         }
     }
 
-    /**
-     * Legacy method for backward compatibility
-     */
-    private fun copyProxyUrl() {
-        copyProxyUrlToClipboard()
-    }
-
-    private fun updateProxyStatus() {
+    fun updateProxyStatus() {
         val status = proxyService.getServerStatus()
         val isConfigured = settingsService.isConfigured()
 
@@ -532,11 +559,11 @@ class OpenRouterSettingsPanel {
         if (status.isRunning && status.url != null) {
             statusLabel.icon = AllIcons.General.InspectionsOK
             statusLabel.text = "Running - ${status.url}"
-            statusLabel.iconTextGap = 5
+            statusLabel.iconTextGap = STATUS_UPDATE_DELAY_SECONDS
         } else {
             statusLabel.icon = AllIcons.General.BalloonInformation
             statusLabel.text = "Stopped"
-            statusLabel.iconTextGap = 5
+            statusLabel.iconTextGap = STATUS_UPDATE_DELAY_SECONDS
         }
 
         // Update button states
@@ -649,25 +676,33 @@ class OpenRouterSettingsPanel {
      */
     private fun applyCurrentProxySettings() {
         try {
-            settingsService.setProxyAutoStart(getProxyAutoStart())
+            settingsService.proxyManager.setProxyAutoStart(getProxyAutoStart())
 
             val port = if (getUseSpecificPort()) {
                 getProxyPort()
             } else {
                 0 // 0 means auto-select from range
             }
-            settingsService.setProxyPort(port)
+            settingsService.proxyManager.setProxyPort(port)
 
-            settingsService.setProxyPortRange(
+            settingsService.proxyManager.setProxyPortRange(
                 getProxyPortRangeStart(),
                 getProxyPortRangeEnd()
             )
 
+            val rangeStr = "${getProxyPortRangeStart()}-${getProxyPortRangeEnd()}"
             PluginLogger.Settings.debug(
-                "Applied current proxy settings: autoStart=${getProxyAutoStart()}, port=$port, range=${getProxyPortRangeStart()}-${getProxyPortRangeEnd()}"
+                "Applied current proxy settings: autoStart=${getProxyAutoStart()}, port=$port, range=$rangeStr"
             )
-        } catch (e: Exception) {
-            PluginLogger.Settings.error("Failed to apply current proxy settings: ${e.message}", e)
+        } catch (e: NumberFormatException) {
+            PluginLogger.Settings.error("Invalid port number format: ${e.message}", e)
+        } catch (e: IllegalStateException) {
+            PluginLogger.Settings.error("Invalid state applying proxy settings: ${e.message}", e)
+        } catch (expectedError: Exception) {
+            PluginLogger.Settings.error(
+                "Failed to apply current proxy settings: ${expectedError.message}",
+                expectedError
+            )
         }
     }
 

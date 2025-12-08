@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
-import org.mockito.Mockito.atLeastOnce
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
@@ -14,6 +13,7 @@ import org.mockito.Mockito.`when`
 import org.zhavoronkov.openrouter.proxy.OpenRouterProxyServer
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.services.settings.UIPreferencesManager
 import java.awt.GraphicsEnvironment
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
@@ -30,19 +30,22 @@ class OpenRouterSettingsPanelTest {
 
     private lateinit var mockProxyService: OpenRouterProxyService
     private lateinit var mockSettingsService: OpenRouterSettingsService
+    private lateinit var mockUIPreferencesManager: UIPreferencesManager
 
     @BeforeEach
     fun setUp() {
         // Create mocks
         mockProxyService = mock(OpenRouterProxyService::class.java)
         mockSettingsService = mock(OpenRouterSettingsService::class.java)
+        mockUIPreferencesManager = mock(UIPreferencesManager::class.java)
 
         // Setup default mock behaviors
         `when`(mockSettingsService.isConfigured()).thenReturn(true)
         `when`(mockSettingsService.getProvisioningKey()).thenReturn("")
-        `when`(mockSettingsService.isAutoRefreshEnabled()).thenReturn(true)
-        `when`(mockSettingsService.getRefreshInterval()).thenReturn(60)
-        `when`(mockSettingsService.shouldShowCosts()).thenReturn(true)
+        `when`(mockSettingsService.uiPreferencesManager).thenReturn(mockUIPreferencesManager)
+        `when`(mockUIPreferencesManager.autoRefresh).thenReturn(true)
+        `when`(mockUIPreferencesManager.refreshInterval).thenReturn(60)
+        `when`(mockUIPreferencesManager.showCosts).thenReturn(true)
 
         val stoppedStatus = OpenRouterProxyServer.ProxyServerStatus(
             isRunning = false,
@@ -73,7 +76,7 @@ class OpenRouterSettingsPanelTest {
 
             // Then: The clipboard should contain the test key
             assertEquals(testKey, clipboardData.trim(), "Clipboard should contain the provisioning key")
-        } catch (e: java.awt.HeadlessException) {
+        } catch (_: java.awt.HeadlessException) {
             println("Skipping clipboard test due to headless environment")
         }
     }
@@ -82,64 +85,60 @@ class OpenRouterSettingsPanelTest {
     @DisplayName("User disables Auto-refresh checkbox - quota updates stop")
     fun testDisableAutoRefreshStopsUpdates() {
         // Given: Settings service with auto-refresh enabled
-        `when`(mockSettingsService.isAutoRefreshEnabled()).thenReturn(true)
+        `when`(mockUIPreferencesManager.autoRefresh).thenReturn(true)
 
         // When: User disables auto-refresh
-        `when`(mockSettingsService.isAutoRefreshEnabled()).thenReturn(false)
+        `when`(mockUIPreferencesManager.autoRefresh).thenReturn(false)
 
         // Then: Auto-refresh should be disabled
-        assertFalse(mockSettingsService.isAutoRefreshEnabled(), "Auto-refresh should be disabled")
+        assertFalse(mockUIPreferencesManager.autoRefresh, "Auto-refresh should be disabled")
 
         // Verify the setting was changed
-        verify(mockSettingsService, atLeastOnce()).isAutoRefreshEnabled()
     }
 
     @Test
     @DisplayName("User enables Auto-refresh checkbox - quota updates start")
     fun testEnableAutoRefreshStartsUpdates() {
         // Given: Settings service with auto-refresh disabled
-        `when`(mockSettingsService.isAutoRefreshEnabled()).thenReturn(false)
+        `when`(mockUIPreferencesManager.autoRefresh).thenReturn(false)
 
         // When: User enables auto-refresh
-        `when`(mockSettingsService.isAutoRefreshEnabled()).thenReturn(true)
+        `when`(mockUIPreferencesManager.autoRefresh).thenReturn(true)
 
         // Then: Auto-refresh should be enabled
-        assertTrue(mockSettingsService.isAutoRefreshEnabled(), "Auto-refresh should be enabled")
+        assertTrue(mockUIPreferencesManager.autoRefresh, "Auto-refresh should be enabled")
 
         // Verify the setting was changed
-        verify(mockSettingsService, atLeastOnce()).isAutoRefreshEnabled()
     }
 
     @Test
     @DisplayName("User disables Show costs checkbox - costs not shown in status bar")
     fun testDisableShowCostsHidesCosts() {
         // Given: Settings service with show costs enabled
-        `when`(mockSettingsService.shouldShowCosts()).thenReturn(true)
+        `when`(mockUIPreferencesManager.showCosts).thenReturn(true)
 
         // When: User disables show costs
-        `when`(mockSettingsService.shouldShowCosts()).thenReturn(false)
+        `when`(mockUIPreferencesManager.showCosts).thenReturn(false)
 
         // Then: Show costs should be disabled
-        assertFalse(mockSettingsService.shouldShowCosts(), "Show costs should be disabled")
+        assertFalse(mockUIPreferencesManager.showCosts, "Show costs should be disabled")
 
         // Verify the setting was changed
-        verify(mockSettingsService, atLeastOnce()).shouldShowCosts()
     }
 
     @Test
     @DisplayName("User enables Show costs checkbox - costs shown in status bar")
     fun testEnableShowCostsDisplaysCosts() {
         // Given: Settings service with show costs disabled
-        `when`(mockSettingsService.shouldShowCosts()).thenReturn(false)
+        `when`(mockUIPreferencesManager.showCosts).thenReturn(false)
 
         // When: User enables show costs
-        `when`(mockSettingsService.shouldShowCosts()).thenReturn(true)
+        `when`(mockUIPreferencesManager.showCosts).thenReturn(true)
 
         // Then: Show costs should be enabled
-        assertTrue(mockSettingsService.shouldShowCosts(), "Show costs should be enabled")
+        assertTrue(mockUIPreferencesManager.showCosts, "Show costs should be enabled")
 
         // Verify the setting was changed
-        verify(mockSettingsService, atLeastOnce()).shouldShowCosts()
     }
 
     @Test
@@ -175,7 +174,7 @@ class OpenRouterSettingsPanelTest {
             // Then: The URL should be in the clipboard
             val clipboardContent = clipboard.getData(java.awt.datatransfer.DataFlavor.stringFlavor) as String
             assertEquals(testUrl, clipboardContent, "Proxy URL should be copied to clipboard")
-        } catch (e: java.awt.HeadlessException) {
+        } catch (_: java.awt.HeadlessException) {
             println("Skipping clipboard test due to headless environment")
         }
     }

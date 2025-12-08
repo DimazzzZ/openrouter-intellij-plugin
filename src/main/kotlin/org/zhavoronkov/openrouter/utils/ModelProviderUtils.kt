@@ -5,6 +5,7 @@ import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 /**
  * Utility class for extracting provider information and capabilities from OpenRouter models
  */
+
 object ModelProviderUtils {
 
     private const val PROVIDER_SEPARATOR = "/"
@@ -66,38 +67,39 @@ object ModelProviderUtils {
     }
 
     /**
-     * Check if model has vision capability (can process images)
+     * Check if model has a specific capability
      */
-    fun hasVisionCapability(model: OpenRouterModelInfo): Boolean {
-        val inputModalities = model.architecture?.inputModalities ?: return false
-        return inputModalities.any { it.equals("image", ignoreCase = true) }
-    }
-
-    /**
-     * Check if model has audio capability (can process audio)
-     */
-    fun hasAudioCapability(model: OpenRouterModelInfo): Boolean {
-        val inputModalities = model.architecture?.inputModalities ?: return false
-        return inputModalities.any { it.equals("audio", ignoreCase = true) }
-    }
-
-    /**
-     * Check if model has tools/function calling capability
-     */
-    fun hasToolsCapability(model: OpenRouterModelInfo): Boolean {
-        val supportedParams = model.supportedParameters ?: return false
-        return supportedParams.any {
-            it.equals("tools", ignoreCase = true) ||
-                it.equals("functions", ignoreCase = true)
+    fun hasCapability(model: OpenRouterModelInfo, capability: Capability): Boolean =
+        when (capability) {
+            Capability.VISION -> {
+                val inputModalities = model.architecture?.inputModalities ?: emptyList()
+                inputModalities.any { it.equals("image", ignoreCase = true) }
+            }
+            Capability.AUDIO -> {
+                val inputModalities = model.architecture?.inputModalities ?: emptyList()
+                inputModalities.any { it.equals("audio", ignoreCase = true) }
+            }
+            Capability.TOOLS -> {
+                val supportedParams = model.supportedParameters ?: emptyList()
+                supportedParams.any {
+                    it.equals("tools", ignoreCase = true) ||
+                        it.equals("functions", ignoreCase = true)
+                }
+            }
+            Capability.IMAGE_GENERATION -> {
+                val outputModalities = model.architecture?.outputModalities ?: emptyList()
+                outputModalities.any { it.equals("image", ignoreCase = true) }
+            }
         }
-    }
 
     /**
-     * Check if model has image generation capability
+     * Capability types for models
      */
-    fun hasImageGenerationCapability(model: OpenRouterModelInfo): Boolean {
-        val outputModalities = model.architecture?.outputModalities ?: return false
-        return outputModalities.any { it.equals("image", ignoreCase = true) }
+    enum class Capability {
+        VISION,
+        AUDIO,
+        TOOLS,
+        IMAGE_GENERATION
     }
 
     /**
@@ -106,10 +108,10 @@ object ModelProviderUtils {
     fun getCapabilities(model: OpenRouterModelInfo): List<String> {
         val capabilities = mutableListOf<String>()
 
-        if (hasVisionCapability(model)) capabilities.add("Vision")
-        if (hasAudioCapability(model)) capabilities.add("Audio")
-        if (hasToolsCapability(model)) capabilities.add("Tools")
-        if (hasImageGenerationCapability(model)) capabilities.add("Image Gen")
+        if (hasCapability(model, Capability.VISION)) capabilities.add("Vision")
+        if (hasCapability(model, Capability.AUDIO)) capabilities.add("Audio")
+        if (hasCapability(model, Capability.TOOLS)) capabilities.add("Tools")
+        if (hasCapability(model, Capability.IMAGE_GENERATION)) capabilities.add("Image Gen")
 
         return capabilities
     }
@@ -119,11 +121,7 @@ object ModelProviderUtils {
      */
     fun getCapabilitiesString(model: OpenRouterModelInfo): String {
         val capabilities = getCapabilities(model)
-        return if (capabilities.isNotEmpty()) {
-            capabilities.joinToString(", ")
-        } else {
-            "—"
-        }
+        return capabilities.joinToString(", ").ifEmpty { "—" }
     }
 
     /**
@@ -202,22 +200,11 @@ object ModelProviderUtils {
         requireImageGen: Boolean = false
     ): List<OpenRouterModelInfo> {
         return models.filter { model ->
-            (!requireVision || hasVisionCapability(model)) &&
-                (!requireAudio || hasAudioCapability(model)) &&
-                (!requireTools || hasToolsCapability(model)) &&
-                (!requireImageGen || hasImageGenerationCapability(model))
+            (!requireVision || hasCapability(model, Capability.VISION)) &&
+                (!requireAudio || hasCapability(model, Capability.AUDIO)) &&
+                (!requireTools || hasCapability(model, Capability.TOOLS)) &&
+                (!requireImageGen || hasCapability(model, Capability.IMAGE_GENERATION))
         }
-    }
-
-    /**
-     * Filter models by context length range
-     */
-    fun filterByContextRange(
-        models: List<OpenRouterModelInfo>,
-        range: ContextRange
-    ): List<OpenRouterModelInfo> {
-        if (range == ContextRange.ANY) return models
-        return models.filter { matchesContextRange(it, range) }
     }
 
     /**
@@ -230,19 +217,22 @@ object ModelProviderUtils {
         var filtered = models
 
         // Apply provider filter
-        filtered = filterByProvider(filtered, criteria.provider)
+        if (criteria.provider != "All Providers") {
+            filtered = filtered.filter { extractProvider(it.id) == criteria.provider }
+        }
 
         // Apply context range filter
-        filtered = filterByContextRange(filtered, criteria.contextRange)
+        if (criteria.contextRange != ContextRange.ANY) {
+            filtered = filtered.filter { matchesContextRange(it, criteria.contextRange) }
+        }
 
         // Apply capability filters
-        filtered = filterByCapabilities(
-            filtered,
-            criteria.requireVision,
-            criteria.requireAudio,
-            criteria.requireTools,
-            criteria.requireImageGen
-        )
+        filtered = filtered.filter { model ->
+            (!criteria.requireVision || hasCapability(model, Capability.VISION)) &&
+                (!criteria.requireAudio || hasCapability(model, Capability.AUDIO)) &&
+                (!criteria.requireTools || hasCapability(model, Capability.TOOLS)) &&
+                (!criteria.requireImageGen || hasCapability(model, Capability.IMAGE_GENERATION))
+        }
 
         // Apply text search filter
         if (criteria.searchText.isNotBlank()) {
@@ -254,32 +244,5 @@ object ModelProviderUtils {
         }
 
         return filtered
-    }
-
-    /**
-     * Apply all filters to a list of models (legacy method with individual parameters)
-     * @deprecated Use applyFilters(models, FilterCriteria) instead
-     */
-    @Deprecated("Use applyFilters(models, FilterCriteria) instead")
-    fun applyFilters(
-        models: List<OpenRouterModelInfo>,
-        provider: String = "All Providers",
-        contextRange: ContextRange = ContextRange.ANY,
-        requireVision: Boolean = false,
-        requireAudio: Boolean = false,
-        requireTools: Boolean = false,
-        requireImageGen: Boolean = false,
-        searchText: String = ""
-    ): List<OpenRouterModelInfo> {
-        val criteria = FilterCriteria(
-            provider = provider,
-            contextRange = contextRange,
-            requireVision = requireVision,
-            requireAudio = requireAudio,
-            requireTools = requireTools,
-            requireImageGen = requireImageGen,
-            searchText = searchText
-        )
-        return applyFilters(models, criteria)
     }
 }

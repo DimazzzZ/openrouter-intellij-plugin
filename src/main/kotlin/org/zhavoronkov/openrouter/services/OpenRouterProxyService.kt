@@ -215,14 +215,14 @@ class OpenRouterProxyService {
         return if (status.isRunning) {
             """
             To configure JetBrains AI Assistant to use OpenRouter:
-            
+
             1. Go to Settings > Tools > AI Assistant > Models
             2. In the "Third-party AI providers" section, select "Other OpenAI-compatible service"
             3. Set the URL to: ${status.url}
             4. Leave the API key field empty (authentication is handled by OpenRouter plugin)
             5. Click "Test Connection" to verify
             6. Click "Apply" to save changes
-            
+
             The proxy server is running on port ${status.port}
             """.trimIndent()
         } else {
