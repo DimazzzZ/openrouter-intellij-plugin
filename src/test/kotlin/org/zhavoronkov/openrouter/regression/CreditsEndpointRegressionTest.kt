@@ -1,19 +1,25 @@
 package org.zhavoronkov.openrouter.regression
 
 import kotlinx.coroutines.runBlocking
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock
 import org.mockito.kotlin.whenever
-import org.zhavoronkov.openrouter.models.*
+import org.zhavoronkov.openrouter.models.ApiKeyInfo
+import org.zhavoronkov.openrouter.models.ApiKeysListResponse
+import org.zhavoronkov.openrouter.models.ApiResult
+import org.zhavoronkov.openrouter.models.CreditsData
+import org.zhavoronkov.openrouter.models.CreditsResponse
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.ui.StatsDataLoader
 
 /**
  * Regression tests for Issue #4: Quota Usage Data Using Correct Endpoint
- * 
+ *
  * These tests ensure that the Credits endpoint (/api/v1/credits) is used for
  * accurate usage data, not the API Keys List endpoint which only provides
  * per-key usage information.
@@ -48,7 +54,7 @@ class CreditsEndpointRegressionTest {
     @DisplayName("API Keys List endpoint should NOT be used for total usage statistics")
     fun testApiKeysListNotForTotalUsage() {
         // This test documents that ApiKeyInfo.usage is per-key usage, not total account usage
-        
+
         // Given: API key with usage field
         val apiKeyInfo = ApiKeyInfo(
             name = "test-key",
@@ -63,7 +69,7 @@ class CreditsEndpointRegressionTest {
 
         // Then: The usage field exists but represents different data
         assertEquals(25.5, apiKeyInfo.usage, "Usage field exists on ApiKeyInfo")
-        
+
         // Important: This is per-key usage, NOT total account usage
         // For total account usage, MUST use Credits endpoint
         assertNotNull(apiKeyInfo.usage, "Usage field exists but is for key-specific tracking only")
@@ -136,7 +142,7 @@ class CreditsEndpointRegressionTest {
         // Given: Credits data
         val totalCredits = 100.0
         val totalUsage = 35.5
-        
+
         // When: Calculate remaining
         val remaining = totalCredits - totalUsage
 
@@ -150,7 +156,7 @@ class CreditsEndpointRegressionTest {
         // Given: Credits data
         val totalCredits = 100.0
         val totalUsage = 35.5
-        
+
         // When: Calculate percentage
         val percentage = (totalUsage / totalCredits) * 100
 
@@ -170,7 +176,7 @@ class CreditsEndpointRegressionTest {
         // Then: Should not throw exception
         assertEquals(0.0, creditsData.totalCredits)
         assertEquals(0.0, creditsData.totalUsage)
-        
+
         // Percentage calculation should handle zero
         val percentage = if (creditsData.totalCredits > 0) {
             (creditsData.totalUsage / creditsData.totalCredits) * 100
@@ -180,4 +186,3 @@ class CreditsEndpointRegressionTest {
         assertEquals(0.0, percentage)
     }
 }
-

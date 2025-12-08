@@ -332,38 +332,17 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
     private fun formatStatusTooltipFromCredits(used: Double, total: Double): String {
         val status = connectionStatus.displayName
         return if (total > 0) {
-            "OpenRouter Status: $status - Usage: $${String.format(Locale.US, "%.3f", used)}/$${String.format(Locale.US, "%.0f", total)}"
+            "OpenRouter Status: $status - Usage: $${String.format(
+                Locale.US,
+                "%.3f",
+                used
+            )}/$${String.format(Locale.US, "%.0f", total)}"
         } else {
             "OpenRouter Status: $status - Usage: $${String.format(Locale.US, "%.3f", used)}/no credits"
         }
     }
 
-    @Deprecated("Use formatStatusTextFromCredits instead", ReplaceWith("formatStatusTextFromCredits"))
-    private fun formatStatusText(quota: org.zhavoronkov.openrouter.models.QuotaInfo): String {
-        return if ((quota.total ?: 0.0) > 0) {
-            if (settingsService.uiPreferencesManager.showCosts) {
-                val usedFormatted = String.format(Locale.US, "%.3f", quota.used ?: 0.0)
-                "Status: Ready - $$usedFormatted/${quota.total} avail"
-            } else {
-                val percentage = ((quota.used ?: 0.0) / (quota.total ?: 1.0)) * PERCENTAGE_MULTIPLIER
-                "Status: Ready - ${String.format(Locale.US, "%.1f", percentage)}% used"
-            }
-        } else {
-            "Status: Ready - $${String.format(Locale.US, "%.3f", quota.used ?: 0.0)} (no credits)"
-        }
-    }
 
-    @Deprecated("Use formatStatusTooltipFromCredits instead", ReplaceWith("formatStatusTooltipFromCredits"))
-    private fun formatStatusTooltip(quota: org.zhavoronkov.openrouter.models.QuotaInfo): String {
-        val status = connectionStatus.displayName
-        val usedStr = String.format(Locale.US, "%.3f", quota.used ?: 0.0)
-        return if ((quota.total ?: 0.0) > 0) {
-            val totalStr = String.format(Locale.US, "%.0f", quota.total ?: 0.0)
-            "OpenRouter Status: $status - Usage: $$usedStr of $$totalStr"
-        } else {
-            "OpenRouter Status: $status - Usage: $$usedStr (no credits)"
-        }
-    }
 }
 
 /**

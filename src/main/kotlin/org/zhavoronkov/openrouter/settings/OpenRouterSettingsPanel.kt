@@ -551,7 +551,7 @@ class OpenRouterSettingsPanel {
         }
     }
 
-    private fun updateProxyStatus() {
+    fun updateProxyStatus() {
         val status = proxyService.getServerStatus()
         val isConfigured = settingsService.isConfigured()
 

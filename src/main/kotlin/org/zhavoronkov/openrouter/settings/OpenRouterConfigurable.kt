@@ -171,6 +171,9 @@ class OpenRouterConfigurable : Configurable {
             // create the IntelliJ IDEA Plugin API key if it doesn't exist
         }
 
+        // Update proxy status to reflect current configuration and server state
+        panel.updateProxyStatus()
+
         // Test connection if provisioning key changed
         if (oldProvisioningKey != newProvisioningKey && newProvisioningKey.isNotBlank()) {
             testConnection()

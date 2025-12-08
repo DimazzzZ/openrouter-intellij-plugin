@@ -1,14 +1,21 @@
 package org.zhavoronkov.openrouter.regression
 
 import com.google.gson.Gson
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
-import org.zhavoronkov.openrouter.proxy.models.*
+import org.zhavoronkov.openrouter.proxy.models.OpenAIChatChoice
+import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
+import org.zhavoronkov.openrouter.proxy.models.OpenAIChatMessage
+import org.zhavoronkov.openrouter.proxy.models.OpenAIModel
+import org.zhavoronkov.openrouter.proxy.models.OpenAIPermission
+import org.zhavoronkov.openrouter.proxy.models.OpenAIUsage
 
 /**
  * Regression tests for Issue #1: OpenAI Model Parameter Naming with @SerializedName
- * 
+ *
  * These tests ensure that the @SerializedName annotations correctly map camelCase
  * properties to snake_case JSON fields, preventing detekt warnings while maintaining
  * API compatibility.
@@ -39,7 +46,7 @@ class SerializationRegressionTest {
         assertTrue(json.contains("\"top_p\":0.9"), "Should serialize topP to top_p")
         assertTrue(json.contains("\"frequency_penalty\":0.5"), "Should serialize frequencyPenalty to frequency_penalty")
         assertTrue(json.contains("\"presence_penalty\":0.3"), "Should serialize presencePenalty to presence_penalty")
-        
+
         // Should NOT contain camelCase in JSON
         assertFalse(json.contains("maxTokens"), "JSON should not contain camelCase maxTokens")
         assertFalse(json.contains("topP"), "JSON should not contain camelCase topP")
@@ -179,4 +186,3 @@ class SerializationRegressionTest {
         assertEquals(original.presencePenalty, deserialized.presencePenalty)
     }
 }
-

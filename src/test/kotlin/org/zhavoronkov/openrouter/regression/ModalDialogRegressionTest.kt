@@ -2,7 +2,9 @@ package org.zhavoronkov.openrouter.regression
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import java.io.File
@@ -11,7 +13,7 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Regression tests for Issue #6: Quota Usage Window Stuck on "Loading..."
- * 
+ *
  * These tests ensure that:
  * 1. StatsDataLoader uses Dispatchers.IO (not Dispatchers.Main)
  * 2. All invokeLater calls use ModalityState.any() for modal dialog compatibility
@@ -51,7 +53,7 @@ class ModalDialogRegressionTest {
         // Given: StatsDataLoader source code
         val sourceFile = File("src/main/kotlin/org/zhavoronkov/openrouter/ui/StatsDataLoader.kt")
         assertTrue(sourceFile.exists(), "StatsDataLoader.kt should exist")
-        
+
         val sourceCode = sourceFile.readText()
 
         // Then: Should use Dispatchers.IO
@@ -59,7 +61,7 @@ class ModalDialogRegressionTest {
             sourceCode.contains("CoroutineScope(Dispatchers.IO"),
             "StatsDataLoader should use Dispatchers.IO for coroutine scope"
         )
-        
+
         // Should NOT use Dispatchers.Main
         assertFalse(
             sourceCode.contains("CoroutineScope(Dispatchers.Main"),
@@ -210,9 +212,8 @@ class ModalDialogRegressionTest {
             // async calls should not specify Dispatchers.IO again (inherited from scope)
             val asyncPattern = Regex("async\\s*\\{")
             val asyncMatches = asyncPattern.findAll(sourceCode).count()
-            
+
             assertTrue(asyncMatches > 0, "Should have async calls")
         }
     }
 }
-

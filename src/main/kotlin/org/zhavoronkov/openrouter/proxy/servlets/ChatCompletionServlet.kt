@@ -6,9 +6,6 @@ import jakarta.servlet.http.HttpServlet
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import okhttp3.OkHttpClient
-import java.io.IOException
-import java.util.concurrent.ExecutionException
-import java.util.concurrent.TimeoutException
 import okhttp3.Request
 import okhttp3.Response
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
@@ -16,8 +13,11 @@ import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.ModelAvailabilityNotifier
 import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import java.io.IOException
 import java.io.PrintWriter
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
