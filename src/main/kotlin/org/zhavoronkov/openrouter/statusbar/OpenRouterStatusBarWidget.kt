@@ -141,7 +141,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         val statusText = STATUS_MENU_TEXT + connectionStatus.displayName
         items.add(PopupMenuItem(statusText, connectionStatus.icon, null))
 
-        val isExtended = settingsService.apiKeyManager.getAuthScope() == org.zhavoronkov.openrouter.models.AuthScope.EXTENDED
+        val isExtended = settingsService.apiKeyManager.authScope == org.zhavoronkov.openrouter.models.AuthScope.EXTENDED
         val quotaAction = if (settingsService.isConfigured() && isExtended) { { showQuotaUsage() } } else { null }
         val quotaItem = PopupMenuItem(QUOTA_MENU_TEXT, AllIcons.General.Information, quotaAction)
         if (!isExtended) {
@@ -214,7 +214,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
             return
         }
 
-        if (settingsService.apiKeyManager.getAuthScope() == org.zhavoronkov.openrouter.models.AuthScope.REGULAR) {
+        if (settingsService.apiKeyManager.authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR) {
             connectionStatus = ConnectionStatus.READY
             currentText = "Status: Ready"
             currentTooltip = "OpenRouter Status: Ready - Monitoring Disabled"
@@ -282,7 +282,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         }
 
         currentText = "Status: ${connectionStatus.displayName}"
-        val isRegular = settingsService.apiKeyManager.getAuthScope() == org.zhavoronkov.openrouter.models.AuthScope.REGULAR
+        val isRegular = settingsService.apiKeyManager.authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR
         currentTooltip = if (isRegular) {
             "OpenRouter Status: ${connectionStatus.displayName} - Monitoring Disabled"
         } else {

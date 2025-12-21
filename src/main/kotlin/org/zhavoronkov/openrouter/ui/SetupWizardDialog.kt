@@ -24,6 +24,7 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import org.zhavoronkov.openrouter.models.ApiResult
+import org.zhavoronkov.openrouter.models.AuthScope
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.proxy.OpenRouterProxyServer
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
@@ -36,6 +37,7 @@ import java.awt.CardLayout
 import java.awt.Dimension
 import java.awt.Font
 import java.io.IOException
+import javax.swing.ButtonGroup
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.SwingUtilities
@@ -64,7 +66,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     // Step 1: Authentication Setup
     private val provisioningKeyField = JBPasswordField()
     private val apiKeyField = JBPasswordField()
-    private var authScope = org.zhavoronkov.openrouter.models.AuthScope.EXTENDED
+    private var authScope = AuthScope.EXTENDED
     private val validationStatusLabel = JBLabel()
     private val validationIcon = JBLabel()
     private var isKeyValid = false
@@ -169,21 +171,26 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                 label("<html><h3>Step 1: Authentication Setup</h3></html>")
             }.bottomGap(BottomGap.MEDIUM)
 
+            // Authentication group
             buttonsGroup("Authentication Scope") {
                 row {
-                    radioButton("Regular API Key (No monitoring)", org.zhavoronkov.openrouter.models.AuthScope.REGULAR)
+                    radioButton("Regular API Key (No monitoring)", AuthScope.REGULAR)
                         .comment("Minimal permissions. Quota tracking and usage monitoring will be disabled.")
                 }
                 row {
-                    radioButton("Extended (Provisioning Key)", org.zhavoronkov.openrouter.models.AuthScope.EXTENDED)
+                    radioButton("Extended (Provisioning Key)", AuthScope.EXTENDED)
                         .comment("Full functionality. Allows the plugin to manage API keys and monitor usage.")
                 }
             }.bind(
-                { authScope },
-                { 
-                    authScope = it
-                    handleKeyChange()
-                }
+                object : com.intellij.ui.dsl.builder.MutableProperty<AuthScope> {
+                    override fun get(): AuthScope = authScope
+                    override fun set(value: AuthScope) {
+                        authScope = value
+                        handleKeyChange()
+                        notifyScopeChanged()
+                    }
+                },
+                AuthScope::class.java
             )
 
             separator()
@@ -208,7 +215,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                         .align(AlignX.FILL)
                         .comment("Paste your API key here")
                 }.bottomGap(BottomGap.SMALL)
-            }.visibleIf(radioButtonSelected(org.zhavoronkov.openrouter.models.AuthScope.REGULAR))
+            }.visibleIf(radioButtonSelected(AuthScope.REGULAR))
 
             // Provisioning Key section
             group("Extended (Provisioning Key)") {
@@ -230,7 +237,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                         .align(AlignX.FILL)
                         .comment("Paste your provisioning key here")
                 }.bottomGap(BottomGap.SMALL)
-            }.visibleIf(radioButtonSelected(org.zhavoronkov.openrouter.models.AuthScope.EXTENDED))
+            }.visibleIf(radioButtonSelected(AuthScope.EXTENDED))
 
             row {
                 cell(validationIcon)
@@ -239,13 +246,32 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         }
     }
 
-    private fun radioButtonSelected(scope: org.zhavoronkov.openrouter.models.AuthScope): com.intellij.ui.layout.ComponentPredicate {
-        return object : com.intellij.ui.layout.ComponentPredicate() {
-            override fun invoke(): Boolean = authScope == scope
-            override fun addListener(listener: (Boolean) -> Unit) {
-                // Listeners are typically handled by the UI DSL framework when using bind
-            }
+    private val scopePredicates = mutableListOf<ScopePredicate>()
+
+    private inner class ScopePredicate(val scope: AuthScope) : com.intellij.ui.layout.ComponentPredicate() {
+        private val listeners = mutableListOf<(Boolean) -> Unit>()
+
+        override fun invoke(): Boolean = authScope == scope
+
+        override fun addListener(listener: (Boolean) -> Unit) {
+            listeners.add(listener)
+            listener(invoke()) // Initial update
         }
+
+        fun update() {
+            val newValue = invoke()
+            listeners.forEach { it(newValue) }
+        }
+    }
+
+    private fun radioButtonSelected(scope: AuthScope): com.intellij.ui.layout.ComponentPredicate {
+        val predicate = ScopePredicate(scope)
+        scopePredicates.add(predicate)
+        return predicate
+    }
+
+    private fun notifyScopeChanged() {
+        scopePredicates.forEach { it.update() }
     }
 
     private fun createModelsPanel(): JPanel {
@@ -356,7 +382,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                 // Provisioning Key -> Models
                 // Key is already validated and saved
                 // Save settings before moving to models
-                settingsService.apiKeyManager.setAuthScope(authScope)
+                settingsService.apiKeyManager.authScope = authScope
                 if (authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR) {
                     val key = String(apiKeyField.password)
                     settingsService.apiKeyManager.setApiKey(key)
@@ -442,7 +468,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     // ========== Provisioning Key Validation ==========
 
     private fun handleKeyChange() {
-        val key = if (authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR) {
+        val key = if (authScope == AuthScope.REGULAR) {
             String(apiKeyField.password)
         } else {
             String(provisioningKeyField.password)
@@ -471,7 +497,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         coroutineScope.launch {
             try {
                 val result = withTimeout(KEY_VALIDATION_TIMEOUT_MS) {
-                    if (authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR) {
+                    if (authScope == AuthScope.REGULAR) {
                         openRouterService.testApiKey(key)
                     } else {
                         openRouterService.getApiKeysList(key)
@@ -486,7 +512,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                         }
                         is ApiResult.Error -> {
                             isKeyValid = false
-                            val type = if (authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR) "API key" else "provisioning key"
+                            val type = if (authScope == AuthScope.REGULAR) "API key" else "provisioning key"
                             val errorMsg = "Invalid $type: ${result.message}"
                             updateValidationStatus(ValidationStatus.ERROR(errorMsg))
                         }

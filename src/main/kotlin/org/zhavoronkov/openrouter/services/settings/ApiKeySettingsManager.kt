@@ -13,12 +13,12 @@ class ApiKeySettingsManager(
     private val onStateChanged: () -> Unit
 ) {
 
-    fun getAuthScope(): AuthScope = settings.authScope
-
-    fun setAuthScope(scope: AuthScope) {
-        settings.authScope = scope
-        onStateChanged()
-    }
+    var authScope: AuthScope
+        get() = settings.authScope
+        set(value) {
+            settings.authScope = value
+            onStateChanged()
+        }
 
     fun getApiKey(): String {
         val encrypted = settings.apiKey

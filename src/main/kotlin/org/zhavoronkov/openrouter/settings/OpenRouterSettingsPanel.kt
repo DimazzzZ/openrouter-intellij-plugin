@@ -14,6 +14,7 @@ import com.intellij.ui.dsl.builder.RowLayout
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.table.JBTable
 import org.zhavoronkov.openrouter.models.ApiKeyInfo
+import org.zhavoronkov.openrouter.models.AuthScope
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
@@ -21,6 +22,8 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
+import com.intellij.openapi.project.ProjectManager
+import javax.swing.ButtonGroup
 import javax.swing.JButton
 import javax.swing.JLabel
 import javax.swing.JPanel
@@ -106,7 +109,7 @@ class ApiKeyTableModel : AbstractTableModel() {
  */
 class OpenRouterSettingsPanel {
 
-    private val panel: JPanel
+    private lateinit var panel: JPanel
     private val provisioningKeyField: JBPasswordField
     private val apiKeyField: JBPasswordField
     private val autoRefreshCheckBox: JBCheckBox
@@ -138,6 +141,14 @@ class OpenRouterSettingsPanel {
     private lateinit var proxyPortSpinner: JSpinner
     private lateinit var proxyPortRangeStartSpinner: JSpinner
     private lateinit var proxyPortRangeEndSpinner: JSpinner
+    
+    // UI state tracking
+    private var currentUiAuthScope: AuthScope = AuthScope.EXTENDED
+    private lateinit var regularRadioButton: javax.swing.JRadioButton
+    private lateinit var extendedRadioButton: javax.swing.JRadioButton
+    
+    // Scope predicates for visibility management
+    private val scopePredicates = mutableListOf<ScopePredicate>()
 
     companion object {
         private const val DEFAULT_REFRESH_INTERVAL = 300
@@ -258,134 +269,160 @@ class OpenRouterSettingsPanel {
         statusLabel = JLabel("Status: Stopped")
 
         // Create the main panel using UI DSL v2
-        panel = panel {
-            // Authentication group
-            buttonsGroup("Authentication Scope") {
+        try {
+            panel = panel {
+                // Run Setup Wizard button
                 row {
-                    radioButton("Regular API Key (No monitoring)", AuthScope.REGULAR)
-                        .comment("Minimal permissions. Quota tracking and usage monitoring will be disabled.")
-                }
-                row {
-                    radioButton("Extended (Provisioning Key)", AuthScope.EXTENDED)
-                        .comment("Full functionality. Allows the plugin to manage API keys and monitor usage.")
-                }
-            }.bind(
-                { settingsService.apiKeyManager.getAuthScope() },
-                { settingsService.apiKeyManager.setAuthScope(it) }
-            )
-
-            // Regular API Key group
-            group("Regular API Key") {
-                row("API Key:") {
-                    cell(apiKeyField)
-                        .resizableColumn()
-                    button("Paste") { pasteToField(apiKeyField) }
-                }.layout(RowLayout.PARENT_GRID)
-
-                row {
-                    comment("Get your key from OpenRouter API Keys.")
-                }
-
-                row {
-                    link("Get your key from OpenRouter API Keys") {
-                        BrowserUtil.browse("https://openrouter.ai/settings/keys")
+                    button("Run Setup Wizard") {
+                        val project = ProjectManager.getInstance().openProjects.firstOrNull()
+                            ?: ProjectManager.getInstance().defaultProject
+                        org.zhavoronkov.openrouter.ui.SetupWizardDialog(project).show()
                     }
-                }
-            }.visibleIf(radioButtonSelected(AuthScope.REGULAR))
-
-            // Provisioning group
-            group("Provisioning") {
-                row("Provisioning Key:") {
-                    cell(provisioningKeyField)
-                        .resizableColumn()
-                    button("Paste") { pasteToField(provisioningKeyField) }
-                }.layout(RowLayout.PARENT_GRID)
-
-                row {
-                    comment("Required for quota monitoring and API keys management.")
+                    comment("Re-run the initial setup wizard to configure the plugin.")
                 }
 
-                row {
-                    link("Get your key from OpenRouter Provisioning Keys") {
-                        BrowserUtil.browse("https://openrouter.ai/settings/provisioning-keys")
+                separator()
+
+                // Authentication group
+                buttonsGroup("Authentication Scope") {
+                    row {
+                        radioButton("Regular API Key (No monitoring)", AuthScope.REGULAR)
+                            .comment("Minimal permissions. Quota tracking and usage monitoring will be disabled.")
                     }
+                    row {
+                        radioButton("Extended (Provisioning Key)", AuthScope.EXTENDED)
+                            .comment("Full functionality. Allows the plugin to manage API keys and monitor usage.")
+                    }
+                }.bind(
+                    object : com.intellij.ui.dsl.builder.MutableProperty<AuthScope> {
+                        override fun get(): AuthScope = settingsService.apiKeyManager.authScope
+                        override fun set(value: AuthScope) {
+                            settingsService.apiKeyManager.authScope = value
+                        }
+                    },
+                    AuthScope::class.java
+                )
+
+                // Regular API Key group
+                group("Regular API Key") {
+                    row("API Key:") {
+                        cell(apiKeyField)
+                            .resizableColumn()
+                        button("Paste") { pasteToField(apiKeyField) }
+                    }.layout(RowLayout.PARENT_GRID)
+
+                    row {
+                        comment("Get your key from OpenRouter API Keys.")
+                    }
+
+                    row {
+                        link("Get your key from OpenRouter API Keys") {
+                            BrowserUtil.browse("https://openrouter.ai/settings/keys")
+                        }
+                    }
+                }.visibleIf(radioButtonSelected(AuthScope.REGULAR))
+
+                // Provisioning group
+                group("Provisioning") {
+                    row("Provisioning Key:") {
+                        cell(provisioningKeyField)
+                            .resizableColumn()
+                        button("Paste") { pasteToField(provisioningKeyField) }
+                    }.layout(RowLayout.PARENT_GRID)
+
+                    row {
+                        comment("Required for quota monitoring and API keys management.")
+                    }
+
+                    row {
+                        link("Get your key from OpenRouter Provisioning Keys") {
+                            BrowserUtil.browse("https://openrouter.ai/settings/provisioning-keys")
+                        }
+                    }
+                }.visibleIf(radioButtonSelected(AuthScope.EXTENDED))
+
+                // General Settings group
+                group("General Settings") {
+                    row("Refresh interval (seconds):") {
+                        cell(refreshIntervalSpinner)
+                    }.layout(RowLayout.PARENT_GRID)
+
+                    row {
+                        cell(enableDefaultMaxTokensCheckBox)
+                    }.layout(RowLayout.PARENT_GRID)
+
+                    row("Maximum tokens:") {
+                        cell(defaultMaxTokensSpinner)
+                    }.layout(RowLayout.PARENT_GRID)
+
+                    row {
+                        cell(autoRefreshCheckBox)
+                        cell(showCostsCheckBox)
+                    }.layout(RowLayout.PARENT_GRID)
                 }
-            }.visibleIf(radioButtonSelected(AuthScope.EXTENDED))
 
-            // General Settings group
-            group("General Settings") {
-                row("Refresh interval (seconds):") {
-                    cell(refreshIntervalSpinner)
-                }.layout(RowLayout.PARENT_GRID)
+                // API Keys group
+                group("API Keys") {
+                    row {
+                        comment("Keys load automatically when Provisioning Key is configured.")
+                    }
 
-                row {
-                    cell(enableDefaultMaxTokensCheckBox)
-                }.layout(RowLayout.PARENT_GRID)
+                    row {
+                        cell(apiKeysPanel)
+                            .align(Align.FILL)
+                            .resizableColumn()
+                    }.resizableRow()
+                }.visibleIf(radioButtonSelected(AuthScope.EXTENDED))
 
-                row("Maximum tokens:") {
-                    cell(defaultMaxTokensSpinner)
-                }.layout(RowLayout.PARENT_GRID)
+                // Proxy Server group
+                group("Proxy Server") {
+                    // Auto-start configuration
+                    row {
+                        cell(proxyAutoStartCheckBox)
+                    }.layout(RowLayout.PARENT_GRID)
 
-                row {
-                    cell(autoRefreshCheckBox)
-                    cell(showCostsCheckBox)
-                }.layout(RowLayout.PARENT_GRID)
+                    // Port configuration
+                    row {
+                        cell(useSpecificPortCheckBox)
+                    }.layout(RowLayout.PARENT_GRID)
+
+                    row("Specific port:") {
+                        cell(proxyPortSpinner)
+                    }.layout(RowLayout.PARENT_GRID)
+
+                    row("Port range start:") {
+                        cell(proxyPortRangeStartSpinner)
+                    }.layout(RowLayout.PARENT_GRID)
+
+                    row("Port range end:") {
+                        cell(proxyPortRangeEndSpinner)
+                    }.layout(RowLayout.PARENT_GRID)
+
+                    row {
+                        comment(
+                            "When 'Use specific port' is unchecked, the proxy will " +
+                                "auto-select from the specified range."
+                        )
+                    }
+
+                    // Proxy server controls
+                    row("Status:") {
+                        cell(statusLabel)
+                    }.layout(RowLayout.PARENT_GRID)
+
+                    row {
+                        startServerButton = button("Start Server") { startProxyServer() }.component
+                        stopServerButton = button("Stop Server") { stopProxyServer() }.component
+                        copyUrlButton = button("Copy Proxy URL") { copyProxyUrlToClipboard() }.component
+                    }.layout(RowLayout.PARENT_GRID)
+                }
             }
-
-            // API Keys group
-            group("API Keys") {
-                row {
-                    comment("Keys load automatically when Provisioning Key is configured.")
-                }
-
-                row {
-                    cell(apiKeysPanel)
-                        .align(Align.FILL)
-                        .resizableColumn()
-                }.resizableRow()
-            }.visibleIf(radioButtonSelected(AuthScope.EXTENDED))
-
-            // Proxy Server group
-            group("Proxy Server") {
-                // Auto-start configuration
-                row {
-                    cell(proxyAutoStartCheckBox)
-                }.layout(RowLayout.PARENT_GRID)
-
-                // Port configuration
-                row {
-                    cell(useSpecificPortCheckBox)
-                }.layout(RowLayout.PARENT_GRID)
-
-                row("Specific port:") {
-                    cell(proxyPortSpinner)
-                }.layout(RowLayout.PARENT_GRID)
-
-                row("Port range start:") {
-                    cell(proxyPortRangeStartSpinner)
-                }.layout(RowLayout.PARENT_GRID)
-
-                row("Port range end:") {
-                    cell(proxyPortRangeEndSpinner)
-                }.layout(RowLayout.PARENT_GRID)
-
-                row {
-                    comment(
-                        "When 'Use specific port' is unchecked, the proxy will " +
-                            "auto-select from the specified range."
-                    )
-                }
-
-                // Proxy server controls
-                row("Status:") {
-                    cell(statusLabel)
-                }.layout(RowLayout.PARENT_GRID)
-
-                row {
-                    startServerButton = button("Start Server") { startProxyServer() }.component
-                    stopServerButton = button("Stop Server") { stopProxyServer() }.component
-                    copyUrlButton = button("Copy Proxy URL") { copyProxyUrlToClipboard() }.component
-                }.layout(RowLayout.PARENT_GRID)
+        } catch (e: Exception) {
+            PluginLogger.Settings.error("Failed to create settings panel", e)
+            panel = JPanel(BorderLayout()).apply {
+                add(JLabel("Error creating settings panel: ${e.message}"), BorderLayout.NORTH)
+                val scrollPane = JScrollPane(javax.swing.JTextArea(e.stackTraceToString()))
+                add(scrollPane, BorderLayout.CENTER)
             }
         }
 
@@ -481,17 +518,31 @@ class OpenRouterSettingsPanel {
         }
     }
 
-    private fun radioButtonSelected(scope: AuthScope): com.intellij.ui.layout.ComponentPredicate {
-        // This is a simplified predicate for visibility control in UI DSL v2
-        // In a real implementation, we might need a more robust way to handle this
-        // depending on the exact version of the IntelliJ SDK.
-        // For now, we'll assume the standard bind/visibleIf pattern works.
-        return object : com.intellij.ui.layout.ComponentPredicate() {
-            override fun invoke(): Boolean = settingsService.apiKeyManager.getAuthScope() == scope
-            override fun addListener(listener: (Boolean) -> Unit) {
-                // Listeners are typically handled by the UI DSL framework when using bind
-            }
+
+    private inner class ScopePredicate(val scope: AuthScope) : com.intellij.ui.layout.ComponentPredicate() {
+        private val listeners = mutableListOf<(Boolean) -> Unit>()
+
+        override fun invoke(): Boolean = currentUiAuthScope == scope
+
+        override fun addListener(listener: (Boolean) -> Unit) {
+            listeners.add(listener)
+            listener(invoke()) // Initial update
         }
+
+        fun update() {
+            val newValue = invoke()
+            listeners.forEach { it(newValue) }
+        }
+    }
+
+    private fun radioButtonSelected(scope: AuthScope): com.intellij.ui.layout.ComponentPredicate {
+        val predicate = ScopePredicate(scope)
+        scopePredicates.add(predicate)
+        return predicate
+    }
+
+    private fun notifyScopeChanged() {
+        scopePredicates.forEach { it.update() }
     }
 
     private fun addApiKey() {
@@ -604,6 +655,12 @@ class OpenRouterSettingsPanel {
     }
 
     fun updateProxyStatus() {
+        // Safe check for lateinit properties
+        if (!::statusLabel.isInitialized || !::startServerButton.isInitialized || 
+            !::stopServerButton.isInitialized || !::copyUrlButton.isInitialized) {
+            return
+        }
+
         val status = proxyService.getServerStatus()
         val isConfigured = settingsService.isConfigured()
 
@@ -639,6 +696,17 @@ class OpenRouterSettingsPanel {
 
     // Public API methods
     fun getPanel(): JPanel = panel
+
+    fun getAuthScope(): AuthScope = currentUiAuthScope
+
+    fun setAuthScope(scope: AuthScope) {
+        currentUiAuthScope = scope
+        if (::regularRadioButton.isInitialized && ::extendedRadioButton.isInitialized) {
+            regularRadioButton.isSelected = scope == AuthScope.REGULAR
+            extendedRadioButton.isSelected = scope == AuthScope.EXTENDED
+        }
+        notifyScopeChanged()
+    }
 
     fun getApiKey(): String = String(apiKeyField.password)
 
