@@ -141,8 +141,15 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         val statusText = STATUS_MENU_TEXT + connectionStatus.displayName
         items.add(PopupMenuItem(statusText, connectionStatus.icon, null))
 
-        val quotaAction = if (settingsService.isConfigured()) { { showQuotaUsage() } } else { null }
-        items.add(PopupMenuItem(QUOTA_MENU_TEXT, AllIcons.General.Information, quotaAction))
+        val isExtended = settingsService.apiKeyManager.getAuthScope() == org.zhavoronkov.openrouter.models.AuthScope.EXTENDED
+        val quotaAction = if (settingsService.isConfigured() && isExtended) { { showQuotaUsage() } } else { null }
+        val quotaItem = PopupMenuItem(QUOTA_MENU_TEXT, AllIcons.General.Information, quotaAction)
+        if (!isExtended) {
+            // Add a comment or change text to indicate it's disabled
+            items.add(quotaItem.copy(text = "$QUOTA_MENU_TEXT (Monitoring Disabled)"))
+        } else {
+            items.add(quotaItem)
+        }
 
         if (settingsService.isConfigured()) {
             items.add(PopupMenuItem(LOGOUT_MENU_TEXT, AllIcons.Actions.Exit, { logout() }))
@@ -207,6 +214,14 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
             return
         }
 
+        if (settingsService.apiKeyManager.getAuthScope() == org.zhavoronkov.openrouter.models.AuthScope.REGULAR) {
+            connectionStatus = ConnectionStatus.READY
+            currentText = "Status: Ready"
+            currentTooltip = "OpenRouter Status: Ready - Monitoring Disabled"
+            updateStatusBar()
+            return
+        }
+
         connectionStatus = ConnectionStatus.CONNECTING
         updateStatusBar()
 
@@ -267,7 +282,12 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         }
 
         currentText = "Status: ${connectionStatus.displayName}"
-        currentTooltip = "OpenRouter Status: ${connectionStatus.displayName} - Usage: Not available"
+        val isRegular = settingsService.apiKeyManager.getAuthScope() == org.zhavoronkov.openrouter.models.AuthScope.REGULAR
+        currentTooltip = if (isRegular) {
+            "OpenRouter Status: ${connectionStatus.displayName} - Monitoring Disabled"
+        } else {
+            "OpenRouter Status: ${connectionStatus.displayName} - Usage: Not available"
+        }
         updateStatusBar()
     }
 

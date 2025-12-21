@@ -241,9 +241,18 @@ data class ChatUsage(
 )
 
 /**
+ * Authentication scope for the plugin
+ */
+enum class AuthScope {
+    REGULAR,  // Regular API Key (no monitoring)
+    EXTENDED  // Provisioning Key (full monitoring)
+}
+
+/**
  * Settings data class
  */
 data class OpenRouterSettings(
+    var authScope: AuthScope = AuthScope.EXTENDED,
     var apiKey: String = "",
     var provisioningKey: String = "",
     var autoRefresh: Boolean = true,

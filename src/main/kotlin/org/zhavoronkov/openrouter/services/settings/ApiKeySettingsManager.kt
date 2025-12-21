@@ -1,5 +1,6 @@
 package org.zhavoronkov.openrouter.services.settings
 
+import org.zhavoronkov.openrouter.models.AuthScope
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
 import org.zhavoronkov.openrouter.utils.EncryptionUtil
 import org.zhavoronkov.openrouter.utils.PluginLogger
@@ -11,6 +12,13 @@ class ApiKeySettingsManager(
     private val settings: OpenRouterSettings,
     private val onStateChanged: () -> Unit
 ) {
+
+    fun getAuthScope(): AuthScope = settings.authScope
+
+    fun setAuthScope(scope: AuthScope) {
+        settings.authScope = scope
+        onStateChanged()
+    }
 
     fun getApiKey(): String {
         val encrypted = settings.apiKey
@@ -83,7 +91,9 @@ class ApiKeySettingsManager(
     }
 
     fun isConfigured(): Boolean {
-        val provisioningKey = getProvisioningKey()
-        return provisioningKey.isNotBlank()
+        return when (settings.authScope) {
+            AuthScope.REGULAR -> getApiKey().isNotBlank()
+            AuthScope.EXTENDED -> getProvisioningKey().isNotBlank()
+        }
     }
 }

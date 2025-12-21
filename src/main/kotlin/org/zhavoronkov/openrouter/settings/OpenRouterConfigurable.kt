@@ -30,11 +30,15 @@ class OpenRouterConfigurable : Configurable {
      */
     private fun syncSettings(panel: OpenRouterSettingsPanel, toService: Boolean) {
         if (toService) {
+            settingsService.apiKeyManager.setAuthScope(panel.getAuthScope())
+            settingsService.apiKeyManager.setApiKey(panel.getApiKey())
             settingsService.apiKeyManager.setProvisioningKey(panel.getProvisioningKey())
             settingsService.uiPreferencesManager.autoRefresh = panel.isAutoRefreshEnabled()
             settingsService.uiPreferencesManager.refreshInterval = panel.getRefreshInterval()
             settingsService.uiPreferencesManager.showCosts = panel.shouldShowCosts()
         } else {
+            panel.setAuthScope(settingsService.apiKeyManager.getAuthScope())
+            panel.setApiKey(settingsService.apiKeyManager.getApiKey())
             panel.setProvisioningKey(settingsService.getProvisioningKey())
             panel.setAutoRefresh(settingsService.uiPreferencesManager.autoRefresh)
             panel.setRefreshInterval(settingsService.uiPreferencesManager.refreshInterval)
@@ -100,7 +104,9 @@ class OpenRouterConfigurable : Configurable {
     override fun isModified(): Boolean {
         val panel = settingsPanel ?: return false
 
-        return panel.getProvisioningKey() != settingsService.getProvisioningKey() ||
+        return panel.getAuthScope() != settingsService.apiKeyManager.getAuthScope() ||
+            panel.getApiKey() != settingsService.apiKeyManager.getApiKey() ||
+            panel.getProvisioningKey() != settingsService.getProvisioningKey() ||
             panel.isAutoRefreshEnabled() != settingsService.uiPreferencesManager.autoRefresh ||
             panel.getRefreshInterval() != settingsService.uiPreferencesManager.refreshInterval ||
             panel.shouldShowCosts() != settingsService.uiPreferencesManager.showCosts ||
@@ -157,6 +163,10 @@ class OpenRouterConfigurable : Configurable {
     override fun apply() {
         val panel = settingsPanel ?: return
 
+        val oldAuthScope = settingsService.apiKeyManager.getAuthScope()
+        val newAuthScope = panel.getAuthScope()
+        val oldApiKey = settingsService.apiKeyManager.getApiKey()
+        val newApiKey = panel.getApiKey()
         val oldProvisioningKey = settingsService.getProvisioningKey()
         val newProvisioningKey = panel.getProvisioningKey()
 
@@ -174,8 +184,12 @@ class OpenRouterConfigurable : Configurable {
         // Update proxy status to reflect current configuration and server state
         panel.updateProxyStatus()
 
-        // Test connection if provisioning key changed
-        if (oldProvisioningKey != newProvisioningKey && newProvisioningKey.isNotBlank()) {
+        // Test connection if authentication settings changed
+        val authChanged = oldAuthScope != newAuthScope ||
+            (newAuthScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR && oldApiKey != newApiKey) ||
+            (newAuthScope == org.zhavoronkov.openrouter.models.AuthScope.EXTENDED && oldProvisioningKey != newProvisioningKey)
+
+        if (authChanged && settingsService.isConfigured()) {
             testConnection()
         }
     }

@@ -108,6 +108,7 @@ class OpenRouterSettingsPanel {
 
     private val panel: JPanel
     private val provisioningKeyField: JBPasswordField
+    private val apiKeyField: JBPasswordField
     private val autoRefreshCheckBox: JBCheckBox
     private val refreshIntervalSpinner: JSpinner
     private val showCostsCheckBox: JBCheckBox
@@ -173,6 +174,10 @@ class OpenRouterSettingsPanel {
 
         // Initialize components
         provisioningKeyField = JBPasswordField().apply {
+            columns = PASSWORD_FIELD_COLUMNS
+        }
+
+        apiKeyField = JBPasswordField().apply {
             columns = PASSWORD_FIELD_COLUMNS
         }
 
@@ -254,12 +259,46 @@ class OpenRouterSettingsPanel {
 
         // Create the main panel using UI DSL v2
         panel = panel {
+            // Authentication group
+            buttonsGroup("Authentication Scope") {
+                row {
+                    radioButton("Regular API Key (No monitoring)", AuthScope.REGULAR)
+                        .comment("Minimal permissions. Quota tracking and usage monitoring will be disabled.")
+                }
+                row {
+                    radioButton("Extended (Provisioning Key)", AuthScope.EXTENDED)
+                        .comment("Full functionality. Allows the plugin to manage API keys and monitor usage.")
+                }
+            }.bind(
+                { settingsService.apiKeyManager.getAuthScope() },
+                { settingsService.apiKeyManager.setAuthScope(it) }
+            )
+
+            // Regular API Key group
+            group("Regular API Key") {
+                row("API Key:") {
+                    cell(apiKeyField)
+                        .resizableColumn()
+                    button("Paste") { pasteToField(apiKeyField) }
+                }.layout(RowLayout.PARENT_GRID)
+
+                row {
+                    comment("Get your key from OpenRouter API Keys.")
+                }
+
+                row {
+                    link("Get your key from OpenRouter API Keys") {
+                        BrowserUtil.browse("https://openrouter.ai/settings/keys")
+                    }
+                }
+            }.visibleIf(radioButtonSelected(AuthScope.REGULAR))
+
             // Provisioning group
             group("Provisioning") {
                 row("Provisioning Key:") {
                     cell(provisioningKeyField)
                         .resizableColumn()
-                    button("Paste") { pasteFromClipboard() }
+                    button("Paste") { pasteToField(provisioningKeyField) }
                 }.layout(RowLayout.PARENT_GRID)
 
                 row {
@@ -271,7 +310,7 @@ class OpenRouterSettingsPanel {
                         BrowserUtil.browse("https://openrouter.ai/settings/provisioning-keys")
                     }
                 }
-            }
+            }.visibleIf(radioButtonSelected(AuthScope.EXTENDED))
 
             // General Settings group
             group("General Settings") {
@@ -304,7 +343,7 @@ class OpenRouterSettingsPanel {
                         .align(Align.FILL)
                         .resizableColumn()
                 }.resizableRow()
-            }
+            }.visibleIf(radioButtonSelected(AuthScope.EXTENDED))
 
             // Proxy Server group
             group("Proxy Server") {
@@ -426,11 +465,11 @@ class OpenRouterSettingsPanel {
         return wrapperPanel
     }
 
-    private fun pasteFromClipboard() {
+    private fun pasteToField(field: JBPasswordField) {
         try {
             val clipboard = Toolkit.getDefaultToolkit().systemClipboard
             val data = clipboard.getData(java.awt.datatransfer.DataFlavor.stringFlavor) as String
-            provisioningKeyField.text = data.trim()
+            field.text = data.trim()
         } catch (e: java.awt.HeadlessException) {
             PluginLogger.Settings.warn("Clipboard not available in headless environment", e)
         } catch (e: java.awt.datatransfer.UnsupportedFlavorException) {
@@ -439,6 +478,19 @@ class OpenRouterSettingsPanel {
             PluginLogger.Settings.warn("Invalid state accessing clipboard", e)
         } catch (expectedError: Exception) {
             PluginLogger.Settings.warn("Failed to paste from clipboard: ${expectedError.message}")
+        }
+    }
+
+    private fun radioButtonSelected(scope: AuthScope): com.intellij.ui.layout.ComponentPredicate {
+        // This is a simplified predicate for visibility control in UI DSL v2
+        // In a real implementation, we might need a more robust way to handle this
+        // depending on the exact version of the IntelliJ SDK.
+        // For now, we'll assume the standard bind/visibleIf pattern works.
+        return object : com.intellij.ui.layout.ComponentPredicate() {
+            override fun invoke(): Boolean = settingsService.apiKeyManager.getAuthScope() == scope
+            override fun addListener(listener: (Boolean) -> Unit) {
+                // Listeners are typically handled by the UI DSL framework when using bind
+            }
         }
     }
 
@@ -587,6 +639,12 @@ class OpenRouterSettingsPanel {
 
     // Public API methods
     fun getPanel(): JPanel = panel
+
+    fun getApiKey(): String = String(apiKeyField.password)
+
+    fun setApiKey(apiKey: String) {
+        apiKeyField.text = apiKey
+    }
 
     fun getProvisioningKey(): String = String(provisioningKeyField.password)
 

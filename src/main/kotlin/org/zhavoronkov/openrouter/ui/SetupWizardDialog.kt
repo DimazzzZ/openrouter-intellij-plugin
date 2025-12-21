@@ -61,8 +61,10 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     // Step 0: Welcome
     private val welcomePanel = createWelcomePanel()
 
-    // Step 1: Provisioning Key
+    // Step 1: Authentication Setup
     private val provisioningKeyField = JBPasswordField()
+    private val apiKeyField = JBPasswordField()
+    private var authScope = org.zhavoronkov.openrouter.models.AuthScope.EXTENDED
     private val validationStatusLabel = JBLabel()
     private val validationIcon = JBLabel()
     private var isKeyValid = false
@@ -96,6 +98,11 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
         // Setup listeners
         provisioningKeyField.document.addDocumentListener(object : DocumentListener {
+            override fun insertUpdate(e: DocumentEvent?) = handleKeyChange()
+            override fun removeUpdate(e: DocumentEvent?) = handleKeyChange()
+            override fun changedUpdate(e: DocumentEvent?) = handleKeyChange()
+        })
+        apiKeyField.document.addDocumentListener(object : DocumentListener {
             override fun insertUpdate(e: DocumentEvent?) = handleKeyChange()
             override fun removeUpdate(e: DocumentEvent?) = handleKeyChange()
             override fun changedUpdate(e: DocumentEvent?) = handleKeyChange()
@@ -159,39 +166,84 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     private fun createProvisioningKeyPanel(): JPanel {
         return panel {
             row {
-                label("<html><h3>Step 1: Add Your Provisioning Key</h3></html>")
+                label("<html><h3>Step 1: Authentication Setup</h3></html>")
             }.bottomGap(BottomGap.MEDIUM)
 
-            row {
-                text(
-                    "Your Provisioning Key allows the plugin to manage API keys and access quota information."
-                )
-            }.bottomGap(BottomGap.SMALL)
-
-            row {
-                text("Get your key from:")
-                browserLink(
-                    "OpenRouter Provisioning Keys",
-                    "https://openrouter.ai/settings/provisioning-keys"
-                )
-            }.bottomGap(BottomGap.MEDIUM)
+            buttonsGroup("Authentication Scope") {
+                row {
+                    radioButton("Regular API Key (No monitoring)", org.zhavoronkov.openrouter.models.AuthScope.REGULAR)
+                        .comment("Minimal permissions. Quota tracking and usage monitoring will be disabled.")
+                }
+                row {
+                    radioButton("Extended (Provisioning Key)", org.zhavoronkov.openrouter.models.AuthScope.EXTENDED)
+                        .comment("Full functionality. Allows the plugin to manage API keys and monitor usage.")
+                }
+            }.bind(
+                { authScope },
+                { 
+                    authScope = it
+                    handleKeyChange()
+                }
+            )
 
             separator()
 
-            row {
-                label("Provisioning Key:")
-            }.topGap(TopGap.MEDIUM).bottomGap(BottomGap.SMALL)
+            // Regular API Key section
+            group("Regular API Key") {
+                row {
+                    text("Get your key from:")
+                    browserLink(
+                        "OpenRouter API Keys",
+                        "https://openrouter.ai/settings/keys"
+                    )
+                }.bottomGap(BottomGap.MEDIUM)
 
-            row {
-                cell(provisioningKeyField)
-                    .resizableColumn()
-                    .align(AlignX.FILL)
-                    .comment("Paste your provisioning key here")
-            }.bottomGap(BottomGap.SMALL)
+                row {
+                    label("API Key:")
+                }.bottomGap(BottomGap.SMALL)
+
+                row {
+                    cell(apiKeyField)
+                        .resizableColumn()
+                        .align(AlignX.FILL)
+                        .comment("Paste your API key here")
+                }.bottomGap(BottomGap.SMALL)
+            }.visibleIf(radioButtonSelected(org.zhavoronkov.openrouter.models.AuthScope.REGULAR))
+
+            // Provisioning Key section
+            group("Extended (Provisioning Key)") {
+                row {
+                    text("Get your key from:")
+                    browserLink(
+                        "OpenRouter Provisioning Keys",
+                        "https://openrouter.ai/settings/provisioning-keys"
+                    )
+                }.bottomGap(BottomGap.MEDIUM)
+
+                row {
+                    label("Provisioning Key:")
+                }.bottomGap(BottomGap.SMALL)
+
+                row {
+                    cell(provisioningKeyField)
+                        .resizableColumn()
+                        .align(AlignX.FILL)
+                        .comment("Paste your provisioning key here")
+                }.bottomGap(BottomGap.SMALL)
+            }.visibleIf(radioButtonSelected(org.zhavoronkov.openrouter.models.AuthScope.EXTENDED))
 
             row {
                 cell(validationIcon)
                 cell(validationStatusLabel)
+            }
+        }
+    }
+
+    private fun radioButtonSelected(scope: org.zhavoronkov.openrouter.models.AuthScope): com.intellij.ui.layout.ComponentPredicate {
+        return object : com.intellij.ui.layout.ComponentPredicate() {
+            override fun invoke(): Boolean = authScope == scope
+            override fun addListener(listener: (Boolean) -> Unit) {
+                // Listeners are typically handled by the UI DSL framework when using bind
             }
         }
     }
@@ -303,15 +355,19 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
             STEP_PROVISIONING -> {
                 // Provisioning Key -> Models
                 // Key is already validated and saved
-                if (!isKeyValid) {
-                    return // Should not happen as button is disabled
+                // Save settings before moving to models
+                settingsService.apiKeyManager.setAuthScope(authScope)
+                if (authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR) {
+                    val key = String(apiKeyField.password)
+                    settingsService.apiKeyManager.setApiKey(key)
+                } else {
+                    val key = String(provisioningKeyField.password)
+                    settingsService.apiKeyManager.setProvisioningKey(key)
                 }
-
-                // Load models for next step
-                loadModels()
-
+                
                 currentStep = STEP_MODELS
                 cardLayout.show(cardPanel, "models")
+                loadModels()
                 updateButtons()
             }
             STEP_MODELS -> {
@@ -386,7 +442,12 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     // ========== Provisioning Key Validation ==========
 
     private fun handleKeyChange() {
-        val key = String(provisioningKeyField.password)
+        val key = if (authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR) {
+            String(apiKeyField.password)
+        } else {
+            String(provisioningKeyField.password)
+        }
+
         if (key.isBlank()) {
             updateValidationStatus(ValidationStatus.CLEAR)
             isKeyValid = false
@@ -396,37 +457,37 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
         // Debounce validation
         SwingUtilities.invokeLater {
-            validateProvisioningKey(key)
+            validateKey(key)
         }
     }
 
-    private fun validateProvisioningKey(key: String) {
+    private fun validateKey(key: String) {
         if (isValidating) return
 
         isValidating = true
         updateValidationStatus(ValidationStatus.IN_PROGRESS)
         updateButtons()
 
-        // Validate by trying to fetch API keys list with the RAW key
-        // (OpenRouter API expects the unencrypted key)
         coroutineScope.launch {
             try {
                 val result = withTimeout(KEY_VALIDATION_TIMEOUT_MS) {
-                    openRouterService.getApiKeysList(key)
+                    if (authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR) {
+                        openRouterService.testApiKey(key)
+                    } else {
+                        openRouterService.getApiKeysList(key)
+                    }
                 }
                 ApplicationManager.getApplication().invokeLater({
                     isValidating = false
                     when (result) {
                         is ApiResult.Success -> {
-                            // Valid key - encrypt and save it
-                            val encrypted = EncryptionUtil.encrypt(key)
-                            settingsService.apiKeyManager.setProvisioningKey(encrypted)
                             isKeyValid = true
                             updateValidationStatus(ValidationStatus.SUCCESS)
                         }
                         is ApiResult.Error -> {
                             isKeyValid = false
-                            val errorMsg = "Invalid provisioning key: ${result.message}"
+                            val type = if (authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR) "API key" else "provisioning key"
+                            val errorMsg = "Invalid $type: ${result.message}"
                             updateValidationStatus(ValidationStatus.ERROR(errorMsg))
                         }
                     }
@@ -450,11 +511,11 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                     error,
                     "Invalid state: ${error.message}"
                 )
-            } catch (expectedError: Exception) {
+            } catch (error: Exception) {
                 handleValidationFailure(
-                    "Key validation failed",
-                    expectedError,
-                    "Validation failed: ${expectedError.message}"
+                    "Key validation unexpected error",
+                    error,
+                    "Unexpected error: ${error.message ?: "Unknown error"}"
                 )
             }
         }

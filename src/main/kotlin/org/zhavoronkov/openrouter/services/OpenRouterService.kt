@@ -228,6 +228,12 @@ class OpenRouterService(
      * Test API connection with a simple request
      */
     suspend fun testConnection(): ApiResult<Boolean> =
+        testApiKey(settingsService.getApiKey())
+
+    /**
+     * Test a specific API key with a simple request
+     */
+    suspend fun testApiKey(apiKey: String): ApiResult<Boolean> =
         withContext(Dispatchers.IO) {
             try {
                 val jsonBody = gson.toJson(
@@ -244,7 +250,7 @@ class OpenRouterService(
                     url = CHAT_COMPLETIONS_ENDPOINT,
                     jsonBody = jsonBody,
                     authType = OpenRouterRequestBuilder.AuthType.API_KEY,
-                    authToken = settingsService.getApiKey()
+                    authToken = apiKey
                 )
 
                 val response = client.newCall(request).await()
