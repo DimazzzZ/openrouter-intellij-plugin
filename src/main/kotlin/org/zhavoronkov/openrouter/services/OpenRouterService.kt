@@ -675,11 +675,17 @@ open class OpenRouterService(
                 if (response.isSuccessful) {
                     try {
                         val result = gson.fromJson(responseBody, ExchangeAuthCodeResponse::class.java)
-                        PluginLogger.Service.info("PKCE: Successfully parsed response, key length: ${result.key.length}")
+                        PluginLogger.Service.info(
+                            "PKCE: Successfully parsed response, key length: ${result.key.length}"
+                        )
                         ApiResult.Success(result, response.code)
                     } catch (e: JsonSyntaxException) {
                         PluginLogger.Service.error("PKCE: Failed to parse response", e)
-                        ApiResult.Error("Failed to parse response: ${e.message}", statusCode = response.code, throwable = e)
+                        ApiResult.Error(
+                            "Failed to parse response: ${e.message}",
+                            statusCode = response.code,
+                            throwable = e
+                        )
                     }
                 } else {
                     val errorMessage = responseBody.ifBlank { "Failed to exchange auth code (HTTP ${response.code})" }

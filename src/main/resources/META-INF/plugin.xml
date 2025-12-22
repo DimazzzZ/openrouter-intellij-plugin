@@ -59,6 +59,33 @@
 
     <!-- Change notes for this version -->
     <change-notes><![CDATA[
+        <h3>🎉 Version 0.4.0 - OAuth/PKCE Authentication & Enhanced Settings (2025-12-22)</h3>
+        <p><strong>New Features:</strong></p>
+        <ul>
+            <li><strong>🔐 OAuth/PKCE Authentication</strong> - Secure PKCE authentication flow with OAuth code exchange for API key generation</li>
+            <li><strong>🔑 Authentication Scope Management</strong> - Unified API and provisioning key handling with scope-aware validation</li>
+            <li><strong>✅ Enhanced Key Validation</strong> - Comprehensive validation with centralized error messages and improved user feedback</li>
+        </ul>
+
+        <p><strong>Code Quality & Architecture:</strong></p>
+        <ul>
+            <li><strong>🏗️ Setup Wizard Refactoring</strong> - Extracted 4 helper classes (PkceAuthHandler, SetupWizardConfig, ErrorHandler, Logger)</li>
+            <li><strong>📦 New Utility Classes</strong> - OpenRouterConstants, UIConstants, ErrorMessages, KeyValidator for better code organization</li>
+            <li><strong>🧪 Comprehensive Tests</strong> - 312-line authentication test suite with MockWebServer for realistic HTTP testing</li>
+            <li><strong>🔧 Service Improvements</strong> - Dynamic URL generation, enhanced logging, and improved testability</li>
+        </ul>
+
+        <p><strong>Technical Improvements:</strong></p>
+        <ul>
+            <li><strong>30 files changed</strong> - 3,045 insertions, 515 deletions, net +2,530 lines</li>
+            <li><strong>10 new files</strong> - Utilities, handlers, and comprehensive test coverage</li>
+            <li><strong>Reduced complexity</strong> - SetupWizardDialog reduced from 1,194 to 1,048 lines</li>
+        </ul>
+
+        <p><a href="https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/docs/AI_ASSISTANT_SETUP.md">AI Assistant Setup Guide</a> | <a href="https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/CHANGELOG.md">Full Changelog</a></p>
+
+        <hr/>
+
         <h3>🎉 Version 0.3.0 - Enhanced User Experience (2025-12-05)</h3>
         <p><strong>New Features:</strong></p>
         <ul>

@@ -1,7 +1,7 @@
 # OpenRouter IntelliJ Plugin
 
 [![JetBrains Plugin](https://img.shields.io/badge/JetBrains-Plugin-orange.svg)](https://plugins.jetbrains.com/plugin/28520)
-[![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
+[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.ai), providing access to 400+ AI models with usage monitoring, quota tracking, and seamless JetBrains AI Assistant integration.
@@ -10,14 +10,14 @@ An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.
 
 - **🤖 AI Assistant Proxy** - Configurable local proxy server (ports 8880-8899 by default) with auto-start control and flexible port selection
 - **📊 Status Bar Widget** - Real-time usage display with comprehensive popup menu
-- **🔑 API Key Management** - Secure provisioning key support with automatic API key creation
+- **🔑 Flexible Authentication** - OAuth/PKCE or Provisioning Key support with secure credential storage
 - **📈 Usage Analytics** - Track token consumption, costs, and model performance
 - **🔴 Real-time Monitoring** - Live connection status with color-coded indicators
 - **📋 Statistics Popup** - Detailed usage analytics in modal dialog
 - **⚙️ Settings Panel** - Configuration with validation and testing
 - **🌐 OpenAI Compatibility** - Full OpenAI API compatibility layer for custom integrations
 - **🔒 Security** - Encrypted API key storage with localhost-only proxy access
-- **🧪 Comprehensive Testing** - 207+ tests covering unit, integration, and E2E scenarios
+- **🧪 Comprehensive Testing** - 475+ tests covering unit, integration, and E2E scenarios
 - **🛠️ Developer-Friendly** - Extensive documentation and debugging capabilities
 - **⭐ Favorite Models** - Quick access to your preferred AI models with advanced filtering:
   - Filter by provider (OpenAI, Anthropic, Google, Meta, etc.)
@@ -48,27 +48,22 @@ An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.
 When you first install the plugin, a **welcome notification** will appear with a "Quick Setup" button. This launches a step-by-step wizard that guides you through:
 
 1. **Welcome** - Introduction to OpenRouter and what you'll need
-2. **Provisioning Key** - Add and automatically validate your key from [OpenRouter](https://openrouter.ai/settings/provisioning-keys)
+2. **Authentication** - Choose your authentication method:
+   - **Regular API Key** - OAuth/PKCE flow (one-click browser authorization)
+   - **Provisioning Key** - Extended mode with full monitoring capabilities
 3. **Favorite Models** - Select your preferred models with embedded search and filtering
 4. **Completion** - Copy proxy server URL and configure AI Assistant
-
-**New in v0.2.0+:**
-- ✅ Automatic provisioning key validation with visual feedback
-- ✅ Embedded model selection UI with real-time search
-- ✅ Smart button states (Next/Finish only enabled when ready)
-- ✅ Polished layout with proper spacing and typography
-- ✅ Back button navigation between steps
 
 The wizard makes setup quick and easy, especially for first-time users!
 
 ### Manual Setup
 
-1. **Get Provisioning Key**: Visit [OpenRouter Provisioning Keys](https://openrouter.ai/settings/provisioning-keys)
-2. **Configure**: `Settings` → `Tools` → `OpenRouter` → Enter Provisioning Key
+1. **Open Settings**: `Settings` → `Tools` → `OpenRouter`
+2. **Choose Authentication Method**:
+   - **Regular API Key**: Click "Connect to OpenRouter" for OAuth/PKCE browser authorization
+   - **Provisioning Key**: Get from [OpenRouter Provisioning Keys](https://openrouter.ai/settings/provisioning-keys) and paste
 3. **Select Models**: `Settings` → `Tools` → `OpenRouter` → `Favorite Models` → Choose your models
 4. **Start Using**: Click status bar widget to access features
-
-The plugin automatically creates and configures an API key when you provide a provisioning key.
 
 ## 🤖 AI Assistant Integration
 
@@ -79,7 +74,7 @@ The plugin automatically creates and configures an API key when you provide a pr
 2. **Configure Proxy Server**: Auto-start is disabled by default - manually start via Settings or enable auto-start
 3. **Configure AI Assistant**: Settings → Tools → AI Assistant → Models → Add custom model
    - **Provider**: Custom
-   - **Server URL**: Copy from OpenRouter settings (e.g., `http://127.0.0.1:8080`)
+   - **Server URL**: Copy from OpenRouter settings (e.g., `http://127.0.0.1:8880`)
    - **API Key**: Any text (not validated by proxy)
    - **Model**: Choose from OpenRouter's model catalog
 4. **Start Using**: Access 400+ models through AI Assistant
@@ -87,11 +82,12 @@ The plugin automatically creates and configures an API key when you provide a pr
 📖 **[Complete Setup Guide](docs/AI_ASSISTANT_SETUP.md)** - Step-by-step instructions with screenshot placeholders
 
 ### Supported Models
-- **OpenAI**: GPT-4, GPT-4 Turbo, GPT-3.5 Turbo
-- **Anthropic**: Claude 3 Opus, Claude 3 Sonnet, Claude 3 Haiku  
-- **Meta**: Llama 2 70B, Code Llama
-- **Google**: Gemini Pro, PaLM 2
-- **Mistral**: Mistral 7B, Mixtral 8x7B
+- **OpenAI**: GPT-4o, GPT-4 Turbo, o1, o3-mini
+- **Anthropic**: Claude 3.5 Sonnet, Claude 3 Opus, Claude 3 Haiku
+- **Meta**: Llama 3.3, Llama 3.1, Code Llama
+- **Google**: Gemini 2.0 Flash, Gemini 1.5 Pro
+- **Mistral**: Mistral Large, Mixtral 8x22B
+- **DeepSeek**: DeepSeek V3, DeepSeek R1
 - **And 390+ more models from 40+ providers!**
 
 ### Benefits
@@ -142,23 +138,18 @@ proxyPortRangeEnd = 8899        // Range end for auto-selection
 - **Settings Management** - Encrypted credential storage with validation
 - **Status Bar Integration** - Real-time monitoring with minimal UI footprint
 
-### API Key Handling
-The plugin uses a sophisticated API key management system:
-- **Provisioning Keys** - Primary authentication for quota/usage data
-- **API Keys** - Automatically created for chat completions
+### Authentication Methods
+The plugin supports two authentication methods:
+- **Regular API Key** (OAuth/PKCE) - One-click browser authorization, minimal permissions, no usage monitoring
+- **Provisioning Key** (Extended) - Full functionality with quota tracking, usage monitoring, and API key management
 - **Security** - All keys encrypted using IntelliJ's credential store
 - **Validation** - Real-time key testing and status verification
-
-### Recent Fixes
-- **401 Error Resolution** - Fixed API key handling to use settings instead of Authorization headers
-- **Model Name Compatibility** - Updated to use full OpenRouter model names (e.g., `openai/gpt-4-turbo`)
-- **Security Cleanup** - Removed all real API keys from codebase and documentation
 
 ## Compatibility
 
 **Supported IDEs**: IntelliJ IDEA, WebStorm, PyCharm, PhpStorm, RubyMine, CLion, Android Studio, GoLand, Rider
-**IDE Versions**: 2023.2+ to 2025.3+
-**Requirements**: OpenRouter.ai account with Provisioning Key
+**IDE Versions**: 2024.1+ to 2025.3+
+**Requirements**: OpenRouter.ai account (free or paid)
 
 ## Development
 
@@ -173,7 +164,7 @@ cd openrouter-intellij-plugin
 
 ### Testing
 ```bash
-# Run all tests (207+ tests)
+# Run all tests (475+ tests)
 ./gradlew test
 
 # Run core functionality tests only
@@ -183,13 +174,11 @@ cd openrouter-intellij-plugin
 ./gradlew runIde --no-daemon
 ```
 
-**Test Coverage**:
-- **Unit Tests** - 109 tests covering data models, settings, and business logic
-- **Integration Tests** - 50+ tests for API key handling and proxy server functionality
-- **Request Builder Tests** - 12 tests validating refactored HTTP request construction
-- **Favorite Models Tests** - 11 tests for favorite models management
-- **Security Tests** - Comprehensive validation of API key handling and encryption
-- **Total** - 207+ tests with 100% pass rate
+**Test Coverage**: 475+ tests with 100% pass rate
+- Unit tests for data models, settings, and business logic
+- Integration tests for API key handling and proxy server functionality
+- Authentication tests with MockWebServer for realistic HTTP testing
+- Security tests for API key handling and encryption
 
 For detailed testing information, see [TESTING.md](TESTING.md).
 
