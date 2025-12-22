@@ -54,14 +54,15 @@ import java.util.concurrent.TimeUnit
  *    - Publicly accessible information
  */
 
-class OpenRouterService(
+open class OpenRouterService(
     private val gson: Gson = Gson(),
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .build(),
-    private val settingsService: OpenRouterSettingsService = OpenRouterSettingsService.getInstance()
+    private val settingsService: OpenRouterSettingsService = OpenRouterSettingsService.getInstance(),
+    private val baseUrlOverride: String? = null
 ) {
 
     companion object {
@@ -105,6 +106,9 @@ class OpenRouterService(
             return ApplicationManager.getApplication().getService(OpenRouterService::class.java)
         }
     }
+
+    // Method to get base URL for testing purposes
+    protected open fun getBaseUrl(): String = baseUrlOverride ?: BASE_URL
 
     /**
      * Handle network errors gracefully without alarming users

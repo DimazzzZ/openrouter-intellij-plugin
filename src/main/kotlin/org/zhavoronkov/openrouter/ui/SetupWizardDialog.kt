@@ -46,15 +46,6 @@ import javax.swing.JRadioButton
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.table.AbstractTableModel
-import java.security.MessageDigest
-import java.security.SecureRandom
-import java.util.Base64
-import java.net.ServerSocket
-import java.net.Socket
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.io.PrintWriter
-import com.intellij.ide.BrowserUtil
 
 /**
  * Multi-step setup wizard for first-time users with validation and embedded model selection
@@ -77,6 +68,9 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     private val keyField = JBPasswordField()
 
     private var currentStep = 0
+
+    // PKCE Handler - extracted to separate class
+    private var pkceHandler: PkceAuthHandler? = null
 
     // Initialize uiPredicates BEFORE creating panels
     private val uiPredicates = mutableListOf<UpdatablePredicate>()
@@ -154,15 +148,13 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
             override fun changedUpdate(e: DocumentEvent?) = applyModelFilter()
         })
 
-        // Setup key listeners with extreme logging
+        // Setup key listeners
         val keyListener = object : com.intellij.ui.DocumentAdapter() {
             override fun textChanged(e: DocumentEvent) {
-                PluginLogger.Service.warn("[OpenRouter] Document textChanged event fired")
                 onKeyChanged()
             }
         }
 
-        PluginLogger.Service.warn("[OpenRouter] Attaching listeners to fields")
         keyField.document.addDocumentListener(keyListener)
 
         // Setup selected count label
@@ -171,7 +163,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         init()
         updateButtons()
 
-        PluginLogger.Service.warn("[OpenRouter] SetupWizardDialog initialized")
+        SetupWizardLogger.info("SetupWizardDialog initialized")
     }
 
     override fun createCenterPanel(): JComponent {
@@ -263,8 +255,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
                 row {
                     button("Connect to OpenRouter") {
-                        val verifier = generateCodeVerifier()
-                        startLocalServer(verifier)
+                        startPkceAuthFlow()
                     }.visibleIf(radioButtonSelected(AuthScope.REGULAR))
                         .comment("Opens browser to authorize and automatically retrieves your API key")
                 }.bottomGap(BottomGap.MEDIUM)
@@ -628,14 +619,14 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     private fun onKeyChanged() {
         val key = String(keyField.password).trim()
 
-        PluginLogger.Service.warn("[OpenRouter] onKeyChanged: scope=$authScope, keyLength=${key.length}")
+        SetupWizardLogger.logValidationEvent("Key changed", "scope=$authScope, length=${key.length}")
 
         // Cancel any pending validation
         validationAlarm.cancelAllRequests()
         validationJob?.cancel()
 
         if (key.isBlank()) {
-            PluginLogger.Service.warn("[OpenRouter] Key is blank, clearing status")
+            SetupWizardLogger.logValidationEvent("Key cleared")
             isValidating = false
             clearValidationStatus()
             isKeyValid = false
@@ -645,13 +636,13 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
         // Start new validation with debounce using Alarm
         // Only trigger if key is long enough to be a real key (min 10 chars)
-        if (key.length >= 10) {
+        if (key.length >= SetupWizardConfig.PKCE_KEY_MIN_LENGTH) {
             validationAlarm.addRequest({
-                PluginLogger.Service.warn("[OpenRouter] Alarm triggered, starting validateKey")
+                SetupWizardLogger.logValidationEvent("Debounce triggered, starting validation")
                 validateKey(key)
-            }, 500)
+            }, SetupWizardConfig.KEY_VALIDATION_DEBOUNCE_MS.toInt())
         } else {
-            PluginLogger.Service.warn("[OpenRouter] Key too short for validation (${key.length} chars)")
+            SetupWizardLogger.logValidationEvent("Key too short", "length=${key.length}")
             isValidating = false
             isKeyValid = false
             clearValidationStatus()
@@ -660,7 +651,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     }
 
     private fun validateKey(key: String) {
-        PluginLogger.Service.warn("[OpenRouter] validateKey starting for $authScope")
+        SetupWizardLogger.logValidationEvent("Starting validation", "scope=$authScope")
 
         isValidating = true
         showValidationInProgress()
@@ -670,11 +661,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
         // Use IO dispatcher for the launch to ensure it doesn't wait for EDT
         validationJob = coroutineScope.launch(Dispatchers.IO) {
-            PluginLogger.Service.warn("[OpenRouter] Coroutine started on ${Thread.currentThread().name}")
             try {
-                PluginLogger.Service.warn("[OpenRouter] Calling API for validation...")
-                PluginLogger.Service.warn("[OpenRouter] Calling API for validation...")
-
                 var detectedProvisioning = false
                 val result = if (currentScope == AuthScope.REGULAR) {
                     val regularResult = openRouterService.testApiKey(key)
@@ -683,7 +670,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                         val provisioningResult = openRouterService.getApiKeysList(key)
                         if (provisioningResult is ApiResult.Success) {
                             detectedProvisioning = true
-                            PluginLogger.Service.warn("[OpenRouter] Detected Provisioning Key in Regular mode")
+                            SetupWizardLogger.logValidationEvent("Detected Provisioning Key in Regular mode")
                         }
                     }
                     regularResult
@@ -691,10 +678,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                     openRouterService.getApiKeysList(key)
                 }
 
-                PluginLogger.Service.warn("[OpenRouter] API call finished: $result")
-
                 ApplicationManager.getApplication().invokeLater({
-                    PluginLogger.Service.warn("[OpenRouter] invokeLater running to update UI")
                     isValidating = false
                     // Only update if the scope hasn't changed while we were validating
                     if (authScope == currentScope) {
@@ -715,32 +699,28 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                             is ApiResult.Success -> {
                                 isKeyValid = true
                                 showValidationSuccess()
-                                PluginLogger.Service.warn("[OpenRouter] Validation SUCCESS")
+                                SetupWizardLogger.logValidationEvent("Validation successful")
                             }
                             is ApiResult.Error -> {
                                 isKeyValid = false
-                                val friendlyError = when {
-                                    result.message.contains("No cookie auth", ignoreCase = true) -> "Invalid API key"
-                                    result.message.contains("Missing Authentication", ignoreCase = true) -> "Invalid key format"
-                                    else -> result.message
-                                }
+                                val friendlyError = SetupWizardErrorHandler.handleValidationError(result)
                                 showValidationError(friendlyError)
-                                PluginLogger.Service.warn("[OpenRouter] Validation FAILED: $friendlyError (Raw: ${result.message})")
+                                SetupWizardLogger.logValidationEvent("Validation failed", friendlyError)
                             }
                         }
                     } else {
-                        PluginLogger.Service.warn("[OpenRouter] Scope changed during validation, ignoring result")
+                        SetupWizardLogger.logValidationEvent("Scope changed during validation, ignoring result")
                     }
                     updateButtons()
                 }, ModalityState.any())
             } catch (e: CancellationException) {
-                PluginLogger.Service.warn("[OpenRouter] validateKey coroutine cancelled")
+                SetupWizardLogger.logValidationEvent("Validation cancelled")
             } catch (e: Exception) {
-                PluginLogger.Service.warn("[OpenRouter] Validation EXCEPTION", e)
+                SetupWizardLogger.error("Validation exception", e)
                 ApplicationManager.getApplication().invokeLater({
                     isValidating = false
                     isKeyValid = false
-                    showValidationError("Validation failed: ${e.message ?: "Unknown error"}")
+                    showValidationError(SetupWizardErrorHandler.handleNetworkError(e, "key validation"))
                     updateButtons()
                 }, ModalityState.any())
             }
@@ -812,159 +792,38 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
     // ========== PKCE Authentication Flow ==========
 
-    private fun generateCodeVerifier(): String {
-        val secureRandom = SecureRandom()
-        val codeVerifier = ByteArray(32)
-        secureRandom.nextBytes(codeVerifier)
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(codeVerifier)
-    }
+    private fun startPkceAuthFlow() {
+        SetupWizardLogger.logPkceEvent("Starting PKCE flow from UI")
 
-    private fun generateCodeChallenge(codeVerifier: String): String {
-        val bytes = codeVerifier.toByteArray(Charsets.US_ASCII)
-        val messageDigest = MessageDigest.getInstance("SHA-256")
-        messageDigest.update(bytes, 0, bytes.size)
-        val digest = messageDigest.digest()
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(digest)
-    }
+        // Cancel any existing PKCE handler
+        pkceHandler?.cancel()
 
-    private fun startLocalServer(codeVerifier: String) {
-        showValidationInProgress()
-        validationStatusLabel.text = "Waiting for browser..."
-        
-        coroutineScope.launch(Dispatchers.IO) {
-            var serverSocket: ServerSocket? = null
-            try {
-                // OpenRouter requires port 3000 for localhost development
-                val port = 3000
-                PluginLogger.Service.warn("PKCE: Attempting to bind to port $port")
-                
-                serverSocket = try {
-                    ServerSocket(port)
-                } catch (e: java.net.BindException) {
-                    throw Exception("Port $port is in use. OpenRouter requires port $port for authentication. Please free this port and try again.")
-                }
-
-                PluginLogger.Service.warn("PKCE: Server started on port $port")
-                val callbackUrl = "http://localhost:$port/callback"
-
-                // Construct Auth URL with OAuth app name
-                // Note: The 'name' parameter sets the OAuth app name in OpenRouter.
-                // However, OpenRouter may ignore this for localhost callbacks and use a default name like "OAuth: $CONST Terminal"
-                // for security reasons. The key will still work correctly regardless of the displayed name.
-                val challenge = generateCodeChallenge(codeVerifier)
-                val encodedAppName = java.net.URLEncoder.encode(OpenRouterRequestBuilder.OAUTH_APP_NAME, "UTF-8")
-                val authUrl = "https://openrouter.ai/auth?callback_url=$callbackUrl&code_challenge=$challenge&code_challenge_method=S256&name=$encodedAppName"
-
-                PluginLogger.Service.warn("PKCE: Opening browser with URL: $authUrl")
-                // Open Browser
-                BrowserUtil.browse(authUrl)
-                
-                // Wait for callback
-                serverSocket.soTimeout = 120000 // 2 minutes
-                
-                var codeFound = false
-                while (!codeFound) {
-                    try {
-                        PluginLogger.Service.warn("PKCE: Waiting for connection...")
-                        val socket = serverSocket.accept()
-                        PluginLogger.Service.warn("PKCE: Connection accepted from ${socket.inetAddress}")
-                        
-                        codeFound = handleCallback(socket, codeVerifier)
-                        socket.close()
-                    } catch (e: java.net.SocketTimeoutException) {
-                        PluginLogger.Service.warn("PKCE: Socket timeout")
-                        break
-                    } catch (e: Exception) {
-                        PluginLogger.Service.warn("PKCE: Error accepting connection", e)
-                        break
-                    }
-                }
-            } catch (e: Exception) {
-                PluginLogger.Service.warn("PKCE Flow Error", e)
-                ApplicationManager.getApplication().invokeLater {
-                    showValidationError("Authentication failed: ${e.message}")
-                }
-            } finally {
-                serverSocket?.close()
-                PluginLogger.Service.warn("PKCE: Server stopped")
-            }
-        }
-    }
-
-    private fun handleCallback(socket: Socket, codeVerifier: String): Boolean {
-        try {
-            val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
-            val line = reader.readLine() ?: return false
-            
-            PluginLogger.Service.warn("PKCE: Request received: $line")
-            
-            // GET /callback?code=... HTTP/1.1
-            if (line.contains("GET /callback")) {
-                val code = line.substringAfter("code=").substringBefore(" ").substringBefore("&")
-                PluginLogger.Service.warn("PKCE: Auth code extracted: ${code.take(5)}...")
-                
-                // Send success response
-                val writer = PrintWriter(socket.getOutputStream(), true)
-                writer.println("HTTP/1.1 200 OK")
-                writer.println("Content-Type: text/html")
-                writer.println()
-                writer.println("<html><body><h1>Authentication Successful</h1><p>You can close this window and return to IntelliJ IDEA.</p><script>window.close();</script></body></html>")
-                writer.close()
-                
-                // Exchange code
-                exchangeCode(code, codeVerifier)
-                return true
-            } else {
-                 PluginLogger.Service.warn("PKCE: Ignoring non-callback request")
-                 // Send 404 for other requests (like favicon)
-                 val writer = PrintWriter(socket.getOutputStream(), true)
-                 writer.println("HTTP/1.1 404 Not Found")
-                 writer.close()
-                 return false
-            }
-        } catch (e: Exception) {
-            PluginLogger.Service.warn("Error handling callback", e)
-            return false
-        }
-    }
-
-    private fun exchangeCode(code: String, codeVerifier: String) {
-        ApplicationManager.getApplication().invokeLater {
-            validationStatusLabel.text = "Exchanging code..."
-        }
-        
-        // Use a supervisor scope or the service scope to ensure this doesn't get cancelled
-        // when the local server coroutine finishes
-        PluginLogger.Service.warn("PKCE: Starting exchangeCode coroutine")
-        coroutineScope.launch(Dispatchers.IO) {
-            try {
-                PluginLogger.Service.warn("PKCE: Exchanging code for API key...")
-                val result = openRouterService.exchangeAuthCode(code, codeVerifier)
-                PluginLogger.Service.warn("PKCE: Exchange result: $result")
-                
+        // Create new PKCE handler with callbacks
+        pkceHandler = PkceAuthHandler(
+            coroutineScope = coroutineScope,
+            openRouterService = openRouterService,
+            onSuccess = { apiKey ->
+                // Handle successful authentication
+                keyField.text = apiKey
+                SetupWizardLogger.logPkceEvent("PKCE authentication successful")
+                validateKey(apiKey)
+            },
+            onError = { errorMessage ->
+                // Handle authentication error
+                SetupWizardLogger.logPkceEvent("PKCE authentication failed", errorMessage)
+                showValidationError(errorMessage)
+            },
+            onStatusUpdate = { status ->
+                // Update UI with current status
                 ApplicationManager.getApplication().invokeLater({
-                    PluginLogger.Service.warn("PKCE: Inside invokeLater")
-                    when (result) {
-                        is ApiResult.Success -> {
-                            val key = result.data.key
-                            PluginLogger.Service.warn("PKCE: Key received, updating UI")
-                            keyField.text = key
-                            // validateKey will be triggered by text change listener, 
-                            // but we can force it or let the listener handle it.
-                            // Since we set text programmatically, the listener might fire.
-                            // Let's ensure validation happens.
-                            validateKey(key)
-                        }
-                        is ApiResult.Error -> {
-                             PluginLogger.Service.warn("PKCE: Exchange failed: ${result.message}")
-                             showValidationError("Failed to exchange code: ${result.message}")
-                        }
-                    }
+                    showValidationInProgress()
+                    validationStatusLabel.text = status
                 }, ModalityState.any())
-            } catch (e: Exception) {
-                PluginLogger.Service.warn("PKCE: Error in exchangeCode coroutine", e)
             }
-        }
+        )
+
+        // Start the PKCE flow
+        pkceHandler?.startAuthFlow()
     }
 
     // ========== Models Loading and Filtering ==========
@@ -974,7 +833,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
             return // Already loaded or loading
         }
 
-        PluginLogger.Service.warn("[OpenRouter] loadModels starting")
+        SetupWizardLogger.logModelLoadingEvent("Starting model load")
         isLoadingModels = true
         modelsLoadingIcon.icon = AllIcons.Process.Step_1
         modelsLoadingIcon.isVisible = true
@@ -984,17 +843,14 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
         coroutineScope.launch(Dispatchers.IO) {
             try {
-                PluginLogger.Service.warn(
-                    "[OpenRouter] Calling favoriteModelsService.getAvailableModels from IO thread"
-                )
-                val models = withTimeout(MODEL_LOADING_TIMEOUT_MS) {
+                val models = withTimeout(SetupWizardConfig.MODEL_LOADING_TIMEOUT_MS) {
                     favoriteModelsService.getAvailableModels(forceRefresh = true)
                 }
 
                 ApplicationManager.getApplication().invokeLater({
                     isLoadingModels = false
                     if (models != null && models.isNotEmpty()) {
-                        PluginLogger.Service.warn("[OpenRouter] Successfully loaded ${models.size} models")
+                        SetupWizardLogger.logModelLoadingEvent("Successfully loaded ${models.size} models")
                         allModels = models
 
                         // Pre-select existing favorites
@@ -1013,7 +869,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                         modelsLoadingIcon.isVisible = false
                         modelsLoadingLabel.isVisible = false
                     } else {
-                        PluginLogger.Service.warn("[OpenRouter] Failed to load models or list is empty")
+                        SetupWizardLogger.logModelLoadingEvent("Failed to load models or list is empty")
                         modelsLoadingIcon.icon = AllIcons.General.Error
                         modelsLoadingLabel.text = "Failed to load models. Please check your connection."
                         modelsLoadingLabel.foreground = JBColor.RED
@@ -1021,11 +877,11 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                     updateButtons()
                 }, ModalityState.any())
             } catch (e: Exception) {
-                PluginLogger.Service.warn("[OpenRouter] Exception in loadModels", e)
+                SetupWizardLogger.error("Exception in loadModels", e)
                 ApplicationManager.getApplication().invokeLater({
                     isLoadingModels = false
                     modelsLoadingIcon.icon = AllIcons.General.Error
-                    modelsLoadingLabel.text = "Error: ${e.message ?: "Unknown error"}"
+                    modelsLoadingLabel.text = SetupWizardErrorHandler.handleModelLoadingError(e)
                     modelsLoadingLabel.foreground = JBColor.RED
                     updateButtons()
                 }, ModalityState.any())
@@ -1153,34 +1009,32 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         }
     }
 
+    // ========== Cleanup ==========
+
+    override fun dispose() {
+        super.dispose()
+        pkceHandler?.cancel()
+        validationJob?.cancel()
+    }
+
     companion object {
-        // Dialog dimensions
-        private const val DIALOG_WIDTH = 700
-        private const val DIALOG_HEIGHT = 500
-        private const val MODELS_TABLE_WIDTH = 650
-        private const val MODELS_TABLE_HEIGHT = 280
-
-        // UI constants
-        private const val TABLE_ROW_HEIGHT = 28
-        private const val CHECKBOX_COLUMN_WIDTH = 40
-        private const val NAME_COLUMN_WIDTH = 400
-        private const val URL_LABEL_FONT_SIZE = 12
-
-        // Timeouts (milliseconds)
-        private const val KEY_VALIDATION_TIMEOUT_MS = 10000L
-        private const val MODEL_LOADING_TIMEOUT_MS = 30000L
-
-        // Default proxy port
-        private const val DEFAULT_PROXY_PORT = 8080
-
-        // String truncation length
-        private const val API_KEY_TRUNCATE_LENGTH = 10
+        // Use SetupWizardConfig for all constants
+        private val DIALOG_WIDTH = SetupWizardConfig.DIALOG_WIDTH
+        private val DIALOG_HEIGHT = SetupWizardConfig.DIALOG_HEIGHT
+        private val MODELS_TABLE_WIDTH = SetupWizardConfig.MODELS_TABLE_WIDTH
+        private val MODELS_TABLE_HEIGHT = SetupWizardConfig.MODELS_TABLE_HEIGHT
+        private val TABLE_ROW_HEIGHT = SetupWizardConfig.TABLE_ROW_HEIGHT
+        private val CHECKBOX_COLUMN_WIDTH = SetupWizardConfig.CHECKBOX_COLUMN_WIDTH
+        private val NAME_COLUMN_WIDTH = SetupWizardConfig.NAME_COLUMN_WIDTH
+        private val URL_LABEL_FONT_SIZE = SetupWizardConfig.URL_LABEL_FONT_SIZE
+        private val API_KEY_TRUNCATE_LENGTH = SetupWizardConfig.API_KEY_TRUNCATE_LENGTH
+        private val DEFAULT_PROXY_PORT = SetupWizardConfig.DEFAULT_PROXY_PORT
 
         // Wizard step identifiers
-        private const val STEP_WELCOME = 0
-        private const val STEP_PROVISIONING = 1
-        private const val STEP_MODELS = 2
-        private const val STEP_COMPLETION = 3
+        private val STEP_WELCOME = SetupWizardConfig.STEP_WELCOME
+        private val STEP_PROVISIONING = SetupWizardConfig.STEP_PROVISIONING
+        private val STEP_MODELS = SetupWizardConfig.STEP_MODELS
+        private val STEP_COMPLETION = SetupWizardConfig.STEP_COMPLETION
 
         /**
          * Show the setup wizard dialog
