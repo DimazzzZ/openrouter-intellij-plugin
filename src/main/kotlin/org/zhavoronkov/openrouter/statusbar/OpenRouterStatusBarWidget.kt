@@ -68,6 +68,8 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         const val SETTINGS_MENU_TEXT = "Settings"
         const val DOCUMENTATION_MENU_TEXT = "View OpenRouter Documentation..."
         const val FEEDBACK_MENU_TEXT = "View Feedback Repository..."
+        private const val DAYS_IN_WEEK = 7
+        private const val DATE_STRING_LENGTH = 10
 
         // Time conversion: milliseconds per second
         private const val MILLIS_PER_SECOND = 1000L
@@ -417,62 +419,19 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         }
     }
 
-    private fun formatStatusTooltipFromCredits(used: Double, total: Double, activityList: List<ActivityData>? = null): String {
+    private fun formatStatusTooltipFromCredits(
+        used: Double,
+        total: Double,
+        activityList: List<ActivityData>? = null
+    ): String {
         val status = connectionStatus.displayName
         val usedText = "$${String.format(Locale.US, "%.3f", used)}"
         val totalText = if (total > 0) "$${String.format(Locale.US, "%.2f", total)}" else "Unlimited"
 
-        var activityRows = ""
-        if (activityList != null) {
-            val utcNow = LocalDate.now(ZoneId.of("UTC"))
-            val yesterday = utcNow.minusDays(1)
-            val lastWeekStart = utcNow.minusDays(6) // Last 7 days including today
-
-            var todayCost = 0.0
-            var yesterdayCost = 0.0
-            var lastWeekCost = 0.0
-
-            activityList.forEach { activity ->
-                try {
-                    val dateStr = activity.date
-                    val usage = activity.usage ?: 0.0
-
-                    if (dateStr != null) {
-                        // Handle both "YYYY-MM-DD" and "YYYY-MM-DD HH:MM:SS" formats
-                        val datePart = if (dateStr.length > 10) dateStr.substring(0, 10) else dateStr
-                        val activityDate = LocalDate.parse(datePart, DateTimeFormatter.ISO_DATE)
-
-                        if (activityDate.isEqual(utcNow)) {
-                            todayCost += usage
-                        }
-
-                        if (activityDate.isEqual(yesterday)) {
-                            yesterdayCost += usage
-                        }
-
-                        if (!activityDate.isBefore(lastWeekStart) && !activityDate.isAfter(utcNow)) {
-                            lastWeekCost += usage
-                        }
-                    }
-                } catch (e: Exception) {
-                    // Ignore parsing errors
-                    com.intellij.openapi.diagnostic.Logger.getInstance(OpenRouterStatusBarWidget::class.java)
-                        .warn("Error parsing activity date: ${activity.date}", e)
-                }
-            }
-
-            val todayText = "$${String.format(Locale.US, "%.3f", todayCost)}"
-            val yesterdayText = "$${String.format(Locale.US, "%.3f", yesterdayCost)}"
-            val lastWeekText = "$${String.format(Locale.US, "%.3f", lastWeekCost)}"
-
-            activityRows = """
-              <tr height='8'><td></td></tr>
-              <tr><td colspan='2'><b>Activity</b></td></tr>
-              <tr height='2'><td></td></tr>
-              <tr><td>Today:</td><td align='right' style='padding-left: 30px;'>$todayText</td></tr>
-              <tr><td>Yesterday:</td><td align='right' style='padding-left: 30px;'>$yesterdayText</td></tr>
-              <tr><td>7 Days:</td><td align='right' style='padding-left: 30px;'>$lastWeekText</td></tr>
-            """.trimIndent()
+        val activityRows = if (activityList != null) {
+            calculateActivityRows(activityList)
+        } else {
+            ""
         }
 
         return """
@@ -492,7 +451,80 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
             </html>
         """.trimIndent()
     }
+
+    private fun calculateActivityRows(activityList: List<ActivityData>): String {
+        val utcNow = LocalDate.now(ZoneId.of("UTC"))
+        val yesterday = utcNow.minusDays(1)
+        val lastWeekStart = utcNow.minusDays((DAYS_IN_WEEK - 1).toLong())
+
+        val costs = ActivityCosts()
+
+        activityList.forEach { activity ->
+            processActivity(activity, utcNow, yesterday, lastWeekStart, costs)
+        }
+
+        return formatActivityRowsHtml(costs.today, costs.yesterday, costs.lastWeek)
+    }
+
+    private fun processActivity(
+        activity: ActivityData,
+        utcNow: LocalDate,
+        yesterday: LocalDate,
+        lastWeekStart: LocalDate,
+        costs: ActivityCosts
+    ) {
+        try {
+            val dateStr = activity.date ?: return
+            val usage = activity.usage ?: 0.0
+            val activityDate = parseActivityDate(dateStr)
+
+            when {
+                activityDate.isEqual(utcNow) -> costs.today += usage
+                activityDate.isEqual(yesterday) -> costs.yesterday += usage
+            }
+
+            if (!activityDate.isBefore(lastWeekStart) && !activityDate.isAfter(utcNow)) {
+                costs.lastWeek += usage
+            }
+        } catch (e: Exception) {
+            com.intellij.openapi.diagnostic.Logger.getInstance(OpenRouterStatusBarWidget::class.java)
+                .warn("Error parsing activity date: ${activity.date}", e)
+        }
+    }
+
+    private fun parseActivityDate(dateStr: String): LocalDate {
+        val datePart = if (dateStr.length > DATE_STRING_LENGTH) {
+            dateStr.substring(0, DATE_STRING_LENGTH)
+        } else {
+            dateStr
+        }
+        return LocalDate.parse(datePart, DateTimeFormatter.ISO_DATE)
+    }
+
+    private fun formatActivityRowsHtml(todayCost: Double, yesterdayCost: Double, lastWeekCost: Double): String {
+        val todayText = "$${String.format(Locale.US, "%.3f", todayCost)}"
+        val yesterdayText = "$${String.format(Locale.US, "%.3f", yesterdayCost)}"
+        val lastWeekText = "$${String.format(Locale.US, "%.3f", lastWeekCost)}"
+
+        return """
+          <tr height='8'><td></td></tr>
+          <tr><td colspan='2'><b>Activity</b></td></tr>
+          <tr height='2'><td></td></tr>
+          <tr><td>Today:</td><td align='right' style='padding-left: 30px;'>$todayText</td></tr>
+          <tr><td>Yesterday:</td><td align='right' style='padding-left: 30px;'>$yesterdayText</td></tr>
+          <tr><td>7 Days:</td><td align='right' style='padding-left: 30px;'>$lastWeekText</td></tr>
+        """.trimIndent()
+    }
 }
+
+/**
+ * Holds activity cost data for different time periods
+ */
+private data class ActivityCosts(
+    var today: Double = 0.0,
+    var yesterday: Double = 0.0,
+    var lastWeek: Double = 0.0
+)
 
 /**
  * Represents a menu item in the popup menu
