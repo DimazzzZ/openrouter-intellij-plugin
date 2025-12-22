@@ -49,6 +49,9 @@ class OpenRouterSettingsServiceTest {
         fun testIsConfiguredWithProvisioningKey() {
             val service = OpenRouterSettingsService()
 
+            // Set auth scope to EXTENDED before setting provisioning key
+            // isConfigured() checks the key based on the current authScope
+            service.apiKeyManager.authScope = org.zhavoronkov.openrouter.models.AuthScope.EXTENDED
             service.apiKeyManager.setProvisioningKey("test-provisioning-key")
 
             assertTrue(service.isConfigured())
