@@ -110,6 +110,18 @@ open class OpenRouterService(
     // Method to get base URL for testing purposes
     protected open fun getBaseUrl(): String = baseUrlOverride ?: BASE_URL
 
+    // Dynamic endpoint getters that use getBaseUrl()
+    private fun getChatCompletionsEndpoint() = "${getBaseUrl()}/chat/completions"
+    private fun getGenerationEndpoint() = "${getBaseUrl()}/generation"
+    private fun getCreditsEndpoint() = "${getBaseUrl()}/credits"
+    private fun getApiKeysEndpoint() = "${getBaseUrl()}/keys"
+    private fun getKeyEndpoint() = "${getBaseUrl()}/key"
+    private fun getActivityEndpoint() = "${getBaseUrl()}/activity"
+    private fun getAuthKeyEndpoint() = "${getBaseUrl()}/auth/key"
+    private fun getAuthKeysEndpoint() = "${getBaseUrl()}/auth/keys"
+    private fun getProvidersEndpoint() = "${getBaseUrl()}/providers"
+    private fun getModelsEndpoint() = "${getBaseUrl()}/models"
+
     /**
      * Handle network errors gracefully without alarming users
      * Network issues (offline, DNS problems, etc.) are common and expected
@@ -251,7 +263,7 @@ open class OpenRouterService(
                 }
 
                 val request = OpenRouterRequestBuilder.buildGetRequest(
-                    url = KEY_ENDPOINT,
+                    url = getKeyEndpoint(),
                     authType = OpenRouterRequestBuilder.AuthType.API_KEY,
                     authToken = apiKey
                 )
@@ -304,10 +316,10 @@ open class OpenRouterService(
                 PluginLogger.Service.debug(
                     "Fetching API keys list from OpenRouter with provisioning key: $keyPreview..."
                 )
-                PluginLogger.Service.debug("Making request to: $API_KEYS_ENDPOINT")
+                PluginLogger.Service.debug("Making request to: ${getApiKeysEndpoint()}")
 
                 val request = OpenRouterRequestBuilder.buildGetRequest(
-                    url = API_KEYS_ENDPOINT,
+                    url = getApiKeysEndpoint(),
                     authType = OpenRouterRequestBuilder.AuthType.PROVISIONING_KEY,
                     authToken = provisioningKey
                 )
@@ -680,7 +692,7 @@ open class OpenRouterService(
                 PluginLogger.Service.debug("Exchanging auth code for API key...")
 
                 val request = OpenRouterRequestBuilder.buildPostRequest(
-                    url = AUTH_KEYS_ENDPOINT,
+                    url = getAuthKeysEndpoint(),
                     jsonBody = json,
                     authType = OpenRouterRequestBuilder.AuthType.NONE
                 )

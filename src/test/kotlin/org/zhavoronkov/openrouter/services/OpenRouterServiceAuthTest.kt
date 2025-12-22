@@ -36,7 +36,12 @@ class OpenRouterServiceAuthTest {
         `when`(mockSettingsService.getApiKey()).thenReturn("test-api-key")
 
         gson = Gson()
-        service = OpenRouterService(gson = gson, settingsService = mockSettingsService)
+        // Note: We're not using mockWebServer here because OpenRouterService uses real URLs
+        // This test file needs to be updated to properly test with MockWebServer
+        service = OpenRouterService(
+            gson = gson,
+            settingsService = mockSettingsService
+        )
     }
 
     @AfterEach
@@ -118,19 +123,31 @@ class OpenRouterServiceAuthTest {
         @Test
         @DisplayName("Should handle network errors during auth code exchange")
         fun testExchangeAuthCodeNetworkError() = runBlocking {
-            // Simulate network error by not enqueuing any response
+            // Simulate network error by shutting down the server
+            mockWebServer.shutdown()
+
             val testService = OpenRouterService(
                 gson = gson,
                 settingsService = mockSettingsService,
-                baseUrlOverride = mockWebServer.url("/").toString()
+                baseUrlOverride = "http://localhost:1" // Invalid port to trigger connection error
             )
 
             val result = testService.exchangeAuthCode("test-code", "test-verifier")
 
             assertTrue(result is ApiResult.Error)
             val errorResult = result as ApiResult.Error
-            assertTrue(errorResult.message.contains("Network error") ||
-                      errorResult.message.contains("Unable to reach"))
+            // The error message should indicate a network/connection issue
+            assertTrue(
+                errorResult.message.contains("Network error") ||
+                errorResult.message.contains("Unable to reach") ||
+                errorResult.message.contains("Connection refused") ||
+                errorResult.message.contains("Failed to connect"),
+                "Expected network error message but got: ${errorResult.message}"
+            )
+
+            // Restart the server for other tests
+            mockWebServer = MockWebServer()
+            mockWebServer.start()
         }
     }
 
@@ -297,12 +314,14 @@ class OpenRouterServiceAuthTest {
     }
 
     // Helper class to allow custom base URL for testing
+    // Note: This is now simplified since OpenRouterService supports baseUrlOverride
     private class TestableOpenRouterService(
-        private val gson: Gson,
-        private val settingsService: OpenRouterSettingsService,
-        private val baseUrl: String = "https://openrouter.ai/api/v1"
-    ) : org.zhavoronkov.openrouter.services.OpenRouterService(gson, settingsService) {
-
-        override fun getBaseUrl(): String = baseUrl
-    }
+        gson: Gson,
+        settingsService: OpenRouterSettingsService,
+        baseUrl: String = "https://openrouter.ai/api/v1"
+    ) : org.zhavoronkov.openrouter.services.OpenRouterService(
+        gson = gson,
+        settingsService = settingsService,
+        baseUrlOverride = baseUrl
+    )
 }
