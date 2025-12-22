@@ -17,6 +17,18 @@ object OpenRouterRequestBuilder {
     private const val CONTENT_TYPE_JSON = "application/json"
 
     /**
+     * OAuth app name used in the OAuth authorization flow.
+     *
+     * This is passed as the 'name' parameter in the OAuth authorization URL:
+     * https://openrouter.ai/auth?callback_url=...&name=<OAUTH_APP_NAME>
+     *
+     * Note: OpenRouter may ignore this parameter for localhost callbacks and use a default name
+     * (e.g., "OAuth: $CONST Terminal") for security reasons. The generated API key will still
+     * work correctly regardless of the displayed name.
+     */
+    const val OAUTH_APP_NAME = "OpenRouter IntelliJ Plugin"
+
+    /**
      * Authentication types for different OpenRouter endpoints
      */
     enum class AuthType {

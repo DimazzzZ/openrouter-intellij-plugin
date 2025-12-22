@@ -33,6 +33,7 @@ import org.zhavoronkov.openrouter.proxy.OpenRouterProxyServer
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.CardLayout
@@ -845,14 +846,15 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
                 PluginLogger.Service.warn("PKCE: Server started on port $port")
                 val callbackUrl = "http://localhost:$port/callback"
-                
-                // Construct Auth URL
+
+                // Construct Auth URL with OAuth app name
+                // Note: The 'name' parameter sets the OAuth app name in OpenRouter.
+                // However, OpenRouter may ignore this for localhost callbacks and use a default name like "OAuth: $CONST Terminal"
+                // for security reasons. The key will still work correctly regardless of the displayed name.
                 val challenge = generateCodeChallenge(codeVerifier)
-                // Try passing name, though it might be ignored for localhost
-                val appName = "OpenRouter IntelliJ Plugin"
-                val encodedAppName = java.net.URLEncoder.encode(appName, "UTF-8")
+                val encodedAppName = java.net.URLEncoder.encode(OpenRouterRequestBuilder.OAUTH_APP_NAME, "UTF-8")
                 val authUrl = "https://openrouter.ai/auth?callback_url=$callbackUrl&code_challenge=$challenge&code_challenge_method=S256&name=$encodedAppName"
-                
+
                 PluginLogger.Service.warn("PKCE: Opening browser with URL: $authUrl")
                 // Open Browser
                 BrowserUtil.browse(authUrl)
