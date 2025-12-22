@@ -240,6 +240,18 @@ data class ChatUsage(
     @SerializedName("total_tokens") val totalTokens: Int? = null
 )
 
+// Auth Code Exchange models
+data class ExchangeAuthCodeRequest(
+    val code: String,
+    @SerializedName("code_verifier") val codeVerifier: String,
+    @SerializedName("code_challenge") val codeChallenge: String? = null,
+    @SerializedName("code_challenge_method") val codeChallengeMethod: String? = "S256"
+)
+
+data class ExchangeAuthCodeResponse(
+    val key: String
+)
+
 /**
  * Authentication scope for the plugin
  */

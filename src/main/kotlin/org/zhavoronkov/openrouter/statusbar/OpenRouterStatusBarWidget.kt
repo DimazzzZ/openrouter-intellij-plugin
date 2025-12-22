@@ -318,6 +318,13 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
             ConnectionStatus.NOT_CONFIGURED
         }
 
+        // If configured with Regular key, ensure status is READY immediately
+        // as we don't fetch credits for regular keys
+        if (settingsService.isConfigured() && 
+            settingsService.apiKeyManager.authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR) {
+            connectionStatus = ConnectionStatus.READY
+        }
+
         currentText = "Status: ${connectionStatus.displayName}"
         val isRegular = settingsService.apiKeyManager.authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR
         val scopeText = if (isRegular) "Regular Key" else "Provisioning Key"

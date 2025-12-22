@@ -45,6 +45,15 @@ import javax.swing.JRadioButton
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.table.AbstractTableModel
+import java.security.MessageDigest
+import java.security.SecureRandom
+import java.util.Base64
+import java.net.ServerSocket
+import java.net.Socket
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.io.PrintWriter
+import com.intellij.ide.BrowserUtil
 
 /**
  * Multi-step setup wizard for first-time users with validation and embedded model selection
@@ -246,13 +255,17 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                 row {
                     text("Get your key from:")
                     browserLink(
-                        "OpenRouter API Keys",
-                        "https://openrouter.ai/settings/keys"
-                    ).visibleIf(radioButtonSelected(AuthScope.REGULAR))
-                    browserLink(
                         "OpenRouter Provisioning Keys",
                         "https://openrouter.ai/settings/provisioning-keys"
                     ).visibleIf(radioButtonSelected(AuthScope.EXTENDED))
+                }.bottomGap(BottomGap.MEDIUM).visibleIf(radioButtonSelected(AuthScope.EXTENDED))
+
+                row {
+                    button("Connect to OpenRouter") {
+                        val verifier = generateCodeVerifier()
+                        startLocalServer(verifier)
+                    }.visibleIf(radioButtonSelected(AuthScope.REGULAR))
+                        .comment("Opens browser to authorize and automatically retrieves your API key")
                 }.bottomGap(BottomGap.MEDIUM)
 
                 row {
@@ -794,6 +807,162 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         validationStatusLabel.repaint()
         validationIcon.revalidate()
         validationIcon.repaint()
+    }
+
+    // ========== PKCE Authentication Flow ==========
+
+    private fun generateCodeVerifier(): String {
+        val secureRandom = SecureRandom()
+        val codeVerifier = ByteArray(32)
+        secureRandom.nextBytes(codeVerifier)
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(codeVerifier)
+    }
+
+    private fun generateCodeChallenge(codeVerifier: String): String {
+        val bytes = codeVerifier.toByteArray(Charsets.US_ASCII)
+        val messageDigest = MessageDigest.getInstance("SHA-256")
+        messageDigest.update(bytes, 0, bytes.size)
+        val digest = messageDigest.digest()
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(digest)
+    }
+
+    private fun startLocalServer(codeVerifier: String) {
+        showValidationInProgress()
+        validationStatusLabel.text = "Waiting for browser..."
+        
+        coroutineScope.launch(Dispatchers.IO) {
+            var serverSocket: ServerSocket? = null
+            try {
+                // OpenRouter requires port 3000 for localhost development
+                val port = 3000
+                PluginLogger.Service.warn("PKCE: Attempting to bind to port $port")
+                
+                serverSocket = try {
+                    ServerSocket(port)
+                } catch (e: java.net.BindException) {
+                    throw Exception("Port $port is in use. OpenRouter requires port $port for authentication. Please free this port and try again.")
+                }
+
+                PluginLogger.Service.warn("PKCE: Server started on port $port")
+                val callbackUrl = "http://localhost:$port/callback"
+                
+                // Construct Auth URL
+                val challenge = generateCodeChallenge(codeVerifier)
+                // Try passing name, though it might be ignored for localhost
+                val appName = "OpenRouter IntelliJ Plugin"
+                val encodedAppName = java.net.URLEncoder.encode(appName, "UTF-8")
+                val authUrl = "https://openrouter.ai/auth?callback_url=$callbackUrl&code_challenge=$challenge&code_challenge_method=S256&name=$encodedAppName"
+                
+                PluginLogger.Service.warn("PKCE: Opening browser with URL: $authUrl")
+                // Open Browser
+                BrowserUtil.browse(authUrl)
+                
+                // Wait for callback
+                serverSocket.soTimeout = 120000 // 2 minutes
+                
+                var codeFound = false
+                while (!codeFound) {
+                    try {
+                        PluginLogger.Service.warn("PKCE: Waiting for connection...")
+                        val socket = serverSocket.accept()
+                        PluginLogger.Service.warn("PKCE: Connection accepted from ${socket.inetAddress}")
+                        
+                        codeFound = handleCallback(socket, codeVerifier)
+                        socket.close()
+                    } catch (e: java.net.SocketTimeoutException) {
+                        PluginLogger.Service.warn("PKCE: Socket timeout")
+                        break
+                    } catch (e: Exception) {
+                        PluginLogger.Service.warn("PKCE: Error accepting connection", e)
+                        break
+                    }
+                }
+            } catch (e: Exception) {
+                PluginLogger.Service.warn("PKCE Flow Error", e)
+                ApplicationManager.getApplication().invokeLater {
+                    showValidationError("Authentication failed: ${e.message}")
+                }
+            } finally {
+                serverSocket?.close()
+                PluginLogger.Service.warn("PKCE: Server stopped")
+            }
+        }
+    }
+
+    private fun handleCallback(socket: Socket, codeVerifier: String): Boolean {
+        try {
+            val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
+            val line = reader.readLine() ?: return false
+            
+            PluginLogger.Service.warn("PKCE: Request received: $line")
+            
+            // GET /callback?code=... HTTP/1.1
+            if (line.contains("GET /callback")) {
+                val code = line.substringAfter("code=").substringBefore(" ").substringBefore("&")
+                PluginLogger.Service.warn("PKCE: Auth code extracted: ${code.take(5)}...")
+                
+                // Send success response
+                val writer = PrintWriter(socket.getOutputStream(), true)
+                writer.println("HTTP/1.1 200 OK")
+                writer.println("Content-Type: text/html")
+                writer.println()
+                writer.println("<html><body><h1>Authentication Successful</h1><p>You can close this window and return to IntelliJ IDEA.</p><script>window.close();</script></body></html>")
+                writer.close()
+                
+                // Exchange code
+                exchangeCode(code, codeVerifier)
+                return true
+            } else {
+                 PluginLogger.Service.warn("PKCE: Ignoring non-callback request")
+                 // Send 404 for other requests (like favicon)
+                 val writer = PrintWriter(socket.getOutputStream(), true)
+                 writer.println("HTTP/1.1 404 Not Found")
+                 writer.close()
+                 return false
+            }
+        } catch (e: Exception) {
+            PluginLogger.Service.warn("Error handling callback", e)
+            return false
+        }
+    }
+
+    private fun exchangeCode(code: String, codeVerifier: String) {
+        ApplicationManager.getApplication().invokeLater {
+            validationStatusLabel.text = "Exchanging code..."
+        }
+        
+        // Use a supervisor scope or the service scope to ensure this doesn't get cancelled
+        // when the local server coroutine finishes
+        PluginLogger.Service.warn("PKCE: Starting exchangeCode coroutine")
+        coroutineScope.launch(Dispatchers.IO) {
+            try {
+                PluginLogger.Service.warn("PKCE: Exchanging code for API key...")
+                val result = openRouterService.exchangeAuthCode(code, codeVerifier)
+                PluginLogger.Service.warn("PKCE: Exchange result: $result")
+                
+                ApplicationManager.getApplication().invokeLater({
+                    PluginLogger.Service.warn("PKCE: Inside invokeLater")
+                    when (result) {
+                        is ApiResult.Success -> {
+                            val key = result.data.key
+                            PluginLogger.Service.warn("PKCE: Key received, updating UI")
+                            keyField.text = key
+                            // validateKey will be triggered by text change listener, 
+                            // but we can force it or let the listener handle it.
+                            // Since we set text programmatically, the listener might fire.
+                            // Let's ensure validation happens.
+                            validateKey(key)
+                        }
+                        is ApiResult.Error -> {
+                             PluginLogger.Service.warn("PKCE: Exchange failed: ${result.message}")
+                             showValidationError("Failed to exchange code: ${result.message}")
+                        }
+                    }
+                }, ModalityState.any())
+            } catch (e: Exception) {
+                PluginLogger.Service.warn("PKCE: Error in exchangeCode coroutine", e)
+            }
+        }
     }
 
     // ========== Models Loading and Filtering ==========

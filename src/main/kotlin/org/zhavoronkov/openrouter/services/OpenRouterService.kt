@@ -16,6 +16,8 @@ import org.zhavoronkov.openrouter.models.CreateApiKeyRequest
 import org.zhavoronkov.openrouter.models.CreateApiKeyResponse
 import org.zhavoronkov.openrouter.models.CreditsResponse
 import org.zhavoronkov.openrouter.models.DeleteApiKeyResponse
+import org.zhavoronkov.openrouter.models.ExchangeAuthCodeRequest
+import org.zhavoronkov.openrouter.models.ExchangeAuthCodeResponse
 import org.zhavoronkov.openrouter.models.GenerationResponse
 import org.zhavoronkov.openrouter.models.KeyData
 import org.zhavoronkov.openrouter.models.KeyInfoResponse
@@ -80,6 +82,7 @@ class OpenRouterService(
         private const val KEY_ENDPOINT = "$BASE_URL/key"
         private const val ACTIVITY_ENDPOINT = "$BASE_URL/activity"
         private const val AUTH_KEY_ENDPOINT = "$BASE_URL/auth/key"
+        private const val AUTH_KEYS_ENDPOINT = "$BASE_URL/auth/keys"
 
         // Public endpoints (no authentication required)
         private const val PROVIDERS_ENDPOINT = "$BASE_URL/providers"
@@ -654,6 +657,51 @@ class OpenRouterService(
                 }
             } catch (e: IOException) {
                 handleNetworkError(e, errorContext)
+                ApiResult.Error(message = e.message ?: "Network error", throwable = e)
+            }
+        }
+
+    /**
+     * Exchange auth code for API key
+     */
+    suspend fun exchangeAuthCode(code: String, codeVerifier: String): ApiResult<ExchangeAuthCodeResponse> =
+        withContext(Dispatchers.IO) {
+            try {
+                val requestBody = ExchangeAuthCodeRequest(
+                    code = code,
+                    codeVerifier = codeVerifier
+                )
+                val json = gson.toJson(requestBody)
+
+                PluginLogger.Service.debug("Exchanging auth code for API key...")
+
+                val request = OpenRouterRequestBuilder.buildPostRequest(
+                    url = AUTH_KEYS_ENDPOINT,
+                    jsonBody = json,
+                    authType = OpenRouterRequestBuilder.AuthType.NONE
+                )
+
+                val response = client.newCall(request).await()
+                val responseBody = response.body?.string().orEmpty()
+                PluginLogger.Service.warn("PKCE: Exchange response code: ${response.code}")
+                PluginLogger.Service.warn("PKCE: Exchange response body: $responseBody")
+
+                if (response.isSuccessful) {
+                    try {
+                        val result = gson.fromJson(responseBody, ExchangeAuthCodeResponse::class.java)
+                        ApiResult.Success(result, response.code)
+                    } catch (e: JsonSyntaxException) {
+                        PluginLogger.Service.warn("PKCE: Failed to parse response", e)
+                        ApiResult.Error("Failed to parse response", statusCode = response.code, throwable = e)
+                    }
+                } else {
+                    ApiResult.Error(
+                        message = responseBody.ifBlank { "Failed to exchange auth code" },
+                        statusCode = response.code
+                    )
+                }
+            } catch (e: IOException) {
+                handleNetworkError(e, "Error exchanging auth code")
                 ApiResult.Error(message = e.message ?: "Network error", throwable = e)
             }
         }
