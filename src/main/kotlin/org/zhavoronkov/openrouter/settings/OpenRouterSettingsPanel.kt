@@ -314,11 +314,12 @@ class OpenRouterSettingsPanel {
                 }
 
                 // Authentication Status group
-                // Authentication Status group
                 group("Authentication") {
                     row("Current Scope:") {
                         authScopeLabel = label("").applyToComponent {
-                            text = if (settingsService.apiKeyManager.authScope == AuthScope.REGULAR) {
+                            text = if (!settingsService.setupStateManager.hasCompletedSetup()) {
+                                "Not Configured"
+                            } else if (settingsService.apiKeyManager.authScope == AuthScope.REGULAR) {
                                 "Regular API Key"
                             } else {
                                 "Extended (Provisioning Key)"
@@ -327,7 +328,9 @@ class OpenRouterSettingsPanel {
                     }
                     row {
                         authDescriptionLabel = text("").applyToComponent {
-                            text = if (settingsService.apiKeyManager.authScope == AuthScope.REGULAR) {
+                            text = if (!settingsService.setupStateManager.hasCompletedSetup()) {
+                                "Please run the Setup Wizard to configure authentication."
+                            } else if (settingsService.apiKeyManager.authScope == AuthScope.REGULAR) {
                                 "Minimal permissions. Quota tracking and usage monitoring are disabled."
                             } else {
                                 "Full functionality. The plugin can manage API keys and monitor usage."
@@ -841,14 +844,18 @@ class OpenRouterSettingsPanel {
 
             // Update status labels
             if (::authScopeLabel.isInitialized) {
-                authScopeLabel.text = if (newScope == AuthScope.REGULAR) {
+                authScopeLabel.text = if (!settingsService.setupStateManager.hasCompletedSetup()) {
+                    "Not Configured"
+                } else if (newScope == AuthScope.REGULAR) {
                     "Regular API Key"
                 } else {
                     "Extended (Provisioning Key)"
                 }
             }
             if (::authDescriptionLabel.isInitialized) {
-                authDescriptionLabel.text = if (newScope == AuthScope.REGULAR) {
+                authDescriptionLabel.text = if (!settingsService.setupStateManager.hasCompletedSetup()) {
+                    "Please run the Setup Wizard to configure authentication."
+                } else if (newScope == AuthScope.REGULAR) {
                     "Minimal permissions. Quota tracking and usage monitoring are disabled."
                 } else {
                     "Full functionality. The plugin can manage API keys and monitor usage."

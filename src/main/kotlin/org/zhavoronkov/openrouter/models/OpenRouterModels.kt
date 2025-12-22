@@ -289,7 +289,7 @@ enum class AuthScope {
  * Settings data class
  */
 data class OpenRouterSettings(
-    var authScope: AuthScope = AuthScope.EXTENDED,
+    var authScope: AuthScope = AuthScope.REGULAR,
     var apiKey: String = "",
     var provisioningKey: String = "",
     var autoRefresh: Boolean = true,

@@ -654,36 +654,48 @@ open class OpenRouterService(
                 )
                 val json = gson.toJson(requestBody)
 
-                PluginLogger.Service.debug("Exchanging auth code for API key...")
+                PluginLogger.Service.info("PKCE: Starting auth code exchange")
+                PluginLogger.Service.debug("PKCE: Request body: $json")
+
+                val endpoint = getAuthKeysEndpoint()
+                PluginLogger.Service.info("PKCE: Endpoint: $endpoint")
 
                 val request = OpenRouterRequestBuilder.buildPostRequest(
-                    url = getAuthKeysEndpoint(),
+                    url = endpoint,
                     jsonBody = json,
                     authType = OpenRouterRequestBuilder.AuthType.NONE
                 )
 
+                PluginLogger.Service.info("PKCE: Sending request...")
                 val response = client.newCall(request).await()
                 val responseBody = response.body?.string().orEmpty()
-                PluginLogger.Service.warn("PKCE: Exchange response code: ${response.code}")
-                PluginLogger.Service.warn("PKCE: Exchange response body: $responseBody")
+                PluginLogger.Service.info("PKCE: Response code: ${response.code}")
+                PluginLogger.Service.info("PKCE: Response body: $responseBody")
 
                 if (response.isSuccessful) {
                     try {
                         val result = gson.fromJson(responseBody, ExchangeAuthCodeResponse::class.java)
+                        PluginLogger.Service.info("PKCE: Successfully parsed response, key length: ${result.key.length}")
                         ApiResult.Success(result, response.code)
                     } catch (e: JsonSyntaxException) {
-                        PluginLogger.Service.warn("PKCE: Failed to parse response", e)
-                        ApiResult.Error("Failed to parse response", statusCode = response.code, throwable = e)
+                        PluginLogger.Service.error("PKCE: Failed to parse response", e)
+                        ApiResult.Error("Failed to parse response: ${e.message}", statusCode = response.code, throwable = e)
                     }
                 } else {
+                    val errorMessage = responseBody.ifBlank { "Failed to exchange auth code (HTTP ${response.code})" }
+                    PluginLogger.Service.error("PKCE: Exchange failed: $errorMessage")
                     ApiResult.Error(
-                        message = responseBody.ifBlank { "Failed to exchange auth code" },
+                        message = errorMessage,
                         statusCode = response.code
                     )
                 }
             } catch (e: IOException) {
+                PluginLogger.Service.error("PKCE: Network error during exchange", e)
                 handleNetworkError(e, "Error exchanging auth code")
                 ApiResult.Error(message = e.message ?: "Network error", throwable = e)
+            } catch (e: Exception) {
+                PluginLogger.Service.error("PKCE: Unexpected error during exchange", e)
+                ApiResult.Error(message = e.message ?: "Unexpected error", throwable = e)
             }
         }
 

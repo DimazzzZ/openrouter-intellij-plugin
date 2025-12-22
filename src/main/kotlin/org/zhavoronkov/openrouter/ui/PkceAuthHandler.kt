@@ -1,6 +1,8 @@
 package org.zhavoronkov.openrouter.ui
 
 import com.intellij.ide.BrowserUtil
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -156,33 +158,41 @@ class PkceAuthHandler(
 
     /**
      * Exchange authorization code for API key
+     * Restored to match working implementation from commit 7475e903
      */
     private fun exchangeCode(code: String, codeVerifier: String) {
-        onStatusUpdate("Exchanging code...")
+        ApplicationManager.getApplication().invokeLater {
+            onStatusUpdate("Exchanging code...")
+        }
 
-        coroutineScope.launch {
+        // Use a supervisor scope to ensure this doesn't get cancelled
+        // when the local server coroutine finishes
+        SetupWizardLogger.logPkceEvent("Starting exchangeCode coroutine")
+        coroutineScope.launch(Dispatchers.IO) {
             try {
-                // Perform API call on IO dispatcher
-                val result = kotlinx.coroutines.withContext(Dispatchers.IO) {
-                    withTimeout(SetupWizardConfig.MODEL_LOADING_TIMEOUT_MS) {
-                        openRouterService.exchangeAuthCode(code, codeVerifier)
-                    }
-                }
+                SetupWizardLogger.logPkceEvent("Exchanging code for API key...")
+                val result = openRouterService.exchangeAuthCode(code, codeVerifier)
+                SetupWizardLogger.logPkceEvent("Exchange result: $result")
 
-                // Handle result on Main dispatcher (already on Main due to outer launch)
-                when (result) {
-                    is ApiResult.Success -> {
-                        SetupWizardLogger.logPkceEvent("Code exchange successful", "key=${result.data.key.take(5)}...")
-                        onSuccess(result.data.key)
+                ApplicationManager.getApplication().invokeLater({
+                    SetupWizardLogger.logPkceEvent("Inside invokeLater")
+                    when (result) {
+                        is ApiResult.Success -> {
+                            val key = result.data.key
+                            SetupWizardLogger.logPkceEvent("Key received, updating UI")
+                            onSuccess(key)
+                        }
+                        is ApiResult.Error -> {
+                            SetupWizardLogger.logPkceEvent("Exchange failed: ${result.message}")
+                            onError(SetupWizardErrorHandler.handleValidationError(result))
+                        }
                     }
-                    is ApiResult.Error -> {
-                        SetupWizardLogger.logPkceEvent("Code exchange failed", result.message)
-                        onError(SetupWizardErrorHandler.handleValidationError(result))
-                    }
-                }
+                }, ModalityState.any())
             } catch (e: Exception) {
-                SetupWizardLogger.error("Error in exchangeCode coroutine", e)
-                onError(SetupWizardErrorHandler.handleNetworkError(e, "code exchange"))
+                SetupWizardLogger.logPkceEvent("Error in exchangeCode coroutine", e.message ?: "Unknown error")
+                ApplicationManager.getApplication().invokeLater({
+                    onError(SetupWizardErrorHandler.handleNetworkError(e, "code exchange"))
+                }, ModalityState.any())
             }
         }
     }

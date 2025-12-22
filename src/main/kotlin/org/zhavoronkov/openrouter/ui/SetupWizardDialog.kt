@@ -804,8 +804,12 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
             openRouterService = openRouterService,
             onSuccess = { apiKey ->
                 // Handle successful authentication
+                SetupWizardLogger.logPkceEvent(
+                    "PKCE authentication successful - updating UI",
+                    "keyLength=${apiKey.length}, authScope=$authScope"
+                )
                 keyField.text = apiKey
-                SetupWizardLogger.logPkceEvent("PKCE authentication successful")
+                SetupWizardLogger.logPkceEvent("Key field updated, starting validation")
                 validateKey(apiKey)
             },
             onError = { errorMessage ->
