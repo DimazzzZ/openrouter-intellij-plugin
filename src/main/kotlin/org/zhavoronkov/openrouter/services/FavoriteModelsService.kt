@@ -40,7 +40,7 @@ class FavoriteModelsService(
      * @param forceRefresh If true, bypass cache and fetch fresh data
      * @return List of models or null on error
      */
-    fun getAvailableModels(forceRefresh: Boolean = false): List<OpenRouterModelInfo>? {
+    suspend fun getAvailableModels(forceRefresh: Boolean = false): List<OpenRouterModelInfo>? {
         val now = System.currentTimeMillis()
         val isCacheValid = cachedModels != null && (now - cacheTimestamp) < CACHE_DURATION_MS
 
@@ -49,28 +49,26 @@ class FavoriteModelsService(
             return cachedModels
         }
 
-        PluginLogger.Service.debug("Fetching models from API (forceRefresh: $forceRefresh)")
+        PluginLogger.Service.warn("[OpenRouter] Fetching models from API (forceRefresh: $forceRefresh)")
         return try {
-            runBlocking {
-                withTimeout(API_TIMEOUT_MS) {
-                    val result = routerService.getModels()
-                    when (result) {
-                        is ApiResult.Success -> {
-                            val response = result.data
-                            cachedModels = response.data
-                            cacheTimestamp = System.currentTimeMillis()
-                            PluginLogger.Service.debug("Cached ${cachedModels?.size} models")
-                            cachedModels
-                        }
-                        is ApiResult.Error -> {
-                            PluginLogger.Service.warn("Failed to fetch models: ${result.message}")
-                            null
-                        }
+            withTimeout(API_TIMEOUT_MS) {
+                val result = routerService.getModels()
+                when (result) {
+                    is ApiResult.Success -> {
+                        val response = result.data
+                        cachedModels = response.data
+                        cacheTimestamp = System.currentTimeMillis()
+                        PluginLogger.Service.warn("[OpenRouter] Successfully cached ${cachedModels?.size} models")
+                        cachedModels
+                    }
+                    is ApiResult.Error -> {
+                        PluginLogger.Service.warn("[OpenRouter] Failed to fetch models: ${result.message}")
+                        null
                     }
                 }
             }
         } catch (throwable: Throwable) {
-            PluginLogger.Service.error("Error fetching models from API", throwable)
+            PluginLogger.Service.error("[OpenRouter] Error fetching models from API", throwable)
             null
         }
     }

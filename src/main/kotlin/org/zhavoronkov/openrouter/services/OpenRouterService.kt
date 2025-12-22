@@ -77,6 +77,7 @@ class OpenRouterService(
 
         // Endpoints requiring Provisioning Key authentication (Bearer <provisioning-key>)
         private const val API_KEYS_ENDPOINT = "$BASE_URL/keys"
+        private const val KEY_ENDPOINT = "$BASE_URL/key"
         private const val ACTIVITY_ENDPOINT = "$BASE_URL/activity"
         private const val AUTH_KEY_ENDPOINT = "$BASE_URL/auth/key"
 
@@ -243,7 +244,7 @@ class OpenRouterService(
                 }
 
                 val request = OpenRouterRequestBuilder.buildGetRequest(
-                    url = CREDITS_ENDPOINT,
+                    url = KEY_ENDPOINT,
                     authType = OpenRouterRequestBuilder.AuthType.API_KEY,
                     authToken = apiKey
                 )

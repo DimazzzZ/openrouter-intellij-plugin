@@ -91,8 +91,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     private val welcomePanel = createWelcomePanel()
 
     // Step 1: Authentication Setup
-    private val provisioningKeyField = JBPasswordField()
-    private val apiKeyField = JBPasswordField()
+    private val keyField = JBPasswordField()
     private var authScope = settingsService.apiKeyManager.authScope
     private val validationStatusLabel = JBLabel(" ")
     private val validationIcon = JBLabel()
@@ -108,6 +107,8 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     private val modelsTableModel = ModelsTableModel()
     private val modelsTable = JBTable(modelsTableModel)
     private val selectedCountLabel = JBLabel("Selected: 0 models")
+    private val modelsLoadingLabel = JBLabel("Loading models...")
+    private val modelsLoadingIcon = JBLabel(AllIcons.Process.Step_passive)
     private var isLoadingModels = false
     private val modelsPanel = createModelsPanel()
 
@@ -141,8 +142,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         }
         
         PluginLogger.Service.warn("[OpenRouter] Attaching listeners to fields")
-        apiKeyField.document.addDocumentListener(keyListener)
-        provisioningKeyField.document.addDocumentListener(keyListener)
+        keyField.document.addDocumentListener(keyListener)
 
         // Setup selected count label
         selectedCountLabel.foreground = UIUtil.getLabelInfoForeground()
@@ -229,73 +229,65 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                 }
             }
 
-            // Store references to the groups for visibility control
-            var regularGroupRow: com.intellij.ui.dsl.builder.Row? = null
-            var extendedGroupRow: com.intellij.ui.dsl.builder.Row? = null
-
             separator()
 
-            // Regular API Key section
-            regularGroupRow = group("Regular API Key") {
+            group("Authentication Details") {
                 row {
                     text("Get your key from:")
                     browserLink(
                         "OpenRouter API Keys",
                         "https://openrouter.ai/settings/keys"
-                    )
-                }.bottomGap(BottomGap.MEDIUM)
-
-                row {
-                    label("API Key:")
-                }.bottomGap(BottomGap.SMALL)
-
-                row {
-                    cell(apiKeyField)
-                        .resizableColumn()
-                        .align(AlignX.FILL)
-                        .comment("Paste your API key here")
-                }.bottomGap(BottomGap.SMALL)
-            }
-            regularGroupRow.visible(authScope == AuthScope.REGULAR)
-
-            // Provisioning Key section
-            extendedGroupRow = group("Extended (Provisioning Key)") {
-                row {
-                    text("Get your key from:")
+                    ).visibleIf(radioButtonSelected(AuthScope.REGULAR))
                     browserLink(
                         "OpenRouter Provisioning Keys",
                         "https://openrouter.ai/settings/provisioning-keys"
-                    )
+                    ).visibleIf(radioButtonSelected(AuthScope.EXTENDED))
                 }.bottomGap(BottomGap.MEDIUM)
 
                 row {
-                    label("Provisioning Key:")
+                    label("API Key:").visibleIf(radioButtonSelected(AuthScope.REGULAR))
+                    label("Provisioning Key:").visibleIf(radioButtonSelected(AuthScope.EXTENDED))
                 }.bottomGap(BottomGap.SMALL)
 
                 row {
-                    cell(provisioningKeyField)
+                    cell(keyField)
                         .resizableColumn()
                         .align(AlignX.FILL)
-                        .comment("Paste your provisioning key here")
                 }.bottomGap(BottomGap.SMALL)
+
+                row {
+                    comment("Paste your API key here").visibleIf(radioButtonSelected(AuthScope.REGULAR))
+                    comment("Paste your provisioning key here").visibleIf(radioButtonSelected(AuthScope.EXTENDED))
+                }
             }
-            extendedGroupRow.visible(authScope == AuthScope.EXTENDED)
             
             // Add action listeners to update visibility
             regularRadioButton.addActionListener {
-                if (regularRadioButton.isSelected) {
+                if (regularRadioButton.isSelected && authScope != AuthScope.REGULAR) {
                     authScope = AuthScope.REGULAR
-                    regularGroupRow?.visible(true)
-                    extendedGroupRow?.visible(false)
-                    onKeyChanged()
+                    notifyScopeChanged()
+                    // Trigger validation immediately on scope change
+                    val key = String(keyField.password).trim()
+                    if (key.length >= 10) {
+                        validationAlarm.cancelAllRequests()
+                        validateKey(key)
+                    } else {
+                        onKeyChanged()
+                    }
                 }
             }
             extendedRadioButton.addActionListener {
-                if (extendedRadioButton.isSelected) {
+                if (extendedRadioButton.isSelected && authScope != AuthScope.EXTENDED) {
                     authScope = AuthScope.EXTENDED
-                    regularGroupRow?.visible(false)
-                    extendedGroupRow?.visible(true)
-                    onKeyChanged()
+                    notifyScopeChanged()
+                    // Trigger validation immediately on scope change
+                    val key = String(keyField.password).trim()
+                    if (key.length >= 10) {
+                        validationAlarm.cancelAllRequests()
+                        validateKey(key)
+                    } else {
+                        onKeyChanged()
+                    }
                 }
             }
 
@@ -347,6 +339,8 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
             }.resizableRow()
 
             row {
+                cell(modelsLoadingIcon)
+                cell(modelsLoadingLabel)
                 cell(selectedCountLabel)
             }.topGap(TopGap.SMALL)
         }
@@ -425,11 +419,10 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                 // Key is already validated and saved
                 // Save settings before moving to models
                 settingsService.apiKeyManager.authScope = authScope
+                val key = String(keyField.password).trim()
                 if (authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR) {
-                    val key = String(apiKeyField.password)
                     settingsService.apiKeyManager.setApiKey(key)
                 } else {
-                    val key = String(provisioningKeyField.password)
                     settingsService.apiKeyManager.setProvisioningKey(key)
                 }
                 
@@ -497,7 +490,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
             STEP_MODELS -> {
                 setOKButtonText("Next")
                 setCancelButtonText("Back")
-                okAction.isEnabled = !isLoadingModels
+                okAction.isEnabled = !isLoadingModels && allModels.isNotEmpty()
             }
             STEP_COMPLETION -> {
                 setOKButtonText("Finish")
@@ -510,11 +503,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     // ========== Provisioning Key Validation ==========
 
     private fun onKeyChanged() {
-        val key = if (authScope == AuthScope.REGULAR) {
-            String(apiKeyField.password).trim()
-        } else {
-            String(provisioningKeyField.password).trim()
-        }
+        val key = String(keyField.password).trim()
 
         PluginLogger.Service.warn("[OpenRouter] onKeyChanged: scope=$authScope, keyLength=${key.length}")
 
@@ -680,50 +669,46 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
             return // Already loaded or loading
         }
 
+        PluginLogger.Service.warn("[OpenRouter] loadModels starting")
         isLoadingModels = true
+        modelsLoadingIcon.icon = AllIcons.Process.Step_1
+        modelsLoadingIcon.isVisible = true
+        modelsLoadingLabel.text = "Loading models from OpenRouter..."
+        modelsLoadingLabel.isVisible = true
         updateButtons()
 
-        coroutineScope.launch {
+        coroutineScope.launch(Dispatchers.IO) {
             try {
+                PluginLogger.Service.warn("[OpenRouter] Calling favoriteModelsService.getAvailableModels from IO thread")
                 val models = withTimeout(MODEL_LOADING_TIMEOUT_MS) {
-                    favoriteModelsService.getAvailableModels(forceRefresh = false)
+                    favoriteModelsService.getAvailableModels(forceRefresh = true)
                 }
+                
                 ApplicationManager.getApplication().invokeLater({
                     isLoadingModels = false
-                    if (models != null) {
+                    if (models != null && models.isNotEmpty()) {
+                        PluginLogger.Service.warn("[OpenRouter] Successfully loaded ${models.size} models")
                         allModels = models
                         applyModelFilter()
-
-                        // Pre-select some popular models
                         preselectPopularModels()
                         updateSelectedCount()
+                        modelsLoadingIcon.isVisible = false
+                        modelsLoadingLabel.isVisible = false
                     } else {
-                        PluginLogger.Settings.warn("Failed to load models in setup wizard")
+                        PluginLogger.Service.warn("[OpenRouter] Failed to load models or list is empty")
+                        modelsLoadingIcon.icon = AllIcons.General.Error
+                        modelsLoadingLabel.text = "Failed to load models. Please check your connection."
+                        modelsLoadingLabel.foreground = JBColor.RED
                     }
                     updateButtons()
                 }, ModalityState.any())
-            } catch (error: TimeoutCancellationException) {
+            } catch (e: Exception) {
+                PluginLogger.Service.warn("[OpenRouter] Exception in loadModels", e)
                 ApplicationManager.getApplication().invokeLater({
                     isLoadingModels = false
-                    PluginLogger.Settings.error("Model loading timeout in setup wizard", error)
-                    updateButtons()
-                }, ModalityState.any())
-            } catch (error: IOException) {
-                ApplicationManager.getApplication().invokeLater({
-                    isLoadingModels = false
-                    PluginLogger.Settings.error("Model loading network error in setup wizard", error)
-                    updateButtons()
-                }, ModalityState.any())
-            } catch (error: IllegalStateException) {
-                ApplicationManager.getApplication().invokeLater({
-                    isLoadingModels = false
-                    PluginLogger.Settings.error("Model loading invalid state in setup wizard", error)
-                    updateButtons()
-                }, ModalityState.any())
-            } catch (expectedError: Exception) {
-                ApplicationManager.getApplication().invokeLater({
-                    isLoadingModels = false
-                    PluginLogger.Settings.error("Error loading models in setup wizard", expectedError)
+                    modelsLoadingIcon.icon = AllIcons.General.Error
+                    modelsLoadingLabel.text = "Error: ${e.message ?: "Unknown error"}"
+                    modelsLoadingLabel.foreground = JBColor.RED
                     updateButtons()
                 }, ModalityState.any())
             }
