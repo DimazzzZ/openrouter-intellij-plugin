@@ -1,7 +1,10 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
-<idea-plugin>
+<idea-plugin require-restart="false">
     <!-- Unique identifier of the plugin. It should be FQN. It cannot be changed between the plugin versions. -->
     <id>org.zhavoronkov.openrouter</id>
+
+    <!-- Enable dynamic plugin support - allows install/update/uninstall without IDE restart -->
+    <idea-version since-build="232" until-build="252.*"/>
 
     <!-- Public plugin name should be written in Title Case.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-name -->
@@ -14,22 +17,24 @@
          Simple HTML elements (text formatting, paragraphs, and lists) can be added inside this element.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-description -->
     <description><![CDATA[
-    <p><strong>OpenRouter IntelliJ Plugin</strong> - Comprehensive integration with <a href="https://openrouter.ai">OpenRouter.ai</a> for accessing 400+ AI models with advanced usage monitoring, quota tracking, and AI Assistant proxy support.</p>
+    <p><strong>OpenRouter IntelliJ Plugin</strong> - Comprehensive integration with <a href="https://openrouter.ai">OpenRouter.ai</a> for accessing 400+ AI models with advanced usage monitoring, quota tracking, OAuth/PKCE authentication, and AI Assistant proxy support.</p>
 
     <h3>Key Features</h3>
     <ul>
-        <li><strong>AI Assistant Proxy</strong> - Local OpenAI-compatible proxy to connect JetBrains AI Assistant with OpenRouter's 400+ models</li>
-        <li><strong>Interactive Status Bar Widget</strong> - Real-time usage display with comprehensive popup menu</li>
-        <li><strong>Advanced API Key Management</strong> - Secure provisioning key support with automatic API key creation</li>
-        <li><strong>Detailed Usage Analytics</strong> - Track token consumption, costs, and model performance</li>
-        <li><strong>Favorite Models</strong> - Quick access to your preferred AI models</li>
-        <li><strong>Real-time Monitoring</strong> - Live connection status with color-coded indicators</li>
-        <li><strong>Comprehensive Settings</strong> - Easy configuration with validation and testing</li>
+        <li><strong>🔐 OAuth/PKCE Authentication</strong> - Secure authentication flow with automatic API key generation</li>
+        <li><strong>🚀 AI Assistant Proxy</strong> - Local OpenAI-compatible proxy to connect JetBrains AI Assistant with OpenRouter's 400+ models</li>
+        <li><strong>📊 Interactive Status Bar Widget</strong> - Real-time usage display with comprehensive popup menu</li>
+        <li><strong>🔑 Advanced API Key Management</strong> - Secure provisioning key support with scope-aware validation</li>
+        <li><strong>📈 Detailed Usage Analytics</strong> - Track token consumption, costs, and model performance</li>
+        <li><strong>⭐ Favorite Models</strong> - Quick access to your preferred AI models</li>
+        <li><strong>🔄 Dynamic Plugin Support</strong> - Install, update, and uninstall without IDE restart</li>
+        <li><strong>🎯 Real-time Monitoring</strong> - Live connection status with color-coded indicators</li>
     </ul>
 
     <h3>Quick Start</h3>
     <ol>
-        <li>Get your Provisioning Key from <a href="https://openrouter.ai/settings/provisioning-keys">OpenRouter Provisioning Keys</a></li>
+        <li>Install the plugin (no restart required!)</li>
+        <li>Use OAuth/PKCE flow or manually add your Provisioning Key from <a href="https://openrouter.ai/settings/provisioning-keys">OpenRouter</a></li>
         <li>Configure in <strong>Settings → Tools → OpenRouter</strong></li>
         <li>Click the status bar widget to access all features</li>
         <li>(Optional) Configure AI Assistant to use OpenRouter via custom server - <a href="https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/docs/AI_ASSISTANT_SETUP.md">Setup Guide</a></li>
@@ -39,7 +44,7 @@
     <ul>
         <li>Developers using AI models for code assistance via AI Assistant</li>
         <li>Teams monitoring AI usage and costs across multiple models</li>
-        <li>Anyone wanting access to 400+ AI models from 40+ providers</li>
+        <li>Anyone wanting secure access to 400+ AI models from 40+ providers</li>
     </ul>
 
     <p><em>This is an unofficial plugin and is not affiliated with OpenRouter.ai or JetBrains.</em></p>
@@ -59,27 +64,39 @@
 
     <!-- Change notes for this version -->
     <change-notes><![CDATA[
-        <h3>🎉 Version 0.4.0 - OAuth/PKCE Authentication & Enhanced Settings (2025-12-22)</h3>
-        <p><strong>New Features:</strong></p>
+        <h3>🎉 Version 0.4.0 - OAuth/PKCE Authentication & Dynamic Plugin Support (2025-12-22)</h3>
+        <p><strong>🔐 Authentication & Security:</strong></p>
         <ul>
-            <li><strong>🔐 OAuth/PKCE Authentication</strong> - Secure PKCE authentication flow with OAuth code exchange for API key generation</li>
-            <li><strong>🔑 Authentication Scope Management</strong> - Unified API and provisioning key handling with scope-aware validation</li>
-            <li><strong>✅ Enhanced Key Validation</strong> - Comprehensive validation with centralized error messages and improved user feedback</li>
+            <li><strong>OAuth/PKCE Authentication Flow</strong> - Secure PKCE authentication with OAuth code exchange for automatic API key generation</li>
+            <li><strong>Scope-Aware Key Management</strong> - Unified API and provisioning key handling with comprehensive validation</li>
+            <li><strong>Enhanced Key Validation</strong> - Centralized error messages and improved user feedback for authentication issues</li>
+            <li><strong>Secure Key Storage</strong> - Encrypted local storage with duplicate prevention</li>
         </ul>
 
-        <p><strong>Code Quality & Architecture:</strong></p>
+        <p><strong>🔄 Dynamic Plugin Support (NEW!):</strong></p>
         <ul>
-            <li><strong>🏗️ Setup Wizard Refactoring</strong> - Extracted 4 helper classes (PkceAuthHandler, SetupWizardConfig, ErrorHandler, Logger)</li>
-            <li><strong>📦 New Utility Classes</strong> - OpenRouterConstants, UIConstants, ErrorMessages, KeyValidator for better code organization</li>
-            <li><strong>🧪 Comprehensive Tests</strong> - 312-line authentication test suite with MockWebServer for realistic HTTP testing</li>
-            <li><strong>🔧 Service Improvements</strong> - Dynamic URL generation, enhanced logging, and improved testability</li>
+            <li><strong>No Restart Required</strong> - Install, update, and uninstall plugin without restarting IDE</li>
+            <li><strong>Proper Resource Cleanup</strong> - All services implement Disposable with graceful shutdown</li>
+            <li><strong>Lifecycle Management</strong> - PluginLifecycleListener tracks load/unload events with detailed logging</li>
+            <li><strong>Memory Leak Prevention</strong> - Jetty server shutdown, HTTP client cleanup, async task cancellation</li>
+            <li><strong>State Persistence</strong> - Settings and tracking data saved before plugin unload</li>
         </ul>
 
-        <p><strong>Technical Improvements:</strong></p>
+        <p><strong>🏗️ Code Quality & Architecture:</strong></p>
         <ul>
-            <li><strong>30 files changed</strong> - 3,045 insertions, 515 deletions, net +2,530 lines</li>
-            <li><strong>10 new files</strong> - Utilities, handlers, and comprehensive test coverage</li>
+            <li><strong>Setup Wizard Refactoring</strong> - Extracted 4 helper classes (PkceAuthHandler, SetupWizardConfig, ErrorHandler, Logger)</li>
+            <li><strong>New Utility Classes</strong> - OpenRouterConstants, UIConstants, ErrorMessages, KeyValidator for better organization</li>
+            <li><strong>Comprehensive Tests</strong> - 312-line authentication suite + dynamic plugin support tests with MockWebServer</li>
+            <li><strong>Service Improvements</strong> - Dynamic URL generation, enhanced logging, improved testability</li>
+            <li><strong>Disposable Implementation</strong> - All 4 core services properly clean up resources on plugin unload</li>
+        </ul>
+
+        <p><strong>📊 Technical Stats:</strong></p>
+        <ul>
+            <li><strong>38+ files changed</strong> - 3,800+ insertions, 550+ deletions</li>
+            <li><strong>13 new files</strong> - Utilities, handlers, listeners, tests, and documentation</li>
             <li><strong>Reduced complexity</strong> - SetupWizardDialog reduced from 1,194 to 1,048 lines</li>
+            <li><strong>Full IntelliJ compliance</strong> - Meets all dynamic plugin requirements and restrictions</li>
         </ul>
 
         <p><a href="https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/docs/AI_ASSISTANT_SETUP.md">AI Assistant Setup Guide</a> | <a href="https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/CHANGELOG.md">Full Changelog</a></p>
@@ -201,7 +218,7 @@
         <postStartupActivity implementation="org.zhavoronkov.openrouter.startup.WelcomeNotificationActivity"/>
         <postStartupActivity implementation="org.zhavoronkov.openrouter.startup.ProxyServerStartupActivity"/>
         <postStartupActivity implementation="org.zhavoronkov.openrouter.startup.WhatsNewNotificationActivity"/>
-        
+
         <!-- Tool window - TEMPORARILY DISABLED -->
         <!--
         <toolWindow
@@ -212,6 +229,13 @@
             factoryClass="org.zhavoronkov.openrouter.toolwindow.OpenRouterToolWindowFactory"/>
         -->
     </extensions>
+
+    <!-- Application-level listeners for dynamic plugin support -->
+    <applicationListeners>
+        <listener
+            class="org.zhavoronkov.openrouter.listeners.PluginLifecycleListener"
+            topic="com.intellij.ide.plugins.DynamicPluginListener"/>
+    </applicationListeners>
 
     <!-- Actions -->
     <actions>

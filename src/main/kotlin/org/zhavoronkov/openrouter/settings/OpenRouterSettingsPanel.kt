@@ -317,7 +317,7 @@ class OpenRouterSettingsPanel {
                 group("Authentication") {
                     row("Current Scope:") {
                         authScopeLabel = label("").applyToComponent {
-                            text = if (!settingsService.setupStateManager.hasCompletedSetup()) {
+                            text = if (!settingsService.isConfigured()) {
                                 "Not Configured"
                             } else if (settingsService.apiKeyManager.authScope == AuthScope.REGULAR) {
                                 "Regular API Key"
@@ -328,7 +328,7 @@ class OpenRouterSettingsPanel {
                     }
                     row {
                         authDescriptionLabel = text("").applyToComponent {
-                            text = if (!settingsService.setupStateManager.hasCompletedSetup()) {
+                            text = if (!settingsService.isConfigured()) {
                                 "Please run the Setup Wizard to configure authentication."
                             } else if (settingsService.apiKeyManager.authScope == AuthScope.REGULAR) {
                                 "Minimal permissions. Quota tracking and usage monitoring are disabled."
@@ -844,7 +844,7 @@ class OpenRouterSettingsPanel {
 
             // Update status labels
             if (::authScopeLabel.isInitialized) {
-                authScopeLabel.text = if (!settingsService.setupStateManager.hasCompletedSetup()) {
+                authScopeLabel.text = if (!settingsService.isConfigured()) {
                     "Not Configured"
                 } else if (newScope == AuthScope.REGULAR) {
                     "Regular API Key"
@@ -853,7 +853,7 @@ class OpenRouterSettingsPanel {
                 }
             }
             if (::authDescriptionLabel.isInitialized) {
-                authDescriptionLabel.text = if (!settingsService.setupStateManager.hasCompletedSetup()) {
+                authDescriptionLabel.text = if (!settingsService.isConfigured()) {
                     "Please run the Setup Wizard to configure authentication."
                 } else if (newScope == AuthScope.REGULAR) {
                     "Minimal permissions. Quota tracking and usage monitoring are disabled."

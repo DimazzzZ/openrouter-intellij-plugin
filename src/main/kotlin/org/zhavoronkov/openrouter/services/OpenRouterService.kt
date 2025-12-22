@@ -2,6 +2,7 @@ package org.zhavoronkov.openrouter.services
 
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -64,7 +65,7 @@ open class OpenRouterService(
         .build(),
     private val settingsService: OpenRouterSettingsService = OpenRouterSettingsService.getInstance(),
     private val baseUrlOverride: String? = null
-) {
+) : Disposable {
 
     companion object {
         fun getInstance(): OpenRouterService {
@@ -710,5 +711,23 @@ open class OpenRouterService(
      */
     fun isConfigured(): Boolean {
         return settingsService.isConfigured()
+    }
+
+    /**
+     * Dispose method for dynamic plugin support
+     * Cleans up HTTP client connection pool and resources
+     */
+    override fun dispose() {
+        PluginLogger.Service.info("Disposing OpenRouterService - cleaning up HTTP client")
+
+        try {
+            // Shutdown OkHttpClient connection pool and executor service
+            client.dispatcher.executorService.shutdown()
+            client.connectionPool.evictAll()
+
+            PluginLogger.Service.info("OpenRouterService disposed successfully")
+        } catch (e: Exception) {
+            PluginLogger.Service.error("Error during OpenRouterService disposal", e)
+        }
     }
 }

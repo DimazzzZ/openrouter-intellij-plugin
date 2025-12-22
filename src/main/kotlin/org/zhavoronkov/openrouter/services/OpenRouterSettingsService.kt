@@ -1,5 +1,6 @@
 package org.zhavoronkov.openrouter.services
 
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.State
@@ -14,12 +15,13 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
 
 /**
  * Service for managing OpenRouter plugin settings
+ * Implements Disposable for dynamic plugin support
  */
 @State(
     name = "OpenRouterSettings",
     storages = [Storage("openrouter.xml")]
 )
-class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
+class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, Disposable {
 
     private var settings = OpenRouterSettings()
 
@@ -111,5 +113,17 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
         } catch (e: Exception) {
             PluginLogger.Service.warn("Failed to persist settings state", e)
         }
+    }
+
+    /**
+     * Dispose method for dynamic plugin support
+     * Note: We don't call saveSettings() here because dispose() is called inside a write action
+     * during plugin unload, and saveSettings() triggers AWT events which are not allowed.
+     * The IntelliJ Platform automatically saves settings when needed.
+     */
+    override fun dispose() {
+        PluginLogger.Service.info("Disposing OpenRouterSettingsService")
+        // No explicit cleanup needed - settings are automatically persisted by the platform
+        PluginLogger.Service.info("OpenRouterSettingsService disposed successfully")
     }
 }

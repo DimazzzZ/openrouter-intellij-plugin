@@ -174,6 +174,31 @@ cd openrouter-intellij-plugin
 ./gradlew runIde --no-daemon
 ```
 
+### Testing Dynamic Plugin Support
+
+The plugin supports installation, updates, and uninstallation **without IDE restart** (dynamic plugin).
+
+**Quick Test** (Enable/Disable):
+```bash
+# Start development IDE and test enable/disable
+./scripts/test-enable-disable.sh
+
+# In the IDE: Settings → Plugins → Toggle OpenRouter OFF/ON
+# Should work without restart ✅
+```
+
+**Full Test** (Multiple Versions):
+```bash
+# Build 3 test versions (0.4.0, 0.4.1, 0.4.2)
+./scripts/build-test-versions.sh
+
+# Install v0.4.0 (may require restart on first install)
+# Update to v0.4.1 (should NOT require restart)
+# Update to v0.4.2 (should NOT require restart)
+```
+
+See [LOCAL_DYNAMIC_PLUGIN_TESTING.md](docs/LOCAL_DYNAMIC_PLUGIN_TESTING.md) for detailed testing instructions.
+
 **Test Coverage**: 475+ tests with 100% pass rate
 - Unit tests for data models, settings, and business logic
 - Integration tests for API key handling and proxy server functionality

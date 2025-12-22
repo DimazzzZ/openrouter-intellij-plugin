@@ -554,8 +554,11 @@ class OpenRouterSettingsServiceTest {
             service.loadState(oldSettings)
 
             // After migration, authScope should be EXTENDED
-            assertEquals(AuthScope.EXTENDED, service.apiKeyManager.authScope,
-                "Migration should detect existing provisioning key and set authScope to EXTENDED")
+            assertEquals(
+                AuthScope.EXTENDED,
+                service.apiKeyManager.authScope,
+                "Migration should detect existing provisioning key and set authScope to EXTENDED"
+            )
         }
 
         @Test
@@ -570,8 +573,11 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
             service.loadState(settings)
 
-            assertEquals(AuthScope.EXTENDED, service.apiKeyManager.authScope,
-                "Should keep EXTENDED authScope unchanged")
+            assertEquals(
+                AuthScope.EXTENDED,
+                service.apiKeyManager.authScope,
+                "Should keep EXTENDED authScope unchanged"
+            )
         }
 
         @Test
@@ -586,8 +592,11 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
             service.loadState(settings)
 
-            assertEquals(AuthScope.REGULAR, service.apiKeyManager.authScope,
-                "Should keep REGULAR authScope when no provisioning key exists")
+            assertEquals(
+                AuthScope.REGULAR,
+                service.apiKeyManager.authScope,
+                "Should keep REGULAR authScope when no provisioning key exists"
+            )
         }
 
         @Test
@@ -602,8 +611,11 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
             service.loadState(settings)
 
-            assertEquals(AuthScope.REGULAR, service.apiKeyManager.authScope,
-                "Fresh install should keep default REGULAR authScope")
+            assertEquals(
+                AuthScope.REGULAR,
+                service.apiKeyManager.authScope,
+                "Fresh install should keep default REGULAR authScope"
+            )
         }
 
         @Test
@@ -620,8 +632,11 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
             service.loadState(settings)
 
-            assertEquals(AuthScope.EXTENDED, service.apiKeyManager.authScope,
-                "Should migrate even with encrypted provisioning key")
+            assertEquals(
+                AuthScope.EXTENDED,
+                service.apiKeyManager.authScope,
+                "Should migrate even with encrypted provisioning key"
+            )
         }
     }
 

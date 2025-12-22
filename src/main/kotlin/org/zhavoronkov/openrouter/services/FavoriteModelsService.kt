@@ -1,5 +1,6 @@
 package org.zhavoronkov.openrouter.services
 
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import kotlinx.coroutines.withTimeout
@@ -10,12 +11,15 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
 
 /**
  * Service for managing favorite models with caching and API interaction
+ * Implements Disposable for dynamic plugin support
+ *
+ * Note: This is a light service (uses @Service annotation) and must be final
  */
 @Service
 class FavoriteModelsService(
     private val settingsService: OpenRouterSettingsService? = null,
     private val openRouterService: OpenRouterService? = null
-) {
+) : Disposable {
 
     companion object {
         fun getInstance(): FavoriteModelsService {
@@ -183,5 +187,15 @@ class FavoriteModelsService(
             contextLength = null,
             perRequestLimits = null
         )
+    }
+
+    /**
+     * Dispose method for dynamic plugin support
+     * Clears cached data to prevent memory leaks
+     */
+    override fun dispose() {
+        PluginLogger.Service.info("Disposing FavoriteModelsService - clearing cache")
+        clearCache()
+        PluginLogger.Service.info("FavoriteModelsService disposed successfully")
     }
 }

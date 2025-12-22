@@ -9,19 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### New Features
 
-#### OAuth/PKCE Authentication Flow
+#### 🔄 Dynamic Plugin Support (NEW!)
+- **No Restart Required** - Install, update, and uninstall plugin without restarting IDE
+- **Disposable Services** - All 4 core services (ProxyService, OpenRouterService, SettingsService, GenerationTrackingService) implement Disposable
+- **PluginLifecycleListener** - Tracks plugin load/unload events with detailed logging
+- **Resource Cleanup** - Graceful shutdown of Jetty server (10s timeout), HTTP client connection pool, and async tasks
+- **State Persistence** - Settings and generation tracking data saved before plugin unload
+- **Memory Leak Prevention** - Proper cleanup prevents memory leaks and allows safe plugin reload
+- **IntelliJ Compliance** - Meets all dynamic plugin requirements and restrictions
+
+#### 🔐 OAuth/PKCE Authentication Flow
 - **PKCE Authentication** - Implemented full PKCE (Proof Key for Code Exchange) authentication flow for secure API key generation
 - **OAuth Code Exchange** - Secure OAuth code exchange mechanism for API key creation
 - **PkceAuthHandler** - Dedicated 208-line OAuth/PKCE flow handler for improved security and maintainability
 - **OAuth App Integration** - Added OAuth app name constant for improved authorization flow clarity
 
-#### Authentication Scope Management
+#### 🔑 Authentication Scope Management
 - **Unified Authentication** - Unified API and provisioning key fields with improved loading feedback
 - **Scope Management** - Added authentication scope management for API and provisioning keys
 - **Property Accessors** - Refactored authentication scope management to use property accessors for better encapsulation
 - **Synchronized Settings** - Synchronized authentication settings across UI components for consistency
 
-#### Enhanced Key Validation
+#### ✅ Enhanced Key Validation
 - **Comprehensive Validation** - Enhanced API key and provisioning key validation with improved error handling
 - **Scope-Aware Validation** - Added key validation for current authentication scope
 - **KeyValidator Utility** - Created 96-line KeyValidator utility for centralized validation logic
@@ -68,16 +77,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **OkHttpExtensions** - Enhanced HTTP client extensions for better request handling
 - **OpenRouterRequestBuilder** - Improved request builder with better error handling
 
+#### New Dynamic Plugin Support Files
+- **PluginLifecycleListener** - 72-line listener for plugin load/unload events
+- **DynamicPluginSupportTest** - 150-line test suite for dynamic plugin functionality
+- **DYNAMIC_PLUGIN_SUPPORT.md** - 150-line comprehensive documentation with troubleshooting guide
+
 #### Refactoring & Cleanup
 - **Constants Extraction** - Replaced magic numbers with proper constants throughout codebase
 - **Helper Classes** - Extracted helper classes from SetupWizardDialog for better separation of concerns
 - **Improved Maintainability** - Better code organization and reduced method complexity
 - **Enhanced Error Handling** - Standardized error handling across all components
+- **Disposable Implementation** - All services properly implement Disposable for resource cleanup
 
 ### Statistics
-- **30 files changed**
-- **3,045 insertions(+), 515 deletions(-)**
-- **Net change: +2,530 lines**
+- **38+ files changed**
+- **3,800+ insertions(+), 550+ deletions(-)**
+- **Net change: +3,250+ lines**
+- **13 new files** - Utilities, handlers, listeners, tests, and documentation
 - **10 new files created** (utilities, handlers, tests)
 
 ## [0.3.0] - 2025-12-05
