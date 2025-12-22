@@ -35,6 +35,25 @@ class OpenRouterConfigurable : Configurable {
         }
         syncDefaultMaxTokens(panel, toService)
         syncProxySettings(panel, toService)
+        syncAuthenticationSettings(panel, toService)
+    }
+
+    /**
+     * Synchronizes authentication settings (API key or provisioning key) between panel and service
+     */
+    private fun syncAuthenticationSettings(panel: OpenRouterSettingsPanel, toService: Boolean) {
+        if (!toService) {
+            // Load authentication settings into panel
+            // Note: setProvisioningKey() will automatically load API keys (with caching)
+            val authScope = settingsService.apiKeyManager.authScope
+            if (authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR) {
+                panel.setApiKey(settingsService.apiKeyManager.getApiKey())
+            } else {
+                panel.setProvisioningKey(settingsService.apiKeyManager.getProvisioningKey())
+            }
+        }
+        // Note: We don't sync TO service here because authentication is managed through the Setup Wizard
+        // and should not be changed directly in the settings panel
     }
 
     /**

@@ -33,10 +33,16 @@ class WelcomeNotificationActivity : ProjectActivity {
             .getNotificationGroup("OpenRouter Notifications")
             .createNotification(
                 "Welcome to OpenRouter!",
-                "Get started in 3 easy steps:\n" +
-                    "1. Add your API Key (OAuth or Provisioning Key)\n" +
-                    "2. Select favorite models\n" +
-                    "3. Start the proxy server",
+                """
+                <html>
+                Get started in 3 easy steps:
+                <ol style='margin-top: 4px; margin-bottom: 0px;'>
+                  <li>Add your API Key (OAuth or Provisioning Key)</li>
+                  <li>Select favorite models</li>
+                  <li>Start the proxy server</li>
+                </ol>
+                </html>
+                """.trimIndent(),
                 NotificationType.INFORMATION
             )
 
