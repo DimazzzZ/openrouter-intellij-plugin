@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Response
+import org.zhavoronkov.openrouter.constants.OpenRouterConstants
 import org.zhavoronkov.openrouter.models.ActivityResponse
 import org.zhavoronkov.openrouter.models.ApiKeysListResponse
 import org.zhavoronkov.openrouter.models.ApiResult
@@ -57,58 +58,22 @@ import java.util.concurrent.TimeUnit
 open class OpenRouterService(
     private val gson: Gson = Gson(),
     private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .connectTimeout(OpenRouterConstants.CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(OpenRouterConstants.READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .writeTimeout(OpenRouterConstants.WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .build(),
     private val settingsService: OpenRouterSettingsService = OpenRouterSettingsService.getInstance(),
     private val baseUrlOverride: String? = null
 ) {
 
     companion object {
-        private const val BASE_URL = "https://openrouter.ai/api/v1"
-
-        // Timeout configuration constants
-        private const val CONNECT_TIMEOUT_SECONDS = 30L
-        private const val READ_TIMEOUT_SECONDS = 60L
-        private const val WRITE_TIMEOUT_SECONDS = 60L
-
-        // Endpoints requiring API Key authentication (Bearer <api-key>)
-        private const val CHAT_COMPLETIONS_ENDPOINT = "$BASE_URL/chat/completions"
-        private const val GENERATION_ENDPOINT = "$BASE_URL/generation"
-        private const val CREDITS_ENDPOINT = "$BASE_URL/credits"
-
-        // Endpoints requiring Provisioning Key authentication (Bearer <provisioning-key>)
-        private const val API_KEYS_ENDPOINT = "$BASE_URL/keys"
-        private const val KEY_ENDPOINT = "$BASE_URL/key"
-        private const val ACTIVITY_ENDPOINT = "$BASE_URL/activity"
-        private const val AUTH_KEY_ENDPOINT = "$BASE_URL/auth/key"
-        private const val AUTH_KEYS_ENDPOINT = "$BASE_URL/auth/keys"
-
-        // Public endpoints (no authentication required)
-        private const val PROVIDERS_ENDPOINT = "$BASE_URL/providers"
-        private const val MODELS_ENDPOINT = "$BASE_URL/models"
-
-        // Retry and delay constants
-        private const val RETRY_DELAY_SECONDS = 8L
-        private const val RETRY_DELAY_MS = 8000L
-        private const val NANOSECONDS_TO_MILLISECONDS = 1_000_000L
-        private const val ACTIVITY_CACHE_TIMEOUT_MS = 10000L
-
-        // String truncation constants
-        private const val STRING_TRUNCATE_LENGTH = 10
-
-        // Response preview constants
-        private const val RESPONSE_PREVIEW_LENGTH = 500
-        private const val RESPONSE_PREVIEW_LENGTH_SMALL = 200
-
         fun getInstance(): OpenRouterService {
             return ApplicationManager.getApplication().getService(OpenRouterService::class.java)
         }
     }
 
     // Method to get base URL for testing purposes
-    protected open fun getBaseUrl(): String = baseUrlOverride ?: BASE_URL
+    protected open fun getBaseUrl(): String = baseUrlOverride ?: OpenRouterConstants.BASE_URL
 
     // Dynamic endpoint getters that use getBaseUrl()
     private fun getChatCompletionsEndpoint() = "${getBaseUrl()}/chat/completions"
@@ -144,7 +109,7 @@ open class OpenRouterService(
         withContext(Dispatchers.IO) {
             try {
                 val request = OpenRouterRequestBuilder.buildGetRequest(
-                    url = "$GENERATION_ENDPOINT?id=$generationId",
+                    url = "${getGenerationEndpoint()}?id=$generationId",
                     authType = OpenRouterRequestBuilder.AuthType.API_KEY,
                     authToken = settingsService.getApiKey()
                 )
@@ -175,7 +140,7 @@ open class OpenRouterService(
                 logOutgoingRequest(apiKey, jsonBody)
 
                 val httpRequest = OpenRouterRequestBuilder.buildPostRequest(
-                    url = CHAT_COMPLETIONS_ENDPOINT,
+                    url = getChatCompletionsEndpoint(),
                     jsonBody = jsonBody,
                     authType = OpenRouterRequestBuilder.AuthType.API_KEY,
                     authToken = apiKey
@@ -183,7 +148,7 @@ open class OpenRouterService(
 
                 val response = client.newCall(httpRequest).await()
                 val responseBody = response.body?.string().orEmpty()
-                val durationMs = (System.nanoTime() - startNs) / NANOSECONDS_TO_MILLISECONDS
+                val durationMs = (System.nanoTime() - startNs) / OpenRouterConstants.NANOSECONDS_TO_MILLISECONDS
                 logIncomingResponse(response, responseBody, durationMs)
 
                 handleChatCompletionResponse(response, responseBody)
@@ -197,13 +162,13 @@ open class OpenRouterService(
         }
 
     private fun logOutgoingRequest(apiKey: String, jsonBody: String) {
-        PluginLogger.Service.info("[OR] POST $CHAT_COMPLETIONS_ENDPOINT")
-        val keyPreview = apiKey.take(RETRY_DELAY_SECONDS.toInt())
+        PluginLogger.Service.info("[OR] POST ${getChatCompletionsEndpoint()}")
+        val keyPreview = apiKey.take(OpenRouterConstants.STRING_TRUNCATE_LENGTH)
         PluginLogger.Service.debug(
             "[OR] Headers: Authorization=Bearer $keyPreview…(redacted), Content-Type=application/json"
         )
-        val bodyPreview = jsonBody.take(RETRY_DELAY_MS.toInt())
-        val isTruncated = jsonBody.length > RETRY_DELAY_MS.toInt()
+        val bodyPreview = jsonBody.take(OpenRouterConstants.RESPONSE_PREVIEW_LENGTH)
+        val isTruncated = jsonBody.length > OpenRouterConstants.RESPONSE_PREVIEW_LENGTH
         PluginLogger.Service.debug(
             "[OR] Outgoing JSON: $bodyPreview${if (isTruncated) "…(truncated)" else ""}"
         )
@@ -216,8 +181,8 @@ open class OpenRouterService(
         )
         PluginLogger.Service.debug(
             "[OR] Response body: ${responseBody.take(
-                ACTIVITY_CACHE_TIMEOUT_MS.toInt()
-            )}${if (responseBody.length > ACTIVITY_CACHE_TIMEOUT_MS.toInt()) "…(truncated)" else ""}"
+                OpenRouterConstants.RESPONSE_PREVIEW_LENGTH_SMALL
+            )}${if (responseBody.length > OpenRouterConstants.RESPONSE_PREVIEW_LENGTH_SMALL) "…(truncated)" else ""}"
         )
     }
 
@@ -312,7 +277,7 @@ open class OpenRouterService(
                     return@withContext ApiResult.Error("Provisioning key is required")
                 }
 
-                val keyPreview = provisioningKey.take(STRING_TRUNCATE_LENGTH)
+                val keyPreview = provisioningKey.take(OpenRouterConstants.STRING_TRUNCATE_LENGTH)
                 PluginLogger.Service.debug(
                     "Fetching API keys list from OpenRouter with provisioning key: $keyPreview..."
                 )
@@ -413,15 +378,15 @@ open class OpenRouterService(
                 val requestBody = CreateApiKeyRequest(name = name, limit = limit)
                 val json = gson.toJson(requestBody)
 
-                val keyPreview = provisioningKey.take(STRING_TRUNCATE_LENGTH)
+                val keyPreview = provisioningKey.take(OpenRouterConstants.STRING_TRUNCATE_LENGTH)
                 PluginLogger.Service.debug(
                     "Creating API key with name: $name using provisioning key: $keyPreview..."
                 )
-                PluginLogger.Service.debug("Making POST request to: $API_KEYS_ENDPOINT")
+                PluginLogger.Service.debug("Making POST request to: ${getApiKeysEndpoint()}")
                 PluginLogger.Service.debug("Request body: $json")
 
                 val request = OpenRouterRequestBuilder.buildPostRequest(
-                    url = API_KEYS_ENDPOINT,
+                    url = getApiKeysEndpoint(),
                     jsonBody = json,
                     authType = OpenRouterRequestBuilder.AuthType.PROVISIONING_KEY,
                     authToken = provisioningKey
@@ -465,7 +430,7 @@ open class OpenRouterService(
             try {
                 // API key deletion requires provisioning key and uses hash in URL
                 val request = OpenRouterRequestBuilder.buildDeleteRequest(
-                    url = "$API_KEYS_ENDPOINT/$keyHash",
+                    url = "${getApiKeysEndpoint()}/$keyHash",
                     authType = OpenRouterRequestBuilder.AuthType.PROVISIONING_KEY,
                     authToken = settingsService.getProvisioningKey()
                 )
@@ -511,14 +476,14 @@ open class OpenRouterService(
                     return@withContext ApiResult.Error("No provisioning key configured")
                 }
 
-                val keyPreview = provisioningKey.take(STRING_TRUNCATE_LENGTH)
+                val keyPreview = provisioningKey.take(OpenRouterConstants.STRING_TRUNCATE_LENGTH)
                 PluginLogger.Service.debug(
                     "Fetching credits from OpenRouter with provisioning key: $keyPreview..."
                 )
-                PluginLogger.Service.debug("Making request to: $CREDITS_ENDPOINT")
+                PluginLogger.Service.debug("Making request to: ${getCreditsEndpoint()}")
 
                 val request = OpenRouterRequestBuilder.buildGetRequest(
-                    url = CREDITS_ENDPOINT,
+                    url = getCreditsEndpoint(),
                     authType = OpenRouterRequestBuilder.AuthType.PROVISIONING_KEY,
                     authToken = provisioningKey
                 )
@@ -562,7 +527,7 @@ open class OpenRouterService(
                     return@withContext ApiResult.Error("No provisioning key configured")
                 }
 
-                val keyPreview = provisioningKey.take(STRING_TRUNCATE_LENGTH)
+                val keyPreview = provisioningKey.take(OpenRouterConstants.STRING_TRUNCATE_LENGTH)
                 PluginLogger.Service.debug(
                     "Fetching activity from OpenRouter with provisioning key: $keyPreview..."
                 )
@@ -608,9 +573,9 @@ open class OpenRouterService(
      */
     suspend fun getModels(): ApiResult<OpenRouterModelsResponse> =
         fetchPublicEndpoint(
-            MODELS_ENDPOINT,
+            getModelsEndpoint(),
             "models",
-            RESPONSE_PREVIEW_LENGTH,
+            OpenRouterConstants.RESPONSE_PREVIEW_LENGTH,
             "Error fetching models"
         ) { responseBody ->
             gson.fromJson(responseBody, OpenRouterModelsResponse::class.java)
@@ -624,7 +589,7 @@ open class OpenRouterService(
         fetchPublicEndpoint(
             PROVIDERS_ENDPOINT,
             "providers",
-            RESPONSE_PREVIEW_LENGTH_SMALL,
+            OpenRouterConstants.RESPONSE_PREVIEW_LENGTH_SMALL,
             "Error fetching providers"
         ) { responseBody ->
             gson.fromJson(responseBody, ProvidersResponse::class.java)

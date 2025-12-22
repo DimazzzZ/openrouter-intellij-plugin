@@ -3,6 +3,7 @@ package org.zhavoronkov.openrouter.services
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import kotlinx.coroutines.withTimeout
+import org.zhavoronkov.openrouter.constants.OpenRouterConstants
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.utils.PluginLogger
@@ -17,9 +18,6 @@ class FavoriteModelsService(
 ) {
 
     companion object {
-        private const val CACHE_DURATION_MS = 300000L // 5 minutes
-        private const val API_TIMEOUT_MS = 30000L // 30 seconds
-
         fun getInstance(): FavoriteModelsService {
             return ApplicationManager.getApplication().getService(FavoriteModelsService::class.java)
         }
@@ -41,23 +39,23 @@ class FavoriteModelsService(
      */
     suspend fun getAvailableModels(forceRefresh: Boolean = false): List<OpenRouterModelInfo>? {
         val now = System.currentTimeMillis()
-        val isCacheValid = cachedModels != null && (now - cacheTimestamp) < CACHE_DURATION_MS
+        val isCacheValid = cachedModels != null && (now - cacheTimestamp) < OpenRouterConstants.MODELS_CACHE_DURATION_MS
 
         if (!forceRefresh && isCacheValid) {
             PluginLogger.Service.debug("Returning cached models (${cachedModels?.size} models)")
             return cachedModels
         }
 
-        PluginLogger.Service.warn("[OpenRouter] Fetching models from API (forceRefresh: $forceRefresh)")
+        PluginLogger.Service.debug("[OpenRouter] Fetching models from API (forceRefresh: $forceRefresh)")
         return try {
-            withTimeout(API_TIMEOUT_MS) {
+            withTimeout(OpenRouterConstants.API_TIMEOUT_MS) {
                 val result = routerService.getModels()
                 when (result) {
                     is ApiResult.Success -> {
                         val response = result.data
                         cachedModels = response.data
                         cacheTimestamp = System.currentTimeMillis()
-                        PluginLogger.Service.warn("[OpenRouter] Successfully cached ${cachedModels?.size} models")
+                        PluginLogger.Service.info("[OpenRouter] Successfully cached ${cachedModels?.size} models")
                         cachedModels
                     }
                     is ApiResult.Error -> {

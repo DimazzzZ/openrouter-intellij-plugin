@@ -14,9 +14,6 @@ import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
 import org.zhavoronkov.openrouter.models.ApiResult
-import org.zhavoronkov.openrouter.models.ExchangeAuthCodeResponse
-import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
-import java.io.IOException
 
 @DisplayName("OpenRouter Service Authentication Tests")
 class OpenRouterServiceAuthTest {
@@ -139,9 +136,9 @@ class OpenRouterServiceAuthTest {
             // The error message should indicate a network/connection issue
             assertTrue(
                 errorResult.message.contains("Network error") ||
-                errorResult.message.contains("Unable to reach") ||
-                errorResult.message.contains("Connection refused") ||
-                errorResult.message.contains("Failed to connect"),
+                    errorResult.message.contains("Unable to reach") ||
+                    errorResult.message.contains("Connection refused") ||
+                    errorResult.message.contains("Failed to connect"),
                 "Expected network error message but got: ${errorResult.message}"
             )
 
@@ -312,16 +309,4 @@ class OpenRouterServiceAuthTest {
             assertTrue(errorResult.message.contains("Invalid provisioning key"))
         }
     }
-
-    // Helper class to allow custom base URL for testing
-    // Note: This is now simplified since OpenRouterService supports baseUrlOverride
-    private class TestableOpenRouterService(
-        gson: Gson,
-        settingsService: OpenRouterSettingsService,
-        baseUrl: String = "https://openrouter.ai/api/v1"
-    ) : org.zhavoronkov.openrouter.services.OpenRouterService(
-        gson = gson,
-        settingsService = settingsService,
-        baseUrlOverride = baseUrl
-    )
 }

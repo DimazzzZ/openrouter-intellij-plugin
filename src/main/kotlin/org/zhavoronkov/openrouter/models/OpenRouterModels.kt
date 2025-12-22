@@ -184,6 +184,31 @@ data class ActivityResponse(
     val data: List<ActivityData>
 )
 
+/**
+ * Activity data for a specific date and model
+ *
+ * All fields are nullable because:
+ * - The OpenRouter API may return incomplete data for certain time periods
+ * - Aggregated data may have missing fields depending on the query parameters
+ * - Historical data may be incomplete or unavailable
+ *
+ * When consuming this data:
+ * - Always use null-safe operators (?. and ?:) when accessing fields
+ * - Provide sensible defaults (e.g., 0 for numeric fields, empty string for text)
+ * - Filter out entries with critical missing data (e.g., null date or model) if needed
+ *
+ * @property date The date of the activity in YYYY-MM-DD format (UTC), may be null for incomplete records
+ * @property model The model identifier, may be null for aggregated or incomplete data
+ * @property modelPermaslug Permanent slug identifier for the model, may be null
+ * @property endpointId Unique identifier for the endpoint used, may be null
+ * @property providerName Name of the AI provider (e.g., "openai", "anthropic"), may be null
+ * @property usage Total cost in USD for this activity, may be null if not tracked
+ * @property byokUsageInference Cost for BYOK (Bring Your Own Key) inference, may be null
+ * @property requests Number of API requests made, may be null if not tracked
+ * @property promptTokens Number of tokens in prompts, may be null if not tracked
+ * @property completionTokens Number of tokens in completions, may be null if not tracked
+ * @property reasoningTokens Number of reasoning tokens (for models with reasoning capabilities), may be null
+ */
 data class ActivityData(
     val date: String?,
     val model: String?,

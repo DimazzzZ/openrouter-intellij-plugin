@@ -4,7 +4,6 @@ import com.intellij.ide.BrowserUtil
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import org.zhavoronkov.openrouter.models.ApiResult
@@ -70,49 +69,48 @@ class PkceAuthHandler(
      */
     private fun startLocalServer(codeVerifier: String) {
         serverJob = coroutineScope.launch(Dispatchers.IO) {
-            var serverSocket: ServerSocket? = null
             try {
                 val port = SetupWizardConfig.PKCE_PORT
                 SetupWizardLogger.logPkceEvent("Attempting to bind to port", "port=$port")
 
-                serverSocket = ServerSocket(port)
-                SetupWizardLogger.logPkceEvent("Server started", "port=$port")
+                ServerSocket(port).use { serverSocket ->
+                    SetupWizardLogger.logPkceEvent("Server started", "port=$port")
 
-                val callbackUrl = "http://localhost:$port/callback"
-                val codeChallenge = generateCodeChallenge(codeVerifier)
+                    val callbackUrl = "http://localhost:$port/callback"
+                    val codeChallenge = generateCodeChallenge(codeVerifier)
 
-                // Construct Auth URL with OAuth app name
-                val encodedAppName = java.net.URLEncoder.encode(OpenRouterRequestBuilder.OAUTH_APP_NAME, "UTF-8")
-                val authUrl = "https://openrouter.ai/auth?callback_url=$callbackUrl&code_challenge=$codeChallenge&code_challenge_method=S256&name=$encodedAppName"
+                    // Construct Auth URL with OAuth app name
+                    val encodedAppName = java.net.URLEncoder.encode(OpenRouterRequestBuilder.OAUTH_APP_NAME, "UTF-8")
+                    val authUrl = "https://openrouter.ai/auth?callback_url=$callbackUrl&code_challenge=$codeChallenge&code_challenge_method=S256&name=$encodedAppName"
 
-                SetupWizardLogger.logPkceEvent("Opening browser", "url=$authUrl")
-                BrowserUtil.browse(authUrl)
+                    SetupWizardLogger.logPkceEvent("Opening browser", "url=$authUrl")
+                    BrowserUtil.browse(authUrl)
 
-                // Wait for callback with timeout
-                serverSocket.soTimeout = SetupWizardConfig.PKCE_SERVER_TIMEOUT_MS.toInt()
+                    // Wait for callback with timeout
+                    serverSocket.soTimeout = SetupWizardConfig.PKCE_SERVER_TIMEOUT_MS.toInt()
 
-                try {
-                    val socket = serverSocket.accept()
-                    SetupWizardLogger.logPkceEvent("Connection accepted", "from=${socket.inetAddress}")
+                    try {
+                        serverSocket.accept().use { socket ->
+                            SetupWizardLogger.logPkceEvent("Connection accepted", "from=${socket.inetAddress}")
 
-                    val code = handleCallback(socket, codeVerifier)
-                    if (code != null) {
-                        exchangeCode(code, codeVerifier)
+                            val code = handleCallback(socket, codeVerifier)
+                            if (code != null) {
+                                exchangeCode(code, codeVerifier)
+                            }
+                        }
+                    } catch (e: java.net.SocketTimeoutException) {
+                        SetupWizardLogger.logPkceEvent("Socket timeout")
+                        onError("Authentication timed out. Please try again.")
+                    } catch (e: Exception) {
+                        SetupWizardLogger.logPkceEvent("Error accepting connection", e.message ?: "Unknown error")
+                        onError(SetupWizardErrorHandler.handlePkceError(e, "accepting connection"))
                     }
-                    socket.close()
-                } catch (e: java.net.SocketTimeoutException) {
-                    SetupWizardLogger.logPkceEvent("Socket timeout")
-                    onError("Authentication timed out. Please try again.")
-                } catch (e: Exception) {
-                    SetupWizardLogger.logPkceEvent("Error accepting connection", e.message ?: "Unknown error")
-                    onError(SetupWizardErrorHandler.handlePkceError(e, "accepting connection"))
+
+                    SetupWizardLogger.logPkceEvent("Server stopped")
                 }
             } catch (e: Exception) {
                 SetupWizardLogger.error("PKCE Flow Error", e)
                 onError(SetupWizardErrorHandler.handlePkceError(e, "starting server"))
-            } finally {
-                serverSocket?.close()
-                SetupWizardLogger.logPkceEvent("Server stopped")
             }
         }
     }
@@ -136,7 +134,9 @@ class PkceAuthHandler(
                 writer.println("HTTP/1.1 200 OK")
                 writer.println("Content-Type: text/html")
                 writer.println()
-                writer.println("<html><body><h1>Authentication Successful</h1><p>You can close this window and return to IntelliJ IDEA.</p><script>window.close();</script></body></html>")
+                writer.println(
+                    "<html><body><h1>Authentication Successful</h1><p>You can close this window and return to IntelliJ IDEA.</p><script>window.close();</script></body></html>"
+                )
                 writer.close()
 
                 return code
@@ -160,29 +160,29 @@ class PkceAuthHandler(
     private fun exchangeCode(code: String, codeVerifier: String) {
         onStatusUpdate("Exchanging code...")
 
-        coroutineScope.launch(Dispatchers.IO) {
+        coroutineScope.launch {
             try {
-                withTimeout(SetupWizardConfig.MODEL_LOADING_TIMEOUT_MS) {
-                    val result = openRouterService.exchangeAuthCode(code, codeVerifier)
+                // Perform API call on IO dispatcher
+                val result = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                    withTimeout(SetupWizardConfig.MODEL_LOADING_TIMEOUT_MS) {
+                        openRouterService.exchangeAuthCode(code, codeVerifier)
+                    }
+                }
 
-                    coroutineScope.launch(Dispatchers.Main) {
-                        when (result) {
-                            is ApiResult.Success -> {
-                                SetupWizardLogger.logPkceEvent("Code exchange successful", "key=${result.data.key.take(5)}...")
-                                onSuccess(result.data.key)
-                            }
-                            is ApiResult.Error -> {
-                                SetupWizardLogger.logPkceEvent("Code exchange failed", result.message)
-                                onError(SetupWizardErrorHandler.handleValidationError(result))
-                            }
-                        }
+                // Handle result on Main dispatcher (already on Main due to outer launch)
+                when (result) {
+                    is ApiResult.Success -> {
+                        SetupWizardLogger.logPkceEvent("Code exchange successful", "key=${result.data.key.take(5)}...")
+                        onSuccess(result.data.key)
+                    }
+                    is ApiResult.Error -> {
+                        SetupWizardLogger.logPkceEvent("Code exchange failed", result.message)
+                        onError(SetupWizardErrorHandler.handleValidationError(result))
                     }
                 }
             } catch (e: Exception) {
-                coroutineScope.launch(Dispatchers.Main) {
-                    SetupWizardLogger.error("Error in exchangeCode coroutine", e)
-                    onError(SetupWizardErrorHandler.handleNetworkError(e, "code exchange"))
-                }
+                SetupWizardLogger.error("Error in exchangeCode coroutine", e)
+                onError(SetupWizardErrorHandler.handleNetworkError(e, "code exchange"))
             }
         }
     }

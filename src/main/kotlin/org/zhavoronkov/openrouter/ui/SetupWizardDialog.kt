@@ -24,6 +24,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import org.zhavoronkov.openrouter.models.ApiResult
@@ -33,7 +34,6 @@ import org.zhavoronkov.openrouter.proxy.OpenRouterProxyServer
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
-import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.CardLayout
@@ -1013,8 +1013,11 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
     override fun dispose() {
         super.dispose()
+        // Cancel all ongoing operations
         pkceHandler?.cancel()
         validationJob?.cancel()
+        // Cancel the coroutine scope to prevent memory leaks
+        coroutineScope.coroutineContext.cancel()
     }
 
     companion object {
