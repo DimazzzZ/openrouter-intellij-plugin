@@ -26,6 +26,7 @@ import org.zhavoronkov.openrouter.models.ConnectionStatus
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.ui.OpenRouterStatsPopup
+import org.zhavoronkov.openrouter.listeners.OpenRouterSettingsListener
 import java.awt.event.MouseEvent
 import java.io.IOException
 import java.util.Locale
@@ -42,7 +43,16 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
     private var connectionStatus = ConnectionStatus.NOT_CONFIGURED
     private var currentText = "Status: Not Configured"
-    private var currentTooltip = "OpenRouter Status: Not Configured - Usage: Not available"
+    private var currentTooltip = """
+        <html>
+        <table cellpadding='1' cellspacing='0'>
+          <tr><td colspan='2'><b>OpenRouter</b></td></tr>
+          <tr height='4'><td></td></tr>
+          <tr><td>Status:</td><td align='right' style='padding-left: 20px;'>Not Configured</td></tr>
+          <tr><td colspan='2'><i>API key not set.</i></td></tr>
+        </table>
+        </html>
+    """.trimIndent()
 
     companion object {
         const val ID = "OpenRouterStatusBar"
@@ -217,7 +227,19 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         if (settingsService.apiKeyManager.authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR) {
             connectionStatus = ConnectionStatus.READY
             currentText = "Status: Ready"
-            currentTooltip = "OpenRouter Status: Ready - Monitoring Disabled"
+            
+            currentTooltip = """
+                <html>
+                <table cellpadding='1' cellspacing='0'>
+                  <tr><td colspan='2'><b>OpenRouter</b></td></tr>
+                  <tr height='4'><td></td></tr>
+                  <tr><td>Status:</td><td align='right' style='padding-left: 20px;'>Ready</td></tr>
+                  <tr><td>Auth:</td><td align='right' style='padding-left: 20px;'>Regular Key</td></tr>
+                  <tr><td>Monitoring:</td><td align='right' style='padding-left: 20px;'><i>Disabled</i></td></tr>
+                </table>
+                </html>
+            """.trimIndent()
+            
             updateStatusBar()
             return
         }
@@ -283,11 +305,21 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
         currentText = "Status: ${connectionStatus.displayName}"
         val isRegular = settingsService.apiKeyManager.authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR
-        currentTooltip = if (isRegular) {
-            "OpenRouter Status: ${connectionStatus.displayName} - Monitoring Disabled"
-        } else {
-            "OpenRouter Status: ${connectionStatus.displayName} - Usage: Not available"
-        }
+        val scopeText = if (isRegular) "Regular Key" else "Provisioning Key"
+        val monitoringText = if (isRegular) "<i>Disabled</i>" else "Enabled"
+
+        currentTooltip = """
+            <html>
+            <table cellpadding='1' cellspacing='0'>
+              <tr><td colspan='2'><b>OpenRouter</b></td></tr>
+              <tr height='4'><td></td></tr>
+              <tr><td>Status:</td><td align='right' style='padding-left: 20px;'>${connectionStatus.displayName}</td></tr>
+              <tr><td>Auth:</td><td align='right' style='padding-left: 20px;'>$scopeText</td></tr>
+              <tr><td>Monitoring:</td><td align='right' style='padding-left: 20px;'>$monitoringText</td></tr>
+            </table>
+            </html>
+        """.trimIndent()
+        
         updateStatusBar()
     }
 
@@ -304,6 +336,19 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         if (settingsService.uiPreferencesManager.autoRefresh) {
             startAutoRefresh()
         }
+
+        // Subscribe to settings changes
+        project.messageBus.connect(this).subscribe(
+            OpenRouterSettingsListener.TOPIC,
+            object : OpenRouterSettingsListener {
+                override fun onSettingsChanged() {
+                    ApplicationManager.getApplication().invokeLater {
+                        updateConnectionStatus()
+                        updateQuotaInfo()
+                    }
+                }
+            }
+        )
     }
 
     private fun startAutoRefresh() {
@@ -351,15 +396,22 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
     private fun formatStatusTooltipFromCredits(used: Double, total: Double): String {
         val status = connectionStatus.displayName
-        return if (total > 0) {
-            "OpenRouter Status: $status - Usage: $${String.format(
-                Locale.US,
-                "%.3f",
-                used
-            )}/$${String.format(Locale.US, "%.0f", total)}"
-        } else {
-            "OpenRouter Status: $status - Usage: $${String.format(Locale.US, "%.3f", used)}/no credits"
-        }
+        val usedText = "$${String.format(Locale.US, "%.3f", used)}"
+        val totalText = if (total > 0) "$${String.format(Locale.US, "%.2f", total)}" else "Unlimited"
+        
+        return """
+            <html>
+            <table cellpadding='1' cellspacing='0'>
+              <tr><td colspan='2'><b>OpenRouter</b></td></tr>
+              <tr height='4'><td></td></tr>
+              <tr><td>Status:</td><td align='right' style='padding-left: 20px;'>$status</td></tr>
+              <tr><td>Auth:</td><td align='right' style='padding-left: 20px;'>Provisioning Key</td></tr>
+              <tr height='4'><td></td></tr>
+              <tr><td>Used:</td><td align='right' style='padding-left: 20px;'>$usedText</td></tr>
+              <tr><td>Total:</td><td align='right' style='padding-left: 20px;'>$totalText</td></tr>
+            </table>
+            </html>
+        """.trimIndent()
     }
 
 

@@ -5,6 +5,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.openapi.ui.Messages
 import com.intellij.ui.JBColor
 import com.intellij.ui.SearchTextField
 import com.intellij.ui.components.JBLabel
@@ -63,18 +64,21 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
     private val cardLayout = CardLayout()
     private val cardPanel = JPanel(cardLayout)
+    private val validationAlarm = Alarm(Alarm.ThreadToUse.POOLED_THREAD, disposable)
     private var validationJob: Job? = null
-    private val validationAlarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, disposable)
+    
+    // UI Components
+    private lateinit var regularRadioButton: JRadioButton
+    private lateinit var extendedRadioButton: JRadioButton
+    private val keyField = JBPasswordField()
 
     private var currentStep = 0
 
-    // Initialize scopePredicates BEFORE creating panels
-    private val scopePredicates = mutableListOf<ScopePredicate>()
+    // Initialize uiPredicates BEFORE creating panels
+    private val uiPredicates = mutableListOf<UpdatablePredicate>()
 
-    private inner class ScopePredicate(val scope: AuthScope) : com.intellij.ui.layout.ComponentPredicate() {
+    private abstract inner class UpdatablePredicate : com.intellij.ui.layout.ComponentPredicate() {
         private val listeners = mutableListOf<(Boolean) -> Unit>()
-
-        override fun invoke(): Boolean = authScope == scope
 
         override fun addListener(listener: (Boolean) -> Unit) {
             listeners.add(listener)
@@ -87,11 +91,14 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         }
     }
 
+    private inner class ScopePredicate(val scope: AuthScope) : UpdatablePredicate() {
+        override fun invoke(): Boolean = authScope == scope
+    }
+
     // Step 0: Welcome
     private val welcomePanel = createWelcomePanel()
 
     // Step 1: Authentication Setup
-    private val keyField = JBPasswordField()
     private var authScope = settingsService.apiKeyManager.authScope
     private val validationStatusLabel = JBLabel(" ")
     private val validationIcon = JBLabel()
@@ -113,6 +120,13 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     private val modelsPanel = createModelsPanel()
 
     // Step 3: Completion
+    private var proxyAutoStart = settingsService.proxyManager.isProxyAutoStartEnabled()
+    private var proxyPort = settingsService.proxyManager.getProxyPort().let { if (it == 0) DEFAULT_PROXY_PORT else it }
+    private var startProxyNow = true
+    private var isAdvancedProxySetup = settingsService.proxyManager.getProxyPort() != 0 && 
+                                       settingsService.proxyManager.getProxyPort() != DEFAULT_PROXY_PORT ||
+                                       !settingsService.proxyManager.isProxyAutoStartEnabled()
+    private val proxyUrlLabel = JBLabel()
     private val completionPanel = createCompletionPanel()
 
     init {
@@ -125,6 +139,9 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         cardPanel.add(provisioningKeyPanel, "provisioning")
         cardPanel.add(modelsPanel, "models")
         cardPanel.add(completionPanel, "completion")
+
+        // Enable sorting for models table
+        modelsTable.rowSorter = javax.swing.table.TableRowSorter(modelsTableModel)
 
         // Setup models search listener
         searchField.addDocumentListener(object : DocumentListener {
@@ -203,8 +220,8 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
             }.bottomGap(BottomGap.MEDIUM)
 
             // Authentication group - using manual radio buttons for better visibility control
-            val regularRadioButton = JRadioButton("Regular API Key (No monitoring)")
-            val extendedRadioButton = JRadioButton("Extended (Provisioning Key)")
+            regularRadioButton = JRadioButton("Regular API Key (No monitoring)")
+            extendedRadioButton = JRadioButton("Extended (Provisioning Key)")
             val authButtonGroup = ButtonGroup()
             authButtonGroup.add(regularRadioButton)
             authButtonGroup.add(extendedRadioButton)
@@ -300,12 +317,20 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
     private fun radioButtonSelected(scope: AuthScope): com.intellij.ui.layout.ComponentPredicate {
         val predicate = ScopePredicate(scope)
-        scopePredicates.add(predicate)
+        uiPredicates.add(predicate)
+        return predicate
+    }
+
+    private fun advancedProxySelected(): com.intellij.ui.layout.ComponentPredicate {
+        val predicate = object : UpdatablePredicate() {
+            override fun invoke() = isAdvancedProxySetup
+        }
+        uiPredicates.add(predicate)
         return predicate
     }
 
     private fun notifyScopeChanged() {
-        scopePredicates.forEach { it.update() }
+        uiPredicates.forEach { it.update() }
     }
 
     private fun createModelsPanel(): JPanel {
@@ -354,6 +379,37 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     }
 
     private fun createCompletionPanel(): JPanel {
+        val standardRadioButton = JRadioButton("Standard Setup (Recommended)")
+        val advancedRadioButton = JRadioButton("Advanced Setup")
+        val group = ButtonGroup()
+        group.add(standardRadioButton)
+        group.add(advancedRadioButton)
+        
+        if (isAdvancedProxySetup) {
+            advancedRadioButton.isSelected = true
+        } else {
+            standardRadioButton.isSelected = true
+        }
+
+        val updateProxyUrl = {
+            val port = if (isAdvancedProxySetup) proxyPort else DEFAULT_PROXY_PORT
+            proxyUrlLabel.text = OpenRouterProxyServer.buildProxyUrl(port)
+        }
+
+        standardRadioButton.addActionListener {
+            isAdvancedProxySetup = false
+            proxyAutoStart = true
+            proxyPort = DEFAULT_PROXY_PORT
+            updateProxyUrl()
+            notifyScopeChanged() // Reuse this to trigger visibility updates
+        }
+
+        advancedRadioButton.addActionListener {
+            isAdvancedProxySetup = true
+            updateProxyUrl()
+            notifyScopeChanged()
+        }
+
         return panel {
             row {
                 label("<html><h2>Setup Complete!</h2></html>")
@@ -363,6 +419,50 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                 icon(AllIcons.General.InspectionsOK)
                 text("You're ready to go!")
             }.bottomGap(BottomGap.MEDIUM)
+
+            separator()
+
+            group("Proxy Server Setup") {
+                buttonsGroup {
+                    row {
+                        cell(standardRadioButton)
+                            .comment("Uses an available port (default 8080) and starts automatically with IDE.")
+                    }
+                    row {
+                        cell(advancedRadioButton)
+                            .comment("Configure custom port and autostart preferences.")
+                    }
+                }
+
+                indent {
+                    row("Port:") {
+                        intTextField(1024..65535)
+                            .applyToComponent {
+                                text = proxyPort.toString()
+                                document.addDocumentListener(object : DocumentListener {
+                                    override fun insertUpdate(e: DocumentEvent?) = update()
+                                    override fun removeUpdate(e: DocumentEvent?) = update()
+                                    override fun changedUpdate(e: DocumentEvent?) = update()
+                                    private fun update() {
+                                        val newPort = text.toIntOrNull()
+                                        if (newPort != null) {
+                                            proxyPort = newPort
+                                            updateProxyUrl()
+                                        }
+                                    }
+                                })
+                            }
+                    }.visibleIf(advancedProxySelected())
+
+                    row {
+                        checkBox("Start automatically with IDE")
+                            .applyToComponent {
+                                isSelected = proxyAutoStart
+                                addActionListener { proxyAutoStart = isSelected }
+                            }
+                    }.visibleIf(advancedProxySelected())
+                }
+            }
 
             separator()
 
@@ -378,18 +478,24 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
             }.bottomGap(BottomGap.SMALL)
 
             row {
-                val proxyUrl = OpenRouterProxyServer.buildProxyUrl(DEFAULT_PROXY_PORT)
-                val urlLabel = JBLabel()
-                urlLabel.text = proxyUrl
-                urlLabel.font = Font(Font.MONOSPACED, Font.PLAIN, URL_LABEL_FONT_SIZE)
-                urlLabel.foreground = JBColor.BLUE
-                cell(urlLabel)
+                updateProxyUrl()
+                proxyUrlLabel.font = Font(Font.MONOSPACED, Font.PLAIN, URL_LABEL_FONT_SIZE)
+                proxyUrlLabel.foreground = JBColor.BLUE
+                cell(proxyUrlLabel)
                     .resizableColumn()
 
                 button("Copy") {
-                    copyProxyUrlToClipboard(proxyUrl)
+                    copyProxyUrlToClipboard(proxyUrlLabel.text)
                 }
             }.bottomGap(BottomGap.MEDIUM)
+
+            row {
+                checkBox("Start proxy server now")
+                    .applyToComponent {
+                        isSelected = startProxyNow
+                        addActionListener { startProxyNow = isSelected }
+                    }
+            }
 
             separator()
 
@@ -442,6 +548,15 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
             }
             STEP_COMPLETION -> {
                 // Completion -> Close
+                // Save proxy settings
+                settingsService.proxyManager.setProxyPort(proxyPort)
+                settingsService.proxyManager.setProxyAutoStart(proxyAutoStart)
+                
+                // Start proxy if requested
+                if (startProxyNow) {
+                    OpenRouterProxyServer.getInstance().start()
+                }
+
                 settingsService.setupStateManager.setHasCompletedSetup(true)
                 super.doOKAction()
             }
@@ -550,8 +665,20 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
             PluginLogger.Service.warn("[OpenRouter] Coroutine started on ${Thread.currentThread().name}")
             try {
                 PluginLogger.Service.warn("[OpenRouter] Calling API for validation...")
+                PluginLogger.Service.warn("[OpenRouter] Calling API for validation...")
+                
+                var detectedProvisioning = false
                 val result = if (currentScope == AuthScope.REGULAR) {
-                    openRouterService.testApiKey(key)
+                    val regularResult = openRouterService.testApiKey(key)
+                    if (regularResult is ApiResult.Success) {
+                        // Check if it's actually a provisioning key
+                        val provisioningResult = openRouterService.getApiKeysList(key)
+                        if (provisioningResult is ApiResult.Success) {
+                            detectedProvisioning = true
+                            PluginLogger.Service.warn("[OpenRouter] Detected Provisioning Key in Regular mode")
+                        }
+                    }
+                    regularResult
                 } else {
                     openRouterService.getApiKeysList(key)
                 }
@@ -563,6 +690,19 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                     isValidating = false
                     // Only update if the scope hasn't changed while we were validating
                     if (authScope == currentScope) {
+                        // Handle auto-switch for provisioning keys
+                        if (detectedProvisioning && currentScope == AuthScope.REGULAR) {
+                            authScope = AuthScope.EXTENDED
+                            if (::extendedRadioButton.isInitialized) {
+                                extendedRadioButton.isSelected = true
+                            }
+                            notifyScopeChanged()
+                            Messages.showInfoMessage(
+                                "The provided key is a Provisioning Key. Switched to Extended mode for full features.",
+                                "Key Type Detected"
+                            )
+                        }
+                        
                         when (result) {
                             is ApiResult.Success -> {
                                 isKeyValid = true
@@ -689,8 +829,19 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                     if (models != null && models.isNotEmpty()) {
                         PluginLogger.Service.warn("[OpenRouter] Successfully loaded ${models.size} models")
                         allModels = models
+                        
+                        // Pre-select existing favorites
+                        val existingFavorites = settingsService.favoriteModelsManager.getFavoriteModels()
+                        selectedModels.clear()
+                        selectedModels.addAll(existingFavorites)
+                        
                         applyModelFilter()
-                        preselectPopularModels()
+                        
+                        // If no favorites exist, pre-select popular ones
+                        if (selectedModels.isEmpty()) {
+                            preselectPopularModels()
+                        }
+                        
                         updateSelectedCount()
                         modelsLoadingIcon.isVisible = false
                         modelsLoadingLabel.isVisible = false

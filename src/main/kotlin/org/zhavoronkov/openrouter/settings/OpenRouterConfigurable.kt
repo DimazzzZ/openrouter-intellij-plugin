@@ -32,16 +32,10 @@ class OpenRouterConfigurable : Configurable {
      */
     private fun syncSettings(panel: OpenRouterSettingsPanel, toService: Boolean) {
         if (toService) {
-            settingsService.apiKeyManager.authScope = panel.getAuthScope()
-            settingsService.apiKeyManager.setApiKey(panel.getApiKey())
-            settingsService.apiKeyManager.setProvisioningKey(panel.getProvisioningKey())
             settingsService.uiPreferencesManager.autoRefresh = panel.isAutoRefreshEnabled()
             settingsService.uiPreferencesManager.refreshInterval = panel.getRefreshInterval()
             settingsService.uiPreferencesManager.showCosts = panel.shouldShowCosts()
         } else {
-            panel.setAuthScope(settingsService.apiKeyManager.authScope)
-            panel.setApiKey(settingsService.apiKeyManager.getApiKey())
-            panel.setProvisioningKey(settingsService.getProvisioningKey())
             panel.setAutoRefresh(settingsService.uiPreferencesManager.autoRefresh)
             panel.setRefreshInterval(settingsService.uiPreferencesManager.refreshInterval)
             panel.setShowCosts(settingsService.uiPreferencesManager.showCosts)
@@ -113,10 +107,7 @@ class OpenRouterConfigurable : Configurable {
     override fun isModified(): Boolean {
         val panel = settingsPanel ?: return false
 
-        return panel.getAuthScope() != settingsService.apiKeyManager.authScope ||
-            panel.getApiKey() != settingsService.apiKeyManager.getApiKey() ||
-            panel.getProvisioningKey() != settingsService.getProvisioningKey() ||
-            panel.isAutoRefreshEnabled() != settingsService.uiPreferencesManager.autoRefresh ||
+        return panel.isAutoRefreshEnabled() != settingsService.uiPreferencesManager.autoRefresh ||
             panel.getRefreshInterval() != settingsService.uiPreferencesManager.refreshInterval ||
             panel.shouldShowCosts() != settingsService.uiPreferencesManager.showCosts ||
             isSettingModified(panel, SettingType.DEFAULT_MAX_TOKENS) ||
@@ -172,34 +163,11 @@ class OpenRouterConfigurable : Configurable {
     override fun apply() {
         val panel = settingsPanel ?: return
 
-        val oldAuthScope = settingsService.apiKeyManager.authScope
-        val newAuthScope = panel.getAuthScope()
-        val oldApiKey = settingsService.apiKeyManager.getApiKey()
-        val newApiKey = panel.getApiKey()
-        val oldProvisioningKey = settingsService.getProvisioningKey()
-        val newProvisioningKey = panel.getProvisioningKey()
-
         // Update all settings from panel to service
         syncSettings(panel, toService = true)
 
-        // Refresh API keys table if provisioning key changed (force refresh to bypass cache)
-        if (oldProvisioningKey != newProvisioningKey) {
-            panel.refreshApiKeys(forceRefresh = true)
-
-            // If this is the first time setting a provisioning key, the refreshApiKeys will automatically
-            // create the IntelliJ IDEA Plugin API key if it doesn't exist
-        }
-
         // Update proxy status to reflect current configuration and server state
         panel.updateProxyStatus()
-
-        val authChanged = oldAuthScope != newAuthScope ||
-            (newAuthScope == AuthScope.REGULAR && oldApiKey != newApiKey) ||
-            (newAuthScope == AuthScope.EXTENDED && oldProvisioningKey != newProvisioningKey)
-
-        if (authChanged && settingsService.isConfigured()) {
-            testConnection()
-        }
     }
 
     override fun reset() {
@@ -214,33 +182,5 @@ class OpenRouterConfigurable : Configurable {
 
     override fun disposeUIResources() {
         settingsPanel = null
-    }
-
-    private fun testConnection() {
-        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-        scope.launch {
-            val result = openRouterService.testConnection()
-            when (result) {
-                is ApiResult.Success -> {
-                    if (result.data) {
-                        Messages.showInfoMessage(
-                            "Successfully connected to OpenRouter API!",
-                            "Connection Test"
-                        )
-                    } else {
-                        Messages.showErrorDialog(
-                            "Failed to connect to OpenRouter API. Please check your API key.",
-                            "Connection Test Failed"
-                        )
-                    }
-                }
-                is ApiResult.Error -> {
-                    Messages.showErrorDialog(
-                        "Failed to connect to OpenRouter API: ${result.message}",
-                        "Connection Test Failed"
-                    )
-                }
-            }
-        }
     }
 }

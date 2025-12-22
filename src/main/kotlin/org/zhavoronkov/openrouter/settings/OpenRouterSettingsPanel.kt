@@ -148,8 +148,24 @@ class OpenRouterSettingsPanel {
     private lateinit var regularRadioButton: javax.swing.JRadioButton
     private lateinit var extendedRadioButton: javax.swing.JRadioButton
     
+    // Authentication status labels
+    private lateinit var authScopeLabel: javax.swing.JLabel
+    private lateinit var authDescriptionLabel: javax.swing.JEditorPane
+    
     // Scope predicates for visibility management
-    private val scopePredicates = mutableListOf<ScopePredicate>()
+    private val uiPredicates = mutableListOf<UpdatablePredicate>()
+
+    private abstract inner class UpdatablePredicate : com.intellij.ui.layout.ComponentPredicate() {
+        private val listeners = mutableListOf<(Boolean) -> Unit>()
+        override fun addListener(listener: (Boolean) -> Unit) {
+            listeners.add(listener)
+            listener(invoke())
+        }
+        fun update() {
+            val newValue = invoke()
+            listeners.forEach { it(newValue) }
+        }
+    }
 
     companion object {
         private const val DEFAULT_REFRESH_INTERVAL = 300
@@ -285,6 +301,9 @@ class OpenRouterSettingsPanel {
                             PluginLogger.Settings.info("Showing setup wizard for project: ${project?.name ?: "default"}")
                             val result = SetupWizardDialog.show(project)
                             PluginLogger.Settings.info("Setup wizard completed with result: $result")
+                            if (result) {
+                                refreshUI()
+                            }
                         } catch (e: Exception) {
                             PluginLogger.Settings.error("Failed to show setup wizard", e)
                             Messages.showErrorDialog(
@@ -296,69 +315,27 @@ class OpenRouterSettingsPanel {
                     comment("Re-run the initial setup wizard to configure the plugin.")
                 }
 
-                separator()
-
-                // Authentication group
-                group("Authentication Scope") {
-                    buttonsGroup {
-                        row {
-                            radioButton("Regular API Key (No monitoring)", AuthScope.REGULAR)
-                                .comment("Minimal permissions. Quota tracking and usage monitoring will be disabled.")
-                        }
-                        row {
-                            radioButton("Extended (Provisioning Key)", AuthScope.EXTENDED)
-                                .comment("Full functionality. Allows the plugin to manage API keys and monitor usage.")
-                        }
-                    }.bind(
-                        object : com.intellij.ui.dsl.builder.MutableProperty<AuthScope> {
-                            override fun get(): AuthScope = currentUiAuthScope
-                            override fun set(value: AuthScope) {
-                                currentUiAuthScope = value
-                                settingsService.apiKeyManager.authScope = value
-                                notifyScopeChanged()
-                            }
-                        },
-                        AuthScope::class.java
-                    )
+                // Authentication Status group
+                // Authentication Status group
+                group("Authentication") {
+                    row("Current Scope:") {
+                        authScopeLabel = label("").applyToComponent {
+                            text = if (settingsService.apiKeyManager.authScope == AuthScope.REGULAR) 
+                                "Regular API Key" else "Extended (Provisioning Key)"
+                        }.bold().component
+                    }
+                    row {
+                        authDescriptionLabel = text("").applyToComponent {
+                            text = if (settingsService.apiKeyManager.authScope == AuthScope.REGULAR)
+                                "Minimal permissions. Quota tracking and usage monitoring are disabled."
+                            else
+                                "Full functionality. The plugin can manage API keys and monitor usage."
+                        }.component
+                    }
+                    row {
+                        text("To change your authentication settings, please use the <b>Run Setup Wizard</b> button above.")
+                    }
                 }
-
-                // Regular API Key group
-                group("Regular API Key") {
-                    row("API Key:") {
-                        cell(apiKeyField)
-                            .resizableColumn()
-                        button("Paste") { pasteToField(apiKeyField) }
-                    }.layout(RowLayout.PARENT_GRID)
-
-                    row {
-                        comment("Get your key from OpenRouter API Keys.")
-                    }
-
-                    row {
-                        link("Get your key from OpenRouter API Keys") {
-                            BrowserUtil.browse("https://openrouter.ai/settings/keys")
-                        }
-                    }
-                }.visibleIf(radioButtonSelected(AuthScope.REGULAR))
-
-                // Provisioning group
-                group("Provisioning") {
-                    row("Provisioning Key:") {
-                        cell(provisioningKeyField)
-                            .resizableColumn()
-                        button("Paste") { pasteToField(provisioningKeyField) }
-                    }.layout(RowLayout.PARENT_GRID)
-
-                    row {
-                        comment("Required for quota monitoring and API keys management.")
-                    }
-
-                    row {
-                        link("Get your key from OpenRouter Provisioning Keys") {
-                            BrowserUtil.browse("https://openrouter.ai/settings/provisioning-keys")
-                        }
-                    }
-                }.visibleIf(radioButtonSelected(AuthScope.EXTENDED))
 
                 // General Settings group
                 group("General Settings") {
@@ -391,7 +368,7 @@ class OpenRouterSettingsPanel {
                             .align(Align.FILL)
                             .resizableColumn()
                     }.resizableRow()
-                }.visibleIf(radioButtonSelected(AuthScope.EXTENDED))
+                }.visibleIf(isExtendedScope())
 
                 // Proxy Server group
                 group("Proxy Server") {
@@ -538,30 +515,16 @@ class OpenRouterSettingsPanel {
     }
 
 
-    private inner class ScopePredicate(val scope: AuthScope) : com.intellij.ui.layout.ComponentPredicate() {
-        private val listeners = mutableListOf<(Boolean) -> Unit>()
-
-        override fun invoke(): Boolean = currentUiAuthScope == scope
-
-        override fun addListener(listener: (Boolean) -> Unit) {
-            listeners.add(listener)
-            listener(invoke()) // Initial update
+    private fun isExtendedScope(): com.intellij.ui.layout.ComponentPredicate {
+        val predicate = object : UpdatablePredicate() {
+            override fun invoke() = settingsService.apiKeyManager.authScope == AuthScope.EXTENDED
         }
-
-        fun update() {
-            val newValue = invoke()
-            listeners.forEach { it(newValue) }
-        }
-    }
-
-    private fun radioButtonSelected(scope: AuthScope): com.intellij.ui.layout.ComponentPredicate {
-        val predicate = ScopePredicate(scope)
-        scopePredicates.add(predicate)
+        uiPredicates.add(predicate)
         return predicate
     }
 
     private fun notifyScopeChanged() {
-        scopePredicates.forEach { it.update() }
+        uiPredicates.forEach { it.update() }
     }
 
     private fun addApiKey() {
@@ -861,6 +824,49 @@ class OpenRouterSettingsPanel {
         if (startPort > endPort) {
             // Automatically adjust the end port to be at least equal to start port
             proxyPortRangeEndSpinner.value = startPort
+        }
+    }
+
+    /**
+     * Refreshes the UI with the latest values from the settings service.
+     * This is called after the Setup Wizard completes to ensure the settings page reflects the changes.
+     */
+    private fun refreshUI() {
+        ApplicationManager.getApplication().invokeLater {
+            // Refresh Authentication Scope
+            val newScope = settingsService.apiKeyManager.authScope
+            setAuthScope(newScope)
+            
+            // Update status labels
+            if (::authScopeLabel.isInitialized) {
+                authScopeLabel.text = if (newScope == AuthScope.REGULAR) 
+                    "Regular API Key" else "Extended (Provisioning Key)"
+            }
+            if (::authDescriptionLabel.isInitialized) {
+                authDescriptionLabel.text = if (newScope == AuthScope.REGULAR)
+                    "Minimal permissions. Quota tracking and usage monitoring are disabled."
+                else
+                    "Full functionality. The plugin can manage API keys and monitor usage."
+            }
+
+            // Refresh Keys
+            if (newScope == AuthScope.REGULAR) {
+                setApiKey(settingsService.apiKeyManager.getApiKey())
+            } else {
+                setProvisioningKey(settingsService.apiKeyManager.getProvisioningKey())
+            }
+
+            // Refresh Proxy Settings
+            setProxyAutoStart(settingsService.proxyManager.isProxyAutoStartEnabled())
+            setUseSpecificPort(settingsService.proxyManager.getProxyPort() != 0)
+            if (getUseSpecificPort()) {
+                setProxyPort(settingsService.proxyManager.getProxyPort())
+            }
+            
+            // Refresh Proxy Status
+            updateProxyStatus()
+            
+            PluginLogger.Settings.info("Settings panel UI refreshed from service state")
         }
     }
 }
