@@ -531,10 +531,10 @@ open class OpenRouterService(
                 PluginLogger.Service.debug(
                     "Fetching activity from OpenRouter with provisioning key: $keyPreview..."
                 )
-                PluginLogger.Service.debug("Making request to: $ACTIVITY_ENDPOINT")
+                PluginLogger.Service.debug("Making request to: ${getActivityEndpoint()}")
 
                 val request = OpenRouterRequestBuilder.buildGetRequest(
-                    url = ACTIVITY_ENDPOINT,
+                    url = getActivityEndpoint(),
                     authType = OpenRouterRequestBuilder.AuthType.PROVISIONING_KEY,
                     authToken = provisioningKey
                 )
@@ -587,7 +587,7 @@ open class OpenRouterService(
      */
     suspend fun getProviders(): ApiResult<ProvidersResponse> =
         fetchPublicEndpoint(
-            PROVIDERS_ENDPOINT,
+            getProvidersEndpoint(),
             "providers",
             OpenRouterConstants.RESPONSE_PREVIEW_LENGTH_SMALL,
             "Error fetching providers"

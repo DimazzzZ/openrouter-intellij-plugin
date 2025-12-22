@@ -77,34 +77,6 @@ object KeyValidator {
     }
 
     /**
-     * Checks if a key looks like a provisioning key
-     * Note: This is deprecated as both key types have the same format.
-     * Use looksLikeOpenRouterKey() instead.
-     * @deprecated Cannot distinguish provisioning keys from regular keys by format alone
-     */
-    @Deprecated(
-        "Cannot distinguish provisioning keys from regular keys by format alone",
-        ReplaceWith("looksLikeOpenRouterKey(key)")
-    )
-    fun looksLikeProvisioningKey(key: String): Boolean {
-        return looksLikeOpenRouterKey(key)
-    }
-
-    /**
-     * Checks if a key looks like a regular API key
-     * Note: This is deprecated as both key types have the same format.
-     * Use looksLikeOpenRouterKey() instead.
-     * @deprecated Cannot distinguish regular API keys from provisioning keys by format alone
-     */
-    @Deprecated(
-        "Cannot distinguish regular API keys from provisioning keys by format alone",
-        ReplaceWith("looksLikeOpenRouterKey(key)")
-    )
-    fun looksLikeApiKey(key: String): Boolean {
-        return looksLikeOpenRouterKey(key)
-    }
-
-    /**
      * Gets a user-friendly message for validation result
      */
     fun getValidationMessage(result: ValidationResult): String? {
