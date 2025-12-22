@@ -2,9 +2,9 @@
 package org.zhavoronkov.openrouter.settings
 
 import com.intellij.icons.AllIcons
-import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.ToolbarDecorator
 import com.intellij.ui.components.JBCheckBox
@@ -18,13 +18,11 @@ import org.zhavoronkov.openrouter.models.AuthScope
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
-import org.zhavoronkov.openrouter.utils.PluginLogger
 import org.zhavoronkov.openrouter.ui.SetupWizardDialog
+import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
-import com.intellij.openapi.project.ProjectManager
-import javax.swing.ButtonGroup
 import javax.swing.JButton
 import javax.swing.JLabel
 import javax.swing.JPanel
@@ -142,16 +140,16 @@ class OpenRouterSettingsPanel {
     private lateinit var proxyPortSpinner: JSpinner
     private lateinit var proxyPortRangeStartSpinner: JSpinner
     private lateinit var proxyPortRangeEndSpinner: JSpinner
-    
+
     // UI state tracking
     private var currentUiAuthScope: AuthScope = AuthScope.EXTENDED
     private lateinit var regularRadioButton: javax.swing.JRadioButton
     private lateinit var extendedRadioButton: javax.swing.JRadioButton
-    
+
     // Authentication status labels
     private lateinit var authScopeLabel: javax.swing.JLabel
     private lateinit var authDescriptionLabel: javax.swing.JEditorPane
-    
+
     // Scope predicates for visibility management
     private val uiPredicates = mutableListOf<UpdatablePredicate>()
 
@@ -320,16 +318,20 @@ class OpenRouterSettingsPanel {
                 group("Authentication") {
                     row("Current Scope:") {
                         authScopeLabel = label("").applyToComponent {
-                            text = if (settingsService.apiKeyManager.authScope == AuthScope.REGULAR) 
-                                "Regular API Key" else "Extended (Provisioning Key)"
+                            text = if (settingsService.apiKeyManager.authScope == AuthScope.REGULAR) {
+                                "Regular API Key"
+                            } else {
+                                "Extended (Provisioning Key)"
+                            }
                         }.bold().component
                     }
                     row {
                         authDescriptionLabel = text("").applyToComponent {
-                            text = if (settingsService.apiKeyManager.authScope == AuthScope.REGULAR)
+                            text = if (settingsService.apiKeyManager.authScope == AuthScope.REGULAR) {
                                 "Minimal permissions. Quota tracking and usage monitoring are disabled."
-                            else
+                            } else {
                                 "Full functionality. The plugin can manage API keys and monitor usage."
+                            }
                         }.component
                     }
                     row {
@@ -514,7 +516,6 @@ class OpenRouterSettingsPanel {
         }
     }
 
-
     private fun isExtendedScope(): com.intellij.ui.layout.ComponentPredicate {
         val predicate = object : UpdatablePredicate() {
             override fun invoke() = settingsService.apiKeyManager.authScope == AuthScope.EXTENDED
@@ -638,8 +639,9 @@ class OpenRouterSettingsPanel {
 
     fun updateProxyStatus() {
         // Safe check for lateinit properties
-        if (!::statusLabel.isInitialized || !::startServerButton.isInitialized || 
-            !::stopServerButton.isInitialized || !::copyUrlButton.isInitialized) {
+        if (!::statusLabel.isInitialized || !::startServerButton.isInitialized ||
+            !::stopServerButton.isInitialized || !::copyUrlButton.isInitialized
+        ) {
             return
         }
 
@@ -836,17 +838,21 @@ class OpenRouterSettingsPanel {
             // Refresh Authentication Scope
             val newScope = settingsService.apiKeyManager.authScope
             setAuthScope(newScope)
-            
+
             // Update status labels
             if (::authScopeLabel.isInitialized) {
-                authScopeLabel.text = if (newScope == AuthScope.REGULAR) 
-                    "Regular API Key" else "Extended (Provisioning Key)"
+                authScopeLabel.text = if (newScope == AuthScope.REGULAR) {
+                    "Regular API Key"
+                } else {
+                    "Extended (Provisioning Key)"
+                }
             }
             if (::authDescriptionLabel.isInitialized) {
-                authDescriptionLabel.text = if (newScope == AuthScope.REGULAR)
+                authDescriptionLabel.text = if (newScope == AuthScope.REGULAR) {
                     "Minimal permissions. Quota tracking and usage monitoring are disabled."
-                else
+                } else {
                     "Full functionality. The plugin can manage API keys and monitor usage."
+                }
             }
 
             // Refresh Keys
@@ -862,10 +868,10 @@ class OpenRouterSettingsPanel {
             if (getUseSpecificPort()) {
                 setProxyPort(settingsService.proxyManager.getProxyPort())
             }
-            
+
             // Refresh Proxy Status
             updateProxyStatus()
-            
+
             PluginLogger.Settings.info("Settings panel UI refreshed from service state")
         }
     }

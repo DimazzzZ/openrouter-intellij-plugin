@@ -35,8 +35,8 @@ object StatsFormatter {
     }
 
     fun calculateActivityStats(activities: List<ActivityData>): Pair<Long, Double> {
-        val totalRequests = activities.sumOf { it.requests.toLong() }
-        val totalUsage = activities.sumOf { it.usage }
+        val totalRequests = activities.sumOf { (it.requests ?: 0).toLong() }
+        val totalUsage = activities.sumOf { it.usage ?: 0.0 }
         return Pair(totalRequests, totalUsage)
     }
 
@@ -46,15 +46,21 @@ object StatsFormatter {
     ): List<ActivityData> {
         val cutoffDate = LocalDate.now().minusDays((hoursAgo / HOURS_IN_DAY).toLong())
         return activities.filter { activity ->
-            val activityDate = parseActivityDate(activity.date)
-            activityDate != null && !activityDate.isBefore(cutoffDate)
+            val dateStr = activity.date
+            if (dateStr != null) {
+                val activityDate = parseActivityDate(dateStr)
+                activityDate != null && !activityDate.isBefore(cutoffDate)
+            } else {
+                false
+            }
         }
     }
 
     fun extractRecentModelNames(activities: List<ActivityData>): List<String> {
         return activities
-            .groupBy { it.model }
-            .mapValues { (_, activityList) -> activityList.maxOf { it.date } }
+            .filter { it.model != null && it.date != null }
+            .groupBy { it.model!! }
+            .mapValues { (_, activityList) -> activityList.maxOf { it.date!! } }
             .toList()
             .sortedByDescending { it.second }
             .map { it.first }
@@ -62,7 +68,9 @@ object StatsFormatter {
 
     private fun parseActivityDate(dateString: String): LocalDate? {
         return try {
-            LocalDate.parse(dateString, DateTimeFormatter.ISO_DATE)
+            // Handle both "YYYY-MM-DD" and "YYYY-MM-DD HH:MM:SS" formats
+            val datePart = if (dateString.length > 10) dateString.substring(0, 10) else dateString
+            LocalDate.parse(datePart, DateTimeFormatter.ISO_DATE)
         } catch (e: DateTimeParseException) {
             PluginLogger.Service.error("Failed to parse activity date: $dateString", e)
             null

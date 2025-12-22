@@ -48,7 +48,7 @@ inline fun <reified T> Response.toApiResult(gson: Gson): ApiResult<T> {
                 } catch (_: Exception) {
                     bodyString
                 }
-                
+
                 ApiResult.Error(
                     message = errorMessage.ifBlank { resp.message }
                         .ifBlank { "HTTP ${resp.code}" },

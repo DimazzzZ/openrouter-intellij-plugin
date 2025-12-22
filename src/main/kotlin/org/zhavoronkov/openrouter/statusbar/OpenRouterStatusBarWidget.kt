@@ -19,16 +19,20 @@ import com.intellij.util.Consumer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import org.zhavoronkov.openrouter.listeners.OpenRouterSettingsListener
+import org.zhavoronkov.openrouter.models.ActivityData
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.ConnectionStatus
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.ui.OpenRouterStatsPopup
-import org.zhavoronkov.openrouter.listeners.OpenRouterSettingsListener
 import java.awt.event.MouseEvent
 import java.io.IOException
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import javax.swing.Icon
 
@@ -45,10 +49,11 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
     private var currentText = "Status: Not Configured"
     private var currentTooltip = """
         <html>
-        <table cellpadding='1' cellspacing='0'>
-          <tr><td colspan='2'><b>OpenRouter</b></td></tr>
-          <tr height='4'><td></td></tr>
-          <tr><td>Status:</td><td align='right' style='padding-left: 20px;'>Not Configured</td></tr>
+        <table border='0' cellpadding='1' cellspacing='0'>
+          <tr><td colspan='2'><b>Connection</b></td></tr>
+          <tr height='2'><td></td></tr>
+          <tr><td>Status:</td><td align='right' style='padding-left: 30px;'>Not Configured</td></tr>
+          <tr><td colspan='2' height='8'></td></tr>
           <tr><td colspan='2'><i>API key not set.</i></td></tr>
         </table>
         </html>
@@ -227,19 +232,19 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         if (settingsService.apiKeyManager.authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR) {
             connectionStatus = ConnectionStatus.READY
             currentText = "Status: Ready"
-            
+
             currentTooltip = """
                 <html>
-                <table cellpadding='1' cellspacing='0'>
-                  <tr><td colspan='2'><b>OpenRouter</b></td></tr>
-                  <tr height='4'><td></td></tr>
-                  <tr><td>Status:</td><td align='right' style='padding-left: 20px;'>Ready</td></tr>
-                  <tr><td>Auth:</td><td align='right' style='padding-left: 20px;'>Regular Key</td></tr>
-                  <tr><td>Monitoring:</td><td align='right' style='padding-left: 20px;'><i>Disabled</i></td></tr>
+                <table border='0' cellpadding='1' cellspacing='0'>
+                  <tr><td colspan='2'><b>Connection</b></td></tr>
+                  <tr height='2'><td></td></tr>
+                  <tr><td>Status:</td><td align='right' style='padding-left: 30px;'>Ready</td></tr>
+                  <tr><td>Auth:</td><td align='right' style='padding-left: 30px;'>Regular Key</td></tr>
+                  <tr><td>Monitoring:</td><td align='right' style='padding-left: 30px;'><i>Disabled</i></td></tr>
                 </table>
                 </html>
             """.trimIndent()
-            
+
             updateStatusBar()
             return
         }
@@ -251,17 +256,27 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
         scope.launch {
             try {
-                val creditsResult = withContext(Dispatchers.IO) {
-                    openRouterService.getCredits()
-                }
+                // Fetch credits and activity in parallel
+                val creditsDeferred = async(Dispatchers.IO) { openRouterService.getCredits() }
+                val activityDeferred = async(Dispatchers.IO) { openRouterService.getActivity() }
+
+                val creditsResult = creditsDeferred.await()
+                val activityResult = activityDeferred.await()
 
                 ApplicationManager.getApplication().invokeLater {
                     when (creditsResult) {
                         is ApiResult.Success -> {
                             connectionStatus = ConnectionStatus.READY
                             val credits = creditsResult.data.data
+
+                            val activityList = if (activityResult is ApiResult.Success) {
+                                activityResult.data.data
+                            } else {
+                                null
+                            }
+
                             currentText = formatStatusTextFromCredits(credits.totalUsage, credits.totalCredits)
-                            currentTooltip = formatStatusTooltipFromCredits(credits.totalUsage, credits.totalCredits)
+                            currentTooltip = formatStatusTooltipFromCredits(credits.totalUsage, credits.totalCredits, activityList)
                         }
                         is ApiResult.Error -> {
                             connectionStatus = ConnectionStatus.ERROR
@@ -310,16 +325,16 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
         currentTooltip = """
             <html>
-            <table cellpadding='1' cellspacing='0'>
-              <tr><td colspan='2'><b>OpenRouter</b></td></tr>
-              <tr height='4'><td></td></tr>
-              <tr><td>Status:</td><td align='right' style='padding-left: 20px;'>${connectionStatus.displayName}</td></tr>
-              <tr><td>Auth:</td><td align='right' style='padding-left: 20px;'>$scopeText</td></tr>
-              <tr><td>Monitoring:</td><td align='right' style='padding-left: 20px;'>$monitoringText</td></tr>
+            <table border='0' cellpadding='1' cellspacing='0'>
+              <tr><td colspan='2'><b>Connection</b></td></tr>
+              <tr height='2'><td></td></tr>
+              <tr><td>Status:</td><td align='right' style='padding-left: 30px;'>${connectionStatus.displayName}</td></tr>
+              <tr><td>Auth:</td><td align='right' style='padding-left: 30px;'>$scopeText</td></tr>
+              <tr><td>Monitoring:</td><td align='right' style='padding-left: 30px;'>$monitoringText</td></tr>
             </table>
             </html>
         """.trimIndent()
-        
+
         updateStatusBar()
     }
 
@@ -394,27 +409,81 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         }
     }
 
-    private fun formatStatusTooltipFromCredits(used: Double, total: Double): String {
+    private fun formatStatusTooltipFromCredits(used: Double, total: Double, activityList: List<ActivityData>? = null): String {
         val status = connectionStatus.displayName
         val usedText = "$${String.format(Locale.US, "%.3f", used)}"
         val totalText = if (total > 0) "$${String.format(Locale.US, "%.2f", total)}" else "Unlimited"
-        
+
+        var activityRows = ""
+        if (activityList != null) {
+            val utcNow = LocalDate.now(ZoneId.of("UTC"))
+            val yesterday = utcNow.minusDays(1)
+            val lastWeekStart = utcNow.minusDays(6) // Last 7 days including today
+
+            var todayCost = 0.0
+            var yesterdayCost = 0.0
+            var lastWeekCost = 0.0
+
+            activityList.forEach { activity ->
+                try {
+                    val dateStr = activity.date
+                    val usage = activity.usage ?: 0.0
+
+                    if (dateStr != null) {
+                        // Handle both "YYYY-MM-DD" and "YYYY-MM-DD HH:MM:SS" formats
+                        val datePart = if (dateStr.length > 10) dateStr.substring(0, 10) else dateStr
+                        val activityDate = LocalDate.parse(datePart, DateTimeFormatter.ISO_DATE)
+
+                        if (activityDate.isEqual(utcNow)) {
+                            todayCost += usage
+                        }
+
+                        if (activityDate.isEqual(yesterday)) {
+                            yesterdayCost += usage
+                        }
+
+                        if (!activityDate.isBefore(lastWeekStart) && !activityDate.isAfter(utcNow)) {
+                            lastWeekCost += usage
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Ignore parsing errors
+                    com.intellij.openapi.diagnostic.Logger.getInstance(OpenRouterStatusBarWidget::class.java)
+                        .warn("Error parsing activity date: ${activity.date}", e)
+                }
+            }
+
+            val todayText = "$${String.format(Locale.US, "%.3f", todayCost)}"
+            val yesterdayText = "$${String.format(Locale.US, "%.3f", yesterdayCost)}"
+            val lastWeekText = "$${String.format(Locale.US, "%.3f", lastWeekCost)}"
+
+            activityRows = """
+              <tr height='8'><td></td></tr>
+              <tr><td colspan='2'><b>Activity</b></td></tr>
+              <tr height='2'><td></td></tr>
+              <tr><td>Today:</td><td align='right' style='padding-left: 30px;'>$todayText</td></tr>
+              <tr><td>Yesterday:</td><td align='right' style='padding-left: 30px;'>$yesterdayText</td></tr>
+              <tr><td>7 Days:</td><td align='right' style='padding-left: 30px;'>$lastWeekText</td></tr>
+            """.trimIndent()
+        }
+
         return """
             <html>
-            <table cellpadding='1' cellspacing='0'>
-              <tr><td colspan='2'><b>OpenRouter</b></td></tr>
-              <tr height='4'><td></td></tr>
-              <tr><td>Status:</td><td align='right' style='padding-left: 20px;'>$status</td></tr>
-              <tr><td>Auth:</td><td align='right' style='padding-left: 20px;'>Provisioning Key</td></tr>
-              <tr height='4'><td></td></tr>
-              <tr><td>Used:</td><td align='right' style='padding-left: 20px;'>$usedText</td></tr>
-              <tr><td>Total:</td><td align='right' style='padding-left: 20px;'>$totalText</td></tr>
+            <table border='0' cellpadding='1' cellspacing='0'>
+              <tr><td colspan='2'><b>Connection</b></td></tr>
+              <tr height='2'><td></td></tr>
+              <tr><td>Status:</td><td align='right' style='padding-left: 30px;'>$status</td></tr>
+              <tr><td>Auth:</td><td align='right' style='padding-left: 30px;'>Provisioning Key</td></tr>
+              <tr height='8'><td></td></tr>
+              <tr><td colspan='2'><b>Credits</b></td></tr>
+              <tr height='2'><td></td></tr>
+              <tr><td>Used:</td><td align='right' style='padding-left: 30px;'>$usedText</td></tr>
+              <tr><td>Total:</td><td align='right' style='padding-left: 30px;'>$totalText</td></tr>
+              $activityRows
             </table>
             </html>
         """.trimIndent()
     }
-
-
 }
 
 /**

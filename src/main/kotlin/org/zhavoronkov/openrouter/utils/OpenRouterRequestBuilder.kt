@@ -108,11 +108,13 @@ object OpenRouterRequestBuilder {
         if (authType != AuthType.NONE && !authToken.isNullOrBlank()) {
             val authHeaderValue = "Bearer ${authToken.trim()}"
             builder.header("Authorization", authHeaderValue)
-            
+
             // Mask the token for logging
-            val maskedToken = if (authToken.length > 8) 
-                "${authToken.take(4)}...${authToken.takeLast(4)}" 
-                else "****"
+            val maskedToken = if (authToken.length > 8) {
+                "${authToken.take(4)}...${authToken.takeLast(4)}"
+            } else {
+                "****"
+            }
             PluginLogger.Service.warn("[OpenRouter] Request: $method $url, Auth: Bearer $maskedToken")
         } else {
             PluginLogger.Service.warn("[OpenRouter] Request: $method $url, Auth: NONE")

@@ -16,19 +16,16 @@ import com.intellij.ui.dsl.builder.BottomGap
 import com.intellij.ui.dsl.builder.TopGap
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.table.JBTable
+import com.intellij.util.Alarm
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.withContext
-import com.intellij.util.Alarm
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.AuthScope
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
@@ -36,21 +33,18 @@ import org.zhavoronkov.openrouter.proxy.OpenRouterProxyServer
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
-import org.zhavoronkov.openrouter.utils.EncryptionUtil
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.CardLayout
 import java.awt.Dimension
 import java.awt.Font
-import java.io.IOException
 import javax.swing.ButtonGroup
 import javax.swing.JComponent
 import javax.swing.JPanel
-import javax.swing.SwingUtilities
+import javax.swing.JRadioButton
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.table.AbstractTableModel
-import javax.swing.JRadioButton
 
 /**
  * Multi-step setup wizard for first-time users with validation and embedded model selection
@@ -66,7 +60,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     private val cardPanel = JPanel(cardLayout)
     private val validationAlarm = Alarm(Alarm.ThreadToUse.POOLED_THREAD, disposable)
     private var validationJob: Job? = null
-    
+
     // UI Components
     private lateinit var regularRadioButton: JRadioButton
     private lateinit var extendedRadioButton: JRadioButton
@@ -123,9 +117,9 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     private var proxyAutoStart = settingsService.proxyManager.isProxyAutoStartEnabled()
     private var proxyPort = settingsService.proxyManager.getProxyPort().let { if (it == 0) DEFAULT_PROXY_PORT else it }
     private var startProxyNow = true
-    private var isAdvancedProxySetup = settingsService.proxyManager.getProxyPort() != 0 && 
-                                       settingsService.proxyManager.getProxyPort() != DEFAULT_PROXY_PORT ||
-                                       !settingsService.proxyManager.isProxyAutoStartEnabled()
+    private var isAdvancedProxySetup = settingsService.proxyManager.getProxyPort() != 0 &&
+        settingsService.proxyManager.getProxyPort() != DEFAULT_PROXY_PORT ||
+        !settingsService.proxyManager.isProxyAutoStartEnabled()
     private val proxyUrlLabel = JBLabel()
     private val completionPanel = createCompletionPanel()
 
@@ -149,7 +143,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
             override fun removeUpdate(e: DocumentEvent?) = applyModelFilter()
             override fun changedUpdate(e: DocumentEvent?) = applyModelFilter()
         })
-        
+
         // Setup key listeners with extreme logging
         val keyListener = object : com.intellij.ui.DocumentAdapter() {
             override fun textChanged(e: DocumentEvent) {
@@ -157,7 +151,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                 onKeyChanged()
             }
         }
-        
+
         PluginLogger.Service.warn("[OpenRouter] Attaching listeners to fields")
         keyField.document.addDocumentListener(keyListener)
 
@@ -166,7 +160,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
         init()
         updateButtons()
-        
+
         PluginLogger.Service.warn("[OpenRouter] SetupWizardDialog initialized")
     }
 
@@ -225,14 +219,14 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
             val authButtonGroup = ButtonGroup()
             authButtonGroup.add(regularRadioButton)
             authButtonGroup.add(extendedRadioButton)
-            
+
             // Set initial selection
             if (authScope == AuthScope.REGULAR) {
                 regularRadioButton.isSelected = true
             } else {
                 extendedRadioButton.isSelected = true
             }
-            
+
             group("Authentication Scope") {
                 buttonsGroup {
                     row {
@@ -277,7 +271,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                     comment("Paste your provisioning key here").visibleIf(radioButtonSelected(AuthScope.EXTENDED))
                 }
             }
-            
+
             // Add action listeners to update visibility
             regularRadioButton.addActionListener {
                 if (regularRadioButton.isSelected && authScope != AuthScope.REGULAR) {
@@ -384,7 +378,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         val group = ButtonGroup()
         group.add(standardRadioButton)
         group.add(advancedRadioButton)
-        
+
         if (isAdvancedProxySetup) {
             advancedRadioButton.isSelected = true
         } else {
@@ -531,7 +525,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                 } else {
                     settingsService.apiKeyManager.setProvisioningKey(key)
                 }
-                
+
                 currentStep = STEP_MODELS
                 cardLayout.show(cardPanel, "models")
                 loadModels()
@@ -551,7 +545,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                 // Save proxy settings
                 settingsService.proxyManager.setProxyPort(proxyPort)
                 settingsService.proxyManager.setProxyAutoStart(proxyAutoStart)
-                
+
                 // Start proxy if requested
                 if (startProxyNow) {
                     OpenRouterProxyServer.getInstance().start()
@@ -625,7 +619,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         // Cancel any pending validation
         validationAlarm.cancelAllRequests()
         validationJob?.cancel()
-        
+
         if (key.isBlank()) {
             PluginLogger.Service.warn("[OpenRouter] Key is blank, clearing status")
             isValidating = false
@@ -653,7 +647,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
     private fun validateKey(key: String) {
         PluginLogger.Service.warn("[OpenRouter] validateKey starting for $authScope")
-        
+
         isValidating = true
         showValidationInProgress()
         updateButtons()
@@ -666,7 +660,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
             try {
                 PluginLogger.Service.warn("[OpenRouter] Calling API for validation...")
                 PluginLogger.Service.warn("[OpenRouter] Calling API for validation...")
-                
+
                 var detectedProvisioning = false
                 val result = if (currentScope == AuthScope.REGULAR) {
                     val regularResult = openRouterService.testApiKey(key)
@@ -682,7 +676,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                 } else {
                     openRouterService.getApiKeysList(key)
                 }
-                
+
                 PluginLogger.Service.warn("[OpenRouter] API call finished: $result")
 
                 ApplicationManager.getApplication().invokeLater({
@@ -702,7 +696,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                                 "Key Type Detected"
                             )
                         }
-                        
+
                         when (result) {
                             is ApiResult.Success -> {
                                 isKeyValid = true
@@ -752,7 +746,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         validationStatusLabel.foreground = UIUtil.getLabelInfoForeground()
         validationIcon.isVisible = true
         validationStatusLabel.isVisible = true
-        
+
         // Force UI update
         validationStatusLabel.revalidate()
         validationStatusLabel.repaint()
@@ -767,7 +761,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         validationStatusLabel.foreground = JBColor.GREEN
         validationIcon.isVisible = true
         validationStatusLabel.isVisible = true
-        
+
         // Force UI update
         validationStatusLabel.revalidate()
         validationStatusLabel.repaint()
@@ -778,13 +772,13 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     private fun showValidationError(message: String) {
         // Map technical OpenRouter errors to user-friendly ones
         val friendlyMessage = when {
-            message.contains("Missing Authentication header", ignoreCase = true) || 
-            message.contains("Invalid key format", ignoreCase = true) -> 
+            message.contains("Missing Authentication header", ignoreCase = true) ||
+                message.contains("Invalid key format", ignoreCase = true) ->
                 "Invalid key format or type"
-            message.contains("Invalid provisioningkey", ignoreCase = true) -> 
+            message.contains("Invalid provisioningkey", ignoreCase = true) ->
                 "Invalid provisioning key"
             message.contains("No cookie auth", ignoreCase = true) ||
-            message.contains("Authentication failed", ignoreCase = true) ->
+                message.contains("Authentication failed", ignoreCase = true) ->
                 "Invalid API key"
             else -> message
         }
@@ -794,7 +788,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         validationStatusLabel.foreground = JBColor.RED
         validationIcon.isVisible = true
         validationStatusLabel.isVisible = true
-        
+
         // Force UI update
         validationStatusLabel.revalidate()
         validationStatusLabel.repaint()
@@ -819,29 +813,31 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
         coroutineScope.launch(Dispatchers.IO) {
             try {
-                PluginLogger.Service.warn("[OpenRouter] Calling favoriteModelsService.getAvailableModels from IO thread")
+                PluginLogger.Service.warn(
+                    "[OpenRouter] Calling favoriteModelsService.getAvailableModels from IO thread"
+                )
                 val models = withTimeout(MODEL_LOADING_TIMEOUT_MS) {
                     favoriteModelsService.getAvailableModels(forceRefresh = true)
                 }
-                
+
                 ApplicationManager.getApplication().invokeLater({
                     isLoadingModels = false
                     if (models != null && models.isNotEmpty()) {
                         PluginLogger.Service.warn("[OpenRouter] Successfully loaded ${models.size} models")
                         allModels = models
-                        
+
                         // Pre-select existing favorites
                         val existingFavorites = settingsService.favoriteModelsManager.getFavoriteModels()
                         selectedModels.clear()
                         selectedModels.addAll(existingFavorites)
-                        
+
                         applyModelFilter()
-                        
+
                         // If no favorites exist, pre-select popular ones
                         if (selectedModels.isEmpty()) {
                             preselectPopularModels()
                         }
-                        
+
                         updateSelectedCount()
                         modelsLoadingIcon.isVisible = false
                         modelsLoadingLabel.isVisible = false

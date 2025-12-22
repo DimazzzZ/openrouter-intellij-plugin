@@ -1,13 +1,6 @@
 package org.zhavoronkov.openrouter.settings
 
 import com.intellij.openapi.options.Configurable
-import com.intellij.openapi.ui.Messages
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
-import org.zhavoronkov.openrouter.models.ApiResult
-import org.zhavoronkov.openrouter.models.AuthScope
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.PluginLogger

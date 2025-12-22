@@ -10,7 +10,6 @@ import okhttp3.Response
 import org.zhavoronkov.openrouter.models.ActivityResponse
 import org.zhavoronkov.openrouter.models.ApiKeysListResponse
 import org.zhavoronkov.openrouter.models.ApiResult
-import org.zhavoronkov.openrouter.models.OpenRouterResponse
 import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatCompletionResponse
 import org.zhavoronkov.openrouter.models.CreateApiKeyRequest
@@ -21,6 +20,7 @@ import org.zhavoronkov.openrouter.models.GenerationResponse
 import org.zhavoronkov.openrouter.models.KeyData
 import org.zhavoronkov.openrouter.models.KeyInfoResponse
 import org.zhavoronkov.openrouter.models.OpenRouterModelsResponse
+import org.zhavoronkov.openrouter.models.OpenRouterResponse
 import org.zhavoronkov.openrouter.models.ProvidersResponse
 import org.zhavoronkov.openrouter.models.QuotaInfo
 import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
@@ -255,7 +255,7 @@ class OpenRouterService(
                 } else {
                     val body = response.body?.string() ?: ""
                     PluginLogger.Service.warn("API key validation failed: ${response.code} $body")
-                    
+
                     val errorMessage = try {
                         val errorObj = gson.fromJson(body, OpenRouterResponse::class.java)
                         errorObj?.error?.message ?: "Invalid API key"

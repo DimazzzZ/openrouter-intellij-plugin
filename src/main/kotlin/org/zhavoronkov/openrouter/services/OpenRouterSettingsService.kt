@@ -89,10 +89,11 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
                     "notifyStateChanged: Application is null (likely test environment), skipping saveSettings()"
                 )
             }
-            
+
             // Notify listeners about settings change
-            application?.messageBus?.syncPublisher(org.zhavoronkov.openrouter.listeners.OpenRouterSettingsListener.TOPIC)?.onSettingsChanged()
-            
+            application?.messageBus?.syncPublisher(
+                org.zhavoronkov.openrouter.listeners.OpenRouterSettingsListener.TOPIC
+            )?.onSettingsChanged()
         } catch (e: Exception) {
             PluginLogger.Service.warn("Failed to persist settings state", e)
         }

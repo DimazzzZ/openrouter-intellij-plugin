@@ -185,17 +185,17 @@ data class ActivityResponse(
 )
 
 data class ActivityData(
-    val date: String,
-    val model: String,
-    @SerializedName("model_permaslug") val modelPermaslug: String,
-    @SerializedName("endpoint_id") val endpointId: String,
-    @SerializedName("provider_name") val providerName: String,
-    val usage: Double,
-    @SerializedName("byok_usage_inference") val byokUsageInference: Double,
-    val requests: Int,
-    @SerializedName("prompt_tokens") val promptTokens: Int,
-    @SerializedName("completion_tokens") val completionTokens: Int,
-    @SerializedName("reasoning_tokens") val reasoningTokens: Int
+    val date: String?,
+    val model: String?,
+    @SerializedName("model_permaslug") val modelPermaslug: String?,
+    @SerializedName("endpoint_id") val endpointId: String?,
+    @SerializedName("provider_name") val providerName: String?,
+    val usage: Double?,
+    @SerializedName("byok_usage_inference") val byokUsageInference: Double?,
+    val requests: Int?,
+    @SerializedName("prompt_tokens") val promptTokens: Int?,
+    @SerializedName("completion_tokens") val completionTokens: Int?,
+    @SerializedName("reasoning_tokens") val reasoningTokens: Int?
 )
 
 /**
@@ -244,8 +244,8 @@ data class ChatUsage(
  * Authentication scope for the plugin
  */
 enum class AuthScope {
-    REGULAR,  // Regular API Key (no monitoring)
-    EXTENDED  // Provisioning Key (full monitoring)
+    REGULAR, // Regular API Key (no monitoring)
+    EXTENDED // Provisioning Key (full monitoring)
 }
 
 /**

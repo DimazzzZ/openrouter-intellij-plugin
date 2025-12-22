@@ -2,7 +2,6 @@ package org.zhavoronkov.openrouter.services
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
