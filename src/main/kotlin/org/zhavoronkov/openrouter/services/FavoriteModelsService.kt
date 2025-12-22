@@ -1,26 +1,27 @@
 package org.zhavoronkov.openrouter.services
 
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import org.zhavoronkov.openrouter.constants.OpenRouterConstants
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.utils.PluginLogger
 
 /**
  * Service for managing favorite models with caching and API interaction
+ * Implements Disposable for dynamic plugin support
+ *
+ * Note: This is a light service (uses @Service annotation) and must be final
  */
 @Service
 class FavoriteModelsService(
     private val settingsService: OpenRouterSettingsService? = null,
     private val openRouterService: OpenRouterService? = null
-) {
+) : Disposable {
 
     companion object {
-        private const val CACHE_DURATION_MS = 300000L // 5 minutes
-        private const val API_TIMEOUT_MS = 30000L // 30 seconds
-
         fun getInstance(): FavoriteModelsService {
             return ApplicationManager.getApplication().getService(FavoriteModelsService::class.java)
         }
@@ -40,37 +41,35 @@ class FavoriteModelsService(
      * @param forceRefresh If true, bypass cache and fetch fresh data
      * @return List of models or null on error
      */
-    fun getAvailableModels(forceRefresh: Boolean = false): List<OpenRouterModelInfo>? {
+    suspend fun getAvailableModels(forceRefresh: Boolean = false): List<OpenRouterModelInfo>? {
         val now = System.currentTimeMillis()
-        val isCacheValid = cachedModels != null && (now - cacheTimestamp) < CACHE_DURATION_MS
+        val isCacheValid = cachedModels != null && (now - cacheTimestamp) < OpenRouterConstants.MODELS_CACHE_DURATION_MS
 
         if (!forceRefresh && isCacheValid) {
             PluginLogger.Service.debug("Returning cached models (${cachedModels?.size} models)")
             return cachedModels
         }
 
-        PluginLogger.Service.debug("Fetching models from API (forceRefresh: $forceRefresh)")
+        PluginLogger.Service.debug("[OpenRouter] Fetching models from API (forceRefresh: $forceRefresh)")
         return try {
-            runBlocking {
-                withTimeout(API_TIMEOUT_MS) {
-                    val result = routerService.getModels()
-                    when (result) {
-                        is ApiResult.Success -> {
-                            val response = result.data
-                            cachedModels = response.data
-                            cacheTimestamp = System.currentTimeMillis()
-                            PluginLogger.Service.debug("Cached ${cachedModels?.size} models")
-                            cachedModels
-                        }
-                        is ApiResult.Error -> {
-                            PluginLogger.Service.warn("Failed to fetch models: ${result.message}")
-                            null
-                        }
+            withTimeout(OpenRouterConstants.API_TIMEOUT_MS) {
+                val result = routerService.getModels()
+                when (result) {
+                    is ApiResult.Success -> {
+                        val response = result.data
+                        cachedModels = response.data
+                        cacheTimestamp = System.currentTimeMillis()
+                        PluginLogger.Service.info("[OpenRouter] Successfully cached ${cachedModels?.size} models")
+                        cachedModels
+                    }
+                    is ApiResult.Error -> {
+                        PluginLogger.Service.warn("[OpenRouter] Failed to fetch models: ${result.message}")
+                        null
                     }
                 }
             }
         } catch (throwable: Throwable) {
-            PluginLogger.Service.error("Error fetching models from API", throwable)
+            PluginLogger.Service.error("[OpenRouter] Error fetching models from API", throwable)
             null
         }
     }
@@ -188,5 +187,15 @@ class FavoriteModelsService(
             contextLength = null,
             perRequestLimits = null
         )
+    }
+
+    /**
+     * Dispose method for dynamic plugin support
+     * Clears cached data to prevent memory leaks
+     */
+    override fun dispose() {
+        PluginLogger.Service.info("Disposing FavoriteModelsService - clearing cache")
+        clearCache()
+        PluginLogger.Service.info("FavoriteModelsService disposed successfully")
     }
 }

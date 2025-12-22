@@ -11,6 +11,7 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock
+import org.zhavoronkov.openrouter.models.AuthScope
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
 
 @DisplayName("OpenRouter Settings Service Tests")
@@ -48,6 +49,9 @@ class OpenRouterSettingsServiceTest {
         fun testIsConfiguredWithProvisioningKey() {
             val service = OpenRouterSettingsService()
 
+            // Set auth scope to EXTENDED before setting provisioning key
+            // isConfigured() checks the key based on the current authScope
+            service.apiKeyManager.authScope = org.zhavoronkov.openrouter.models.AuthScope.EXTENDED
             service.apiKeyManager.setProvisioningKey("test-provisioning-key")
 
             assertTrue(service.isConfigured())
@@ -531,6 +535,111 @@ class OpenRouterSettingsServiceTest {
             service.apiKeyManager.setApiKey(unicodeKey)
 
             assertEquals(unicodeKey, service.getApiKey())
+        }
+    }
+
+    @Nested
+    @DisplayName("Settings Migration Tests")
+    inner class SettingsMigrationTests {
+
+        @Test
+        @DisplayName("Should migrate v0.3.0 settings with provisioning key to EXTENDED authScope")
+        fun testMigrateProvisioningKeyToExtendedScope() {
+            // Simulate v0.3.0 settings: provisioning key exists but authScope defaults to REGULAR
+            val oldSettings = OpenRouterSettings(
+                authScope = AuthScope.REGULAR, // Default value in v0.4.0
+                provisioningKey = "sk-or-v1-test-provisioning-key-encrypted",
+                apiKey = "",
+                hasCompletedSetup = true
+            )
+
+            val service = OpenRouterSettingsService()
+            service.loadState(oldSettings)
+
+            // After migration, authScope should be EXTENDED
+            assertEquals(
+                AuthScope.EXTENDED,
+                service.apiKeyManager.authScope,
+                "Migration should detect existing provisioning key and set authScope to EXTENDED"
+            )
+        }
+
+        @Test
+        @DisplayName("Should not change authScope if already EXTENDED")
+        fun testNoMigrationWhenAlreadyExtended() {
+            val settings = OpenRouterSettings(
+                authScope = AuthScope.EXTENDED,
+                provisioningKey = "sk-or-v1-test-provisioning-key",
+                apiKey = ""
+            )
+
+            val service = OpenRouterSettingsService()
+            service.loadState(settings)
+
+            assertEquals(
+                AuthScope.EXTENDED,
+                service.apiKeyManager.authScope,
+                "Should keep EXTENDED authScope unchanged"
+            )
+        }
+
+        @Test
+        @DisplayName("Should not change authScope if no provisioning key exists")
+        fun testNoMigrationWithoutProvisioningKey() {
+            val settings = OpenRouterSettings(
+                authScope = AuthScope.REGULAR,
+                provisioningKey = "",
+                apiKey = "sk-or-v1-test-api-key"
+            )
+
+            val service = OpenRouterSettingsService()
+            service.loadState(settings)
+
+            assertEquals(
+                AuthScope.REGULAR,
+                service.apiKeyManager.authScope,
+                "Should keep REGULAR authScope when no provisioning key exists"
+            )
+        }
+
+        @Test
+        @DisplayName("Should handle fresh install with no keys")
+        fun testFreshInstallNoMigration() {
+            val settings = OpenRouterSettings(
+                authScope = AuthScope.REGULAR,
+                provisioningKey = "",
+                apiKey = ""
+            )
+
+            val service = OpenRouterSettingsService()
+            service.loadState(settings)
+
+            assertEquals(
+                AuthScope.REGULAR,
+                service.apiKeyManager.authScope,
+                "Fresh install should keep default REGULAR authScope"
+            )
+        }
+
+        @Test
+        @DisplayName("Should migrate encrypted provisioning key")
+        fun testMigrateEncryptedProvisioningKey() {
+            // Simulate encrypted provisioning key from v0.3.0
+            val encryptedKey = "ENC:base64encodedencryptedkey=="
+            val settings = OpenRouterSettings(
+                authScope = AuthScope.REGULAR,
+                provisioningKey = encryptedKey,
+                apiKey = ""
+            )
+
+            val service = OpenRouterSettingsService()
+            service.loadState(settings)
+
+            assertEquals(
+                AuthScope.EXTENDED,
+                service.apiKeyManager.authScope,
+                "Should migrate even with encrypted provisioning key"
+            )
         }
     }
 

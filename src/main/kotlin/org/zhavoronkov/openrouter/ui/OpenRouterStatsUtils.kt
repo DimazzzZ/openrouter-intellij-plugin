@@ -66,8 +66,8 @@ object OpenRouterStatsUtils {
      * Calculates total requests and usage from activity list
      */
     fun calculateActivityStats(activities: List<ActivityData>): Pair<Long, Double> {
-        val requests = activities.sumOf { it.requests.toLong() }
-        val usage = activities.sumOf { it.usage }
+        val requests = activities.sumOf { (it.requests ?: 0).toLong() }
+        val usage = activities.sumOf { it.usage ?: 0.0 }
         return Pair(requests, usage)
     }
 
@@ -83,17 +83,27 @@ object OpenRouterStatsUtils {
     ): List<ActivityData> {
         return if (isLast24h) {
             activities.filter { activity ->
-                val activityDate = parseActivityDate(activity.date)
-                activityDate?.let { date ->
-                    date.isEqual(today) || date.isEqual(yesterday)
-                } ?: false
+                val dateStr = activity.date
+                if (dateStr != null) {
+                    val activityDate = parseActivityDate(dateStr)
+                    activityDate?.let { date ->
+                        date.isEqual(today) || date.isEqual(yesterday)
+                    } ?: false
+                } else {
+                    false
+                }
             }
         } else {
             activities.filter { activity ->
-                val activityDate = parseActivityDate(activity.date)
-                activityDate?.let { date ->
-                    date.isAfter(weekAgo) || date.isEqual(weekAgo)
-                } ?: false
+                val dateStr = activity.date
+                if (dateStr != null) {
+                    val activityDate = parseActivityDate(dateStr)
+                    activityDate?.let { date ->
+                        date.isAfter(weekAgo) || date.isEqual(weekAgo)
+                    } ?: false
+                } else {
+                    false
+                }
             }
         }
     }
@@ -103,8 +113,9 @@ object OpenRouterStatsUtils {
      */
     fun extractRecentModelNames(activities: List<ActivityData>): List<String> {
         return activities
-            .groupBy { it.model }
-            .mapValues { (_, activities) -> activities.maxOf { it.date } }
+            .filter { it.model != null && it.date != null }
+            .groupBy { it.model!! }
+            .mapValues { (_, activities) -> activities.maxOf { it.date!! } }
             .toList()
             .sortedByDescending { it.second } // Sort by date descending (latest first)
             .map { it.first } // Extract just the model names

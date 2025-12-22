@@ -1,19 +1,27 @@
 package org.zhavoronkov.openrouter.services
 
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import org.zhavoronkov.openrouter.proxy.OpenRouterProxyServer
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 
 /**
  * Application-level service for managing the OpenRouter proxy server
  * This service handles the lifecycle of the embedded HTTP server
+ *
+ * Implements Disposable for dynamic plugin support - ensures proper cleanup
+ * when plugin is unloaded/disabled without IDE restart
  */
 @Service(Service.Level.APP)
-class OpenRouterProxyService {
+class OpenRouterProxyService : Disposable {
 
     companion object {
+        private const val SHUTDOWN_TIMEOUT_SECONDS = 10L
+
         fun getInstance(): OpenRouterProxyService {
             return ApplicationManager.getApplication().getService(OpenRouterProxyService::class.java)
         }
@@ -22,11 +30,14 @@ class OpenRouterProxyService {
     private val proxyServer = OpenRouterProxyServer.getInstance()
     private val settingsService = OpenRouterSettingsService.getInstance()
 
+    // Track active async operations for cleanup
+    private val activeTasks = ConcurrentHashMap<String, CompletableFuture<*>>()
+
     /**
      * Starts the proxy server if it's not already running
      */
     fun startServer(): CompletableFuture<Boolean> {
-        return CompletableFuture.supplyAsync {
+        val future = CompletableFuture.supplyAsync {
             try {
                 if (!settingsService.isConfigured()) {
                     PluginLogger.Service.warn("Cannot start proxy server: OpenRouter not configured")
@@ -55,13 +66,17 @@ class OpenRouterProxyService {
                 false
             }
         }
+
+        // Track task for cleanup
+        trackTask("startServer", future)
+        return future
     }
 
     /**
      * Stops the proxy server if it's running
      */
     fun stopServer(): CompletableFuture<Boolean> {
-        return CompletableFuture.supplyAsync {
+        val future = CompletableFuture.supplyAsync {
             try {
                 val status = proxyServer.getStatus()
                 if (!status.isRunning) {
@@ -82,6 +97,10 @@ class OpenRouterProxyService {
                 false
             }
         }
+
+        // Track task for cleanup
+        trackTask("stopServer", future)
+        return future
     }
 
     /**
@@ -227,6 +246,48 @@ class OpenRouterProxyService {
             """.trimIndent()
         } else {
             "Proxy server is not running. Please start it first."
+        }
+    }
+
+    /**
+     * Track async task for cleanup on dispose
+     */
+    private fun trackTask(taskId: String, future: CompletableFuture<*>) {
+        activeTasks[taskId] = future
+        future.whenComplete { _, _ -> activeTasks.remove(taskId) }
+    }
+
+    /**
+     * Dispose method for dynamic plugin support
+     * Ensures all resources are cleaned up when plugin is unloaded
+     */
+    override fun dispose() {
+        PluginLogger.Service.info("Disposing OpenRouterProxyService - cleaning up resources")
+
+        try {
+            // Cancel all active async tasks
+            val taskCount = activeTasks.size
+            if (taskCount > 0) {
+                PluginLogger.Service.debug("Cancelling $taskCount active tasks")
+                activeTasks.values.forEach { it.cancel(true) }
+                activeTasks.clear()
+            }
+
+            // Stop proxy server if running
+            val status = proxyServer.getStatus()
+            if (status.isRunning) {
+                PluginLogger.Service.info("Stopping proxy server during plugin disposal")
+                try {
+                    proxyServer.stop().get(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                    PluginLogger.Service.info("Proxy server stopped successfully")
+                } catch (e: Exception) {
+                    PluginLogger.Service.error("Error stopping proxy server during disposal", e)
+                }
+            }
+
+            PluginLogger.Service.info("OpenRouterProxyService disposed successfully")
+        } catch (e: Exception) {
+            PluginLogger.Service.error("Error during OpenRouterProxyService disposal", e)
         }
     }
 }

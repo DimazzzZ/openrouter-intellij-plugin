@@ -9,6 +9,7 @@ import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.Response
 import org.zhavoronkov.openrouter.models.ApiResult
+import org.zhavoronkov.openrouter.models.OpenRouterResponse
 import java.io.IOException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -40,11 +41,20 @@ inline fun <reified T> Response.toApiResult(gson: Gson): ApiResult<T> {
     return use { resp ->
         val bodyString = resp.body?.string().orEmpty()
         when {
-            !resp.isSuccessful -> ApiResult.Error(
-                message = bodyString.ifBlank { resp.message }
-                    .ifBlank { "HTTP ${resp.code}" },
-                statusCode = resp.code
-            )
+            !resp.isSuccessful -> {
+                val errorMessage = try {
+                    val errorObj = gson.fromJson(bodyString, OpenRouterResponse::class.java)
+                    errorObj?.error?.message ?: bodyString
+                } catch (_: Exception) {
+                    bodyString
+                }
+
+                ApiResult.Error(
+                    message = errorMessage.ifBlank { resp.message }
+                        .ifBlank { "HTTP ${resp.code}" },
+                    statusCode = resp.code
+                )
+            }
             else -> {
                 val trimmed = bodyString.trimStart()
                 try {

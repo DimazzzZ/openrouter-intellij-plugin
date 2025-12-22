@@ -230,8 +230,8 @@ class OpenRouterToolWindowContent(private val project: Project) {
                 is ApiResult.Success -> {
                     val activityResponse = activityResult.data
                     if (activityResponse.data.isNotEmpty()) {
-                        val totalRequests = activityResponse.data.sumOf { it.requests }
-                        val totalUsage = activityResponse.data.sumOf { it.usage }
+                        val totalRequests = activityResponse.data.sumOf { (it.requests ?: 0).toLong() }
+                        val totalUsage = activityResponse.data.sumOf { it.usage ?: 0.0 }
                         val usageStr = String.format(Locale.US, "%.4f", totalUsage)
                         activityLabel.text = "$totalRequests requests, $$usageStr"
                     } else {

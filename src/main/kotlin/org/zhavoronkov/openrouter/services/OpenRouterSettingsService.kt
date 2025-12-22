@@ -1,5 +1,6 @@
 package org.zhavoronkov.openrouter.services
 
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.State
@@ -14,12 +15,13 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
 
 /**
  * Service for managing OpenRouter plugin settings
+ * Implements Disposable for dynamic plugin support
  */
 @State(
     name = "OpenRouterSettings",
     storages = [Storage("openrouter.xml")]
 )
-class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
+class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, Disposable {
 
     private var settings = OpenRouterSettings()
 
@@ -58,7 +60,21 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
 
     override fun loadState(state: OpenRouterSettings) {
         this.settings = state
+        migrateSettingsIfNeeded()
         initializeManagers()
+    }
+
+    /**
+     * Migrate settings from previous versions to ensure compatibility
+     */
+    private fun migrateSettingsIfNeeded() {
+        // Migration for v0.4.0: Detect existing provisioning keys and set authScope to EXTENDED
+        // This fixes the issue where users upgrading from v0.3.0 had their settings "reset"
+        // because authScope defaulted to REGULAR
+        if (settings.provisioningKey.isNotBlank() && settings.authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR) {
+            PluginLogger.Service.info("Migration: Detected existing provisioning key, setting authScope to EXTENDED")
+            settings.authScope = org.zhavoronkov.openrouter.models.AuthScope.EXTENDED
+        }
     }
 
     // Convenience methods for frequently used operations
@@ -89,8 +105,25 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings> {
                     "notifyStateChanged: Application is null (likely test environment), skipping saveSettings()"
                 )
             }
+
+            // Notify listeners about settings change
+            application?.messageBus?.syncPublisher(
+                org.zhavoronkov.openrouter.listeners.OpenRouterSettingsListener.TOPIC
+            )?.onSettingsChanged()
         } catch (e: Exception) {
             PluginLogger.Service.warn("Failed to persist settings state", e)
         }
+    }
+
+    /**
+     * Dispose method for dynamic plugin support
+     * Note: We don't call saveSettings() here because dispose() is called inside a write action
+     * during plugin unload, and saveSettings() triggers AWT events which are not allowed.
+     * The IntelliJ Platform automatically saves settings when needed.
+     */
+    override fun dispose() {
+        PluginLogger.Service.info("Disposing OpenRouterSettingsService")
+        // No explicit cleanup needed - settings are automatically persisted by the platform
+        PluginLogger.Service.info("OpenRouterSettingsService disposed successfully")
     }
 }

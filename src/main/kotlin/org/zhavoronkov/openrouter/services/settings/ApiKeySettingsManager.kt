@@ -1,7 +1,9 @@
 package org.zhavoronkov.openrouter.services.settings
 
+import org.zhavoronkov.openrouter.models.AuthScope
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
 import org.zhavoronkov.openrouter.utils.EncryptionUtil
+import org.zhavoronkov.openrouter.utils.KeyValidator
 import org.zhavoronkov.openrouter.utils.PluginLogger
 
 /**
@@ -11,6 +13,13 @@ class ApiKeySettingsManager(
     private val settings: OpenRouterSettings,
     private val onStateChanged: () -> Unit
 ) {
+
+    var authScope: AuthScope
+        get() = settings.authScope
+        set(value) {
+            settings.authScope = value
+            onStateChanged()
+        }
 
     fun getApiKey(): String {
         val encrypted = settings.apiKey
@@ -83,7 +92,48 @@ class ApiKeySettingsManager(
     }
 
     fun isConfigured(): Boolean {
-        val provisioningKey = getProvisioningKey()
-        return provisioningKey.isNotBlank()
+        return when (settings.authScope) {
+            AuthScope.REGULAR -> getApiKey().isNotBlank()
+            AuthScope.EXTENDED -> getProvisioningKey().isNotBlank()
+        }
+    }
+
+    /**
+     * Validates that the configured key matches the current auth scope
+     * Returns null if valid, or an error message if invalid
+     *
+     * Note: Both regular API keys and provisioning keys have the same format (sk-or-v1-...),
+     * so we can only validate that a key is present and has the correct format.
+     * The actual key type/permissions can only be verified via API calls.
+     */
+    fun validateKeyForCurrentScope(): String? {
+        return when (settings.authScope) {
+            AuthScope.REGULAR -> {
+                val apiKey = getApiKey()
+                if (apiKey.isBlank()) {
+                    "API key is not configured"
+                } else {
+                    val validationResult = KeyValidator.validateApiKey(apiKey)
+                    if (KeyValidator.isError(validationResult)) {
+                        KeyValidator.getValidationMessage(validationResult)
+                    } else {
+                        null
+                    }
+                }
+            }
+            AuthScope.EXTENDED -> {
+                val provKey = getProvisioningKey()
+                if (provKey.isBlank()) {
+                    "Provisioning key is not configured"
+                } else {
+                    val validationResult = KeyValidator.validateProvisioningKey(provKey)
+                    if (KeyValidator.isError(validationResult)) {
+                        KeyValidator.getValidationMessage(validationResult)
+                    } else {
+                        null
+                    }
+                }
+            }
+        }
     }
 }

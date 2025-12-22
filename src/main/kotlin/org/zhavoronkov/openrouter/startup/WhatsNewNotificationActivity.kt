@@ -26,7 +26,7 @@ import java.io.IOException
 class WhatsNewNotificationActivity : ProjectActivity {
 
     companion object {
-        private const val CURRENT_VERSION = "0.3.0"
+        private const val CURRENT_VERSION = "0.4.0"
         private const val CHANGELOG_URL =
             "https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/CHANGELOG.md"
     }
@@ -69,12 +69,12 @@ class WhatsNewNotificationActivity : ProjectActivity {
                 "OpenRouter Plugin Updated to v$CURRENT_VERSION",
                 """
                 <b>🎉 New Features:</b><br/>
-                • <b>Setup Wizard</b> - Interactive onboarding for first-time users<br/>
-                • <b>Advanced Model Filtering</b> - Filter by provider, context window, capabilities<br/>
-                • <b>Modal Statistics Dialog</b> - Enhanced popup with proper modal behavior<br/>
+                • <b>OAuth/PKCE Authentication</b> - One-click browser authorization for API keys<br/>
+                • <b>Dual Authentication Modes</b> - Choose Regular API Key or Provisioning Key<br/>
+                • <b>Enhanced Key Validation</b> - Comprehensive validation with better error messages<br/>
                 <br/>
                 <b>🧪 Quality Improvements:</b><br/>
-                • 300+ tests • Bug fixes • IDE 2025.3.X support • Better error handling
+                • 475+ tests • Setup wizard refactoring • Better code organization • Settings migration
                 """.trimIndent(),
                 NotificationType.INFORMATION
             )

@@ -114,7 +114,7 @@ tasks {
         systemProperty("java.awt.headless", "true")
         jvmArgs = listOf(
             "-Dnet.bytebuddy.experimental=true",  // For Mockito Java 21+ compatibility
-            "--add-opens=java.base/java.lang=ALL-UNNAMED",  // For Java 25 compatibility
+            "--add-opens=java.base/java.lang=ALL-UNNAMED",
             "--add-opens=java.base/java.util=ALL-UNNAMED"
         )
         testLogging {

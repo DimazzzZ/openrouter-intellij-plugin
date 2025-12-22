@@ -437,9 +437,9 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         }
 
         val activities = activityResponse.data
-        val today = LocalDate.now()
+        val today = LocalDate.now(java.time.ZoneId.of("UTC"))
         val yesterday = today.minusDays(1)
-        val weekAgo = today.minusDays(ACTIVITY_DAYS_WEEK.toLong())
+        val weekAgo = today.minusDays(6) // Last 7 days including today
 
         // Filter activities by time periods
         val last24h = filterActivitiesByTime(activities, today, yesterday, weekAgo, isLast24h = true)
@@ -522,8 +522,8 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
      * Calculates total requests and usage from activity list
      */
     private fun calculateActivityStats(activities: List<ActivityData>): Pair<Long, Double> {
-        val requests = activities.sumOf { it.requests.toLong() }
-        val usage = activities.sumOf { it.usage }
+        val requests = activities.sumOf { (it.requests ?: 0).toLong() }
+        val usage = activities.sumOf { it.usage ?: 0.0 }
         return Pair(requests, usage)
     }
 
@@ -539,17 +539,27 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
     ): List<ActivityData> {
         return if (isLast24h) {
             activities.filter { activity ->
-                val activityDate = parseActivityDate(activity.date)
-                activityDate?.let { date ->
-                    date.isEqual(today) || date.isEqual(yesterday)
-                } ?: false
+                val dateStr = activity.date
+                if (dateStr != null) {
+                    val activityDate = parseActivityDate(dateStr)
+                    activityDate?.let { date ->
+                        date.isEqual(today) || date.isEqual(yesterday)
+                    } ?: false
+                } else {
+                    false
+                }
             }
         } else {
             activities.filter { activity ->
-                val activityDate = parseActivityDate(activity.date)
-                activityDate?.let { date ->
-                    date.isAfter(weekAgo) || date.isEqual(weekAgo)
-                } ?: false
+                val dateStr = activity.date
+                if (dateStr != null) {
+                    val activityDate = parseActivityDate(dateStr)
+                    activityDate?.let { date ->
+                        !date.isBefore(weekAgo) && !date.isAfter(today)
+                    } ?: false
+                } else {
+                    false
+                }
             }
         }
     }
@@ -559,8 +569,9 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
      */
     private fun extractRecentModelNames(activities: List<ActivityData>): List<String> {
         return activities
-            .groupBy { it.model }
-            .mapValues { (_, activities) -> activities.maxOf { it.date } }
+            .filter { it.model != null && it.date != null }
+            .groupBy { it.model!! }
+            .mapValues { (_, activities) -> activities.maxOf { it.date!! } }
             .toList()
             .sortedByDescending { it.second } // Sort by date descending (latest first)
             .map { it.first } // Extract just the model names
