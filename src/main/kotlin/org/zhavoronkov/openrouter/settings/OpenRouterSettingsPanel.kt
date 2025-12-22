@@ -2,9 +2,9 @@
 package org.zhavoronkov.openrouter.settings
 
 import com.intellij.icons.AllIcons
-import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.ToolbarDecorator
 import com.intellij.ui.components.JBCheckBox
@@ -14,9 +14,11 @@ import com.intellij.ui.dsl.builder.RowLayout
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.table.JBTable
 import org.zhavoronkov.openrouter.models.ApiKeyInfo
+import org.zhavoronkov.openrouter.models.AuthScope
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.ui.SetupWizardDialog
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.Toolkit
@@ -106,8 +108,9 @@ class ApiKeyTableModel : AbstractTableModel() {
  */
 class OpenRouterSettingsPanel {
 
-    private val panel: JPanel
+    private lateinit var panel: JPanel
     private val provisioningKeyField: JBPasswordField
+    private val apiKeyField: JBPasswordField
     private val autoRefreshCheckBox: JBCheckBox
     private val refreshIntervalSpinner: JSpinner
     private val showCostsCheckBox: JBCheckBox
@@ -137,6 +140,30 @@ class OpenRouterSettingsPanel {
     private lateinit var proxyPortSpinner: JSpinner
     private lateinit var proxyPortRangeStartSpinner: JSpinner
     private lateinit var proxyPortRangeEndSpinner: JSpinner
+
+    // UI state tracking
+    private var currentUiAuthScope: AuthScope = AuthScope.EXTENDED
+    private lateinit var regularRadioButton: javax.swing.JRadioButton
+    private lateinit var extendedRadioButton: javax.swing.JRadioButton
+
+    // Authentication status labels
+    private lateinit var authScopeLabel: javax.swing.JLabel
+    private lateinit var authDescriptionLabel: javax.swing.JEditorPane
+
+    // Scope predicates for visibility management
+    private val uiPredicates = mutableListOf<UpdatablePredicate>()
+
+    private abstract inner class UpdatablePredicate : com.intellij.ui.layout.ComponentPredicate() {
+        private val listeners = mutableListOf<(Boolean) -> Unit>()
+        override fun addListener(listener: (Boolean) -> Unit) {
+            listeners.add(listener)
+            listener(invoke())
+        }
+        fun update() {
+            val newValue = invoke()
+            listeners.forEach { it(newValue) }
+        }
+    }
 
     companion object {
         private const val DEFAULT_REFRESH_INTERVAL = 300
@@ -171,8 +198,15 @@ class OpenRouterSettingsPanel {
         val isHeadless = java.awt.GraphicsEnvironment.isHeadless()
         PluginLogger.Settings.debug("OpenRouter Settings Panel INITIALIZED (headless: $isHeadless)")
 
+        // Initialize UI state from settings
+        currentUiAuthScope = settingsService.apiKeyManager.authScope
+
         // Initialize components
         provisioningKeyField = JBPasswordField().apply {
+            columns = PASSWORD_FIELD_COLUMNS
+        }
+
+        apiKeyField = JBPasswordField().apply {
             columns = PASSWORD_FIELD_COLUMNS
         }
 
@@ -253,100 +287,143 @@ class OpenRouterSettingsPanel {
         statusLabel = JLabel("Status: Stopped")
 
         // Create the main panel using UI DSL v2
-        panel = panel {
-            // Provisioning group
-            group("Provisioning") {
-                row("Provisioning Key:") {
-                    cell(provisioningKeyField)
-                        .resizableColumn()
-                    button("Paste") { pasteFromClipboard() }
-                }.layout(RowLayout.PARENT_GRID)
-
+        try {
+            panel = panel {
+                // Run Setup Wizard button
                 row {
-                    comment("Required for quota monitoring and API keys management.")
+                    button("Run Setup Wizard") {
+                        try {
+                            PluginLogger.Settings.info("Run Setup Wizard button clicked")
+                            val project = ProjectManager.getInstance().openProjects.firstOrNull()
+                                ?: ProjectManager.getInstance().defaultProject
+                            PluginLogger.Settings.info("Showing setup wizard for project: ${project?.name ?: "default"}")
+                            val result = SetupWizardDialog.show(project)
+                            PluginLogger.Settings.info("Setup wizard completed with result: $result")
+                            if (result) {
+                                refreshUI()
+                            }
+                        } catch (e: Exception) {
+                            PluginLogger.Settings.error("Failed to show setup wizard", e)
+                            Messages.showErrorDialog(
+                                "Failed to show setup wizard: ${e.message}",
+                                "Setup Wizard Error"
+                            )
+                        }
+                    }
+                    comment("Re-run the initial setup wizard to configure the plugin.")
                 }
 
-                row {
-                    link("Get your key from OpenRouter Provisioning Keys") {
-                        BrowserUtil.browse("https://openrouter.ai/settings/provisioning-keys")
+                // Authentication Status group
+                group("Authentication") {
+                    row("Current Scope:") {
+                        authScopeLabel = label("").applyToComponent {
+                            text = if (!settingsService.isConfigured()) {
+                                "Not Configured"
+                            } else if (settingsService.apiKeyManager.authScope == AuthScope.REGULAR) {
+                                "Regular API Key"
+                            } else {
+                                "Extended (Provisioning Key)"
+                            }
+                        }.bold().component
+                    }
+                    row {
+                        authDescriptionLabel = text("").applyToComponent {
+                            text = if (!settingsService.isConfigured()) {
+                                "Please run the Setup Wizard to configure authentication."
+                            } else if (settingsService.apiKeyManager.authScope == AuthScope.REGULAR) {
+                                "Minimal permissions. Quota tracking and usage monitoring are disabled."
+                            } else {
+                                "Full functionality. The plugin can manage API keys and monitor usage."
+                            }
+                        }.component
+                    }
+                    row {
+                        text("To change your authentication settings, please use the <b>Run Setup Wizard</b> button above.")
                     }
                 }
-            }
 
-            // General Settings group
-            group("General Settings") {
-                row("Refresh interval (seconds):") {
-                    cell(refreshIntervalSpinner)
-                }.layout(RowLayout.PARENT_GRID)
+                // General Settings group
+                group("General Settings") {
+                    row("Refresh interval (seconds):") {
+                        cell(refreshIntervalSpinner)
+                    }.layout(RowLayout.PARENT_GRID)
 
-                row {
-                    cell(enableDefaultMaxTokensCheckBox)
-                }.layout(RowLayout.PARENT_GRID)
+                    row {
+                        cell(enableDefaultMaxTokensCheckBox)
+                    }.layout(RowLayout.PARENT_GRID)
 
-                row("Maximum tokens:") {
-                    cell(defaultMaxTokensSpinner)
-                }.layout(RowLayout.PARENT_GRID)
+                    row("Maximum tokens:") {
+                        cell(defaultMaxTokensSpinner)
+                    }.layout(RowLayout.PARENT_GRID)
 
-                row {
-                    cell(autoRefreshCheckBox)
-                    cell(showCostsCheckBox)
-                }.layout(RowLayout.PARENT_GRID)
-            }
-
-            // API Keys group
-            group("API Keys") {
-                row {
-                    comment("Keys load automatically when Provisioning Key is configured.")
+                    row {
+                        cell(autoRefreshCheckBox)
+                        cell(showCostsCheckBox)
+                    }.layout(RowLayout.PARENT_GRID)
                 }
 
-                row {
-                    cell(apiKeysPanel)
-                        .align(Align.FILL)
-                        .resizableColumn()
-                }.resizableRow()
-            }
+                // API Keys group
+                group("API Keys") {
+                    row {
+                        comment("Keys load automatically when Provisioning Key is configured.")
+                    }
 
-            // Proxy Server group
-            group("Proxy Server") {
-                // Auto-start configuration
-                row {
-                    cell(proxyAutoStartCheckBox)
-                }.layout(RowLayout.PARENT_GRID)
+                    row {
+                        cell(apiKeysPanel)
+                            .align(Align.FILL)
+                            .resizableColumn()
+                    }.resizableRow()
+                }.visibleIf(isExtendedScope())
 
-                // Port configuration
-                row {
-                    cell(useSpecificPortCheckBox)
-                }.layout(RowLayout.PARENT_GRID)
+                // Proxy Server group
+                group("Proxy Server") {
+                    // Auto-start configuration
+                    row {
+                        cell(proxyAutoStartCheckBox)
+                    }.layout(RowLayout.PARENT_GRID)
 
-                row("Specific port:") {
-                    cell(proxyPortSpinner)
-                }.layout(RowLayout.PARENT_GRID)
+                    // Port configuration
+                    row {
+                        cell(useSpecificPortCheckBox)
+                    }.layout(RowLayout.PARENT_GRID)
 
-                row("Port range start:") {
-                    cell(proxyPortRangeStartSpinner)
-                }.layout(RowLayout.PARENT_GRID)
+                    row("Specific port:") {
+                        cell(proxyPortSpinner)
+                    }.layout(RowLayout.PARENT_GRID)
 
-                row("Port range end:") {
-                    cell(proxyPortRangeEndSpinner)
-                }.layout(RowLayout.PARENT_GRID)
+                    row("Port range start:") {
+                        cell(proxyPortRangeStartSpinner)
+                    }.layout(RowLayout.PARENT_GRID)
 
-                row {
-                    comment(
-                        "When 'Use specific port' is unchecked, the proxy will " +
-                            "auto-select from the specified range."
-                    )
+                    row("Port range end:") {
+                        cell(proxyPortRangeEndSpinner)
+                    }.layout(RowLayout.PARENT_GRID)
+
+                    row {
+                        comment(
+                            "When 'Use specific port' is unchecked, the proxy will " +
+                                "auto-select from the specified range."
+                        )
+                    }
+
+                    // Proxy server controls
+                    row("Status:") {
+                        cell(statusLabel)
+                    }.layout(RowLayout.PARENT_GRID)
+
+                    row {
+                        startServerButton = button("Start Server") { startProxyServer() }.component
+                        stopServerButton = button("Stop Server") { stopProxyServer() }.component
+                        copyUrlButton = button("Copy Proxy URL") { copyProxyUrlToClipboard() }.component
+                    }.layout(RowLayout.PARENT_GRID)
                 }
-
-                // Proxy server controls
-                row("Status:") {
-                    cell(statusLabel)
-                }.layout(RowLayout.PARENT_GRID)
-
-                row {
-                    startServerButton = button("Start Server") { startProxyServer() }.component
-                    stopServerButton = button("Stop Server") { stopProxyServer() }.component
-                    copyUrlButton = button("Copy Proxy URL") { copyProxyUrlToClipboard() }.component
-                }.layout(RowLayout.PARENT_GRID)
+            }
+        } catch (e: Exception) {
+            PluginLogger.Settings.error("Failed to create settings panel", e)
+            panel = JPanel(BorderLayout()).apply {
+                add(JLabel("Error creating settings panel: ${e.message}"), BorderLayout.NORTH)
+                val scrollPane = JScrollPane(javax.swing.JTextArea(e.stackTraceToString()))
+                add(scrollPane, BorderLayout.CENTER)
             }
         }
 
@@ -426,11 +503,11 @@ class OpenRouterSettingsPanel {
         return wrapperPanel
     }
 
-    private fun pasteFromClipboard() {
+    private fun pasteToField(field: JBPasswordField) {
         try {
             val clipboard = Toolkit.getDefaultToolkit().systemClipboard
             val data = clipboard.getData(java.awt.datatransfer.DataFlavor.stringFlavor) as String
-            provisioningKeyField.text = data.trim()
+            field.text = data.trim()
         } catch (e: java.awt.HeadlessException) {
             PluginLogger.Settings.warn("Clipboard not available in headless environment", e)
         } catch (e: java.awt.datatransfer.UnsupportedFlavorException) {
@@ -440,6 +517,18 @@ class OpenRouterSettingsPanel {
         } catch (expectedError: Exception) {
             PluginLogger.Settings.warn("Failed to paste from clipboard: ${expectedError.message}")
         }
+    }
+
+    private fun isExtendedScope(): com.intellij.ui.layout.ComponentPredicate {
+        val predicate = object : UpdatablePredicate() {
+            override fun invoke() = settingsService.apiKeyManager.authScope == AuthScope.EXTENDED
+        }
+        uiPredicates.add(predicate)
+        return predicate
+    }
+
+    private fun notifyScopeChanged() {
+        uiPredicates.forEach { it.update() }
     }
 
     private fun addApiKey() {
@@ -552,6 +641,13 @@ class OpenRouterSettingsPanel {
     }
 
     fun updateProxyStatus() {
+        // Safe check for lateinit properties
+        if (!::statusLabel.isInitialized || !::startServerButton.isInitialized ||
+            !::stopServerButton.isInitialized || !::copyUrlButton.isInitialized
+        ) {
+            return
+        }
+
         val status = proxyService.getServerStatus()
         val isConfigured = settingsService.isConfigured()
 
@@ -587,6 +683,23 @@ class OpenRouterSettingsPanel {
 
     // Public API methods
     fun getPanel(): JPanel = panel
+
+    fun getAuthScope(): AuthScope = currentUiAuthScope
+
+    fun setAuthScope(scope: AuthScope) {
+        currentUiAuthScope = scope
+        if (::regularRadioButton.isInitialized && ::extendedRadioButton.isInitialized) {
+            regularRadioButton.isSelected = scope == AuthScope.REGULAR
+            extendedRadioButton.isSelected = scope == AuthScope.EXTENDED
+        }
+        notifyScopeChanged()
+    }
+
+    fun getApiKey(): String = String(apiKeyField.password)
+
+    fun setApiKey(apiKey: String) {
+        apiKeyField.text = apiKey
+    }
 
     fun getProvisioningKey(): String = String(provisioningKeyField.password)
 
@@ -716,6 +829,57 @@ class OpenRouterSettingsPanel {
         if (startPort > endPort) {
             // Automatically adjust the end port to be at least equal to start port
             proxyPortRangeEndSpinner.value = startPort
+        }
+    }
+
+    /**
+     * Refreshes the UI with the latest values from the settings service.
+     * This is called after the Setup Wizard completes to ensure the settings page reflects the changes.
+     */
+    private fun refreshUI() {
+        ApplicationManager.getApplication().invokeLater {
+            // Refresh Authentication Scope
+            val newScope = settingsService.apiKeyManager.authScope
+            setAuthScope(newScope)
+
+            // Update status labels
+            if (::authScopeLabel.isInitialized) {
+                authScopeLabel.text = if (!settingsService.isConfigured()) {
+                    "Not Configured"
+                } else if (newScope == AuthScope.REGULAR) {
+                    "Regular API Key"
+                } else {
+                    "Extended (Provisioning Key)"
+                }
+            }
+            if (::authDescriptionLabel.isInitialized) {
+                authDescriptionLabel.text = if (!settingsService.isConfigured()) {
+                    "Please run the Setup Wizard to configure authentication."
+                } else if (newScope == AuthScope.REGULAR) {
+                    "Minimal permissions. Quota tracking and usage monitoring are disabled."
+                } else {
+                    "Full functionality. The plugin can manage API keys and monitor usage."
+                }
+            }
+
+            // Refresh Keys
+            if (newScope == AuthScope.REGULAR) {
+                setApiKey(settingsService.apiKeyManager.getApiKey())
+            } else {
+                setProvisioningKey(settingsService.apiKeyManager.getProvisioningKey())
+            }
+
+            // Refresh Proxy Settings
+            setProxyAutoStart(settingsService.proxyManager.isProxyAutoStartEnabled())
+            setUseSpecificPort(settingsService.proxyManager.getProxyPort() != 0)
+            if (getUseSpecificPort()) {
+                setProxyPort(settingsService.proxyManager.getProxyPort())
+            }
+
+            // Refresh Proxy Status
+            updateProxyStatus()
+
+            PluginLogger.Settings.info("Settings panel UI refreshed from service state")
         }
     }
 }

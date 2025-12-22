@@ -19,8 +19,10 @@ import com.intellij.util.Consumer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import org.zhavoronkov.openrouter.listeners.OpenRouterSettingsListener
+import org.zhavoronkov.openrouter.models.ActivityData
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.ConnectionStatus
 import org.zhavoronkov.openrouter.services.OpenRouterService
@@ -28,6 +30,9 @@ import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.ui.OpenRouterStatsPopup
 import java.awt.event.MouseEvent
 import java.io.IOException
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import javax.swing.Icon
 
@@ -42,7 +47,17 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
     private var connectionStatus = ConnectionStatus.NOT_CONFIGURED
     private var currentText = "Status: Not Configured"
-    private var currentTooltip = "OpenRouter Status: Not Configured - Usage: Not available"
+    private var currentTooltip = """
+        <html>
+        <table border='0' cellpadding='1' cellspacing='0'>
+          <tr><td colspan='2'><b>Connection</b></td></tr>
+          <tr height='2'><td></td></tr>
+          <tr><td>Status:</td><td align='right' style='padding-left: 30px;'>Not Configured</td></tr>
+          <tr><td colspan='2' height='8'></td></tr>
+          <tr><td colspan='2'><i>API key not set.</i></td></tr>
+        </table>
+        </html>
+    """.trimIndent()
 
     companion object {
         const val ID = "OpenRouterStatusBar"
@@ -53,6 +68,8 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         const val SETTINGS_MENU_TEXT = "Settings"
         const val DOCUMENTATION_MENU_TEXT = "View OpenRouter Documentation..."
         const val FEEDBACK_MENU_TEXT = "View Feedback Repository..."
+        private const val DAYS_IN_WEEK = 7
+        private const val DATE_STRING_LENGTH = 10
 
         // Time conversion: milliseconds per second
         private const val MILLIS_PER_SECOND = 1000L
@@ -141,8 +158,15 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         val statusText = STATUS_MENU_TEXT + connectionStatus.displayName
         items.add(PopupMenuItem(statusText, connectionStatus.icon, null))
 
-        val quotaAction = if (settingsService.isConfigured()) { { showQuotaUsage() } } else { null }
-        items.add(PopupMenuItem(QUOTA_MENU_TEXT, AllIcons.General.Information, quotaAction))
+        val isExtended = settingsService.apiKeyManager.authScope == org.zhavoronkov.openrouter.models.AuthScope.EXTENDED
+        val quotaAction = if (settingsService.isConfigured() && isExtended) { { showQuotaUsage() } } else { null }
+        val quotaItem = PopupMenuItem(QUOTA_MENU_TEXT, AllIcons.General.Information, quotaAction)
+        if (!isExtended) {
+            // Add a comment or change text to indicate it's disabled
+            items.add(quotaItem.copy(text = "$QUOTA_MENU_TEXT (Monitoring Disabled)"))
+        } else {
+            items.add(quotaItem)
+        }
 
         if (settingsService.isConfigured()) {
             items.add(PopupMenuItem(LOGOUT_MENU_TEXT, AllIcons.Actions.Exit, { logout() }))
@@ -207,6 +231,26 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
             return
         }
 
+        if (settingsService.apiKeyManager.authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR) {
+            connectionStatus = ConnectionStatus.READY
+            currentText = "Status: Ready"
+
+            currentTooltip = """
+                <html>
+                <table border='0' cellpadding='1' cellspacing='0'>
+                  <tr><td colspan='2'><b>Connection</b></td></tr>
+                  <tr height='2'><td></td></tr>
+                  <tr><td>Status:</td><td align='right' style='padding-left: 30px;'>Ready</td></tr>
+                  <tr><td>Auth:</td><td align='right' style='padding-left: 30px;'>Regular Key</td></tr>
+                  <tr><td>Monitoring:</td><td align='right' style='padding-left: 30px;'><i>Disabled</i></td></tr>
+                </table>
+                </html>
+            """.trimIndent()
+
+            updateStatusBar()
+            return
+        }
+
         connectionStatus = ConnectionStatus.CONNECTING
         updateStatusBar()
 
@@ -214,17 +258,27 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
         scope.launch {
             try {
-                val creditsResult = withContext(Dispatchers.IO) {
-                    openRouterService.getCredits()
-                }
+                // Fetch credits and activity in parallel
+                val creditsDeferred = async(Dispatchers.IO) { openRouterService.getCredits() }
+                val activityDeferred = async(Dispatchers.IO) { openRouterService.getActivity() }
+
+                val creditsResult = creditsDeferred.await()
+                val activityResult = activityDeferred.await()
 
                 ApplicationManager.getApplication().invokeLater {
                     when (creditsResult) {
                         is ApiResult.Success -> {
                             connectionStatus = ConnectionStatus.READY
                             val credits = creditsResult.data.data
+
+                            val activityList = if (activityResult is ApiResult.Success) {
+                                activityResult.data.data
+                            } else {
+                                null
+                            }
+
                             currentText = formatStatusTextFromCredits(credits.totalUsage, credits.totalCredits)
-                            currentTooltip = formatStatusTooltipFromCredits(credits.totalUsage, credits.totalCredits)
+                            currentTooltip = formatStatusTooltipFromCredits(credits.totalUsage, credits.totalCredits, activityList)
                         }
                         is ApiResult.Error -> {
                             connectionStatus = ConnectionStatus.ERROR
@@ -266,8 +320,31 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
             ConnectionStatus.NOT_CONFIGURED
         }
 
+        // If configured with Regular key, ensure status is READY immediately
+        // as we don't fetch credits for regular keys
+        if (settingsService.isConfigured() &&
+            settingsService.apiKeyManager.authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR
+        ) {
+            connectionStatus = ConnectionStatus.READY
+        }
+
         currentText = "Status: ${connectionStatus.displayName}"
-        currentTooltip = "OpenRouter Status: ${connectionStatus.displayName} - Usage: Not available"
+        val isRegular = settingsService.apiKeyManager.authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR
+        val scopeText = if (isRegular) "Regular Key" else "Provisioning Key"
+        val monitoringText = if (isRegular) "<i>Disabled</i>" else "Enabled"
+
+        currentTooltip = """
+            <html>
+            <table border='0' cellpadding='1' cellspacing='0'>
+              <tr><td colspan='2'><b>Connection</b></td></tr>
+              <tr height='2'><td></td></tr>
+              <tr><td>Status:</td><td align='right' style='padding-left: 30px;'>${connectionStatus.displayName}</td></tr>
+              <tr><td>Auth:</td><td align='right' style='padding-left: 30px;'>$scopeText</td></tr>
+              <tr><td>Monitoring:</td><td align='right' style='padding-left: 30px;'>$monitoringText</td></tr>
+            </table>
+            </html>
+        """.trimIndent()
+
         updateStatusBar()
     }
 
@@ -284,6 +361,19 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         if (settingsService.uiPreferencesManager.autoRefresh) {
             startAutoRefresh()
         }
+
+        // Subscribe to settings changes
+        project.messageBus.connect(this).subscribe(
+            OpenRouterSettingsListener.TOPIC,
+            object : OpenRouterSettingsListener {
+                override fun onSettingsChanged() {
+                    ApplicationManager.getApplication().invokeLater {
+                        updateConnectionStatus()
+                        updateQuotaInfo()
+                    }
+                }
+            }
+        )
     }
 
     private fun startAutoRefresh() {
@@ -329,21 +419,112 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         }
     }
 
-    private fun formatStatusTooltipFromCredits(used: Double, total: Double): String {
+    private fun formatStatusTooltipFromCredits(
+        used: Double,
+        total: Double,
+        activityList: List<ActivityData>? = null
+    ): String {
         val status = connectionStatus.displayName
-        return if (total > 0) {
-            "OpenRouter Status: $status - Usage: $${String.format(
-                Locale.US,
-                "%.3f",
-                used
-            )}/$${String.format(Locale.US, "%.0f", total)}"
+        val usedText = "$${String.format(Locale.US, "%.3f", used)}"
+        val totalText = if (total > 0) "$${String.format(Locale.US, "%.2f", total)}" else "Unlimited"
+
+        val activityRows = if (activityList != null) {
+            calculateActivityRows(activityList)
         } else {
-            "OpenRouter Status: $status - Usage: $${String.format(Locale.US, "%.3f", used)}/no credits"
+            ""
+        }
+
+        return """
+            <html>
+            <table border='0' cellpadding='1' cellspacing='0'>
+              <tr><td colspan='2'><b>Connection</b></td></tr>
+              <tr height='2'><td></td></tr>
+              <tr><td>Status:</td><td align='right' style='padding-left: 30px;'>$status</td></tr>
+              <tr><td>Auth:</td><td align='right' style='padding-left: 30px;'>Provisioning Key</td></tr>
+              <tr height='8'><td></td></tr>
+              <tr><td colspan='2'><b>Credits</b></td></tr>
+              <tr height='2'><td></td></tr>
+              <tr><td>Used:</td><td align='right' style='padding-left: 30px;'>$usedText</td></tr>
+              <tr><td>Total:</td><td align='right' style='padding-left: 30px;'>$totalText</td></tr>
+              $activityRows
+            </table>
+            </html>
+        """.trimIndent()
+    }
+
+    private fun calculateActivityRows(activityList: List<ActivityData>): String {
+        val utcNow = LocalDate.now(ZoneId.of("UTC"))
+        val yesterday = utcNow.minusDays(1)
+        val lastWeekStart = utcNow.minusDays((DAYS_IN_WEEK - 1).toLong())
+
+        val costs = ActivityCosts()
+
+        activityList.forEach { activity ->
+            processActivity(activity, utcNow, yesterday, lastWeekStart, costs)
+        }
+
+        return formatActivityRowsHtml(costs.today, costs.yesterday, costs.lastWeek)
+    }
+
+    private fun processActivity(
+        activity: ActivityData,
+        utcNow: LocalDate,
+        yesterday: LocalDate,
+        lastWeekStart: LocalDate,
+        costs: ActivityCosts
+    ) {
+        try {
+            val dateStr = activity.date ?: return
+            val usage = activity.usage ?: 0.0
+            val activityDate = parseActivityDate(dateStr)
+
+            when {
+                activityDate.isEqual(utcNow) -> costs.today += usage
+                activityDate.isEqual(yesterday) -> costs.yesterday += usage
+            }
+
+            if (!activityDate.isBefore(lastWeekStart) && !activityDate.isAfter(utcNow)) {
+                costs.lastWeek += usage
+            }
+        } catch (e: Exception) {
+            com.intellij.openapi.diagnostic.Logger.getInstance(OpenRouterStatusBarWidget::class.java)
+                .warn("Error parsing activity date: ${activity.date}", e)
         }
     }
 
+    private fun parseActivityDate(dateStr: String): LocalDate {
+        val datePart = if (dateStr.length > DATE_STRING_LENGTH) {
+            dateStr.substring(0, DATE_STRING_LENGTH)
+        } else {
+            dateStr
+        }
+        return LocalDate.parse(datePart, DateTimeFormatter.ISO_DATE)
+    }
 
+    private fun formatActivityRowsHtml(todayCost: Double, yesterdayCost: Double, lastWeekCost: Double): String {
+        val todayText = "$${String.format(Locale.US, "%.3f", todayCost)}"
+        val yesterdayText = "$${String.format(Locale.US, "%.3f", yesterdayCost)}"
+        val lastWeekText = "$${String.format(Locale.US, "%.3f", lastWeekCost)}"
+
+        return """
+          <tr height='8'><td></td></tr>
+          <tr><td colspan='2'><b>Activity</b></td></tr>
+          <tr height='2'><td></td></tr>
+          <tr><td>Today:</td><td align='right' style='padding-left: 30px;'>$todayText</td></tr>
+          <tr><td>Yesterday:</td><td align='right' style='padding-left: 30px;'>$yesterdayText</td></tr>
+          <tr><td>7 Days:</td><td align='right' style='padding-left: 30px;'>$lastWeekText</td></tr>
+        """.trimIndent()
+    }
 }
+
+/**
+ * Holds activity cost data for different time periods
+ */
+private data class ActivityCosts(
+    var today: Double = 0.0,
+    var yesterday: Double = 0.0,
+    var lastWeek: Double = 0.0
+)
 
 /**
  * Represents a menu item in the popup menu

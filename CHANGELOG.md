@@ -5,6 +5,97 @@ All notable changes to the OpenRouter IntelliJ Plugin will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-12-22
+
+### New Features
+
+#### 🔄 Dynamic Plugin Support (NEW!)
+- **No Restart Required** - Install, update, and uninstall plugin without restarting IDE
+- **Disposable Services** - All 4 core services (ProxyService, OpenRouterService, SettingsService, GenerationTrackingService) implement Disposable
+- **PluginLifecycleListener** - Tracks plugin load/unload events with detailed logging
+- **Resource Cleanup** - Graceful shutdown of Jetty server (10s timeout), HTTP client connection pool, and async tasks
+- **State Persistence** - Settings and generation tracking data saved before plugin unload
+- **Memory Leak Prevention** - Proper cleanup prevents memory leaks and allows safe plugin reload
+- **IntelliJ Compliance** - Meets all dynamic plugin requirements and restrictions
+
+#### 🔐 OAuth/PKCE Authentication Flow
+- **PKCE Authentication** - Implemented full PKCE (Proof Key for Code Exchange) authentication flow for secure API key generation
+- **OAuth Code Exchange** - Secure OAuth code exchange mechanism for API key creation
+- **PkceAuthHandler** - Dedicated 208-line OAuth/PKCE flow handler for improved security and maintainability
+- **OAuth App Integration** - Added OAuth app name constant for improved authorization flow clarity
+
+#### 🔑 Authentication Scope Management
+- **Unified Authentication** - Unified API and provisioning key fields with improved loading feedback
+- **Scope Management** - Added authentication scope management for API and provisioning keys
+- **Property Accessors** - Refactored authentication scope management to use property accessors for better encapsulation
+- **Synchronized Settings** - Synchronized authentication settings across UI components for consistency
+
+#### ✅ Enhanced Key Validation
+- **Comprehensive Validation** - Enhanced API key and provisioning key validation with improved error handling
+- **Scope-Aware Validation** - Added key validation for current authentication scope
+- **KeyValidator Utility** - Created 96-line KeyValidator utility for centralized validation logic
+- **Centralized Error Messages** - Created 145-line ErrorMessages utility for consistent user feedback
+
+### Code Quality & Architecture
+
+#### Setup Wizard Refactoring
+- **Extracted PkceAuthHandler** - 208-line dedicated OAuth/PKCE flow handler
+- **Extracted SetupWizardConfig** - 44-line centralized configuration constants
+- **Extracted SetupWizardErrorHandler** - 88-line standardized error handling with user-friendly messages
+- **Extracted SetupWizardLogger** - 79-line controlled logging with different levels
+- **Reduced Complexity** - Reduced SetupWizardDialog from 1,194 to 1,048 lines (146 lines removed)
+- **Improved Testability** - Made OpenRouterService open with baseUrlOverride for better testing
+
+#### Service Layer Improvements
+- **Dynamic URL Generation** - Refactored endpoint methods in OpenRouterService for dynamic URL generation
+- **Enhanced Logging** - Updated auth scope to REGULAR and enhanced logging for PKCE exchange process
+- **Deprecated Method Removal** - Removed deprecated key validation methods and updated endpoint logging
+
+#### UI/UX Enhancements
+- **Event Listeners** - Implemented UI updates and event listeners for authentication scope changes
+- **Null Safety** - Improved null safety and error handling in activity data processing and UI components
+- **Welcome Notification** - Enhanced welcome notification formatting for better user experience
+- **Proxy Settings** - Better proxy settings management and UI feedback
+
+### Testing & Quality
+
+#### Comprehensive Test Coverage
+- **Authentication Tests** - Added comprehensive authentication tests for OpenRouterService (312 lines)
+- **PKCE Tests** - PKCE auth code exchange tests with MockWebServer for realistic HTTP testing
+- **Validation Tests** - API key and provisioning key validation tests
+- **Network Error Tests** - Network error handling tests for robust error recovery
+- **Integration Tests** - Added OpenRouterConfigurableIntegrationTest (161 lines)
+- **Settings Panel Tests** - Enhanced OpenRouterSettingsPanelIntegrationTest and OpenRouterSettingsPanelUITest (243 lines)
+
+### Technical Improvements
+
+#### New Utility Classes
+- **OpenRouterConstants** - 140-line constants file for OpenRouter API configuration
+- **UIConstants** - 125-line constants file for UI configuration and magic numbers
+- **ErrorMessages** - 145-line centralized error message management
+- **KeyValidator** - 96-line validation utility for API and provisioning keys
+- **OkHttpExtensions** - Enhanced HTTP client extensions for better request handling
+- **OpenRouterRequestBuilder** - Improved request builder with better error handling
+
+#### New Dynamic Plugin Support Files
+- **PluginLifecycleListener** - 72-line listener for plugin load/unload events
+- **DynamicPluginSupportTest** - 150-line test suite for dynamic plugin functionality
+- **DYNAMIC_PLUGIN_SUPPORT.md** - 150-line comprehensive documentation with troubleshooting guide
+
+#### Refactoring & Cleanup
+- **Constants Extraction** - Replaced magic numbers with proper constants throughout codebase
+- **Helper Classes** - Extracted helper classes from SetupWizardDialog for better separation of concerns
+- **Improved Maintainability** - Better code organization and reduced method complexity
+- **Enhanced Error Handling** - Standardized error handling across all components
+- **Disposable Implementation** - All services properly implement Disposable for resource cleanup
+
+### Statistics
+- **38+ files changed**
+- **3,800+ insertions(+), 550+ deletions(-)**
+- **Net change: +3,250+ lines**
+- **13 new files** - Utilities, handlers, listeners, tests, and documentation
+- **10 new files created** (utilities, handlers, tests)
+
 ## [0.3.0] - 2025-12-05
 
 ### New Features

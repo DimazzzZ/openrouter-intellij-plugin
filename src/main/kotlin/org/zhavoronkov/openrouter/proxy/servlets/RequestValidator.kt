@@ -66,4 +66,15 @@ class RequestValidator(
         val hashBytes = digest.digest("$requestBody|$remoteAddr".toByteArray())
         return hashBytes.joinToString("") { "%02x".format(it) }
     }
+
+    /**
+     * Clear the recent requests cache
+     * Called during plugin unload to prevent memory leaks
+     */
+    fun clearRecentRequests() {
+        synchronized(recentRequests) {
+            recentRequests.clear()
+        }
+        PluginLogger.Service.debug("Cleared RequestValidator recent requests cache")
+    }
 }

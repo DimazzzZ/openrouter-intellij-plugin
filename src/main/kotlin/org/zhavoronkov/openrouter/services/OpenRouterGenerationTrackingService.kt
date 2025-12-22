@@ -1,19 +1,22 @@
 package org.zhavoronkov.openrouter.services
 
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import org.zhavoronkov.openrouter.models.GenerationTrackingInfo
+import org.zhavoronkov.openrouter.utils.PluginLogger
 
 /**
  * Service for tracking OpenRouter API generations and their costs
+ * Implements Disposable for dynamic plugin support
  */
 @State(
     name = "OpenRouterGenerationTracking",
     storages = [Storage("openrouter-generations.xml")]
 )
-class OpenRouterGenerationTrackingService : PersistentStateComponent<OpenRouterGenerationTrackingService.State> {
+class OpenRouterGenerationTrackingService : PersistentStateComponent<OpenRouterGenerationTrackingService.State>, Disposable {
 
     data class State(
         var generations: MutableList<GenerationTrackingInfo> = mutableListOf()
@@ -112,6 +115,27 @@ class OpenRouterGenerationTrackingService : PersistentStateComponent<OpenRouterG
                 totalCost = totalCost ?: generation.totalCost
             )
             state.generations[index] = updated
+        }
+    }
+
+    /**
+     * Dispose method for dynamic plugin support
+     * Ensures generation tracking data is saved
+     */
+    override fun dispose() {
+        PluginLogger.Service.info("Disposing OpenRouterGenerationTrackingService")
+
+        try {
+            // Save state one final time
+            val application = ApplicationManager.getApplication()
+            if (application != null && !application.isDisposed) {
+                application.saveSettings()
+                PluginLogger.Service.info("Generation tracking data saved")
+            }
+
+            PluginLogger.Service.info("OpenRouterGenerationTrackingService disposed successfully")
+        } catch (e: Exception) {
+            PluginLogger.Service.error("Error during OpenRouterGenerationTrackingService disposal", e)
         }
     }
 }

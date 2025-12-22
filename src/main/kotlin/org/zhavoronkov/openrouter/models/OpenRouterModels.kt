@@ -184,18 +184,43 @@ data class ActivityResponse(
     val data: List<ActivityData>
 )
 
+/**
+ * Activity data for a specific date and model
+ *
+ * All fields are nullable because:
+ * - The OpenRouter API may return incomplete data for certain time periods
+ * - Aggregated data may have missing fields depending on the query parameters
+ * - Historical data may be incomplete or unavailable
+ *
+ * When consuming this data:
+ * - Always use null-safe operators (?. and ?:) when accessing fields
+ * - Provide sensible defaults (e.g., 0 for numeric fields, empty string for text)
+ * - Filter out entries with critical missing data (e.g., null date or model) if needed
+ *
+ * @property date The date of the activity in YYYY-MM-DD format (UTC), may be null for incomplete records
+ * @property model The model identifier, may be null for aggregated or incomplete data
+ * @property modelPermaslug Permanent slug identifier for the model, may be null
+ * @property endpointId Unique identifier for the endpoint used, may be null
+ * @property providerName Name of the AI provider (e.g., "openai", "anthropic"), may be null
+ * @property usage Total cost in USD for this activity, may be null if not tracked
+ * @property byokUsageInference Cost for BYOK (Bring Your Own Key) inference, may be null
+ * @property requests Number of API requests made, may be null if not tracked
+ * @property promptTokens Number of tokens in prompts, may be null if not tracked
+ * @property completionTokens Number of tokens in completions, may be null if not tracked
+ * @property reasoningTokens Number of reasoning tokens (for models with reasoning capabilities), may be null
+ */
 data class ActivityData(
-    val date: String,
-    val model: String,
-    @SerializedName("model_permaslug") val modelPermaslug: String,
-    @SerializedName("endpoint_id") val endpointId: String,
-    @SerializedName("provider_name") val providerName: String,
-    val usage: Double,
-    @SerializedName("byok_usage_inference") val byokUsageInference: Double,
-    val requests: Int,
-    @SerializedName("prompt_tokens") val promptTokens: Int,
-    @SerializedName("completion_tokens") val completionTokens: Int,
-    @SerializedName("reasoning_tokens") val reasoningTokens: Int
+    val date: String?,
+    val model: String?,
+    @SerializedName("model_permaslug") val modelPermaslug: String?,
+    @SerializedName("endpoint_id") val endpointId: String?,
+    @SerializedName("provider_name") val providerName: String?,
+    val usage: Double?,
+    @SerializedName("byok_usage_inference") val byokUsageInference: Double?,
+    val requests: Int?,
+    @SerializedName("prompt_tokens") val promptTokens: Int?,
+    @SerializedName("completion_tokens") val completionTokens: Int?,
+    @SerializedName("reasoning_tokens") val reasoningTokens: Int?
 )
 
 /**
@@ -240,10 +265,31 @@ data class ChatUsage(
     @SerializedName("total_tokens") val totalTokens: Int? = null
 )
 
+// Auth Code Exchange models
+data class ExchangeAuthCodeRequest(
+    val code: String,
+    @SerializedName("code_verifier") val codeVerifier: String,
+    @SerializedName("code_challenge") val codeChallenge: String? = null,
+    @SerializedName("code_challenge_method") val codeChallengeMethod: String? = "S256"
+)
+
+data class ExchangeAuthCodeResponse(
+    val key: String
+)
+
+/**
+ * Authentication scope for the plugin
+ */
+enum class AuthScope {
+    REGULAR, // Regular API Key (no monitoring)
+    EXTENDED // Provisioning Key (full monitoring)
+}
+
 /**
  * Settings data class
  */
 data class OpenRouterSettings(
+    var authScope: AuthScope = AuthScope.REGULAR,
     var apiKey: String = "",
     var provisioningKey: String = "",
     var autoRefresh: Boolean = true,
