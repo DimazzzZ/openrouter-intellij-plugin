@@ -10,6 +10,7 @@ import okhttp3.Response
 import org.zhavoronkov.openrouter.models.ActivityResponse
 import org.zhavoronkov.openrouter.models.ApiKeysListResponse
 import org.zhavoronkov.openrouter.models.ApiResult
+import org.zhavoronkov.openrouter.models.OpenRouterResponse
 import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatCompletionResponse
 import org.zhavoronkov.openrouter.models.CreateApiKeyRequest
@@ -77,6 +78,7 @@ class OpenRouterService(
         // Endpoints requiring Provisioning Key authentication (Bearer <provisioning-key>)
         private const val API_KEYS_ENDPOINT = "$BASE_URL/keys"
         private const val ACTIVITY_ENDPOINT = "$BASE_URL/activity"
+        private const val AUTH_KEY_ENDPOINT = "$BASE_URL/auth/key"
 
         // Public endpoints (no authentication required)
         private const val PROVIDERS_ENDPOINT = "$BASE_URL/providers"
@@ -236,19 +238,12 @@ class OpenRouterService(
     suspend fun testApiKey(apiKey: String): ApiResult<Boolean> =
         withContext(Dispatchers.IO) {
             try {
-                val jsonBody = gson.toJson(
-                    mapOf(
-                        "model" to "openai/gpt-3.5-turbo",
-                        "messages" to listOf(
-                            mapOf("role" to "user", "content" to "Hello")
-                        ),
-                        "max_tokens" to 1
-                    )
-                )
+                if (apiKey.isBlank()) {
+                    return@withContext ApiResult.Error("API key is required")
+                }
 
-                val request = OpenRouterRequestBuilder.buildPostRequest(
-                    url = CHAT_COMPLETIONS_ENDPOINT,
-                    jsonBody = jsonBody,
+                val request = OpenRouterRequestBuilder.buildGetRequest(
+                    url = CREDITS_ENDPOINT,
                     authType = OpenRouterRequestBuilder.AuthType.API_KEY,
                     authToken = apiKey
                 )
@@ -257,17 +252,24 @@ class OpenRouterService(
                 if (response.isSuccessful) {
                     ApiResult.Success(true, response.code)
                 } else {
+                    val body = response.body?.string() ?: ""
+                    PluginLogger.Service.warn("API key validation failed: ${response.code} $body")
+                    
+                    val errorMessage = try {
+                        val errorObj = gson.fromJson(body, OpenRouterResponse::class.java)
+                        errorObj?.error?.message ?: "Invalid API key"
+                    } catch (_: Exception) {
+                        "Invalid API key (HTTP ${response.code})"
+                    }
+
                     ApiResult.Error(
-                        message = "Connection test failed",
+                        message = errorMessage,
                         statusCode = response.code
                     )
                 }
             } catch (e: IOException) {
-                handleNetworkError(e, "Connection test failed")
+                handleNetworkError(e, "API key validation failed")
                 ApiResult.Error(message = e.message ?: "Network error", throwable = e)
-            } catch (e: JsonSyntaxException) {
-                PluginLogger.Service.warn("Connection test failed - invalid JSON response", e)
-                ApiResult.Error(message = "Invalid JSON response", throwable = e)
             }
         }
 

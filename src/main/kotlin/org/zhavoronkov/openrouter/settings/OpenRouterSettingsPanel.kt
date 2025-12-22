@@ -19,6 +19,7 @@ import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import org.zhavoronkov.openrouter.ui.SetupWizardDialog
 import java.awt.BorderLayout
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
@@ -183,6 +184,9 @@ class OpenRouterSettingsPanel {
         val isHeadless = java.awt.GraphicsEnvironment.isHeadless()
         PluginLogger.Settings.debug("OpenRouter Settings Panel INITIALIZED (headless: $isHeadless)")
 
+        // Initialize UI state from settings
+        currentUiAuthScope = settingsService.apiKeyManager.authScope
+
         // Initialize components
         provisioningKeyField = JBPasswordField().apply {
             columns = PASSWORD_FIELD_COLUMNS
@@ -274,9 +278,20 @@ class OpenRouterSettingsPanel {
                 // Run Setup Wizard button
                 row {
                     button("Run Setup Wizard") {
-                        val project = ProjectManager.getInstance().openProjects.firstOrNull()
-                            ?: ProjectManager.getInstance().defaultProject
-                        org.zhavoronkov.openrouter.ui.SetupWizardDialog(project).show()
+                        try {
+                            PluginLogger.Settings.info("Run Setup Wizard button clicked")
+                            val project = ProjectManager.getInstance().openProjects.firstOrNull()
+                                ?: ProjectManager.getInstance().defaultProject
+                            PluginLogger.Settings.info("Showing setup wizard for project: ${project?.name ?: "default"}")
+                            val result = SetupWizardDialog.show(project)
+                            PluginLogger.Settings.info("Setup wizard completed with result: $result")
+                        } catch (e: Exception) {
+                            PluginLogger.Settings.error("Failed to show setup wizard", e)
+                            Messages.showErrorDialog(
+                                "Failed to show setup wizard: ${e.message}",
+                                "Setup Wizard Error"
+                            )
+                        }
                     }
                     comment("Re-run the initial setup wizard to configure the plugin.")
                 }
@@ -284,24 +299,28 @@ class OpenRouterSettingsPanel {
                 separator()
 
                 // Authentication group
-                buttonsGroup("Authentication Scope") {
-                    row {
-                        radioButton("Regular API Key (No monitoring)", AuthScope.REGULAR)
-                            .comment("Minimal permissions. Quota tracking and usage monitoring will be disabled.")
-                    }
-                    row {
-                        radioButton("Extended (Provisioning Key)", AuthScope.EXTENDED)
-                            .comment("Full functionality. Allows the plugin to manage API keys and monitor usage.")
-                    }
-                }.bind(
-                    object : com.intellij.ui.dsl.builder.MutableProperty<AuthScope> {
-                        override fun get(): AuthScope = settingsService.apiKeyManager.authScope
-                        override fun set(value: AuthScope) {
-                            settingsService.apiKeyManager.authScope = value
+                group("Authentication Scope") {
+                    buttonsGroup {
+                        row {
+                            radioButton("Regular API Key (No monitoring)", AuthScope.REGULAR)
+                                .comment("Minimal permissions. Quota tracking and usage monitoring will be disabled.")
                         }
-                    },
-                    AuthScope::class.java
-                )
+                        row {
+                            radioButton("Extended (Provisioning Key)", AuthScope.EXTENDED)
+                                .comment("Full functionality. Allows the plugin to manage API keys and monitor usage.")
+                        }
+                    }.bind(
+                        object : com.intellij.ui.dsl.builder.MutableProperty<AuthScope> {
+                            override fun get(): AuthScope = currentUiAuthScope
+                            override fun set(value: AuthScope) {
+                                currentUiAuthScope = value
+                                settingsService.apiKeyManager.authScope = value
+                                notifyScopeChanged()
+                            }
+                        },
+                        AuthScope::class.java
+                    )
+                }
 
                 // Regular API Key group
                 group("Regular API Key") {

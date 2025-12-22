@@ -23,6 +23,11 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withContext
+import com.intellij.util.Alarm
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.AuthScope
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
@@ -44,6 +49,7 @@ import javax.swing.SwingUtilities
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.table.AbstractTableModel
+import javax.swing.JRadioButton
 
 /**
  * Multi-step setup wizard for first-time users with validation and embedded model selection
@@ -57,8 +63,29 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
     private val cardLayout = CardLayout()
     private val cardPanel = JPanel(cardLayout)
+    private var validationJob: Job? = null
+    private val validationAlarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, disposable)
 
     private var currentStep = 0
+
+    // Initialize scopePredicates BEFORE creating panels
+    private val scopePredicates = mutableListOf<ScopePredicate>()
+
+    private inner class ScopePredicate(val scope: AuthScope) : com.intellij.ui.layout.ComponentPredicate() {
+        private val listeners = mutableListOf<(Boolean) -> Unit>()
+
+        override fun invoke(): Boolean = authScope == scope
+
+        override fun addListener(listener: (Boolean) -> Unit) {
+            listeners.add(listener)
+            listener(invoke()) // Initial update
+        }
+
+        fun update() {
+            val newValue = invoke()
+            listeners.forEach { it(newValue) }
+        }
+    }
 
     // Step 0: Welcome
     private val welcomePanel = createWelcomePanel()
@@ -66,8 +93,8 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     // Step 1: Authentication Setup
     private val provisioningKeyField = JBPasswordField()
     private val apiKeyField = JBPasswordField()
-    private var authScope = AuthScope.EXTENDED
-    private val validationStatusLabel = JBLabel()
+    private var authScope = settingsService.apiKeyManager.authScope
+    private val validationStatusLabel = JBLabel(" ")
     private val validationIcon = JBLabel()
     private var isKeyValid = false
     private var isValidating = false
@@ -98,28 +125,32 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         cardPanel.add(modelsPanel, "models")
         cardPanel.add(completionPanel, "completion")
 
-        // Setup listeners
-        provisioningKeyField.document.addDocumentListener(object : DocumentListener {
-            override fun insertUpdate(e: DocumentEvent?) = handleKeyChange()
-            override fun removeUpdate(e: DocumentEvent?) = handleKeyChange()
-            override fun changedUpdate(e: DocumentEvent?) = handleKeyChange()
-        })
-        apiKeyField.document.addDocumentListener(object : DocumentListener {
-            override fun insertUpdate(e: DocumentEvent?) = handleKeyChange()
-            override fun removeUpdate(e: DocumentEvent?) = handleKeyChange()
-            override fun changedUpdate(e: DocumentEvent?) = handleKeyChange()
-        })
+        // Setup models search listener
         searchField.addDocumentListener(object : DocumentListener {
             override fun insertUpdate(e: DocumentEvent?) = applyModelFilter()
             override fun removeUpdate(e: DocumentEvent?) = applyModelFilter()
             override fun changedUpdate(e: DocumentEvent?) = applyModelFilter()
         })
+        
+        // Setup key listeners with extreme logging
+        val keyListener = object : com.intellij.ui.DocumentAdapter() {
+            override fun textChanged(e: DocumentEvent) {
+                PluginLogger.Service.warn("[OpenRouter] Document textChanged event fired")
+                onKeyChanged()
+            }
+        }
+        
+        PluginLogger.Service.warn("[OpenRouter] Attaching listeners to fields")
+        apiKeyField.document.addDocumentListener(keyListener)
+        provisioningKeyField.document.addDocumentListener(keyListener)
 
         // Setup selected count label
         selectedCountLabel.foreground = UIUtil.getLabelInfoForeground()
 
         init()
         updateButtons()
+        
+        PluginLogger.Service.warn("[OpenRouter] SetupWizardDialog initialized")
     }
 
     override fun createCenterPanel(): JComponent {
@@ -154,7 +185,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
                 row {
                     icon(AllIcons.Ide.Notification.PluginUpdate)
-                    text("A Provisioning Key from OpenRouter")
+                    text("An API Key or Provisioning Key from OpenRouter")
                 }.bottomGap(BottomGap.SMALL)
 
                 row {
@@ -171,32 +202,41 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                 label("<html><h3>Step 1: Authentication Setup</h3></html>")
             }.bottomGap(BottomGap.MEDIUM)
 
-            // Authentication group
-            buttonsGroup("Authentication Scope") {
-                row {
-                    radioButton("Regular API Key (No monitoring)", AuthScope.REGULAR)
-                        .comment("Minimal permissions. Quota tracking and usage monitoring will be disabled.")
-                }
-                row {
-                    radioButton("Extended (Provisioning Key)", AuthScope.EXTENDED)
-                        .comment("Full functionality. Allows the plugin to manage API keys and monitor usage.")
-                }
-            }.bind(
-                object : com.intellij.ui.dsl.builder.MutableProperty<AuthScope> {
-                    override fun get(): AuthScope = authScope
-                    override fun set(value: AuthScope) {
-                        authScope = value
-                        handleKeyChange()
-                        notifyScopeChanged()
+            // Authentication group - using manual radio buttons for better visibility control
+            val regularRadioButton = JRadioButton("Regular API Key (No monitoring)")
+            val extendedRadioButton = JRadioButton("Extended (Provisioning Key)")
+            val authButtonGroup = ButtonGroup()
+            authButtonGroup.add(regularRadioButton)
+            authButtonGroup.add(extendedRadioButton)
+            
+            // Set initial selection
+            if (authScope == AuthScope.REGULAR) {
+                regularRadioButton.isSelected = true
+            } else {
+                extendedRadioButton.isSelected = true
+            }
+            
+            group("Authentication Scope") {
+                buttonsGroup {
+                    row {
+                        cell<JRadioButton>(regularRadioButton)
+                            .comment("Minimal permissions. Quota tracking and usage monitoring will be disabled.")
                     }
-                },
-                AuthScope::class.java
-            )
+                    row {
+                        cell<JRadioButton>(extendedRadioButton)
+                            .comment("Full functionality. Allows the plugin to manage API keys and monitor usage.")
+                    }
+                }
+            }
+
+            // Store references to the groups for visibility control
+            var regularGroupRow: com.intellij.ui.dsl.builder.Row? = null
+            var extendedGroupRow: com.intellij.ui.dsl.builder.Row? = null
 
             separator()
 
             // Regular API Key section
-            group("Regular API Key") {
+            regularGroupRow = group("Regular API Key") {
                 row {
                     text("Get your key from:")
                     browserLink(
@@ -215,10 +255,11 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                         .align(AlignX.FILL)
                         .comment("Paste your API key here")
                 }.bottomGap(BottomGap.SMALL)
-            }.visibleIf(radioButtonSelected(AuthScope.REGULAR))
+            }
+            regularGroupRow.visible(authScope == AuthScope.REGULAR)
 
             // Provisioning Key section
-            group("Extended (Provisioning Key)") {
+            extendedGroupRow = group("Extended (Provisioning Key)") {
                 row {
                     text("Get your key from:")
                     browserLink(
@@ -237,30 +278,31 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                         .align(AlignX.FILL)
                         .comment("Paste your provisioning key here")
                 }.bottomGap(BottomGap.SMALL)
-            }.visibleIf(radioButtonSelected(AuthScope.EXTENDED))
+            }
+            extendedGroupRow.visible(authScope == AuthScope.EXTENDED)
+            
+            // Add action listeners to update visibility
+            regularRadioButton.addActionListener {
+                if (regularRadioButton.isSelected) {
+                    authScope = AuthScope.REGULAR
+                    regularGroupRow?.visible(true)
+                    extendedGroupRow?.visible(false)
+                    onKeyChanged()
+                }
+            }
+            extendedRadioButton.addActionListener {
+                if (extendedRadioButton.isSelected) {
+                    authScope = AuthScope.EXTENDED
+                    regularGroupRow?.visible(false)
+                    extendedGroupRow?.visible(true)
+                    onKeyChanged()
+                }
+            }
 
             row {
                 cell(validationIcon)
                 cell(validationStatusLabel)
             }
-        }
-    }
-
-    private val scopePredicates = mutableListOf<ScopePredicate>()
-
-    private inner class ScopePredicate(val scope: AuthScope) : com.intellij.ui.layout.ComponentPredicate() {
-        private val listeners = mutableListOf<(Boolean) -> Unit>()
-
-        override fun invoke(): Boolean = authScope == scope
-
-        override fun addListener(listener: (Boolean) -> Unit) {
-            listeners.add(listener)
-            listener(invoke()) // Initial update
-        }
-
-        fun update() {
-            val newValue = invoke()
-            listeners.forEach { it(newValue) }
         }
     }
 
@@ -467,125 +509,168 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
 
     // ========== Provisioning Key Validation ==========
 
-    private fun handleKeyChange() {
+    private fun onKeyChanged() {
         val key = if (authScope == AuthScope.REGULAR) {
-            String(apiKeyField.password)
+            String(apiKeyField.password).trim()
         } else {
-            String(provisioningKeyField.password)
+            String(provisioningKeyField.password).trim()
         }
 
+        PluginLogger.Service.warn("[OpenRouter] onKeyChanged: scope=$authScope, keyLength=${key.length}")
+
+        // Cancel any pending validation
+        validationAlarm.cancelAllRequests()
+        validationJob?.cancel()
+        
         if (key.isBlank()) {
-            updateValidationStatus(ValidationStatus.CLEAR)
+            PluginLogger.Service.warn("[OpenRouter] Key is blank, clearing status")
+            isValidating = false
+            clearValidationStatus()
             isKeyValid = false
             updateButtons()
             return
         }
 
-        // Debounce validation
-        SwingUtilities.invokeLater {
-            validateKey(key)
+        // Start new validation with debounce using Alarm
+        // Only trigger if key is long enough to be a real key (min 10 chars)
+        if (key.length >= 10) {
+            validationAlarm.addRequest({
+                PluginLogger.Service.warn("[OpenRouter] Alarm triggered, starting validateKey")
+                validateKey(key)
+            }, 500)
+        } else {
+            PluginLogger.Service.warn("[OpenRouter] Key too short for validation (${key.length} chars)")
+            isValidating = false
+            isKeyValid = false
+            clearValidationStatus()
+            updateButtons()
         }
     }
 
     private fun validateKey(key: String) {
-        if (isValidating) return
-
+        PluginLogger.Service.warn("[OpenRouter] validateKey starting for $authScope")
+        
         isValidating = true
-        updateValidationStatus(ValidationStatus.IN_PROGRESS)
+        showValidationInProgress()
         updateButtons()
 
-        coroutineScope.launch {
+        val currentScope = authScope
+
+        // Use IO dispatcher for the launch to ensure it doesn't wait for EDT
+        validationJob = coroutineScope.launch(Dispatchers.IO) {
+            PluginLogger.Service.warn("[OpenRouter] Coroutine started on ${Thread.currentThread().name}")
             try {
-                val result = withTimeout(KEY_VALIDATION_TIMEOUT_MS) {
-                    if (authScope == AuthScope.REGULAR) {
-                        openRouterService.testApiKey(key)
-                    } else {
-                        openRouterService.getApiKeysList(key)
-                    }
+                PluginLogger.Service.warn("[OpenRouter] Calling API for validation...")
+                val result = if (currentScope == AuthScope.REGULAR) {
+                    openRouterService.testApiKey(key)
+                } else {
+                    openRouterService.getApiKeysList(key)
                 }
+                
+                PluginLogger.Service.warn("[OpenRouter] API call finished: $result")
+
                 ApplicationManager.getApplication().invokeLater({
+                    PluginLogger.Service.warn("[OpenRouter] invokeLater running to update UI")
                     isValidating = false
-                    when (result) {
-                        is ApiResult.Success -> {
-                            isKeyValid = true
-                            updateValidationStatus(ValidationStatus.SUCCESS)
+                    // Only update if the scope hasn't changed while we were validating
+                    if (authScope == currentScope) {
+                        when (result) {
+                            is ApiResult.Success -> {
+                                isKeyValid = true
+                                showValidationSuccess()
+                                PluginLogger.Service.warn("[OpenRouter] Validation SUCCESS")
+                            }
+                            is ApiResult.Error -> {
+                                isKeyValid = false
+                                val friendlyError = when {
+                                    result.message.contains("No cookie auth", ignoreCase = true) -> "Invalid API key"
+                                    result.message.contains("Missing Authentication", ignoreCase = true) -> "Invalid key format"
+                                    else -> result.message
+                                }
+                                showValidationError(friendlyError)
+                                PluginLogger.Service.warn("[OpenRouter] Validation FAILED: $friendlyError (Raw: ${result.message})")
+                            }
                         }
-                        is ApiResult.Error -> {
-                            isKeyValid = false
-                            val type = if (authScope == AuthScope.REGULAR) "API key" else "provisioning key"
-                            val errorMsg = "Invalid $type: ${result.message}"
-                            updateValidationStatus(ValidationStatus.ERROR(errorMsg))
-                        }
+                    } else {
+                        PluginLogger.Service.warn("[OpenRouter] Scope changed during validation, ignoring result")
                     }
                     updateButtons()
                 }, ModalityState.any())
-            } catch (error: TimeoutCancellationException) {
-                handleValidationFailure(
-                    "Key validation timeout",
-                    error,
-                    "Validation timeout: Please check your connection"
-                )
-            } catch (error: IOException) {
-                handleValidationFailure(
-                    "Key validation network error",
-                    error,
-                    "Network error: ${error.message ?: "Unknown error"}"
-                )
-            } catch (error: IllegalStateException) {
-                handleValidationFailure(
-                    "Key validation invalid state",
-                    error,
-                    "Invalid state: ${error.message}"
-                )
-            } catch (error: Exception) {
-                handleValidationFailure(
-                    "Key validation unexpected error",
-                    error,
-                    "Unexpected error: ${error.message ?: "Unknown error"}"
-                )
+            } catch (e: CancellationException) {
+                PluginLogger.Service.warn("[OpenRouter] validateKey coroutine cancelled")
+            } catch (e: Exception) {
+                PluginLogger.Service.warn("[OpenRouter] Validation EXCEPTION", e)
+                ApplicationManager.getApplication().invokeLater({
+                    isValidating = false
+                    isKeyValid = false
+                    showValidationError("Validation failed: ${e.message ?: "Unknown error"}")
+                    updateButtons()
+                }, ModalityState.any())
             }
         }
     }
 
-    private fun handleValidationFailure(logMessage: String, error: Throwable, userMessage: String) {
-        PluginLogger.Service.error(logMessage, error)
-        ApplicationManager.getApplication().invokeLater({
-            isValidating = false
-            isKeyValid = false
-            updateValidationStatus(ValidationStatus.ERROR(userMessage))
-            updateButtons()
-        }, ModalityState.any())
+    private fun clearValidationStatus() {
+        validationIcon.icon = null
+        validationStatusLabel.text = " "
+        validationIcon.isVisible = false
+        validationStatusLabel.isVisible = true
     }
 
-    private fun updateValidationStatus(status: ValidationStatus) {
-        when (status) {
-            ValidationStatus.CLEAR -> {
-                validationIcon.icon = null
-                validationStatusLabel.text = ""
-            }
-            ValidationStatus.IN_PROGRESS -> {
-                validationIcon.icon = AllIcons.Process.Step_1
-                validationStatusLabel.text = "Validating..."
-                validationStatusLabel.foreground = UIUtil.getLabelInfoForeground()
-            }
-            ValidationStatus.SUCCESS -> {
-                validationIcon.icon = AllIcons.General.InspectionsOK
-                validationStatusLabel.text = "Valid provisioning key"
-                validationStatusLabel.foreground = JBColor.GREEN
-            }
-            is ValidationStatus.ERROR -> {
-                validationIcon.icon = AllIcons.General.Error
-                validationStatusLabel.text = status.message
-                validationStatusLabel.foreground = JBColor.RED
-            }
+    private fun showValidationInProgress() {
+        validationIcon.icon = AllIcons.Process.Step_1
+        validationStatusLabel.text = "Validating..."
+        validationStatusLabel.foreground = UIUtil.getLabelInfoForeground()
+        validationIcon.isVisible = true
+        validationStatusLabel.isVisible = true
+        
+        // Force UI update
+        validationStatusLabel.revalidate()
+        validationStatusLabel.repaint()
+        validationIcon.revalidate()
+        validationIcon.repaint()
+    }
+
+    private fun showValidationSuccess() {
+        validationIcon.icon = AllIcons.General.InspectionsOK
+        val type = if (authScope == AuthScope.REGULAR) "API key" else "provisioning key"
+        validationStatusLabel.text = "Valid $type"
+        validationStatusLabel.foreground = JBColor.GREEN
+        validationIcon.isVisible = true
+        validationStatusLabel.isVisible = true
+        
+        // Force UI update
+        validationStatusLabel.revalidate()
+        validationStatusLabel.repaint()
+        validationIcon.revalidate()
+        validationIcon.repaint()
+    }
+
+    private fun showValidationError(message: String) {
+        // Map technical OpenRouter errors to user-friendly ones
+        val friendlyMessage = when {
+            message.contains("Missing Authentication header", ignoreCase = true) || 
+            message.contains("Invalid key format", ignoreCase = true) -> 
+                "Invalid key format or type"
+            message.contains("Invalid provisioningkey", ignoreCase = true) -> 
+                "Invalid provisioning key"
+            message.contains("No cookie auth", ignoreCase = true) ||
+            message.contains("Authentication failed", ignoreCase = true) ->
+                "Invalid API key"
+            else -> message
         }
-    }
 
-    private sealed class ValidationStatus {
-        object CLEAR : ValidationStatus()
-        object IN_PROGRESS : ValidationStatus()
-        object SUCCESS : ValidationStatus()
-        data class ERROR(val message: String) : ValidationStatus()
+        validationIcon.icon = AllIcons.General.Error
+        validationStatusLabel.text = if (friendlyMessage.startsWith("Invalid")) friendlyMessage else "Invalid key: $friendlyMessage"
+        validationStatusLabel.foreground = JBColor.RED
+        validationIcon.isVisible = true
+        validationStatusLabel.isVisible = true
+        
+        // Force UI update
+        validationStatusLabel.revalidate()
+        validationStatusLabel.repaint()
+        validationIcon.revalidate()
+        validationIcon.repaint()
     }
 
     // ========== Models Loading and Filtering ==========

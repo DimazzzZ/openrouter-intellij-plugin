@@ -99,13 +99,23 @@ object OpenRouterRequestBuilder {
     ): Request {
         val builder = Request.Builder()
             .url(url)
-            .addHeader("Content-Type", CONTENT_TYPE_JSON)
-            .addHeader("HTTP-Referer", HTTP_REFERER)
-            .addHeader("X-Title", X_TITLE)
+            .header("Content-Type", CONTENT_TYPE_JSON)
+            .header("HTTP-Referer", HTTP_REFERER)
+            .header("Referer", HTTP_REFERER) // Add standard Referer just in case
+            .header("X-Title", X_TITLE)
 
         // Add authentication header if required
-        if (authType != AuthType.NONE && authToken != null) {
-            builder.addHeader("Authorization", "Bearer $authToken")
+        if (authType != AuthType.NONE && !authToken.isNullOrBlank()) {
+            val authHeaderValue = "Bearer ${authToken.trim()}"
+            builder.header("Authorization", authHeaderValue)
+            
+            // Mask the token for logging
+            val maskedToken = if (authToken.length > 8) 
+                "${authToken.take(4)}...${authToken.takeLast(4)}" 
+                else "****"
+            PluginLogger.Service.warn("[OpenRouter] Request: $method $url, Auth: Bearer $maskedToken")
+        } else {
+            PluginLogger.Service.warn("[OpenRouter] Request: $method $url, Auth: NONE")
         }
 
         // Set HTTP method and body
