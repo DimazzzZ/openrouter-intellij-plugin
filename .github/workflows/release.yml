@@ -205,7 +205,7 @@ jobs:
           });
 
           // Update release body to include marketplace link
-          const marketplaceLink = '\n\n---\n\n🎉 **Plugin Published!**\n\nThe plugin has been successfully published to the JetBrains Marketplace.\n\n📦 [View on Marketplace](https://plugins.jetbrains.com/plugin/org.zhavoronkov.openrouter)';
+          const marketplaceLink = '\n\n---\n\n🎉 **Plugin Published!**\n\nThe plugin has been successfully published to the JetBrains Marketplace.\n\n📦 [View on Marketplace](https://plugins.jetbrains.com/plugin/28520-openrouter)';
 
           await github.rest.repos.updateRelease({
             owner: context.repo.owner,
