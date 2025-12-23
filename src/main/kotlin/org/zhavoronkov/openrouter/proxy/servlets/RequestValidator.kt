@@ -22,7 +22,7 @@ class RequestValidator(
         val apiKey = settingsService.apiKeyManager.getStoredApiKey()
 
         if (apiKey.isNullOrBlank()) {
-            PluginLogger.Service.error("[$requestId] No API key configured")
+            PluginLogger.Service.error("[Chat-$requestId] No API key configured")
             resp.status = HttpServletResponse.SC_UNAUTHORIZED
             resp.contentType = "application/json"
             val errorMessage = "API key not configured. " +
@@ -39,7 +39,7 @@ class RequestValidator(
             return null
         }
 
-        PluginLogger.Service.debug("[$requestId] API key validated successfully")
+        PluginLogger.Service.debug("[Chat-$requestId] API key validated successfully")
         return apiKey
     }
 

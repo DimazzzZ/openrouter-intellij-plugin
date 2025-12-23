@@ -158,10 +158,12 @@ jobs:
   publish-to-marketplace:
     needs: [validate-version, build-and-test, create-release]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required to update releases with marketplace link
     if: |
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_to_marketplace == 'true')
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4

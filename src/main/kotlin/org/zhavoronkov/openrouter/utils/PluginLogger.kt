@@ -1,3 +1,5 @@
+@file:Suppress("LoggingSimilarMessage")
+
 package org.zhavoronkov.openrouter.utils
 
 import com.intellij.openapi.diagnostic.Logger

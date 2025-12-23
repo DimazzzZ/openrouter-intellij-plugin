@@ -28,7 +28,7 @@ class ApiKeySettingsManager(
         } else {
             encrypted
         }
-        PluginLogger.Service.info(
+        PluginLogger.Service.debug(
             "getApiKey: encrypted.length=${encrypted.length}, encrypted.isEmpty=${encrypted.isEmpty()}, " +
                 "decrypted.length=${decrypted.length}, decrypted.isEmpty=${decrypted.isEmpty()}"
         )
@@ -67,8 +67,30 @@ class ApiKeySettingsManager(
         )
     }
 
+    /**
+     * Gets the API key to use for chat completions.
+     *
+     * In REGULAR mode: Returns the user-provided API key from settings.apiKey
+     * In EXTENDED mode: Returns the auto-created "IntelliJ IDEA Plugin" API key from settings.apiKey
+     *
+     * Note: Both modes use settings.apiKey, but the key source differs:
+     * - REGULAR: User manually enters their API key
+     * - EXTENDED: Plugin auto-creates a key via provisioning key and stores it
+     *
+     * @return The API key to use, or null if not configured
+     */
     fun getStoredApiKey(): String? {
+        // In EXTENDED mode, we need to ensure the stored API key is valid
+        // The IntellijApiKeyManager.ensureIntellijApiKeyExists() handles this
+        // by validating and regenerating the key if needed
         val apiKey = getApiKey()
+
+        // Log which mode we're in for debugging
+        PluginLogger.Service.debug(
+            "getStoredApiKey: authScope=${settings.authScope}, " +
+                "apiKey.length=${apiKey.length}, apiKey.isNotBlank=${apiKey.isNotBlank()}"
+        )
+
         return if (apiKey.isNotBlank()) apiKey else null
     }
 

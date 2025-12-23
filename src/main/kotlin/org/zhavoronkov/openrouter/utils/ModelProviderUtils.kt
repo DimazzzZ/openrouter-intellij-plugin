@@ -135,7 +135,7 @@ object ModelProviderUtils {
 
         companion object {
             fun fromDisplayName(name: String): ContextRange {
-                return values().find { it.displayName == name } ?: ANY
+                return entries.find { it.displayName == name } ?: ANY
             }
         }
     }

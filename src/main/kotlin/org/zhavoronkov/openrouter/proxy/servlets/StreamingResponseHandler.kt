@@ -45,7 +45,7 @@ class StreamingResponseHandler {
         writer.println("data: [DONE]")
         writer.println()
         writer.flush()
-        PluginLogger.Service.debug("[$requestId] Streaming completed successfully")
+        PluginLogger.Service.debug("[Chat-$requestId] Streaming completed successfully")
     }
 
     private fun processStreamLine(line: String, writer: PrintWriter): Boolean {
@@ -54,17 +54,22 @@ class StreamingResponseHandler {
             if (data == "[DONE]") {
                 return true
             }
+            // SSE format requires: "data: <content>\n\n" (blank line after each event)
+            // println() adds one newline, then we add another for the blank line
             writer.println(line)
+            writer.println() // Required blank line to separate SSE events
             writer.flush()
         }
         return false
     }
 
     fun handleStreamingError(e: Exception, writer: PrintWriter, requestId: String) {
-        PluginLogger.Service.error("[$requestId] Error during streaming", e)
+        PluginLogger.Service.error("[Chat-$requestId] Error during streaming", e)
         val errorJson = """{"error": {"message": "Streaming error: ${e.message}", "type": "stream_error"}}"""
         writer.println("data: $errorJson")
+        writer.println() // Blank line to separate SSE events
         writer.println("data: [DONE]")
+        writer.println() // Blank line after final event
         writer.flush()
     }
 
@@ -77,7 +82,7 @@ class StreamingResponseHandler {
     fun handleStreamingErrorResponse(context: StreamingErrorContext) {
         val errorBody = context.response.body?.string() ?: "Unknown error"
         PluginLogger.Service.error(
-            "[${context.requestId}] OpenRouter streaming request failed: " +
+            "[Chat-${context.requestId}] OpenRouter streaming request failed: " +
                 "status=${context.response.code}, body=$errorBody"
         )
 
@@ -98,7 +103,9 @@ class StreamingResponseHandler {
             """.trimIndent().replace("\n", "")
 
         writer.println("data: $errorJson")
+        writer.println() // Blank line to separate SSE events
         writer.println("data: [DONE]")
+        writer.println() // Blank line after final event
         writer.flush()
     }
 

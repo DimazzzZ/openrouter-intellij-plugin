@@ -64,6 +64,30 @@
 
     <!-- Change notes for this version -->
     <change-notes><![CDATA[
+        <h3>🔧 Version 0.4.1 - SSE Streaming Fix & Logging Improvements (2025-12-23)</h3>
+        <p><strong>🐛 Bug Fixes:</strong></p>
+        <ul>
+            <li><strong>Fixed AI Assistant Streaming</strong> - Fixed SSE format to comply with specification (blank line separators)</li>
+            <li><strong>Stream Termination</strong> - All streams now properly end with [DONE] marker</li>
+            <li><strong>Error Handling</strong> - Fixed error response SSE format with proper event separators</li>
+        </ul>
+
+        <p><strong>📝 Logging Improvements:</strong></p>
+        <ul>
+            <li><strong>Reduced Log Noise</strong> - Moved verbose logging to DEBUG level (78% reduction in INFO logs)</li>
+            <li><strong>Standardized Request IDs</strong> - All logs use consistent [Chat-XXXXXX] format</li>
+            <li><strong>Request Duration Metrics</strong> - Added duration tracking to completion logs</li>
+            <li><strong>Fixed Log Levels</strong> - Normal API requests no longer logged as WARN</li>
+        </ul>
+
+        <p><strong>🧪 Testing:</strong></p>
+        <ul>
+            <li><strong>11 New SSE Tests</strong> - SSE format compliance and regression tests</li>
+            <li><strong>AI Assistant Compatibility</strong> - Tests verify proper event separation and no JSON concatenation</li>
+        </ul>
+
+        <hr/>
+
         <h3>🎉 Version 0.4.0 - OAuth/PKCE Authentication & Dynamic Plugin Support (2025-12-22)</h3>
         <p><strong>🔐 Authentication & Security:</strong></p>
         <ul>

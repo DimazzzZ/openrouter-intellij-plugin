@@ -98,14 +98,20 @@ class ChatCompletionServlet : HttpServlet() {
         } catch (e: RuntimeException) {
             handleException(e, resp, requestId)
         } finally {
-            logRequestBoundary(requestId, isStart = false)
+            val durationMs = (System.nanoTime() - startNs) / 1_000_000
+            logRequestBoundary(requestId, isStart = false, durationMs = durationMs)
         }
     }
 
     /**
-     * Log request start
+     * Log request start/completion with optional duration
      */
-    private fun logRequestBoundary(requestId: String, isStart: Boolean, requestNumber: Int = 0) {
+    private fun logRequestBoundary(
+        requestId: String,
+        isStart: Boolean,
+        requestNumber: Int = 0,
+        durationMs: Long = 0
+    ) {
         PluginLogger.Service.info("═══════════════════════════════════════════════════════")
         if (isStart) {
             val timestamp = System.currentTimeMillis()
@@ -113,7 +119,7 @@ class ChatCompletionServlet : HttpServlet() {
             PluginLogger.Service.info("[Chat-$requestId] Timestamp: $timestamp")
             PluginLogger.Service.info("[Chat-$requestId] Total chat requests so far: $requestNumber")
         } else {
-            PluginLogger.Service.info("[Chat-$requestId] REQUEST COMPLETE")
+            PluginLogger.Service.info("[Chat-$requestId] REQUEST COMPLETE (${durationMs}ms)")
         }
         PluginLogger.Service.info("═══════════════════════════════════════════════════════")
     }
@@ -335,7 +341,10 @@ class ChatCompletionServlet : HttpServlet() {
         // Create user-friendly error message
         val userFriendlyMessage = createUserFriendlyErrorMessage(errorBody, context.response.code)
 
+        // Write error event with proper SSE format (data line + blank line)
         context.writer.write("data: ${gson.toJson(mapOf("error" to mapOf("message" to userFriendlyMessage)))}\n\n")
+        // Write [DONE] event to signal end of stream
+        context.writer.write("data: [DONE]\n\n")
         context.writer.flush()
     }
 
@@ -451,7 +460,7 @@ class ChatCompletionServlet : HttpServlet() {
         return try {
             val openAIRequest = gson.fromJson(requestBody, OpenAIChatCompletionRequest::class.java)
 
-            if (openAIRequest.messages.isNullOrEmpty()) {
+            if (openAIRequest.messages.isEmpty()) {
                 PluginLogger.Service.error(
                     "[Chat-$requestId] Request validation failed: messages cannot be null or empty"
                 )
