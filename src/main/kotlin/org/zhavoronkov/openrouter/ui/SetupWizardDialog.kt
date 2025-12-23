@@ -527,8 +527,13 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                 val key = String(keyField.password).trim()
                 if (authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR) {
                     settingsService.apiKeyManager.setApiKey(key)
+                    // Clear provisioning key when switching to REGULAR mode
+                    settingsService.apiKeyManager.setProvisioningKey("")
                 } else {
                     settingsService.apiKeyManager.setProvisioningKey(key)
+                    // Clear the old API key when switching to EXTENDED mode
+                    // The IntellijApiKeyManager will create a new one via the provisioning key
+                    settingsService.apiKeyManager.setApiKey("")
                 }
 
                 currentStep = STEP_MODELS

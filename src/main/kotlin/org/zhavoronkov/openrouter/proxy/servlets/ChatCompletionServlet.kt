@@ -335,7 +335,10 @@ class ChatCompletionServlet : HttpServlet() {
         // Create user-friendly error message
         val userFriendlyMessage = createUserFriendlyErrorMessage(errorBody, context.response.code)
 
+        // Write error event with proper SSE format (data line + blank line)
         context.writer.write("data: ${gson.toJson(mapOf("error" to mapOf("message" to userFriendlyMessage)))}\n\n")
+        // Write [DONE] event to signal end of stream
+        context.writer.write("data: [DONE]\n\n")
         context.writer.flush()
     }
 

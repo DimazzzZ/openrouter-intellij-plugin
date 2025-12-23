@@ -54,7 +54,10 @@ class StreamingResponseHandler {
             if (data == "[DONE]") {
                 return true
             }
+            // SSE format requires: "data: <content>\n\n" (blank line after each event)
+            // println() adds one newline, then we add another for the blank line
             writer.println(line)
+            writer.println() // Required blank line to separate SSE events
             writer.flush()
         }
         return false
@@ -64,7 +67,9 @@ class StreamingResponseHandler {
         PluginLogger.Service.error("[$requestId] Error during streaming", e)
         val errorJson = """{"error": {"message": "Streaming error: ${e.message}", "type": "stream_error"}}"""
         writer.println("data: $errorJson")
+        writer.println() // Blank line to separate SSE events
         writer.println("data: [DONE]")
+        writer.println() // Blank line after final event
         writer.flush()
     }
 
@@ -98,7 +103,9 @@ class StreamingResponseHandler {
             """.trimIndent().replace("\n", "")
 
         writer.println("data: $errorJson")
+        writer.println() // Blank line to separate SSE events
         writer.println("data: [DONE]")
+        writer.println() // Blank line after final event
         writer.flush()
     }
 

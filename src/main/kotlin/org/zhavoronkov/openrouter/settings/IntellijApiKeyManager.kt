@@ -37,12 +37,42 @@ class IntellijApiKeyManager(
             "ensureIntellijApiKeyExists: existingIntellijApiKey=${existingIntellijApiKey?.name ?: "null"}"
         )
 
-        if (existingIntellijApiKey != null && storedApiKey.isNotEmpty()) {
-            PluginLogger.Settings.debug("IntelliJ API key exists and is stored locally - no action needed")
+        // Validate that the stored API key actually matches the remote IntelliJ key
+        // The label field contains a preview of the key (e.g., "sk-or-v1-abc...xyz")
+        // We compare the prefix before "..." with the stored key's prefix
+        val storedKeyMatchesRemote = if (existingIntellijApiKey != null && storedApiKey.isNotEmpty()) {
+            val keyLabel = existingIntellijApiKey.label
+            // Label format is like "sk-or-v1-abc...xyz" - extract the prefix to compare
+            val labelPrefix = if (keyLabel.contains("...")) {
+                keyLabel.substringBefore("...")
+            } else {
+                // If no "...", use the whole label as prefix (shouldn't happen normally)
+                keyLabel
+            }
+            val storedKeyPrefix = storedApiKey.take(labelPrefix.length)
+            val matches = storedKeyPrefix == labelPrefix
+            PluginLogger.Settings.debug(
+                "ensureIntellijApiKeyExists: keyLabel=$keyLabel, " +
+                    "labelPrefix=$labelPrefix, storedKeyPrefix=$storedKeyPrefix, matches=$matches"
+            )
+            matches
+        } else {
+            false
+        }
+
+        if (existingIntellijApiKey != null && storedApiKey.isNotEmpty() && storedKeyMatchesRemote) {
+            PluginLogger.Settings.debug("IntelliJ API key exists and stored key matches remote - no action needed")
             return
         }
 
-        if (existingIntellijApiKey == null && !isCreatingApiKey) {
+        if (existingIntellijApiKey != null && storedApiKey.isNotEmpty() && !storedKeyMatchesRemote) {
+            PluginLogger.Settings.warn(
+                "Stored API key does not match remote IntelliJ API key - regenerating"
+            )
+            if (!isCreatingApiKey) {
+                recreateIntellijApiKeySilently()
+            }
+        } else if (existingIntellijApiKey == null && !isCreatingApiKey) {
             PluginLogger.Settings.info("IntelliJ API key not found, creating automatically")
             createIntellijApiKeyOnce()
         } else if (existingIntellijApiKey != null && storedApiKey.isEmpty() && !isCreatingApiKey) {
