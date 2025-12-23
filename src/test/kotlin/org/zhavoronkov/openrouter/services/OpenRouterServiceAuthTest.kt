@@ -124,7 +124,7 @@ class OpenRouterServiceAuthTest {
             val errorResult = result as ApiResult.Error
             assertEquals(400, errorResult.statusCode)
             assertTrue(errorResult.message.contains("Invalid code or verifier"))
-            */
+             */
         }
 
         @Test
@@ -162,7 +162,7 @@ class OpenRouterServiceAuthTest {
             // Restart the server for other tests
             mockWebServer = MockWebServer()
             mockWebServer.start()
-            */
+             */
         }
     }
 

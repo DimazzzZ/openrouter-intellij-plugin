@@ -22,7 +22,7 @@ object SetupWizardLogger {
      * Log debug information (only shown in debug mode)
      */
     fun debug(message: String) {
-        if (SetupWizardConfig.LOGGING_ENABLED && SetupWizardConfig.DEBUG_LOGGING_ENABLED) {
+        if (SetupWizardConfig.DEBUG_LOGGING_ENABLED) {
             PluginLogger.Service.debug("$TAG $message")
         }
     }

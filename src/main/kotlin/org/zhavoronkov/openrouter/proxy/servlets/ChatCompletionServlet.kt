@@ -451,7 +451,7 @@ class ChatCompletionServlet : HttpServlet() {
         return try {
             val openAIRequest = gson.fromJson(requestBody, OpenAIChatCompletionRequest::class.java)
 
-            if (openAIRequest.messages.isNullOrEmpty()) {
+            if (openAIRequest.messages.isEmpty()) {
                 PluginLogger.Service.error(
                     "[Chat-$requestId] Request validation failed: messages cannot be null or empty"
                 )

@@ -139,7 +139,7 @@ class OpenRouterConfigurable : Configurable {
 
                 when {
                     currentMaxTokensEnabled && panelMaxTokensEnabled -> panelMaxTokensValue != currentMaxTokensValue
-                    panelMaxTokensEnabled && !currentMaxTokensEnabled -> true
+                    panelMaxTokensEnabled -> true
                     !panelMaxTokensEnabled && currentMaxTokensEnabled -> true
                     else -> false
                 }
