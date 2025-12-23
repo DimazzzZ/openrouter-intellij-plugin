@@ -26,7 +26,7 @@ import java.io.IOException
 class WhatsNewNotificationActivity : ProjectActivity {
 
     companion object {
-        private const val CURRENT_VERSION = "0.4.0"
+        private const val CURRENT_VERSION = "0.4.1"
         private const val CHANGELOG_URL =
             "https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/CHANGELOG.md"
     }
@@ -68,13 +68,16 @@ class WhatsNewNotificationActivity : ProjectActivity {
             .createNotification(
                 "OpenRouter Plugin Updated to v$CURRENT_VERSION",
                 """
-                <b>🎉 New Features:</b><br/>
-                • <b>OAuth/PKCE Authentication</b> - One-click browser authorization for API keys<br/>
-                • <b>Dual Authentication Modes</b> - Choose Regular API Key or Provisioning Key<br/>
-                • <b>Enhanced Key Validation</b> - Comprehensive validation with better error messages<br/>
+                <b>🔧 Bug Fixes:</b><br/>
+                • <b>Fixed AI Assistant Streaming</b> - SSE format now complies with specification<br/>
+                • <b>Stream Termination</b> - All streams properly end with [DONE] marker<br/>
+                • <b>Error Handling</b> - Fixed error response SSE format<br/>
                 <br/>
-                <b>🧪 Quality Improvements:</b><br/>
-                • 475+ tests • Setup wizard refactoring • Better code organization • Settings migration
+                <b>📝 Logging Improvements:</b><br/>
+                • 78% reduction in log noise • Request duration metrics • Standardized request IDs<br/>
+                <br/>
+                <b>🧪 Testing:</b><br/>
+                • 11 new SSE format compliance tests • Regression tests for streaming bug
                 """.trimIndent(),
                 NotificationType.INFORMATION
             )

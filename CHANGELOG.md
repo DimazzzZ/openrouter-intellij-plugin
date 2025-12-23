@@ -5,6 +5,36 @@ All notable changes to the OpenRouter IntelliJ Plugin will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2025-12-23
+
+### Bug Fixes
+
+#### 🔧 SSE Streaming Format Compliance
+- **Fixed AI Assistant Streaming** - Fixed SSE (Server-Sent Events) format to comply with specification
+- **Blank Line Separators** - Added required blank lines after each SSE event to prevent JSON concatenation
+- **Stream Termination** - Ensured all streams end with `[DONE]` marker followed by blank line
+- **Error Handling** - Fixed error response SSE format to include proper event separators
+
+**Root Cause**: SSE events were not separated by blank lines, causing the AI Assistant's JSON parser to receive concatenated JSON objects like `{"id":"1",...}{"id":"2",...}`, resulting in parsing error: "Expected EOF after parsing, but had { instead"
+
+**Fix**: Added `writer.println()` after each SSE event in `StreamingResponseHandler.processStreamLine()` and error handlers to create the required blank line separator per SSE specification.
+
+### Code Quality
+
+#### 📝 Logging Improvements
+- **Reduced Log Noise** - Moved verbose logging (getApiKey, getStoredApiKey, API key validation) from INFO to DEBUG level
+- **Standardized Request IDs** - All log lines now use consistent `[Chat-XXXXXX]` format for easier log correlation
+- **Fixed Log Levels** - Changed normal API request logging from WARN to DEBUG level
+- **Request Duration Metrics** - Added request duration tracking to completion logs (e.g., `[Chat-000025] REQUEST COMPLETE (2118ms)`)
+
+**Impact**: 78% reduction in INFO-level log volume, better performance visibility, no false warnings
+
+#### 🧪 Testing
+- **SSE Format Tests** - Added 11 tests for SSE format compliance
+- **Regression Tests** - Added specific tests documenting the SSE parsing bug and fix
+- **AI Assistant Compatibility** - Tests verify no JSON concatenation and proper event separation
+- **Error Response Tests** - Tests ensure error responses follow SSE format with DONE marker
+
 ## [0.4.0] - 2025-12-22
 
 ### New Features

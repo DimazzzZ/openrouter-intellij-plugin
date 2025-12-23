@@ -98,14 +98,20 @@ class ChatCompletionServlet : HttpServlet() {
         } catch (e: RuntimeException) {
             handleException(e, resp, requestId)
         } finally {
-            logRequestBoundary(requestId, isStart = false)
+            val durationMs = (System.nanoTime() - startNs) / 1_000_000
+            logRequestBoundary(requestId, isStart = false, durationMs = durationMs)
         }
     }
 
     /**
-     * Log request start
+     * Log request start/completion with optional duration
      */
-    private fun logRequestBoundary(requestId: String, isStart: Boolean, requestNumber: Int = 0) {
+    private fun logRequestBoundary(
+        requestId: String,
+        isStart: Boolean,
+        requestNumber: Int = 0,
+        durationMs: Long = 0
+    ) {
         PluginLogger.Service.info("═══════════════════════════════════════════════════════")
         if (isStart) {
             val timestamp = System.currentTimeMillis()
@@ -113,7 +119,7 @@ class ChatCompletionServlet : HttpServlet() {
             PluginLogger.Service.info("[Chat-$requestId] Timestamp: $timestamp")
             PluginLogger.Service.info("[Chat-$requestId] Total chat requests so far: $requestNumber")
         } else {
-            PluginLogger.Service.info("[Chat-$requestId] REQUEST COMPLETE")
+            PluginLogger.Service.info("[Chat-$requestId] REQUEST COMPLETE (${durationMs}ms)")
         }
         PluginLogger.Service.info("═══════════════════════════════════════════════════════")
     }

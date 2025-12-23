@@ -28,7 +28,7 @@ class ApiKeySettingsManager(
         } else {
             encrypted
         }
-        PluginLogger.Service.info(
+        PluginLogger.Service.debug(
             "getApiKey: encrypted.length=${encrypted.length}, encrypted.isEmpty=${encrypted.isEmpty()}, " +
                 "decrypted.length=${decrypted.length}, decrypted.isEmpty=${decrypted.isEmpty()}"
         )

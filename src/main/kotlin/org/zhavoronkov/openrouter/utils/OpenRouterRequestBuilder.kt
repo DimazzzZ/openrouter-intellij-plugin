@@ -127,9 +127,9 @@ object OpenRouterRequestBuilder {
             } else {
                 "****"
             }
-            PluginLogger.Service.warn("[OpenRouter] Request: $method $url, Auth: Bearer $maskedToken")
+            PluginLogger.Service.debug("[OpenRouter] Request: $method $url, Auth: Bearer $maskedToken")
         } else {
-            PluginLogger.Service.warn("[OpenRouter] Request: $method $url, Auth: NONE")
+            PluginLogger.Service.debug("[OpenRouter] Request: $method $url, Auth: NONE")
         }
 
         // Set HTTP method and body
