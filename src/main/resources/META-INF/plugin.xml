@@ -64,6 +64,15 @@
 
     <!-- Change notes for this version -->
     <change-notes><![CDATA[
+        <h3>Version 0.4.2 - Multimodal Support (2026-01-20)</h3>
+        <p><strong>Improvements:</strong></p>
+        <ul>
+            <li><strong>Multimodal Support</strong> - Added support for image, audio, and video content with AI models</li>
+            <li><strong>Test Coverage</strong> - Added automated tests for multimodal capabilities</li>
+        </ul>
+
+        <hr/>
+
         <h3>🔧 Version 0.4.1 - SSE Streaming Fix & Logging Improvements (2025-12-23)</h3>
         <p><strong>🐛 Bug Fixes:</strong></p>
         <ul>
