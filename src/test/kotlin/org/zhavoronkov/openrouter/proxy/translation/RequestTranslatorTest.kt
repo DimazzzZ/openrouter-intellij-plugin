@@ -1,5 +1,6 @@
 package org.zhavoronkov.openrouter.proxy.translation
 
+import com.google.gson.JsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
@@ -16,7 +17,7 @@ class RequestTranslatorTest {
         val openAIRequest = OpenAIChatCompletionRequest(
             model = "gpt-4o-mini",
             messages = listOf(
-                OpenAIChatMessage(role = "user", content = "Hello")
+                OpenAIChatMessage(role = "user", content = JsonPrimitive("Hello"))
             ),
             temperature = 0.7,
             maxTokens = 150,
@@ -30,7 +31,7 @@ class RequestTranslatorTest {
         assertEquals("gpt-4o-mini", result.model, "Model should be passed through exactly")
         assertEquals(1, result.messages.size)
         assertEquals("user", result.messages[0].role)
-        assertEquals("Hello", result.messages[0].content)
+        assertEquals(JsonPrimitive("Hello"), result.messages[0].content)
         assertEquals(0.7, result.temperature)
         assertEquals(150, result.maxTokens)
         assertEquals(false, result.stream, "Stream flag should be passed through as-is")
@@ -42,7 +43,7 @@ class RequestTranslatorTest {
         val openAIRequest = OpenAIChatCompletionRequest(
             model = "gpt-4o",
             messages = listOf(
-                OpenAIChatMessage(role = "user", content = "Test")
+                OpenAIChatMessage(role = "user", content = JsonPrimitive("Test"))
             ),
             stream = true // This should be passed through
         )
@@ -60,7 +61,7 @@ class RequestTranslatorTest {
         val openAIRequest = OpenAIChatCompletionRequest(
             model = "gpt-3.5-turbo",
             messages = listOf(
-                OpenAIChatMessage(role = "user", content = "Test")
+                OpenAIChatMessage(role = "user", content = JsonPrimitive("Test"))
             )
             // No optional parameters provided
         )
@@ -84,10 +85,10 @@ class RequestTranslatorTest {
         val openAIRequest = OpenAIChatCompletionRequest(
             model = "gpt-4",
             messages = listOf(
-                OpenAIChatMessage(role = "system", content = "You are a helpful assistant"),
-                OpenAIChatMessage(role = "user", content = "Hello"),
-                OpenAIChatMessage(role = "assistant", content = "Hi there!"),
-                OpenAIChatMessage(role = "user", content = "How are you?")
+                OpenAIChatMessage(role = "system", content = JsonPrimitive("You are a helpful assistant")),
+                OpenAIChatMessage(role = "user", content = JsonPrimitive("Hello")),
+                OpenAIChatMessage(role = "assistant", content = JsonPrimitive("Hi there!")),
+                OpenAIChatMessage(role = "user", content = JsonPrimitive("How are you?"))
             )
         )
 
@@ -97,13 +98,13 @@ class RequestTranslatorTest {
         // Then
         assertEquals(4, result.messages.size)
         assertEquals("system", result.messages[0].role)
-        assertEquals("You are a helpful assistant", result.messages[0].content)
+        assertEquals(JsonPrimitive("You are a helpful assistant"), result.messages[0].content)
         assertEquals("user", result.messages[1].role)
-        assertEquals("Hello", result.messages[1].content)
+        assertEquals(JsonPrimitive("Hello"), result.messages[1].content)
         assertEquals("assistant", result.messages[2].role)
-        assertEquals("Hi there!", result.messages[2].content)
+        assertEquals(JsonPrimitive("Hi there!"), result.messages[2].content)
         assertEquals("user", result.messages[3].role)
-        assertEquals("How are you?", result.messages[3].content)
+        assertEquals(JsonPrimitive("How are you?"), result.messages[3].content)
     }
 
     @Test
@@ -112,7 +113,7 @@ class RequestTranslatorTest {
         val openAIRequest = OpenAIChatCompletionRequest(
             model = "gpt-4-turbo",
             messages = listOf(
-                OpenAIChatMessage(role = "user", content = "Test")
+                OpenAIChatMessage(role = "user", content = JsonPrimitive("Test"))
             ),
             temperature = 1.2,
             maxTokens = 500,
@@ -141,7 +142,7 @@ class RequestTranslatorTest {
             OpenAIChatCompletionRequest(
                 model = "gpt-4o-mini",
                 messages = listOf(
-                    OpenAIChatMessage(role = "user", content = "Hello")
+                    OpenAIChatMessage(role = "user", content = JsonPrimitive("Hello"))
                 )
             )
         )
@@ -160,7 +161,7 @@ class RequestTranslatorTest {
             OpenAIChatCompletionRequest(
                 model = "", // Invalid empty model
                 messages = listOf(
-                    OpenAIChatMessage(role = "user", content = "Hello")
+                    OpenAIChatMessage(role = "user", content = JsonPrimitive("Hello"))
                 )
             )
         )
@@ -195,7 +196,7 @@ class RequestTranslatorTest {
         val openAIRequest = OpenAIChatCompletionRequest(
             model = "gpt-4o-mini",
             messages = listOf(
-                OpenAIChatMessage(role = "user", content = "Hello")
+                OpenAIChatMessage(role = "user", content = JsonPrimitive("Hello"))
             ),
             temperature = 3.0 // Invalid temperature > 2.0
         )
@@ -230,7 +231,7 @@ class RequestTranslatorTest {
             val request = OpenAIChatCompletionRequest(
                 model = modelName,
                 messages = listOf(
-                    OpenAIChatMessage(role = "user", content = "Test")
+                    OpenAIChatMessage(role = "user", content = JsonPrimitive("Test"))
                 )
             )
 

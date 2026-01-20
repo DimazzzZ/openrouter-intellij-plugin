@@ -1,5 +1,6 @@
 package org.zhavoronkov.openrouter.proxy.models
 
+import com.google.gson.JsonElement
 import com.google.gson.annotations.SerializedName
 
 /**
@@ -21,10 +22,43 @@ data class OpenAIChatCompletionRequest(
     val user: String? = null
 )
 
+/**
+ * OpenAI chat message that supports both text-only and multimodal content
+ * Content can be:
+ * - A simple string for text-only messages
+ * - An array of content parts for multimodal messages (text + images/files)
+ */
 data class OpenAIChatMessage(
     val role: String, // "system", "user", "assistant"
-    val content: String,
+    val content: JsonElement, // Can be String or Array of ContentPart
     val name: String? = null
+)
+
+/**
+ * Content part for multimodal messages
+ * Used when content is an array
+ */
+data class OpenAIContentPart(
+    val type: String, // "text", "image_url", "input_audio", etc.
+    val text: String? = null, // For type="text"
+    @SerializedName("image_url") val imageUrl: OpenAIImageUrl? = null, // For type="image_url"
+    @SerializedName("input_audio") val inputAudio: OpenAIInputAudio? = null // For type="input_audio"
+)
+
+/**
+ * Image URL content for vision models
+ */
+data class OpenAIImageUrl(
+    val url: String, // URL or base64 data URI
+    val detail: String? = null // "auto", "low", "high"
+)
+
+/**
+ * Audio input content for audio models
+ */
+data class OpenAIInputAudio(
+    val data: String, // Base64 encoded audio data
+    val format: String // "wav", "mp3", etc.
 )
 
 // Chat Completion Response Models

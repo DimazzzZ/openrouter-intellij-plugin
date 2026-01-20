@@ -1,5 +1,6 @@
 package org.zhavoronkov.openrouter.proxy.translation
 
+import com.google.gson.JsonPrimitive
 import org.zhavoronkov.openrouter.models.ChatCompletionResponse
 import org.zhavoronkov.openrouter.models.ProvidersResponse
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatChoice
@@ -43,7 +44,7 @@ object ResponseTranslator {
                     index = index,
                     message = OpenAIChatMessage(
                         role = choice.message?.role ?: "assistant",
-                        content = choice.message?.content ?: ""
+                        content = choice.message?.content ?: JsonPrimitive("")
                     ),
                     finishReason = choice.finishReason
                 )
@@ -192,7 +193,9 @@ object ResponseTranslator {
                 response.model.isNotBlank() &&
                 response.choices.isNotEmpty() &&
                 response.choices.all { choice ->
-                    choice.message.role.isNotBlank() && choice.message.content.isNotBlank()
+                    choice.message.role.isNotBlank() &&
+                    (choice.message.content.isJsonPrimitive &&
+                     choice.message.content.asString.isNotBlank())
                 }
         } catch (e: NullPointerException) {
             PluginLogger.Service.error("Response validation failed: null value encountered", e)

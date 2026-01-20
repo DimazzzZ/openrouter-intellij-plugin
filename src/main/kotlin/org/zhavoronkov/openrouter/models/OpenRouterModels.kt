@@ -238,9 +238,15 @@ data class ChatCompletionRequest(
     val stream: Boolean? = false
 )
 
+/**
+ * Chat message that supports both text-only and multimodal content
+ * Content can be:
+ * - A simple string for text-only messages
+ * - An array of content parts for multimodal messages (text + images/files)
+ */
 data class ChatMessage(
     val role: String, // "system", "user", "assistant"
-    val content: String,
+    val content: com.google.gson.JsonElement, // Can be String or Array of content parts
     val name: String? = null
 )
 
