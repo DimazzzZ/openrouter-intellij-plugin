@@ -1,6 +1,7 @@
 package org.zhavoronkov.openrouter.regression
 
 import com.google.gson.Gson
+import com.google.gson.JsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -31,7 +32,7 @@ class SerializationRegressionTest {
         // Given: Request with camelCase properties
         val request = OpenAIChatCompletionRequest(
             model = "gpt-4",
-            messages = listOf(OpenAIChatMessage(role = "user", content = "test")),
+            messages = listOf(OpenAIChatMessage(role = "user", content = JsonPrimitive("test"))),
             maxTokens = 100,
             topP = 0.9,
             frequencyPenalty = 0.5,
@@ -83,7 +84,7 @@ class SerializationRegressionTest {
         // Given: Choice with camelCase property
         val choice = OpenAIChatChoice(
             index = 0,
-            message = OpenAIChatMessage(role = "assistant", content = "response"),
+            message = OpenAIChatMessage(role = "assistant", content = JsonPrimitive("response")),
             finishReason = "stop"
         )
 
@@ -167,7 +168,7 @@ class SerializationRegressionTest {
         // Given: Original request
         val original = OpenAIChatCompletionRequest(
             model = "gpt-4",
-            messages = listOf(OpenAIChatMessage(role = "user", content = "test")),
+            messages = listOf(OpenAIChatMessage(role = "user", content = JsonPrimitive("test"))),
             maxTokens = 150,
             topP = 0.95,
             frequencyPenalty = 0.2,

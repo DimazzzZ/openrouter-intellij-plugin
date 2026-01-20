@@ -78,7 +78,9 @@ object RequestTranslator {
             // Basic validation
             request.model.isNotBlank() &&
                 request.messages.isNotEmpty() &&
-                request.messages.all { it.role.isNotBlank() && it.content.isNotBlank() } &&
+                request.messages.all { message ->
+                    message.role.isNotBlank() && isValidContent(message.content)
+                } &&
                 (request.temperature == null || request.temperature in 0.0..2.0) &&
                 (request.maxTokens == null || request.maxTokens > 0) &&
                 (request.topP == null || request.topP in 0.0..1.0)
@@ -88,6 +90,19 @@ object RequestTranslator {
         } catch (e: IllegalArgumentException) {
             PluginLogger.Service.error("Request validation failed: invalid argument", e)
             false
+        }
+    }
+
+    /**
+     * Validates that content is either a non-blank string or a non-empty array
+     */
+    private fun isValidContent(content: com.google.gson.JsonElement): Boolean {
+        return when {
+            content.isJsonPrimitive && content.asJsonPrimitive.isString ->
+                content.asString.isNotBlank()
+            content.isJsonArray ->
+                content.asJsonArray.size() > 0
+            else -> false
         }
     }
 
