@@ -91,7 +91,11 @@ object TestMediaGenerator {
 
         // Download using curl
         val process = ProcessBuilder(
-            "curl", "-L", "-o", mediaGenBinary.toString(), downloadUrl
+            "curl",
+            "-L",
+            "-o",
+            mediaGenBinary.toString(),
+            downloadUrl
         ).redirectErrorStream(true).start()
 
         val exitCode = process.waitFor()
@@ -133,8 +137,12 @@ object TestMediaGenerator {
 
         // Draw gradient background
         val gradient = java.awt.GradientPaint(
-            0f, 0f, java.awt.Color(100, 150, 255),
-            200f, 200f, java.awt.Color(255, 100, 150)
+            0f,
+            0f,
+            java.awt.Color(100, 150, 255),
+            200f,
+            200f,
+            java.awt.Color(255, 100, 150)
         )
         g.paint = gradient
         g.fillRect(0, 0, 200, 200)

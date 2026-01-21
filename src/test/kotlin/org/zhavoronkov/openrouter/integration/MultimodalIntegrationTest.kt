@@ -258,8 +258,10 @@ class MultimodalIntegrationTest {
                 .getAsJsonObject("message")
                 .get("content").asString
 
-            assertTrue(content.contains("Paris", ignoreCase = true),
-                "Response should mention Paris, got: $content")
+            assertTrue(
+                content.contains("Paris", ignoreCase = true),
+                "Response should mention Paris, got: $content"
+            )
 
             println("✅ Text-only test succeeded")
         }
@@ -298,28 +300,42 @@ class MultimodalIntegrationTest {
         println("   Response: ${content.take(100)}...")
     }
 
-
     // Request builder methods
     private fun createVisionRequest(model: String, imageDataUrl: String, prompt: String): String {
         val requestJson = JsonObject().apply {
             addProperty("model", model)
-            add("messages", JsonArray().apply {
-                add(JsonObject().apply {
-                    addProperty("role", "user")
-                    add("content", JsonArray().apply {
-                        add(JsonObject().apply {
-                            addProperty("type", "text")
-                            addProperty("text", prompt)
-                        })
-                        add(JsonObject().apply {
-                            addProperty("type", "image_url")
-                            add("image_url", JsonObject().apply {
-                                addProperty("url", imageDataUrl)
-                            })
-                        })
-                    })
-                })
-            })
+            add(
+                "messages",
+                JsonArray().apply {
+                    add(
+                        JsonObject().apply {
+                            addProperty("role", "user")
+                            add(
+                                "content",
+                                JsonArray().apply {
+                                    add(
+                                        JsonObject().apply {
+                                            addProperty("type", "text")
+                                            addProperty("text", prompt)
+                                        }
+                                    )
+                                    add(
+                                        JsonObject().apply {
+                                            addProperty("type", "image_url")
+                                            add(
+                                                "image_url",
+                                                JsonObject().apply {
+                                                    addProperty("url", imageDataUrl)
+                                                }
+                                            )
+                                        }
+                                    )
+                                }
+                            )
+                        }
+                    )
+                }
+            )
             addProperty("max_tokens", 300)
         }
         return gson.toJson(requestJson)
@@ -328,23 +344,38 @@ class MultimodalIntegrationTest {
     private fun createAudioRequest(model: String, audioDataUrl: String, prompt: String): String {
         val requestJson = JsonObject().apply {
             addProperty("model", model)
-            add("messages", JsonArray().apply {
-                add(JsonObject().apply {
-                    addProperty("role", "user")
-                    add("content", JsonArray().apply {
-                        add(JsonObject().apply {
-                            addProperty("type", "text")
-                            addProperty("text", prompt)
-                        })
-                        add(JsonObject().apply {
-                            addProperty("type", "audio_url")
-                            add("audio_url", JsonObject().apply {
-                                addProperty("url", audioDataUrl)
-                            })
-                        })
-                    })
-                })
-            })
+            add(
+                "messages",
+                JsonArray().apply {
+                    add(
+                        JsonObject().apply {
+                            addProperty("role", "user")
+                            add(
+                                "content",
+                                JsonArray().apply {
+                                    add(
+                                        JsonObject().apply {
+                                            addProperty("type", "text")
+                                            addProperty("text", prompt)
+                                        }
+                                    )
+                                    add(
+                                        JsonObject().apply {
+                                            addProperty("type", "audio_url")
+                                            add(
+                                                "audio_url",
+                                                JsonObject().apply {
+                                                    addProperty("url", audioDataUrl)
+                                                }
+                                            )
+                                        }
+                                    )
+                                }
+                            )
+                        }
+                    )
+                }
+            )
             addProperty("max_tokens", 300)
         }
         return gson.toJson(requestJson)
@@ -353,23 +384,38 @@ class MultimodalIntegrationTest {
     private fun createVideoRequest(model: String, videoDataUrl: String, prompt: String): String {
         val requestJson = JsonObject().apply {
             addProperty("model", model)
-            add("messages", JsonArray().apply {
-                add(JsonObject().apply {
-                    addProperty("role", "user")
-                    add("content", JsonArray().apply {
-                        add(JsonObject().apply {
-                            addProperty("type", "text")
-                            addProperty("text", prompt)
-                        })
-                        add(JsonObject().apply {
-                            addProperty("type", "video_url")
-                            add("video_url", JsonObject().apply {
-                                addProperty("url", videoDataUrl)
-                            })
-                        })
-                    })
-                })
-            })
+            add(
+                "messages",
+                JsonArray().apply {
+                    add(
+                        JsonObject().apply {
+                            addProperty("role", "user")
+                            add(
+                                "content",
+                                JsonArray().apply {
+                                    add(
+                                        JsonObject().apply {
+                                            addProperty("type", "text")
+                                            addProperty("text", prompt)
+                                        }
+                                    )
+                                    add(
+                                        JsonObject().apply {
+                                            addProperty("type", "video_url")
+                                            add(
+                                                "video_url",
+                                                JsonObject().apply {
+                                                    addProperty("url", videoDataUrl)
+                                                }
+                                            )
+                                        }
+                                    )
+                                }
+                            )
+                        }
+                    )
+                }
+            )
             addProperty("max_tokens", 500)
         }
         return gson.toJson(requestJson)
@@ -378,25 +424,40 @@ class MultimodalIntegrationTest {
     private fun createMultiImageRequest(model: String, imageDataUrls: List<String>, prompt: String): String {
         val requestJson = JsonObject().apply {
             addProperty("model", model)
-            add("messages", JsonArray().apply {
-                add(JsonObject().apply {
-                    addProperty("role", "user")
-                    add("content", JsonArray().apply {
-                        add(JsonObject().apply {
-                            addProperty("type", "text")
-                            addProperty("text", prompt)
-                        })
-                        imageDataUrls.forEach { imageUrl ->
-                            add(JsonObject().apply {
-                                addProperty("type", "image_url")
-                                add("image_url", JsonObject().apply {
-                                    addProperty("url", imageUrl)
-                                })
-                            })
+            add(
+                "messages",
+                JsonArray().apply {
+                    add(
+                        JsonObject().apply {
+                            addProperty("role", "user")
+                            add(
+                                "content",
+                                JsonArray().apply {
+                                    add(
+                                        JsonObject().apply {
+                                            addProperty("type", "text")
+                                            addProperty("text", prompt)
+                                        }
+                                    )
+                                    imageDataUrls.forEach { imageUrl ->
+                                        add(
+                                            JsonObject().apply {
+                                                addProperty("type", "image_url")
+                                                add(
+                                                    "image_url",
+                                                    JsonObject().apply {
+                                                        addProperty("url", imageUrl)
+                                                    }
+                                                )
+                                            }
+                                        )
+                                    }
+                                }
+                            )
                         }
-                    })
-                })
-            })
+                    )
+                }
+            )
             addProperty("max_tokens", 500)
         }
         return gson.toJson(requestJson)
@@ -405,17 +466,19 @@ class MultimodalIntegrationTest {
     private fun createTextOnlyRequest(model: String, prompt: String): String {
         val requestJson = JsonObject().apply {
             addProperty("model", model)
-            add("messages", JsonArray().apply {
-                add(JsonObject().apply {
-                    addProperty("role", "user")
-                    addProperty("content", prompt)
-                })
-            })
+            add(
+                "messages",
+                JsonArray().apply {
+                    add(
+                        JsonObject().apply {
+                            addProperty("role", "user")
+                            addProperty("content", prompt)
+                        }
+                    )
+                }
+            )
             addProperty("max_tokens", 100)
         }
         return gson.toJson(requestJson)
     }
 }
-
-
-

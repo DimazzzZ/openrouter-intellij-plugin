@@ -5,7 +5,6 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -13,7 +12,6 @@ import org.junit.jupiter.api.Test
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatMessage
 import org.zhavoronkov.openrouter.proxy.translation.RequestTranslator
-import org.zhavoronkov.openrouter.utils.TestMediaGenerator
 
 /**
  * Unit tests for vision model support with image content.
@@ -49,16 +47,26 @@ class VisionModelSupportTest {
         fun testStructuredContent() {
             // Given: Message with structured content (text + image)
             val contentArray = JsonArray().apply {
-                add(JsonObject().apply {
-                    addProperty("type", "text")
-                    addProperty("text", "What's in this image?")
-                })
-                add(JsonObject().apply {
-                    addProperty("type", "image_url")
-                    add("image_url", JsonObject().apply {
-                        addProperty("url", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
-                    })
-                })
+                add(
+                    JsonObject().apply {
+                        addProperty("type", "text")
+                        addProperty("text", "What's in this image?")
+                    }
+                )
+                add(
+                    JsonObject().apply {
+                        addProperty("type", "image_url")
+                        add(
+                            "image_url",
+                            JsonObject().apply {
+                                addProperty(
+                                    "url",
+                                    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+                                )
+                            }
+                        )
+                    }
+                )
             }
 
             val message = OpenAIChatMessage(
@@ -80,22 +88,34 @@ class VisionModelSupportTest {
         fun testMultipleImages() {
             // Given: Message with multiple images
             val contentArray = JsonArray().apply {
-                add(JsonObject().apply {
-                    addProperty("type", "text")
-                    addProperty("text", "Compare these images")
-                })
-                add(JsonObject().apply {
-                    addProperty("type", "image_url")
-                    add("image_url", JsonObject().apply {
-                        addProperty("url", "data:image/png;base64,image1")
-                    })
-                })
-                add(JsonObject().apply {
-                    addProperty("type", "image_url")
-                    add("image_url", JsonObject().apply {
-                        addProperty("url", "data:image/png;base64,image2")
-                    })
-                })
+                add(
+                    JsonObject().apply {
+                        addProperty("type", "text")
+                        addProperty("text", "Compare these images")
+                    }
+                )
+                add(
+                    JsonObject().apply {
+                        addProperty("type", "image_url")
+                        add(
+                            "image_url",
+                            JsonObject().apply {
+                                addProperty("url", "data:image/png;base64,image1")
+                            }
+                        )
+                    }
+                )
+                add(
+                    JsonObject().apply {
+                        addProperty("type", "image_url")
+                        add(
+                            "image_url",
+                            JsonObject().apply {
+                                addProperty("url", "data:image/png;base64,image2")
+                            }
+                        )
+                    }
+                )
             }
 
             val message = OpenAIChatMessage(
@@ -120,16 +140,23 @@ class VisionModelSupportTest {
         fun testVisionRequestTranslation() {
             // Given: Request with vision content
             val contentArray = JsonArray().apply {
-                add(JsonObject().apply {
-                    addProperty("type", "text")
-                    addProperty("text", "Describe this image")
-                })
-                add(JsonObject().apply {
-                    addProperty("type", "image_url")
-                    add("image_url", JsonObject().apply {
-                        addProperty("url", "data:image/png;base64,test")
-                    })
-                })
+                add(
+                    JsonObject().apply {
+                        addProperty("type", "text")
+                        addProperty("text", "Describe this image")
+                    }
+                )
+                add(
+                    JsonObject().apply {
+                        addProperty("type", "image_url")
+                        add(
+                            "image_url",
+                            JsonObject().apply {
+                                addProperty("url", "data:image/png;base64,test")
+                            }
+                        )
+                    }
+                )
             }
 
             val request = OpenAIChatCompletionRequest(
@@ -151,4 +178,3 @@ class VisionModelSupportTest {
         }
     }
 }
-
