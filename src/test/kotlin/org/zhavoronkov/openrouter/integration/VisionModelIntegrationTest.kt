@@ -127,8 +127,6 @@ class VisionModelIntegrationTest {
                 prompt = "What text do you see in this image?"
             )
 
-
-
             // When: Send request to OpenRouter
             val request = Request.Builder()
                 .url("$openRouterApiUrl/chat/completions")
@@ -244,12 +242,17 @@ class VisionModelIntegrationTest {
             // Given: Text-only request to vision model
             val requestJson = JsonObject().apply {
                 addProperty("model", "openai/gpt-4-vision-preview")
-                add("messages", JsonArray().apply {
-                    add(JsonObject().apply {
-                        addProperty("role", "user")
-                        addProperty("content", "What is 2+2?")
-                    })
-                })
+                add(
+                    "messages",
+                    JsonArray().apply {
+                        add(
+                            JsonObject().apply {
+                                addProperty("role", "user")
+                                addProperty("content", "What is 2+2?")
+                            }
+                        )
+                    }
+                )
                 addProperty("max_tokens", 100)
             }
 
@@ -272,28 +275,42 @@ class VisionModelIntegrationTest {
         }
     }
 
-
     // Helper methods
     private fun createVisionRequest(model: String, imageDataUrl: String, prompt: String): String {
         val requestJson = JsonObject().apply {
             addProperty("model", model)
-            add("messages", JsonArray().apply {
-                add(JsonObject().apply {
-                    addProperty("role", "user")
-                    add("content", JsonArray().apply {
-                        add(JsonObject().apply {
-                            addProperty("type", "text")
-                            addProperty("text", prompt)
-                        })
-                        add(JsonObject().apply {
-                            addProperty("type", "image_url")
-                            add("image_url", JsonObject().apply {
-                                addProperty("url", imageDataUrl)
-                            })
-                        })
-                    })
-                })
-            })
+            add(
+                "messages",
+                JsonArray().apply {
+                    add(
+                        JsonObject().apply {
+                            addProperty("role", "user")
+                            add(
+                                "content",
+                                JsonArray().apply {
+                                    add(
+                                        JsonObject().apply {
+                                            addProperty("type", "text")
+                                            addProperty("text", prompt)
+                                        }
+                                    )
+                                    add(
+                                        JsonObject().apply {
+                                            addProperty("type", "image_url")
+                                            add(
+                                                "image_url",
+                                                JsonObject().apply {
+                                                    addProperty("url", imageDataUrl)
+                                                }
+                                            )
+                                        }
+                                    )
+                                }
+                            )
+                        }
+                    )
+                }
+            )
             addProperty("max_tokens", 300)
         }
         return gson.toJson(requestJson)
@@ -302,25 +319,40 @@ class VisionModelIntegrationTest {
     private fun createMultiImageRequest(model: String, imageDataUrls: List<String>, prompt: String): String {
         val requestJson = JsonObject().apply {
             addProperty("model", model)
-            add("messages", JsonArray().apply {
-                add(JsonObject().apply {
-                    addProperty("role", "user")
-                    add("content", JsonArray().apply {
-                        add(JsonObject().apply {
-                            addProperty("type", "text")
-                            addProperty("text", prompt)
-                        })
-                        imageDataUrls.forEach { imageUrl ->
-                            add(JsonObject().apply {
-                                addProperty("type", "image_url")
-                                add("image_url", JsonObject().apply {
-                                    addProperty("url", imageUrl)
-                                })
-                            })
+            add(
+                "messages",
+                JsonArray().apply {
+                    add(
+                        JsonObject().apply {
+                            addProperty("role", "user")
+                            add(
+                                "content",
+                                JsonArray().apply {
+                                    add(
+                                        JsonObject().apply {
+                                            addProperty("type", "text")
+                                            addProperty("text", prompt)
+                                        }
+                                    )
+                                    imageDataUrls.forEach { imageUrl ->
+                                        add(
+                                            JsonObject().apply {
+                                                addProperty("type", "image_url")
+                                                add(
+                                                    "image_url",
+                                                    JsonObject().apply {
+                                                        addProperty("url", imageUrl)
+                                                    }
+                                                )
+                                            }
+                                        )
+                                    }
+                                }
+                            )
                         }
-                    })
-                })
-            })
+                    )
+                }
+            )
             addProperty("max_tokens", 500)
         }
         return gson.toJson(requestJson)
