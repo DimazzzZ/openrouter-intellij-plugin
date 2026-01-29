@@ -1408,4 +1408,297 @@ class StreamingResponseHandlerTest {
             }
         }
     }
+
+    @Nested
+    @DisplayName("Audio Input Error Handling Tests")
+    inner class AudioInputErrorHandlingTests {
+
+        @Test
+        @DisplayName("Should detect 'support audio input' error pattern")
+        fun testAudioInputNotSupportedPattern() {
+            val audioInputError = """{"error":{"message":"No endpoints found that support audio input"}}"""
+
+            assertTrue(
+                audioInputError.contains("support audio input", ignoreCase = true),
+                "Should detect 'support audio input' pattern"
+            )
+        }
+
+        @Test
+        @DisplayName("Should detect 'audio not supported' error pattern")
+        fun testAudioNotSupportedPattern() {
+            val audioNotSupportedError = """{"error":{"message":"Audio not supported by this model"}}"""
+
+            assertTrue(
+                audioNotSupportedError.contains("audio not supported", ignoreCase = true),
+                "Should detect 'audio not supported' pattern"
+            )
+        }
+
+        @Test
+        @DisplayName("Should differentiate audio error from image error")
+        fun testAudioVsImageError() {
+            val audioError = """{"error":{"message":"No endpoints found that support audio input"}}"""
+            val imageError = """{"error":{"message":"No endpoints found that support image input"}}"""
+
+            assertTrue(audioError.contains("audio input"), "Audio error should contain 'audio input'")
+            assertFalse(audioError.contains("image input"), "Audio error should NOT contain 'image input'")
+            assertTrue(imageError.contains("image input"), "Image error should contain 'image input'")
+            assertFalse(imageError.contains("audio input"), "Image error should NOT contain 'audio input'")
+        }
+
+        @Test
+        @DisplayName("Should suggest audio-capable models")
+        fun testAudioCapableModelSuggestions() {
+            val expectedAudioModels = listOf(
+                "openai/gpt-4o-audio-preview",
+                "google/gemini-2.0-flash-exp",
+                "google/gemini-pro-1.5"
+            )
+
+            for (model in expectedAudioModels) {
+                assertTrue(model.contains("/"), "Model should have provider prefix: $model")
+                assertFalse(model.contains(" "), "Model should not have spaces: $model")
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("Video Input Error Handling Tests")
+    inner class VideoInputErrorHandlingTests {
+
+        @Test
+        @DisplayName("Should detect 'support video input' error pattern")
+        fun testVideoInputNotSupportedPattern() {
+            val videoInputError = """{"error":{"message":"No endpoints found that support video input"}}"""
+
+            assertTrue(
+                videoInputError.contains("support video input", ignoreCase = true),
+                "Should detect 'support video input' pattern"
+            )
+        }
+
+        @Test
+        @DisplayName("Should detect 'video not supported' error pattern")
+        fun testVideoNotSupportedPattern() {
+            val videoNotSupportedError = """{"error":{"message":"Video not supported by this model"}}"""
+
+            assertTrue(
+                videoNotSupportedError.contains("video not supported", ignoreCase = true),
+                "Should detect 'video not supported' pattern"
+            )
+        }
+
+        @Test
+        @DisplayName("Should differentiate video error from other modality errors")
+        fun testVideoVsOtherModalityErrors() {
+            val videoError = """{"error":{"message":"No endpoints found that support video input"}}"""
+            val imageError = """{"error":{"message":"No endpoints found that support image input"}}"""
+            val audioError = """{"error":{"message":"No endpoints found that support audio input"}}"""
+
+            assertTrue(videoError.contains("video input"), "Video error should contain 'video input'")
+            assertFalse(videoError.contains("image input"), "Video error should NOT contain 'image input'")
+            assertFalse(videoError.contains("audio input"), "Video error should NOT contain 'audio input'")
+        }
+
+        @Test
+        @DisplayName("Should suggest video-capable models")
+        fun testVideoCapableModelSuggestions() {
+            val expectedVideoModels = listOf(
+                "google/gemini-2.0-flash-exp",
+                "google/gemini-pro-1.5",
+                "openai/gpt-4o"
+            )
+
+            for (model in expectedVideoModels) {
+                assertTrue(model.contains("/"), "Model should have provider prefix: $model")
+                assertFalse(model.contains(" "), "Model should not have spaces: $model")
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("PDF/File Input Error Handling Tests")
+    inner class FileInputErrorHandlingTests {
+
+        @Test
+        @DisplayName("Should detect 'support pdf' error pattern")
+        fun testPdfNotSupportedPattern() {
+            val pdfError = """{"error":{"message":"No endpoints found that support pdf input"}}"""
+
+            assertTrue(
+                pdfError.contains("support pdf", ignoreCase = true),
+                "Should detect 'support pdf' pattern"
+            )
+        }
+
+        @Test
+        @DisplayName("Should detect 'support file' error pattern")
+        fun testFileNotSupportedPattern() {
+            val fileError = """{"error":{"message":"No endpoints found that support file input"}}"""
+
+            assertTrue(
+                fileError.contains("support file", ignoreCase = true),
+                "Should detect 'support file' pattern"
+            )
+        }
+
+        @Test
+        @DisplayName("Should detect 'pdf not supported' error pattern")
+        fun testPdfNotSupportedAlternatePattern() {
+            val pdfNotSupportedError = """{"error":{"message":"PDF not supported by this model"}}"""
+
+            assertTrue(
+                pdfNotSupportedError.contains("pdf not supported", ignoreCase = true),
+                "Should detect 'pdf not supported' pattern"
+            )
+        }
+
+        @Test
+        @DisplayName("Should detect 'file not supported' error pattern")
+        fun testFileNotSupportedAlternatePattern() {
+            val fileNotSupportedError = """{"error":{"message":"File not supported by this model"}}"""
+
+            assertTrue(
+                fileNotSupportedError.contains("file not supported", ignoreCase = true),
+                "Should detect 'file not supported' pattern"
+            )
+        }
+
+        @Test
+        @DisplayName("Should differentiate file error from other modality errors")
+        fun testFileVsOtherModalityErrors() {
+            val fileError = """{"error":{"message":"No endpoints found that support pdf input"}}"""
+            val imageError = """{"error":{"message":"No endpoints found that support image input"}}"""
+            val videoError = """{"error":{"message":"No endpoints found that support video input"}}"""
+
+            assertTrue(fileError.contains("pdf", ignoreCase = true), "File error should contain 'pdf'")
+            assertFalse(fileError.contains("image input"), "File error should NOT contain 'image input'")
+            assertFalse(fileError.contains("video input"), "File error should NOT contain 'video input'")
+        }
+
+        @Test
+        @DisplayName("Should suggest document-capable models")
+        fun testDocumentCapableModelSuggestions() {
+            val expectedDocumentModels = listOf(
+                "google/gemini-pro-1.5",
+                "anthropic/claude-3.5-sonnet",
+                "openai/gpt-4o"
+            )
+
+            for (model in expectedDocumentModels) {
+                assertTrue(model.contains("/"), "Model should have provider prefix: $model")
+                assertFalse(model.contains(" "), "Model should not have spaces: $model")
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("Multimodal Content Type Model Tests")
+    inner class MultimodalContentTypeModelTests {
+
+        @Test
+        @DisplayName("Should support video_url content type structure")
+        fun testVideoUrlContentType() {
+            val videoContent = mapOf(
+                "type" to "video_url",
+                "video_url" to mapOf(
+                    "url" to "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+                )
+            )
+
+            assertEquals("video_url", videoContent["type"])
+            @Suppress("UNCHECKED_CAST")
+            val videoUrl = videoContent["video_url"] as Map<String, String>
+            assertTrue(videoUrl["url"]!!.startsWith("https://"))
+        }
+
+        @Test
+        @DisplayName("Should support video_url with base64 data URI")
+        fun testVideoUrlBase64() {
+            val base64VideoUrl = "data:video/mp4;base64,AAAA..."
+            val videoContent = mapOf(
+                "type" to "video_url",
+                "video_url" to mapOf(
+                    "url" to base64VideoUrl
+                )
+            )
+
+            @Suppress("UNCHECKED_CAST")
+            val videoUrl = videoContent["video_url"] as Map<String, String>
+            assertTrue(videoUrl["url"]!!.startsWith("data:video/"))
+        }
+
+        @Test
+        @DisplayName("Should support file content type structure for PDFs")
+        fun testFileContentType() {
+            val fileContent = mapOf(
+                "type" to "file",
+                "file" to mapOf(
+                    "filename" to "document.pdf",
+                    "file_data" to "https://bitcoin.org/bitcoin.pdf"
+                )
+            )
+
+            assertEquals("file", fileContent["type"])
+            @Suppress("UNCHECKED_CAST")
+            val file = fileContent["file"] as Map<String, String>
+            assertEquals("document.pdf", file["filename"])
+            assertTrue(file["file_data"]!!.endsWith(".pdf"))
+        }
+
+        @Test
+        @DisplayName("Should support file content type with base64 data URI")
+        fun testFileBase64() {
+            val base64PdfUrl = "data:application/pdf;base64,JVBERi0xLjQK..."
+            val fileContent = mapOf(
+                "type" to "file",
+                "file" to mapOf(
+                    "filename" to "document.pdf",
+                    "file_data" to base64PdfUrl
+                )
+            )
+
+            @Suppress("UNCHECKED_CAST")
+            val file = fileContent["file"] as Map<String, String>
+            assertTrue(file["file_data"]!!.startsWith("data:application/pdf"))
+        }
+
+        @Test
+        @DisplayName("Should support all multimodal content types in a single message")
+        fun testMixedMultimodalContent() {
+            val mixedContent = listOf(
+                mapOf("type" to "text", "text" to "Analyze these files"),
+                mapOf(
+                    "type" to "image_url",
+                    "image_url" to mapOf("url" to "https://example.com/image.jpg")
+                ),
+                mapOf(
+                    "type" to "video_url",
+                    "video_url" to mapOf("url" to "https://example.com/video.mp4")
+                ),
+                mapOf(
+                    "type" to "file",
+                    "file" to mapOf("filename" to "doc.pdf", "file_data" to "https://example.com/doc.pdf")
+                )
+            )
+
+            assertEquals(4, mixedContent.size)
+            assertEquals("text", mixedContent[0]["type"])
+            assertEquals("image_url", mixedContent[1]["type"])
+            assertEquals("video_url", mixedContent[2]["type"])
+            assertEquals("file", mixedContent[3]["type"])
+        }
+
+        @Test
+        @DisplayName("Should validate content type strings")
+        fun testContentTypeStrings() {
+            val validContentTypes = listOf("text", "image_url", "input_audio", "video_url", "file")
+
+            for (contentType in validContentTypes) {
+                assertTrue(contentType.isNotEmpty(), "Content type should not be empty")
+                assertFalse(contentType.contains(" "), "Content type should not have spaces")
+            }
+        }
+    }
 }

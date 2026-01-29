@@ -37,28 +37,55 @@ data class OpenAIChatMessage(
 /**
  * Content part for multimodal messages
  * Used when content is an array
+ * Supports all OpenRouter multimodal content types:
+ * - text: Plain text content
+ * - image_url: Images (URL or base64 data URI)
+ * - input_audio: Audio files (base64 encoded)
+ * - video_url: Videos (URL or base64 data URI)
+ * - file: Files like PDFs (URL or base64 data URI)
  */
 data class OpenAIContentPart(
-    val type: String, // "text", "image_url", "input_audio", etc.
+    val type: String, // "text", "image_url", "input_audio", "video_url", "file"
     val text: String? = null, // For type="text"
     @SerializedName("image_url") val imageUrl: OpenAIImageUrl? = null, // For type="image_url"
-    @SerializedName("input_audio") val inputAudio: OpenAIInputAudio? = null // For type="input_audio"
+    @SerializedName("input_audio") val inputAudio: OpenAIInputAudio? = null, // For type="input_audio"
+    @SerializedName("video_url") val videoUrl: OpenAIVideoUrl? = null, // For type="video_url"
+    val file: OpenAIFile? = null // For type="file" (PDFs, documents)
 )
 
 /**
  * Image URL content for vision models
+ * Supports both direct URLs and base64 data URIs
  */
 data class OpenAIImageUrl(
-    val url: String, // URL or base64 data URI
+    val url: String, // URL or base64 data URI (e.g., "data:image/jpeg;base64,...")
     val detail: String? = null // "auto", "low", "high"
 )
 
 /**
  * Audio input content for audio models
+ * Audio must be base64 encoded
  */
 data class OpenAIInputAudio(
     val data: String, // Base64 encoded audio data
     val format: String // "wav", "mp3", etc.
+)
+
+/**
+ * Video URL content for video-capable models
+ * Supports both direct URLs (including YouTube) and base64 data URIs
+ */
+data class OpenAIVideoUrl(
+    val url: String // URL or base64 data URI (e.g., "data:video/mp4;base64,...")
+)
+
+/**
+ * File content for document processing (PDFs, etc.)
+ * Supports both direct URLs and base64 data URIs
+ */
+data class OpenAIFile(
+    val filename: String, // Original filename (e.g., "document.pdf")
+    @SerializedName("file_data") val fileData: String // URL or base64 data URI
 )
 
 // Chat Completion Response Models

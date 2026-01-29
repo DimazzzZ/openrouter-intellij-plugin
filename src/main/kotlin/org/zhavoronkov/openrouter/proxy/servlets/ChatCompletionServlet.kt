@@ -382,28 +382,54 @@ class ChatCompletionServlet : HttpServlet() {
 
     /**
      * Create a user-friendly error message based on the error response
+     * Handles all multimodal content type errors (image, audio, video, PDF/file)
      */
     @Suppress("ReturnCount")
     private fun createUserFriendlyErrorMessage(errorBody: String, statusCode: Int): String {
         // First, try to extract the message from JSON error body
         val extractedMessage = extractErrorMessageFromJson(errorBody)
 
-        // Check if this is an "image input not supported" error
-        if (statusCode == HTTP_STATUS_NOT_FOUND &&
-            errorBody.contains("support image input", ignoreCase = true)
-        ) {
-            ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
-            return createImageInputNotSupportedMessage()
-        }
+        // Check for multimodal content type errors (404 with "support X input" pattern)
+        if (statusCode == HTTP_STATUS_NOT_FOUND) {
+            // Check for image input not supported
+            if (errorBody.contains("support image input", ignoreCase = true)) {
+                ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
+                return createImageInputNotSupportedMessage()
+            }
 
-        // Check if this is a "No endpoints found for <model>" error
-        if (statusCode == HTTP_STATUS_NOT_FOUND &&
-            errorBody.contains("No endpoints found", ignoreCase = true)
-        ) {
-            val modelNameRegex = """No endpoints found for ([^.]+)""".toRegex()
-            val modelName = modelNameRegex.find(errorBody)?.groupValues?.get(1) ?: "the requested model"
-            ModelAvailabilityNotifier.notifyModelUnavailable(modelName, errorBody)
-            return createModelUnavailableMessage(modelName)
+            // Check for audio input not supported
+            if (errorBody.contains("support audio input", ignoreCase = true) ||
+                errorBody.contains("audio not supported", ignoreCase = true)
+            ) {
+                ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
+                return createAudioInputNotSupportedMessage()
+            }
+
+            // Check for video input not supported
+            if (errorBody.contains("support video input", ignoreCase = true) ||
+                errorBody.contains("video not supported", ignoreCase = true)
+            ) {
+                ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
+                return createVideoInputNotSupportedMessage()
+            }
+
+            // Check for PDF/file input not supported
+            if (errorBody.contains("support pdf", ignoreCase = true) ||
+                errorBody.contains("support file", ignoreCase = true) ||
+                errorBody.contains("pdf not supported", ignoreCase = true) ||
+                errorBody.contains("file not supported", ignoreCase = true)
+            ) {
+                ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
+                return createFileInputNotSupportedMessage()
+            }
+
+            // Check for generic "No endpoints found for <model>" error
+            if (errorBody.contains("No endpoints found", ignoreCase = true)) {
+                val modelNameRegex = """No endpoints found for ([^.]+)""".toRegex()
+                val modelName = modelNameRegex.find(errorBody)?.groupValues?.get(1) ?: "the requested model"
+                ModelAvailabilityNotifier.notifyModelUnavailable(modelName, errorBody)
+                return createModelUnavailableMessage(modelName)
+            }
         }
 
         // Check if this is a rate limit error (429)
@@ -421,6 +447,33 @@ class ChatCompletionServlet : HttpServlet() {
         append("- openai/gpt-4o or openai/gpt-4o-mini\n")
         append("- anthropic/claude-3.5-sonnet\n")
         append("- google/gemini-pro-1.5\n\n")
+        append("Check model capabilities: https://openrouter.ai/models")
+    }
+
+    private fun createAudioInputNotSupportedMessage(): String = buildString {
+        append("This model doesn't support audio input.\n\n")
+        append("Try an audio-capable model like:\n")
+        append("- openai/gpt-4o-audio-preview\n")
+        append("- google/gemini-2.0-flash-exp\n")
+        append("- google/gemini-pro-1.5\n\n")
+        append("Check model capabilities: https://openrouter.ai/models")
+    }
+
+    private fun createVideoInputNotSupportedMessage(): String = buildString {
+        append("This model doesn't support video input.\n\n")
+        append("Try a video-capable model like:\n")
+        append("- google/gemini-2.0-flash-exp\n")
+        append("- google/gemini-pro-1.5\n")
+        append("- openai/gpt-4o (for video frames)\n\n")
+        append("Check model capabilities: https://openrouter.ai/models")
+    }
+
+    private fun createFileInputNotSupportedMessage(): String = buildString {
+        append("This model doesn't support PDF/file input.\n\n")
+        append("Try a document-capable model like:\n")
+        append("- google/gemini-pro-1.5\n")
+        append("- anthropic/claude-3.5-sonnet\n")
+        append("- openai/gpt-4o\n\n")
         append("Check model capabilities: https://openrouter.ai/models")
     }
 
