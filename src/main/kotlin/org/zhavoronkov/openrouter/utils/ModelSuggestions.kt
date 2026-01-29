@@ -5,7 +5,7 @@ package org.zhavoronkov.openrouter.utils
  * This ensures consistency across error messages and makes it easy to update model recommendations.
  */
 object ModelSuggestions {
-    
+
     /**
      * Vision-capable models that support image input
      */
@@ -15,7 +15,7 @@ object ModelSuggestions {
         "anthropic/claude-4.5-sonnet",
         "google/gemini-2.5-pro"
     )
-    
+
     /**
      * Audio-capable models that support audio input
      */
@@ -24,7 +24,7 @@ object ModelSuggestions {
         "google/gemini-2.0-flash-exp",
         "google/gemini-2.5-pro"
     )
-    
+
     /**
      * Video-capable models that support video input
      */
@@ -33,7 +33,7 @@ object ModelSuggestions {
         "google/gemini-2.5-pro",
         "openai/gpt-4o (for video frames)"
     )
-    
+
     /**
      * File/document-capable models that support PDF and document input
      */
@@ -42,7 +42,7 @@ object ModelSuggestions {
         "anthropic/claude-4.5-sonnet",
         "openai/gpt-4o"
     )
-    
+
     /**
      * General purpose models recommended as alternatives
      */
@@ -51,14 +51,14 @@ object ModelSuggestions {
         "anthropic/claude-3.5-sonnet (high quality)",
         "google/gemini-pro-1.5 (large context)"
     )
-    
+
     /**
      * Format a list of models as a bulleted list
      */
     fun formatModelList(models: List<String>): String {
         return models.joinToString("\n") { "- $it" }
     }
-    
+
     /**
      * Create a suggestion section with header and model list
      */

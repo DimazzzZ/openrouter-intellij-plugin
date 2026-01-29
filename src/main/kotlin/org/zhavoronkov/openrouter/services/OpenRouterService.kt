@@ -84,7 +84,6 @@ open class OpenRouterService(
     private fun getApiKeysEndpoint() = "${getBaseUrl()}/keys"
     private fun getKeyEndpoint() = "${getBaseUrl()}/key"
     private fun getActivityEndpoint() = "${getBaseUrl()}/activity"
-    private fun getAuthKeyEndpoint() = "${getBaseUrl()}/auth/key"
     private fun getAuthKeysEndpoint() = "${getBaseUrl()}/auth/keys"
     private fun getProvidersEndpoint() = "${getBaseUrl()}/providers"
     private fun getModelsEndpoint() = "${getBaseUrl()}/models"
