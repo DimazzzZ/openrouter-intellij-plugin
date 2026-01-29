@@ -438,8 +438,8 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
 
         val activities = activityResponse.data
         val today = LocalDate.now(java.time.ZoneId.of("UTC"))
-        val yesterday = today.minusDays(1)
-        val weekAgo = today.minusDays(6) // Last 7 days including today
+        val yesterday = today.minusDays(1L)
+        val weekAgo = today.minusDays((ACTIVITY_DAYS_WEEK - 1).toLong()) // Last 7 days including today
 
         // Filter activities by time periods
         val last24h = filterActivitiesByTime(activities, today, yesterday, weekAgo, isLast24h = true)
@@ -598,9 +598,9 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
             // Date string too short
             println("Failed to parse activity date: '$dateString' - string too short")
             null
-        } catch (expectedError: Exception) {
-            // Log the problematic date format for debugging
-            println("Failed to parse activity date: '$dateString' - ${expectedError.message}")
+        } catch (e: IllegalArgumentException) {
+            // Invalid date format
+            println("Failed to parse activity date: '$dateString' - ${e.message}")
             null
         }
     }
