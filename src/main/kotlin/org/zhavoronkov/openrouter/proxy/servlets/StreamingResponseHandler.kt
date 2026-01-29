@@ -5,6 +5,7 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonSyntaxException
 import jakarta.servlet.http.HttpServletResponse
 import okhttp3.Response
+import org.zhavoronkov.openrouter.utils.ErrorPatterns
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.io.BufferedReader
 import java.io.PrintWriter
@@ -35,6 +36,9 @@ class StreamingResponseHandler {
 
         // Required fields for OpenAI streaming chunk
         private val REQUIRED_CHUNK_FIELDS = listOf("id", "object", "created", "model", "choices")
+
+        // Memory safeguard: limit non-data lines accumulation to prevent memory issues
+        private const val MAX_NON_DATA_LINES_LENGTH = 10_000
     }
 
     private val gson = Gson()
@@ -105,7 +109,10 @@ class StreamingResponseHandler {
                 }
             } else if (line.isNotBlank()) {
                 // Collect non-data lines (might be error messages or unexpected format)
-                nonDataLines.append(line).append("\n")
+                // Memory safeguard: limit accumulation to prevent memory issues
+                if (nonDataLines.length < MAX_NON_DATA_LINES_LENGTH) {
+                    nonDataLines.append(line).append("\n")
+                }
             }
         }
 
@@ -213,16 +220,13 @@ class StreamingResponseHandler {
             val json = gson.fromJson(content, JsonObject::class.java)
             json.getAsJsonObject("error")?.get("message")?.asString
         } catch (e: JsonSyntaxException) {
-            // Not JSON - check for common error patterns
+            // Not JSON - check for common error patterns using ErrorPatterns
             when {
-                content.contains("rate limit", ignoreCase = true) -> "Rate limit exceeded. Please try again later."
-                content.contains(
-                    "unauthorized",
-                    ignoreCase = true
-                ) -> "Authentication failed. Please check your API key."
-                content.contains("not found", ignoreCase = true) -> "Model or endpoint not found."
-                content.contains("unavailable", ignoreCase = true) -> "Service temporarily unavailable."
-                content.contains("timeout", ignoreCase = true) -> "Request timed out."
+                content.contains(ErrorPatterns.RATE_LIMIT, ignoreCase = true) -> "Rate limit exceeded. Please try again later."
+                content.contains(ErrorPatterns.UNAUTHORIZED, ignoreCase = true) -> "Authentication failed. Please check your API key."
+                content.contains(ErrorPatterns.NOT_FOUND, ignoreCase = true) -> "Model or endpoint not found."
+                content.contains(ErrorPatterns.UNAVAILABLE, ignoreCase = true) -> "Service temporarily unavailable."
+                content.contains(ErrorPatterns.TIMEOUT, ignoreCase = true) -> "Request timed out."
                 content.length < 200 -> content // Short content might be an error message
                 else -> null
             }
@@ -236,8 +240,8 @@ class StreamingResponseHandler {
         return when {
             // Generic provider error - make it more helpful
             message.equals("Provider returned error", ignoreCase = true) ||
-                message.contains("provider", ignoreCase = true) &&
-                message.contains("error", ignoreCase = true) ->
+                message.contains(ErrorPatterns.PROVIDER_ERROR, ignoreCase = true) &&
+                message.contains(ErrorPatterns.ERROR, ignoreCase = true) ->
                 "⚠️ The model provider encountered an error.\n\n" +
                     "This is usually a temporary issue. Try:\n" +
                     "• Waiting a moment and trying again\n" +
@@ -245,22 +249,22 @@ class StreamingResponseHandler {
                     "• Using a non-free model if available"
 
             // Rate limiting
-            message.contains("rate limit", ignoreCase = true) ||
-                message.contains("too many requests", ignoreCase = true) ->
+            message.contains(ErrorPatterns.RATE_LIMIT, ignoreCase = true) ||
+                message.contains(ErrorPatterns.TOO_MANY_REQUESTS, ignoreCase = true) ->
                 "⚠️ Rate limit exceeded.\n\n" +
                     "Please wait a moment before trying again.\n" +
                     "Free models have lower rate limits."
 
             // Timeout
-            message.contains("timeout", ignoreCase = true) ->
+            message.contains(ErrorPatterns.TIMEOUT, ignoreCase = true) ->
                 "⚠️ Request timed out.\n\n" +
                     "The model took too long to respond. Try:\n" +
                     "• Sending a shorter message\n" +
                     "• Using a faster model"
 
             // Model unavailable
-            message.contains("unavailable", ignoreCase = true) ||
-                message.contains("no endpoints", ignoreCase = true) ->
+            message.contains(ErrorPatterns.UNAVAILABLE, ignoreCase = true) ||
+                message.contains(ErrorPatterns.NO_ENDPOINTS_FOUND, ignoreCase = true) ->
                 "⚠️ Model temporarily unavailable.\n\n" +
                     "Please try a different model or wait a moment."
 

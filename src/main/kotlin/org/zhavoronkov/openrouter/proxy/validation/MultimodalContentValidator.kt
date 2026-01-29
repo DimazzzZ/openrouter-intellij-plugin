@@ -5,6 +5,7 @@ import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
+import org.zhavoronkov.openrouter.utils.ModelSuggestions
 import org.zhavoronkov.openrouter.utils.PluginLogger
 
 /**
@@ -199,27 +200,22 @@ class MultimodalContentValidator(
      */
     private fun getDefaultSuggestions(contentType: ContentType): String {
         return when (contentType) {
-            ContentType.IMAGE -> """
-                |Try a vision-capable model like:
-                |- openai/gpt-4o or openai/gpt-4o-mini
-                |- anthropic/claude-3.5-sonnet
-                |- google/gemini-pro-1.5
-            """.trimMargin()
-            ContentType.AUDIO -> """
-                |Try an audio-capable model like:
-                |- openai/gpt-4o-audio-preview
-                |- google/gemini-2.0-flash-exp
-            """.trimMargin()
-            ContentType.VIDEO -> """
-                |Try a video-capable model like:
-                |- google/gemini-pro-1.5
-                |- google/gemini-2.0-flash-exp
-            """.trimMargin()
-            ContentType.FILE -> """
-                |Try a model with file support like:
-                |- anthropic/claude-3.5-sonnet
-                |- google/gemini-pro-1.5
-            """.trimMargin()
+            ContentType.IMAGE -> ModelSuggestions.createSuggestionSection(
+                "Try a vision-capable model like:",
+                ModelSuggestions.VISION_MODELS
+            )
+            ContentType.AUDIO -> ModelSuggestions.createSuggestionSection(
+                "Try an audio-capable model like:",
+                ModelSuggestions.AUDIO_MODELS
+            )
+            ContentType.VIDEO -> ModelSuggestions.createSuggestionSection(
+                "Try a video-capable model like:",
+                ModelSuggestions.VIDEO_MODELS
+            )
+            ContentType.FILE -> ModelSuggestions.createSuggestionSection(
+                "Try a model with file support like:",
+                ModelSuggestions.FILE_MODELS
+            )
         }
     }
 
@@ -229,21 +225,12 @@ class MultimodalContentValidator(
         /**
          * Get suggested vision-capable models
          */
-        fun getVisionCapableModels(): List<String> = listOf(
-            "openai/gpt-4o",
-            "openai/gpt-4o-mini",
-            "anthropic/claude-3.5-sonnet",
-            "anthropic/claude-3-opus",
-            "google/gemini-pro-1.5"
-        )
+        fun getVisionCapableModels(): List<String> = ModelSuggestions.VISION_MODELS
 
         /**
          * Get suggested audio-capable models
          */
-        fun getAudioCapableModels(): List<String> = listOf(
-            "openai/gpt-4o-audio-preview",
-            "google/gemini-2.0-flash-exp"
-        )
+        fun getAudioCapableModels(): List<String> = ModelSuggestions.AUDIO_MODELS
     }
 }
 
