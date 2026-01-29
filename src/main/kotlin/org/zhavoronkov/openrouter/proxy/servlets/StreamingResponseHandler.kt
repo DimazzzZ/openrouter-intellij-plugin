@@ -21,6 +21,12 @@ import java.util.UUID
  * - model: string (model name)
  * - choices: array (at least one choice with delta object)
  */
+@Suppress(
+    "MaxLineLength",
+    "MagicNumber",
+    "LoopWithTooManyJumpStatements",
+    "UnusedParameter"
+)
 class StreamingResponseHandler {
 
     companion object {

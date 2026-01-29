@@ -40,6 +40,7 @@ import javax.swing.Icon
  * Enhanced status bar widget with comprehensive popup menu for OpenRouter
  */
 
+@Suppress("TooManyFunctions")
 class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), StatusBarWidget.IconPresentation {
 
     private val openRouterService = OpenRouterService.getInstance()

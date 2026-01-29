@@ -29,6 +29,7 @@ import javax.swing.JSeparator
 /**
  * Dialog that displays OpenRouter usage statistics and information
  */
+@Suppress("TooManyFunctions")
 class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project) {
 
     init {

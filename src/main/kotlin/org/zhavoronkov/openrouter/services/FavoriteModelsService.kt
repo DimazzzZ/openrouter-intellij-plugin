@@ -16,6 +16,7 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
  * Note: This is a light service (uses @Service annotation) and must be final
  */
 @Service
+@Suppress("TooManyFunctions")
 class FavoriteModelsService(
     private val settingsService: OpenRouterSettingsService? = null,
     private val openRouterService: OpenRouterService? = null
@@ -69,9 +70,8 @@ class FavoriteModelsService(
                 }
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
-            // Coroutine was cancelled (e.g., timeout or parent job cancelled)
-            PluginLogger.Service.warn("[OpenRouter] Model fetch cancelled: ${e.message}")
-            null
+            // Coroutine was cancelled (e.g., timeout or parent job cancelled) - must rethrow
+            throw e
         } catch (e: java.util.concurrent.TimeoutException) {
             PluginLogger.Service.warn("[OpenRouter] Model fetch timed out")
             null

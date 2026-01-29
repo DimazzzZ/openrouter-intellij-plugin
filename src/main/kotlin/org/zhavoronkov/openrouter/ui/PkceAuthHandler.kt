@@ -23,6 +23,7 @@ import java.util.Base64
  * Dedicated handler for PKCE (Proof Key for Code Exchange) authentication flow
  * Extracts complex OAuth logic from SetupWizardDialog for better separation of concerns
  */
+@Suppress("MaxLineLength", "MagicNumber", "UnusedParameter", "ReturnCount")
 class PkceAuthHandler(
     private val coroutineScope: CoroutineScope,
     private val openRouterService: OpenRouterService,

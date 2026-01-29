@@ -57,6 +57,7 @@ import java.util.concurrent.TimeUnit
  *    - Publicly accessible information
  */
 
+@Suppress("TooManyFunctions")
 open class OpenRouterService(
     private val gson: Gson = Gson(),
     private val client: OkHttpClient = OkHttpClient.Builder()

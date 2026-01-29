@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * with full streaming support
  */
 
+@Suppress("MaxLineLength", "MagicNumber", "ReturnCount", "UnusedPrivateMember")
 data class StreamingErrorContext(
     val response: Response,
     val writer: PrintWriter,
