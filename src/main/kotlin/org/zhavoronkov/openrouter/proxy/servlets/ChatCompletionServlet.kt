@@ -1,6 +1,7 @@
 package org.zhavoronkov.openrouter.proxy.servlets
 
 import com.google.gson.Gson
+import com.google.gson.JsonObject
 import com.google.gson.JsonSyntaxException
 import jakarta.servlet.http.HttpServlet
 import jakarta.servlet.http.HttpServletRequest
@@ -59,8 +60,13 @@ class ChatCompletionServlet : HttpServlet() {
         private const val STREAMING_CHUNK_DISPLAY_LENGTH = 15
 
         // HTTP status codes
+        private const val HTTP_STATUS_UNAUTHORIZED = 401
+        private const val HTTP_STATUS_PAYMENT_REQUIRED = 402
         private const val HTTP_STATUS_NOT_FOUND = 404
         private const val HTTP_STATUS_TOO_MANY_REQUESTS = 429
+        private const val HTTP_STATUS_INTERNAL_SERVER_ERROR = 500
+        private const val HTTP_STATUS_BAD_GATEWAY = 502
+        private const val HTTP_STATUS_SERVICE_UNAVAILABLE = 503
         private const val HTTP_STATUS_CLIENT_ERROR_MIN = 400
         private const val HTTP_STATUS_CLIENT_ERROR_MAX = 499
         private const val HTTP_STATUS_SERVER_ERROR_MIN = 500
@@ -468,7 +474,14 @@ class ChatCompletionServlet : HttpServlet() {
     @Suppress("ReturnCount")
     private fun createUserFriendlyErrorMessage(errorBody: String, statusCode: Int): String {
         // First, try to extract the message from JSON error body
-        val extractedMessage = extractErrorMessageFromJson(errorBody)
+        val extractedMessage = try {
+            val errorJson = gson.fromJson(errorBody, JsonObject::class.java)
+            val errorObj = errorJson.getAsJsonObject("error")
+            errorObj?.get("message")?.asString
+        } catch (e: JsonSyntaxException) {
+            PluginLogger.Service.warn("Failed to parse error response", e)
+            null
+        }
 
         // Check for "No endpoints found" pattern - can occur with 404 or 500 status codes
         // OpenRouter may return different status codes for model availability issues
@@ -490,18 +503,28 @@ class ChatCompletionServlet : HttpServlet() {
             }
         }
 
-        // Check if this is a rate limit error (429)
-        if (statusCode == HTTP_STATUS_TOO_MANY_REQUESTS) {
-            return createRateLimitMessage(extractedMessage)
+        // Handle specific HTTP status codes with user-friendly messages
+        return when (statusCode) {
+            HTTP_STATUS_UNAUTHORIZED -> {
+                if (extractedMessage != null) {
+                    "Authentication failed: $extractedMessage"
+                } else {
+                    "Authentication failed. Please check your API key."
+                }
+            }
+            HTTP_STATUS_PAYMENT_REQUIRED -> {
+                if (extractedMessage != null) {
+                    "Insufficient credits: $extractedMessage"
+                } else {
+                    "Insufficient credits. Please add credits to your OpenRouter account."
+                }
+            }
+            HTTP_STATUS_TOO_MANY_REQUESTS -> createRateLimitMessage(extractedMessage)
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            HTTP_STATUS_BAD_GATEWAY,
+            HTTP_STATUS_SERVICE_UNAVAILABLE -> createServerErrorMessage(extractedMessage, statusCode)
+            else -> extractedMessage ?: "Request failed (HTTP $statusCode). Please try again."
         }
-
-        // Check for server errors (500+)
-        if (statusCode >= HTTP_STATUS_SERVER_ERROR_MIN) {
-            return createServerErrorMessage(extractedMessage, statusCode)
-        }
-
-        // For other errors, return the extracted message or a generic error
-        return extractedMessage ?: "Request failed (HTTP $statusCode). Please try again."
     }
 
     /**
