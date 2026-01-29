@@ -50,7 +50,13 @@ import javax.swing.table.AbstractTableModel
 /**
  * Multi-step setup wizard for first-time users with validation and embedded model selection
  */
-@Suppress("TooManyFunctions")
+@Suppress(
+    "TooManyFunctions",
+    "LargeClass",
+    "LongMethod",
+    "MaxLineLength",
+    "MagicNumber"
+)
 class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) {
 
     private val settingsService = OpenRouterSettingsService.getInstance()

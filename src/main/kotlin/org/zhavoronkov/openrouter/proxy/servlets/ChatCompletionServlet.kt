@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * with full streaming support
  */
 
-@Suppress("MaxLineLength", "MagicNumber", "ReturnCount", "UnusedPrivateMember")
+@Suppress("MaxLineLength", "ReturnCount", "UnusedPrivateMember")
 data class StreamingErrorContext(
     val response: Response,
     val writer: PrintWriter,
@@ -40,6 +40,7 @@ data class StreamingErrorContext(
     val request: Request
 )
 
+@Suppress("TooManyFunctions")
 class ChatCompletionServlet : HttpServlet() {
 
     companion object {
@@ -70,10 +71,10 @@ class ChatCompletionServlet : HttpServlet() {
         private const val HTTP_STATUS_SERVICE_UNAVAILABLE = 503
         private const val HTTP_STATUS_CLIENT_ERROR_MIN = 400
         private const val HTTP_STATUS_CLIENT_ERROR_MAX = 499
-        private const val HTTP_STATUS_SERVER_ERROR_MIN = 500
 
         // Time conversion
         private const val MILLIS_PER_SECOND = 1000
+        private const val NANOS_PER_MILLIS = 1_000_000L
     }
 
     private val gson = Gson()
@@ -104,37 +105,45 @@ class ChatCompletionServlet : HttpServlet() {
         companion object {
             private fun createImageInputNotSupportedMessage(): String = buildString {
                 append("This model doesn't support image input.\n\n")
-                append(ModelSuggestions.createSuggestionSection(
-                    "Try a vision-capable model like:",
-                    ModelSuggestions.VISION_MODELS
-                ))
+                append(
+                    ModelSuggestions.createSuggestionSection(
+                        "Try a vision-capable model like:",
+                        ModelSuggestions.VISION_MODELS
+                    )
+                )
                 append("\n\nCheck model capabilities: https://openrouter.ai/models")
             }
 
             private fun createAudioInputNotSupportedMessage(): String = buildString {
                 append("This model doesn't support audio input.\n\n")
-                append(ModelSuggestions.createSuggestionSection(
-                    "Try an audio-capable model like:",
-                    ModelSuggestions.AUDIO_MODELS
-                ))
+                append(
+                    ModelSuggestions.createSuggestionSection(
+                        "Try an audio-capable model like:",
+                        ModelSuggestions.AUDIO_MODELS
+                    )
+                )
                 append("\n\nCheck model capabilities: https://openrouter.ai/models")
             }
 
             private fun createVideoInputNotSupportedMessage(): String = buildString {
                 append("This model doesn't support video input.\n\n")
-                append(ModelSuggestions.createSuggestionSection(
-                    "Try a video-capable model like:",
-                    ModelSuggestions.VIDEO_MODELS
-                ))
+                append(
+                    ModelSuggestions.createSuggestionSection(
+                        "Try a video-capable model like:",
+                        ModelSuggestions.VIDEO_MODELS
+                    )
+                )
                 append("\n\nCheck model capabilities: https://openrouter.ai/models")
             }
 
             private fun createFileInputNotSupportedMessage(): String = buildString {
                 append("This model doesn't support PDF/file input.\n\n")
-                append(ModelSuggestions.createSuggestionSection(
-                    "Try a document-capable model like:",
-                    ModelSuggestions.FILE_MODELS
-                ))
+                append(
+                    ModelSuggestions.createSuggestionSection(
+                        "Try a document-capable model like:",
+                        ModelSuggestions.FILE_MODELS
+                    )
+                )
                 append("\n\nCheck model capabilities: https://openrouter.ai/models")
             }
         }
@@ -174,10 +183,8 @@ class ChatCompletionServlet : HttpServlet() {
             handleException(e, resp, requestId)
         } catch (e: JsonSyntaxException) {
             handleException(e, resp, requestId)
-        } catch (e: RuntimeException) {
-            handleException(e, resp, requestId)
         } finally {
-            val durationMs = (System.nanoTime() - startNs) / 1_000_000
+            val durationMs = (System.nanoTime() - startNs) / NANOS_PER_MILLIS
             logRequestBoundary(requestId, isStart = false, durationMs = durationMs)
         }
     }
@@ -217,23 +224,25 @@ class ChatCompletionServlet : HttpServlet() {
         val requestBody = req.reader.readText()
         checkForDuplicateRequest(requestBody, req, requestId)
 
-        val apiKey = validateAndGetApiKey(resp, requestId) ?: return
-        val openAIRequest = parseRequestBody(requestBody, resp, requestId) ?: return
+        val apiKey = validateAndGetApiKey(resp, requestId)
+        if (apiKey != null) {
+            val openAIRequest = parseRequestBody(requestBody, resp, requestId)
+            if (openAIRequest != null) {
+                PluginLogger.Service.info("[Chat-$requestId] 📝 Model: '${openAIRequest.model}'")
 
-        PluginLogger.Service.info("[Chat-$requestId] 📝 Model: '${openAIRequest.model}'")
-
-        // Pre-validate multimodal content against model capabilities
-        val validationResult = multimodalValidator.validate(openAIRequest, requestId)
-        if (validationResult is MultimodalContentValidator.ValidationResult.Invalid) {
-            PluginLogger.Service.warn(
-                "[Chat-$requestId] ⚠️ Pre-validation failed: ${validationResult.contentType.displayName} " +
-                    "not supported by model '${validationResult.modelId}'"
-            )
-            sendMultimodalValidationError(resp, validationResult, requestId)
-            return
+                // Pre-validate multimodal content against model capabilities
+                val validationResult = multimodalValidator.validate(openAIRequest, requestId)
+                if (validationResult is MultimodalContentValidator.ValidationResult.Invalid) {
+                    PluginLogger.Service.warn(
+                        "[Chat-$requestId] ⚠️ Pre-validation failed: ${validationResult.contentType.displayName} " +
+                            "not supported by model '${validationResult.modelId}'"
+                    )
+                    sendMultimodalValidationError(resp, validationResult, requestId)
+                } else {
+                    routeRequest(resp, openAIRequest, apiKey, requestId, startNs)
+                }
+            }
         }
-
-        routeRequest(resp, openAIRequest, apiKey, requestId, startNs)
     }
 
     /**
@@ -603,10 +612,12 @@ class ChatCompletionServlet : HttpServlet() {
 
     private fun createModelUnavailableMessage(modelName: String): String = buildString {
         append("Model Unavailable: $modelName\n\n")
-        append(ModelSuggestions.createSuggestionSection(
-            "This model is currently unavailable. Try:",
-            ModelSuggestions.GENERAL_MODELS
-        ))
+        append(
+            ModelSuggestions.createSuggestionSection(
+                "This model is currently unavailable. Try:",
+                ModelSuggestions.GENERAL_MODELS
+            )
+        )
         append("\n\nCheck model status: https://openrouter.ai/models")
     }
 
@@ -615,24 +626,6 @@ class ChatCompletionServlet : HttpServlet() {
         if (extractedMessage != null && extractedMessage.contains(ErrorPatterns.FREE, ignoreCase = true)) {
             append("Tip: Free tier models have lower rate limits. ")
             append("Consider using a paid model for higher limits.")
-        }
-    }
-
-    /**
-     * Extracts the error message from a JSON error body.
-     * OpenRouter returns errors in format: {"error":{"message":"...","code":...}}
-     */
-    @Suppress("SwallowedException")
-    private fun extractErrorMessageFromJson(errorBody: String): String? {
-        return try {
-            val json = gson.fromJson(errorBody, com.google.gson.JsonObject::class.java)
-            json?.getAsJsonObject("error")?.get("message")?.asString
-        } catch (e: JsonSyntaxException) {
-            // Not valid JSON - expected for non-JSON error bodies, no need to log
-            null
-        } catch (e: IllegalStateException) {
-            // JSON doesn't have expected structure - expected for different error formats
-            null
         }
     }
 

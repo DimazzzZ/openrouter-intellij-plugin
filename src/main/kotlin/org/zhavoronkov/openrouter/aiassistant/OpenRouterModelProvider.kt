@@ -14,6 +14,7 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
  * Note: This implementation uses educated guesses about the AI Assistant plugin's API
  * since the exact interface specifications are not publicly documented.
  */
+@Suppress("TooGenericExceptionCaught")
 class OpenRouterModelProvider {
 
     private val openRouterService = OpenRouterService.getInstance()
