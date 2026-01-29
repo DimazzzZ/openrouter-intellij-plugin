@@ -78,7 +78,9 @@ class ApiKeyValidationStartupActivity : ProjectActivity {
                     }
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: IllegalStateException) {
+            PluginLogger.Startup.error("Error during API key validation on startup - service not available", e)
+        } catch (e: RuntimeException) {
             PluginLogger.Startup.error("Error during API key validation on startup", e)
         }
     }
@@ -100,7 +102,9 @@ class ApiKeyValidationStartupActivity : ProjectActivity {
                 intellijKeyManager.recreateIntellijApiKey()
 
                 PluginLogger.Startup.info("✅ API key regenerated successfully")
-            } catch (e: Exception) {
+            } catch (e: IllegalStateException) {
+                PluginLogger.Startup.error("Failed to regenerate API key on startup - service not available", e)
+            } catch (e: RuntimeException) {
                 PluginLogger.Startup.error("Failed to regenerate API key on startup", e)
             }
         }

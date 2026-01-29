@@ -2,11 +2,13 @@ package org.zhavoronkov.openrouter.proxy.validation
 
 import com.google.gson.Gson
 import com.google.gson.JsonParser
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
-import org.mockito.Mockito.*
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.`when`
 import org.zhavoronkov.openrouter.models.ModelArchitecture
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
@@ -20,6 +22,7 @@ class MultimodalContentValidatorTest {
     private lateinit var validator: MultimodalContentValidator
     private val gson = Gson()
 
+    @Suppress("UNUSED_VARIABLE")
     @BeforeEach
     fun setup() {
         mockFavoriteModelsService = mock(FavoriteModelsService::class.java)

@@ -68,8 +68,15 @@ class FavoriteModelsService(
                     }
                 }
             }
-        } catch (throwable: Throwable) {
-            PluginLogger.Service.error("[OpenRouter] Error fetching models from API", throwable)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // Coroutine was cancelled (e.g., timeout or parent job cancelled)
+            PluginLogger.Service.warn("[OpenRouter] Model fetch cancelled: ${e.message}")
+            null
+        } catch (e: java.util.concurrent.TimeoutException) {
+            PluginLogger.Service.warn("[OpenRouter] Model fetch timed out")
+            null
+        } catch (e: RuntimeException) {
+            PluginLogger.Service.error("[OpenRouter] Error fetching models from API", e)
             null
         }
     }

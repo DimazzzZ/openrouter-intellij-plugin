@@ -1,10 +1,12 @@
 package org.zhavoronkov.openrouter.utils
 
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
-import org.junit.jupiter.api.Assertions.*
 
 /**
  * Tests for ErrorPatterns utility object
@@ -16,106 +18,146 @@ class ErrorPatternsTest {
 
     @ParameterizedTest
     @DisplayName("Should detect image not supported pattern")
-    @ValueSource(strings = [
-        "This model does not support image input",
-        "Model cannot support image input",
-        "The endpoint does not support image input",
-        "SUPPORT IMAGE INPUT"
-    ])
+    @ValueSource(
+        strings = [
+            "This model does not support image input",
+            "Model cannot support image input",
+            "The endpoint does not support image input",
+            "SUPPORT IMAGE INPUT"
+        ]
+    )
     fun testIsImageNotSupportedReturnsTrue(errorBody: String) {
-        assertTrue(ErrorPatterns.isImageNotSupported(errorBody), "Should detect image not supported in: $errorBody")
+        assertTrue(
+            ErrorPatterns.isImageNotSupported(errorBody),
+            "Should detect image not supported in: $errorBody"
+        )
     }
 
     @ParameterizedTest
     @DisplayName("Should not detect image not supported when pattern is absent")
-    @ValueSource(strings = [
-        "This model supports image input",
-        "Image processing error",
-        "",
-        "Something went wrong"
-    ])
+    @ValueSource(
+        strings = [
+            "This model supports image input",
+            "Image processing error",
+            "",
+            "Something went wrong"
+        ]
+    )
     fun testIsImageNotSupportedReturnsFalse(errorBody: String) {
-        assertFalse(ErrorPatterns.isImageNotSupported(errorBody), "Should not detect image not supported in: $errorBody")
+        assertFalse(
+            ErrorPatterns.isImageNotSupported(errorBody),
+            "Should not detect image not supported in: $errorBody"
+        )
     }
 
     // ========== Audio Support Tests ==========
 
     @ParameterizedTest
     @DisplayName("Should detect audio not supported pattern")
-    @ValueSource(strings = [
-        "This model does not support audio input",
-        "Model cannot support audio input",
-        "Audio not supported by this model",
-        "AUDIO NOT SUPPORTED"
-    ])
+    @ValueSource(
+        strings = [
+            "This model does not support audio input",
+            "Model cannot support audio input",
+            "Audio not supported by this model",
+            "AUDIO NOT SUPPORTED"
+        ]
+    )
     fun testIsAudioNotSupportedReturnsTrue(errorBody: String) {
-        assertTrue(ErrorPatterns.isAudioNotSupported(errorBody), "Should detect audio not supported in: $errorBody")
+        assertTrue(
+            ErrorPatterns.isAudioNotSupported(errorBody),
+            "Should detect audio not supported in: $errorBody"
+        )
     }
 
     @ParameterizedTest
     @DisplayName("Should not detect audio not supported when pattern is absent")
-    @ValueSource(strings = [
-        "This model supports audio input",
-        "Audio processing error",
-        "",
-        "Something went wrong"
-    ])
+    @ValueSource(
+        strings = [
+            "This model supports audio input",
+            "Audio processing error",
+            "",
+            "Something went wrong"
+        ]
+    )
     fun testIsAudioNotSupportedReturnsFalse(errorBody: String) {
-        assertFalse(ErrorPatterns.isAudioNotSupported(errorBody), "Should not detect audio not supported in: $errorBody")
+        assertFalse(
+            ErrorPatterns.isAudioNotSupported(errorBody),
+            "Should not detect audio not supported in: $errorBody"
+        )
     }
 
     // ========== Video Support Tests ==========
 
     @ParameterizedTest
     @DisplayName("Should detect video not supported pattern")
-    @ValueSource(strings = [
-        "This model does not support video input",
-        "Model cannot support video input",
-        "Video not supported by this model",
-        "VIDEO NOT SUPPORTED"
-    ])
+    @ValueSource(
+        strings = [
+            "This model does not support video input",
+            "Model cannot support video input",
+            "Video not supported by this model",
+            "VIDEO NOT SUPPORTED"
+        ]
+    )
     fun testIsVideoNotSupportedReturnsTrue(errorBody: String) {
-        assertTrue(ErrorPatterns.isVideoNotSupported(errorBody), "Should detect video not supported in: $errorBody")
+        assertTrue(
+            ErrorPatterns.isVideoNotSupported(errorBody),
+            "Should detect video not supported in: $errorBody"
+        )
     }
 
     @ParameterizedTest
     @DisplayName("Should not detect video not supported when pattern is absent")
-    @ValueSource(strings = [
-        "This model supports video input",
-        "Video processing error",
-        "",
-        "Something went wrong"
-    ])
+    @ValueSource(
+        strings = [
+            "This model supports video input",
+            "Video processing error",
+            "",
+            "Something went wrong"
+        ]
+    )
     fun testIsVideoNotSupportedReturnsFalse(errorBody: String) {
-        assertFalse(ErrorPatterns.isVideoNotSupported(errorBody), "Should not detect video not supported in: $errorBody")
+        assertFalse(
+            ErrorPatterns.isVideoNotSupported(errorBody),
+            "Should not detect video not supported in: $errorBody"
+        )
     }
 
     // ========== File/PDF Support Tests ==========
 
     @ParameterizedTest
     @DisplayName("Should detect file/PDF not supported pattern")
-    @ValueSource(strings = [
-        "This model does not support pdf files",
-        "Model cannot support file upload",
-        "PDF not supported by this model",
-        "File not supported",
-        "Does not support PDF documents",
-        "SUPPORT FILE upload"
-    ])
+    @ValueSource(
+        strings = [
+            "This model does not support pdf files",
+            "Model cannot support file upload",
+            "PDF not supported by this model",
+            "File not supported",
+            "Does not support PDF documents",
+            "SUPPORT FILE upload"
+        ]
+    )
     fun testIsFileNotSupportedReturnsTrue(errorBody: String) {
-        assertTrue(ErrorPatterns.isFileNotSupported(errorBody), "Should detect file not supported in: $errorBody")
+        assertTrue(
+            ErrorPatterns.isFileNotSupported(errorBody),
+            "Should detect file not supported in: $errorBody"
+        )
     }
 
     @ParameterizedTest
     @DisplayName("Should not detect file not supported when pattern is absent")
-    @ValueSource(strings = [
-        "This model supports PDF files",
-        "File uploaded successfully",
-        "",
-        "Something went wrong"
-    ])
+    @ValueSource(
+        strings = [
+            "This model supports PDF files",
+            "File uploaded successfully",
+            "",
+            "Something went wrong"
+        ]
+    )
     fun testIsFileNotSupportedReturnsFalse(errorBody: String) {
-        assertFalse(ErrorPatterns.isFileNotSupported(errorBody), "Should not detect file not supported in: $errorBody")
+        assertFalse(
+            ErrorPatterns.isFileNotSupported(errorBody),
+            "Should not detect file not supported in: $errorBody"
+        )
     }
 
     // ========== Free Tier Ended Tests ==========

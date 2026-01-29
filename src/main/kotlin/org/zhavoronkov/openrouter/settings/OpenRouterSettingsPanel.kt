@@ -106,6 +106,7 @@ class ApiKeyTableModel : AbstractTableModel() {
 /**
  * Settings panel for OpenRouter configuration using IntelliJ UI DSL v2
  */
+@Suppress("TooManyFunctions")
 class OpenRouterSettingsPanel {
 
     private lateinit var panel: JPanel

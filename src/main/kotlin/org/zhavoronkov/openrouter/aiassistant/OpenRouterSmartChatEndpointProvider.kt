@@ -92,8 +92,9 @@ class OpenRouterSmartChatEndpointProvider {
 
     /**
      * Checks if the provider is available and properly configured
-     * @param project The project context (currently unused, reserved for future use)
+     * @param project The project context (reserved for future project-specific configuration)
      */
+    @Suppress("UnusedParameter")
     fun isAvailable(project: Project?): Boolean {
         // Project parameter reserved for future project-specific configuration
         val configured = settingsService.isConfigured()
@@ -118,8 +119,9 @@ class OpenRouterSmartChatEndpointProvider {
 
     /**
      * Gets available models from OpenRouter
-     * @param project The project context (currently unused, reserved for future use)
+     * @param project The project context (reserved for future project-specific model lists)
      */
+    @Suppress("UnusedParameter")
     fun getAvailableModels(project: Project?): List<ChatEndpointModel> {
         // Project parameter reserved for future project-specific model lists
         PluginLogger.Settings.debug("Getting available OpenRouter models for AI Assistant")
@@ -166,8 +168,9 @@ class OpenRouterSmartChatEndpointProvider {
 
     /**
      * Validates the provider configuration
-     * @param project The project context (currently unused, reserved for future use)
+     * @param project The project context (reserved for future project-specific validation)
      */
+    @Suppress("UnusedParameter")
     fun validateConfiguration(project: Project?): ValidationResult {
         // Project parameter reserved for future project-specific validation
         PluginLogger.Settings.debug("Validating OpenRouter configuration for AI Assistant")

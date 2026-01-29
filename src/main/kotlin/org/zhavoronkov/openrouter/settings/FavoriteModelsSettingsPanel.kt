@@ -44,6 +44,7 @@ import javax.swing.event.DocumentListener
  * Compact Favorite Models settings panel with provisioning key guard
  * Uses Kotlin UI DSL v2 with single-column tables for space efficiency
  */
+@Suppress("TooManyFunctions")
 class FavoriteModelsSettingsPanel : Disposable {
 
     companion object {

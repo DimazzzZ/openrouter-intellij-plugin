@@ -72,6 +72,7 @@ object TestMediaGenerator {
     /**
      * Ensure media-gen binary is downloaded and available.
      */
+    @Suppress("ThrowsCount")
     private fun ensureMediaGenBinary() {
         if (Files.exists(mediaGenBinary)) {
             return
@@ -89,7 +90,7 @@ object TestMediaGenerator {
             os.contains("mac") -> "media-gen-macos-x86_64"
             os.contains("linux") -> "media-gen-linux-x86_64"
             os.contains("win") -> "media-gen-windows-x86_64.exe"
-            else -> throw IllegalStateException("Unsupported OS: $os $arch")
+            else -> error("Unsupported OS: $os $arch")
         }
 
         val downloadUrl = "https://github.com/DimazzzZ/media-gen/releases/download/v0.2.0/$binaryName"
@@ -122,23 +123,19 @@ object TestMediaGenerator {
         outputReader.join()
         errorReader.join()
 
-        if (exitCode != 0) {
-            throw RuntimeException(
-                "Failed to download media-gen from $downloadUrl\n" +
-                "Exit code: $exitCode\n" +
-                "Please verify the URL is correct and the release exists at:\n" +
-                "https://github.com/DimazzzZ/media-gen/releases/tag/v0.2.0"
-            )
+        check(exitCode == 0) {
+            "Failed to download media-gen from $downloadUrl\n" +
+            "Exit code: $exitCode\n" +
+            "Please verify the URL is correct and the release exists at:\n" +
+            "https://github.com/DimazzzZ/media-gen/releases/tag/v0.2.0"
         }
 
         // Verify file was downloaded and has content
-        if (!Files.exists(mediaGenBinary) || Files.size(mediaGenBinary) == 0L) {
-            throw RuntimeException(
-                "media-gen binary was not downloaded correctly.\n" +
-                "File exists: ${Files.exists(mediaGenBinary)}\n" +
-                "Size: ${if (Files.exists(mediaGenBinary)) Files.size(mediaGenBinary) else 0}\n" +
-                "URL: $downloadUrl"
-            )
+        check(Files.exists(mediaGenBinary) && Files.size(mediaGenBinary) > 0L) {
+            "media-gen binary was not downloaded correctly.\n" +
+            "File exists: ${Files.exists(mediaGenBinary)}\n" +
+            "Size: ${if (Files.exists(mediaGenBinary)) Files.size(mediaGenBinary) else 0}\n" +
+            "URL: $downloadUrl"
         }
 
         // Make executable on Unix systems
@@ -245,15 +242,13 @@ object TestMediaGenerator {
         errorThread.join(5000)
 
         // Check if file was actually created
-        if (!file.exists() || file.length() == 0L) {
-            throw RuntimeException(
-                "Failed to generate audio file. Exit code: $exitCode, Output: '${output.toString().trim()}', " +
-                "File exists: ${file.exists()}, File size: ${if (file.exists()) file.length() else 0}"
-            )
+        check(file.exists() && file.length() > 0L) {
+            "Failed to generate audio file. Exit code: $exitCode, Output: '${output.toString().trim()}', " +
+            "File exists: ${file.exists()}, File size: ${if (file.exists()) file.length() else 0}"
         }
 
-        if (exitCode != 0) {
-            throw RuntimeException("Failed to generate audio: exit code $exitCode, output: '${output.toString().trim()}'")
+        check(exitCode == 0) {
+            "Failed to generate audio: exit code $exitCode, output: '${output.toString().trim()}'"
         }
 
         println("✅ Generated audio: $filename (${file.length() / 1024}KB)")

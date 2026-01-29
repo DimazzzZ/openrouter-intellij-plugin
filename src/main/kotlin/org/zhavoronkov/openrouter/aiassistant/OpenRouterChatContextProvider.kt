@@ -30,8 +30,9 @@ class OpenRouterChatContextProvider {
 
     /**
      * Checks if the provider is available and configured
-     * @param project The project context (currently unused, reserved for future use)
+     * @param project The project context (reserved for future project-specific configuration)
      */
+    @Suppress("UnusedParameter")
     fun isAvailable(project: Project?): Boolean {
         // Project parameter reserved for future project-specific configuration
         return settingsService.isConfigured()
@@ -39,8 +40,9 @@ class OpenRouterChatContextProvider {
 
     /**
      * Provides context information for chat conversations
-     * @param project The project context (currently unused, reserved for future use)
+     * @param project The project context (reserved for future project-specific context)
      */
+    @Suppress("UnusedParameter")
     fun getContextInfo(project: Project?): Map<String, Any> {
         // Project parameter reserved for future project-specific context
         PluginLogger.Settings.debug("Providing chat context for OpenRouter")

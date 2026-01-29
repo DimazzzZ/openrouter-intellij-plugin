@@ -50,6 +50,7 @@ import javax.swing.table.AbstractTableModel
 /**
  * Multi-step setup wizard for first-time users with validation and embedded model selection
  */
+@Suppress("TooManyFunctions")
 class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) {
 
     private val settingsService = OpenRouterSettingsService.getInstance()
@@ -720,6 +721,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                 }, ModalityState.any())
             } catch (e: CancellationException) {
                 SetupWizardLogger.logValidationEvent("Validation cancelled")
+                throw e
             } catch (e: Exception) {
                 SetupWizardLogger.error("Validation exception", e)
                 ApplicationManager.getApplication().invokeLater({

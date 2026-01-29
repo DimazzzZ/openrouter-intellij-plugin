@@ -49,7 +49,10 @@ class OpenRouterChatModelProvider {
                 val response = makeOpenRouterRequest(requestBody)
 
                 response ?: ChatResponse.error("No response from OpenRouter")
-            } catch (e: Exception) {
+            } catch (e: IllegalStateException) {
+                PluginLogger.Service.error("Error sending chat request to OpenRouter - service not available", e)
+                ChatResponse.error("Chat request failed: ${e.message}")
+            } catch (e: RuntimeException) {
                 PluginLogger.Service.error("Error sending chat request to OpenRouter", e)
                 ChatResponse.error("Chat request failed: ${e.message}")
             }
@@ -81,7 +84,10 @@ class OpenRouterChatModelProvider {
                 } else {
                     CompletionResponse.error(chatResponse.error ?: "Completion failed")
                 }
-            } catch (e: Exception) {
+            } catch (e: IllegalStateException) {
+                PluginLogger.Service.error("Error sending completion request to OpenRouter", e)
+                CompletionResponse.error("Completion request failed: ${e.message}")
+            } catch (e: RuntimeException) {
                 PluginLogger.Service.error("Error sending completion request to OpenRouter", e)
                 CompletionResponse.error("Completion request failed: ${e.message}")
             }
@@ -90,8 +96,9 @@ class OpenRouterChatModelProvider {
 
     /**
      * Check if streaming is supported for the given model
-     * @param modelId The model ID (currently unused, all models support streaming)
+     * @param modelId The model ID (reserved for future model-specific streaming support)
      */
+    @Suppress("UnusedParameter")
     fun supportsStreaming(modelId: String): Boolean {
         // All OpenRouter models support streaming, parameter reserved for future model-specific logic
         return SUPPORTS_STREAMING
