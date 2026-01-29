@@ -59,8 +59,12 @@ class ChatCompletionServlet : HttpServlet() {
 
         // HTTP status codes
         private const val HTTP_STATUS_NOT_FOUND = 404
+        private const val HTTP_STATUS_TOO_MANY_REQUESTS = 429
         private const val HTTP_STATUS_CLIENT_ERROR_MIN = 400
         private const val HTTP_STATUS_CLIENT_ERROR_MAX = 499
+
+        // Time conversion
+        private const val MILLIS_PER_SECOND = 1000
     }
 
     private val gson = Gson()
@@ -313,6 +317,7 @@ class ChatCompletionServlet : HttpServlet() {
 
     /**
      * Handle error response from OpenRouter
+     * Sends error as OpenAI-compatible streaming chunk so AI Assistant can display it properly
      */
     private fun handleStreamingErrorResponse(context: StreamingErrorContext) {
         val errorBody = context.response.body?.string() ?: "Unknown error"
@@ -341,43 +346,117 @@ class ChatCompletionServlet : HttpServlet() {
         // Create user-friendly error message
         val userFriendlyMessage = createUserFriendlyErrorMessage(errorBody, context.response.code)
 
-        // Write error event with proper SSE format (data line + blank line)
-        context.writer.write("data: ${gson.toJson(mapOf("error" to mapOf("message" to userFriendlyMessage)))}\n\n")
-        // Write [DONE] event to signal end of stream
-        context.writer.write("data: [DONE]\n\n")
-        context.writer.flush()
+        // Send error as OpenAI-compatible streaming chunk
+        // This ensures AI Assistant can parse and display the error properly
+        sendOpenAICompatibleErrorChunk(context.writer, userFriendlyMessage, context.requestId)
+    }
+
+    /**
+     * Sends an error message as an OpenAI-compatible streaming chunk
+     * This format is required for AI Assistant to properly parse and display errors
+     */
+    private fun sendOpenAICompatibleErrorChunk(writer: PrintWriter, message: String, requestId: String) {
+        val escapedMessage = message.replace("\"", "\\\"").replace("\n", "\\n")
+        val chunkId = "chatcmpl-error-$requestId"
+        val timestamp = System.currentTimeMillis() / MILLIS_PER_SECOND
+
+        // Create a valid OpenAI streaming chunk with the error message in the content
+        val errorChunk = buildString {
+            append("{\"id\":\"$chunkId\",")
+            append("\"object\":\"chat.completion.chunk\",")
+            append("\"created\":$timestamp,")
+            append("\"model\":\"error\",")
+            append("\"choices\":[{")
+            append("\"index\":0,")
+            append("\"delta\":{\"role\":\"assistant\",\"content\":\"$escapedMessage\"},")
+            append("\"finish_reason\":\"stop\"")
+            append("}]}")
+        }
+
+        writer.println("data: $errorChunk")
+        writer.println()
+        writer.println("data: [DONE]")
+        writer.println()
+        writer.flush()
     }
 
     /**
      * Create a user-friendly error message based on the error response
      */
+    @Suppress("ReturnCount")
     private fun createUserFriendlyErrorMessage(errorBody: String, statusCode: Int): String {
-        // Check if this is a "No endpoints found" error (model unavailable)
-        if (statusCode == HTTP_STATUS_NOT_FOUND && errorBody.contains("No endpoints found", ignoreCase = true)) {
-            // Extract model name from error message
-            val modelNameRegex = """No endpoints found for ([^.]+)""".toRegex()
-            val modelName = modelNameRegex.find(errorBody)?.groupValues?.get(1) ?: "the requested model"
+        // First, try to extract the message from JSON error body
+        val extractedMessage = extractErrorMessageFromJson(errorBody)
 
-            // Show notification to user (only once per model per hour)
-            ModelAvailabilityNotifier.notifyModelUnavailable(modelName, errorBody)
-
-            return buildString {
-                append("❌ Model Unavailable: $modelName\n\n")
-                append("This model is currently unavailable on OpenRouter. This can happen when:\n")
-                append("• The model has been deprecated or removed\n")
-                append("• All providers for this model are temporarily down\n")
-                append("• The free tier for this model is unavailable\n\n")
-                append("💡 Suggested alternatives:\n")
-                append("• openai/gpt-4o-mini (fast, affordable)\n")
-                append("• anthropic/claude-3.5-sonnet (high quality)\n")
-                append("• google/gemini-pro-1.5 (large context)\n\n")
-                append("📚 Check model status: https://openrouter.ai/models\n")
-                append("⚙️ Update your model selection in AI Assistant settings")
-            }.toString()
+        // Check if this is an "image input not supported" error
+        if (statusCode == HTTP_STATUS_NOT_FOUND &&
+            errorBody.contains("support image input", ignoreCase = true)
+        ) {
+            ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
+            return createImageInputNotSupportedMessage()
         }
 
-        // For other errors, return the original error message
-        return errorBody
+        // Check if this is a "No endpoints found for <model>" error
+        if (statusCode == HTTP_STATUS_NOT_FOUND &&
+            errorBody.contains("No endpoints found", ignoreCase = true)
+        ) {
+            val modelNameRegex = """No endpoints found for ([^.]+)""".toRegex()
+            val modelName = modelNameRegex.find(errorBody)?.groupValues?.get(1) ?: "the requested model"
+            ModelAvailabilityNotifier.notifyModelUnavailable(modelName, errorBody)
+            return createModelUnavailableMessage(modelName)
+        }
+
+        // Check if this is a rate limit error (429)
+        if (statusCode == HTTP_STATUS_TOO_MANY_REQUESTS) {
+            return createRateLimitMessage(extractedMessage)
+        }
+
+        // For other errors, return the extracted message or a generic error
+        return extractedMessage ?: "Request failed (HTTP $statusCode). Please try again."
+    }
+
+    private fun createImageInputNotSupportedMessage(): String = buildString {
+        append("This model doesn't support image input.\n\n")
+        append("Try a vision-capable model like:\n")
+        append("- openai/gpt-4o or openai/gpt-4o-mini\n")
+        append("- anthropic/claude-3.5-sonnet\n")
+        append("- google/gemini-pro-1.5\n\n")
+        append("Check model capabilities: https://openrouter.ai/models")
+    }
+
+    private fun createModelUnavailableMessage(modelName: String): String = buildString {
+        append("Model Unavailable: $modelName\n\n")
+        append("This model is currently unavailable. Try:\n")
+        append("- openai/gpt-4o-mini (fast, affordable)\n")
+        append("- anthropic/claude-3.5-sonnet (high quality)\n")
+        append("- google/gemini-pro-1.5 (large context)\n\n")
+        append("Check model status: https://openrouter.ai/models")
+    }
+
+    private fun createRateLimitMessage(extractedMessage: String?): String = buildString {
+        append("Rate limit exceeded. Please wait a moment and try again.\n\n")
+        if (extractedMessage != null && extractedMessage.contains("free", ignoreCase = true)) {
+            append("Tip: Free tier models have lower rate limits. ")
+            append("Consider using a paid model for higher limits.")
+        }
+    }
+
+    /**
+     * Extracts the error message from a JSON error body.
+     * OpenRouter returns errors in format: {"error":{"message":"...","code":...}}
+     */
+    @Suppress("SwallowedException")
+    private fun extractErrorMessageFromJson(errorBody: String): String? {
+        return try {
+            val json = gson.fromJson(errorBody, com.google.gson.JsonObject::class.java)
+            json?.getAsJsonObject("error")?.get("message")?.asString
+        } catch (e: JsonSyntaxException) {
+            // Not valid JSON - expected for non-JSON error bodies, no need to log
+            null
+        } catch (e: IllegalStateException) {
+            // JSON doesn't have expected structure - expected for different error formats
+            null
+        }
     }
 
     /**

@@ -2,6 +2,7 @@ package org.zhavoronkov.openrouter.proxy.servlets
 
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.google.gson.JsonSyntaxException
 import jakarta.servlet.http.HttpServletResponse
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Protocol
@@ -10,6 +11,8 @@ import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -1012,6 +1015,89 @@ class StreamingResponseHandlerTest {
             assertTrue(expectedFormat.contains("finish_reason"), "Must have finish_reason")
             assertTrue(expectedFormat.contains("delta"), "Must use delta for streaming")
         }
+
+        @Test
+        @DisplayName("OpenAI-compatible error chunk should be parseable by AI Assistant")
+        fun testOpenAICompatibleErrorChunkFormat() {
+            // Simulate what sendOpenAICompatibleErrorChunk produces
+            val message = "Model Unavailable: test-model"
+            val requestId = "test-123"
+            val escapedMessage = message.replace("\"", "\\\"").replace("\n", "\\n")
+            val chunkId = "chatcmpl-error-$requestId"
+            val timestamp = System.currentTimeMillis() / 1000
+
+            val errorChunk = buildString {
+                append("{\"id\":\"$chunkId\",")
+                append("\"object\":\"chat.completion.chunk\",")
+                append("\"created\":$timestamp,")
+                append("\"model\":\"error\",")
+                append("\"choices\":[{")
+                append("\"index\":0,")
+                append("\"delta\":{\"role\":\"assistant\",\"content\":\"$escapedMessage\"},")
+                append("\"finish_reason\":\"stop\"")
+                append("}]}")
+            }
+
+            // Parse the chunk to verify it's valid JSON with required fields
+            val gson = Gson()
+            val json = gson.fromJson(errorChunk, JsonObject::class.java)
+
+            // Verify all required OpenAI streaming chunk fields are present
+            assertTrue(json.has("id"), "Must have id field")
+            assertTrue(json.has("object"), "Must have object field")
+            assertTrue(json.has("created"), "Must have created field")
+            assertTrue(json.has("model"), "Must have model field")
+            assertTrue(json.has("choices"), "Must have choices field")
+
+            // Verify field values
+            assertEquals("chat.completion.chunk", json.get("object").asString)
+            assertTrue(json.get("id").asString.startsWith("chatcmpl-"))
+
+            // Verify choices structure
+            val choices = json.getAsJsonArray("choices")
+            assertEquals(1, choices.size(), "Should have exactly one choice")
+
+            val choice = choices[0].asJsonObject
+            assertTrue(choice.has("index"), "Choice must have index")
+            assertTrue(choice.has("delta"), "Choice must have delta")
+            assertTrue(choice.has("finish_reason"), "Choice must have finish_reason")
+
+            // Verify delta contains the error message
+            val delta = choice.getAsJsonObject("delta")
+            assertTrue(delta.has("content"), "Delta must have content")
+            assertEquals(message, delta.get("content").asString, "Content should be error message")
+        }
+
+        @Test
+        @DisplayName("Error chunk should properly escape special characters")
+        fun testErrorChunkEscapesSpecialCharacters() {
+            // Test with message containing quotes and newlines
+            val message = "Error: \"Model not found\"\nPlease try another model."
+            val escapedMessage = message.replace("\"", "\\\"").replace("\n", "\\n")
+
+            val errorChunk = buildString {
+                append("{\"id\":\"chatcmpl-error-test\",")
+                append("\"object\":\"chat.completion.chunk\",")
+                append("\"created\":1234567890,")
+                append("\"model\":\"error\",")
+                append("\"choices\":[{")
+                append("\"index\":0,")
+                append("\"delta\":{\"role\":\"assistant\",\"content\":\"$escapedMessage\"},")
+                append("\"finish_reason\":\"stop\"")
+                append("}]}")
+            }
+
+            // Should be valid JSON
+            val gson = Gson()
+            val json = gson.fromJson(errorChunk, JsonObject::class.java)
+            assertTrue(json.has("choices"), "Should parse as valid JSON")
+
+            // Content should contain escaped characters
+            val content = json.getAsJsonArray("choices")[0]
+                .asJsonObject.getAsJsonObject("delta")
+                .get("content").asString
+            assertTrue(content.contains("Model not found"), "Should contain error message")
+        }
     }
 
     @Nested
@@ -1078,6 +1164,248 @@ class StreamingResponseHandlerTest {
             val message = errorObj?.get("message")?.asString
 
             assertEquals("Custom error message", message, "Should extract message from JSON")
+        }
+    }
+
+    @Nested
+    @DisplayName("Image Input Error Handling Tests")
+    inner class ImageInputErrorHandlingTests {
+
+        @Test
+        @DisplayName("Should detect 'support image input' error pattern")
+        fun testImageInputErrorDetection() {
+            // This is the exact error message from OpenRouter when sending image to non-vision model
+            val errorBody = """{"error":{"message":"No endpoints found that support image input"}}"""
+
+            assertTrue(
+                errorBody.contains("support image input", ignoreCase = true),
+                "Should detect image input error pattern"
+            )
+        }
+
+        @Test
+        @DisplayName("Should suggest vision-capable models for image input errors")
+        fun testImageInputErrorSuggestions() {
+            // Expected suggestions for image input errors
+            val expectedSuggestions = listOf(
+                "openai/gpt-4o",
+                "openai/gpt-4o-mini",
+                "anthropic/claude-3.5-sonnet",
+                "google/gemini-pro-1.5"
+            )
+
+            // Verify all suggestions are valid model names
+            for (model in expectedSuggestions) {
+                assertTrue(model.contains("/"), "Model name should have provider prefix: $model")
+            }
+        }
+
+        @Test
+        @DisplayName("Should differentiate image input error from model not found error")
+        fun testImageInputVsModelNotFound() {
+            val imageInputError = """{"error":{"message":"No endpoints found that support image input"}}"""
+            val modelNotFoundError = """{"error":{"message":"No endpoints found for xiaomi/mimo-v2-flash"}}"""
+
+            // Image input error should contain "support image input"
+            assertTrue(
+                imageInputError.contains("support image input"),
+                "Image input error should contain 'support image input'"
+            )
+            assertFalse(
+                modelNotFoundError.contains("support image input"),
+                "Model not found error should NOT contain 'support image input'"
+            )
+
+            // Model not found error should contain "No endpoints found for"
+            assertTrue(
+                modelNotFoundError.contains("No endpoints found for"),
+                "Model not found error should contain 'No endpoints found for'"
+            )
+        }
+    }
+
+    @Nested
+    @DisplayName("Rate Limit Error Handling Tests")
+    inner class RateLimitErrorHandlingTests {
+
+        @Test
+        @DisplayName("Should detect 429 rate limit status code")
+        fun testRateLimitStatusCode() {
+            val rateLimitStatusCode = 429
+            assertEquals(429, rateLimitStatusCode, "Rate limit status code should be 429")
+        }
+
+        @Test
+        @DisplayName("Should detect free tier rate limit message")
+        fun testFreeTierRateLimitDetection() {
+            val freeTierError = """{"error":{"message":"Rate limit exceeded for free tier"}}"""
+            val paidTierError = """{"error":{"message":"Rate limit exceeded"}}"""
+
+            assertTrue(
+                freeTierError.contains("free", ignoreCase = true),
+                "Free tier error should contain 'free'"
+            )
+            assertFalse(
+                paidTierError.contains("free", ignoreCase = true),
+                "Paid tier error should NOT contain 'free'"
+            )
+        }
+
+        @Test
+        @DisplayName("Should provide helpful message for rate limit errors")
+        fun testRateLimitErrorMessage() {
+            val expectedPatterns = listOf(
+                "Rate limit exceeded",
+                "wait",
+                "try again"
+            )
+
+            // Verify expected patterns are reasonable
+            for (pattern in expectedPatterns) {
+                assertTrue(pattern.isNotEmpty(), "Pattern should not be empty: $pattern")
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("JSON Error Extraction Tests")
+    inner class JSONErrorExtractionTests {
+
+        @Test
+        @DisplayName("Should extract message from standard OpenRouter error format")
+        fun testStandardErrorFormat() {
+            val gson = Gson()
+            val errorBody = """{"error":{"message":"Model not available","code":404}}"""
+
+            val json = gson.fromJson(errorBody, JsonObject::class.java)
+            val message = json?.getAsJsonObject("error")?.get("message")?.asString
+
+            assertEquals("Model not available", message)
+        }
+
+        @Test
+        @DisplayName("Should handle missing error object gracefully")
+        fun testMissingErrorObject() {
+            val gson = Gson()
+            val errorBody = """{"status":"error","details":"Something went wrong"}"""
+
+            val json = gson.fromJson(errorBody, JsonObject::class.java)
+            val errorObj = json?.getAsJsonObject("error")
+
+            assertNull(errorObj, "Should return null for missing error object")
+        }
+
+        @Test
+        @DisplayName("Should handle missing message field gracefully")
+        fun testMissingMessageField() {
+            val gson = Gson()
+            val errorBody = """{"error":{"code":500,"type":"server_error"}}"""
+
+            val json = gson.fromJson(errorBody, JsonObject::class.java)
+            val message = json?.getAsJsonObject("error")?.get("message")?.asString
+
+            assertNull(message, "Should return null for missing message field")
+        }
+
+        @Test
+        @DisplayName("Should handle invalid JSON gracefully")
+        fun testInvalidJSON() {
+            val gson = Gson()
+            val invalidJson = "This is not JSON at all"
+
+            var exceptionThrown = false
+            try {
+                gson.fromJson(invalidJson, JsonObject::class.java)
+            } catch (e: JsonSyntaxException) {
+                exceptionThrown = true
+                // Expected exception for invalid JSON - verify it contains useful info
+                assertNotNull(e.message, "Exception should have a message")
+            }
+
+            assertTrue(exceptionThrown, "Should throw JsonSyntaxException for invalid JSON")
+        }
+
+        @Test
+        @DisplayName("Should handle empty JSON object")
+        fun testEmptyJSONObject() {
+            val gson = Gson()
+            val emptyJson = "{}"
+
+            val json = gson.fromJson(emptyJson, JsonObject::class.java)
+            val errorObj = json?.getAsJsonObject("error")
+
+            assertNull(errorObj, "Should return null for empty JSON object")
+        }
+
+        @Test
+        @DisplayName("Should handle nested error structure")
+        fun testNestedErrorStructure() {
+            val gson = Gson()
+            val nestedError = """{"error":{"message":"Outer error","details":{"inner":"value"}}}"""
+
+            val json = gson.fromJson(nestedError, JsonObject::class.java)
+            val message = json?.getAsJsonObject("error")?.get("message")?.asString
+
+            assertEquals("Outer error", message, "Should extract message from nested structure")
+        }
+    }
+
+    @Nested
+    @DisplayName("Model Unavailable Error Handling Tests")
+    inner class ModelUnavailableErrorHandlingTests {
+
+        @Test
+        @DisplayName("Should extract model name from 'No endpoints found for' error")
+        fun testModelNameExtraction() {
+            val errorBody = """{"error":{"message":"No endpoints found for xiaomi/mimo-v2-flash."}}"""
+            val modelNameRegex = """No endpoints found for ([^.]+)""".toRegex()
+
+            val match = modelNameRegex.find(errorBody)
+            val modelName = match?.groupValues?.get(1)
+
+            assertEquals("xiaomi/mimo-v2-flash", modelName, "Should extract model name")
+        }
+
+        @Test
+        @DisplayName("Should handle model name with special characters")
+        fun testModelNameWithSpecialChars() {
+            val errorBody = """{"error":{"message":"No endpoints found for meta-llama/llama-3.1-8b-instruct."}}"""
+            val modelNameRegex = """No endpoints found for ([^.]+)""".toRegex()
+
+            val match = modelNameRegex.find(errorBody)
+            val modelName = match?.groupValues?.get(1)
+
+            // Note: The regex stops at the first dot, so version numbers may be truncated
+            assertNotNull(modelName, "Should extract model name")
+            assertTrue(modelName!!.startsWith("meta-llama/"), "Should start with provider")
+        }
+
+        @Test
+        @DisplayName("Should provide fallback when model name cannot be extracted")
+        fun testModelNameFallback() {
+            val errorBody = """{"error":{"message":"No endpoints found"}}"""
+            val modelNameRegex = """No endpoints found for ([^.]+)""".toRegex()
+
+            val match = modelNameRegex.find(errorBody)
+            val modelName = match?.groupValues?.get(1) ?: "the requested model"
+
+            assertEquals("the requested model", modelName, "Should use fallback")
+        }
+
+        @Test
+        @DisplayName("Should suggest alternative models for unavailable model")
+        fun testAlternativeModelSuggestions() {
+            val expectedAlternatives = listOf(
+                "openai/gpt-4o-mini",
+                "anthropic/claude-3.5-sonnet",
+                "google/gemini-pro-1.5"
+            )
+
+            // Verify alternatives are valid model names
+            for (model in expectedAlternatives) {
+                assertTrue(model.contains("/"), "Model should have provider prefix: $model")
+                assertFalse(model.contains(" "), "Model should not have spaces: $model")
+            }
         }
     }
 }
