@@ -29,9 +29,9 @@ class MultimodalContentValidatorTest {
     @Test
     fun `should validate text-only request as valid`() {
         val request = createTextOnlyRequest()
-        
+
         val result = validator.validate(request, "test-001")
-        
+
         assertTrue(result is MultimodalContentValidator.ValidationResult.Valid)
     }
 
@@ -39,12 +39,12 @@ class MultimodalContentValidatorTest {
     fun `should detect image content and validate against model capabilities`() {
         val request = createImageRequest()
         val visionModel = createModelWithCapabilities(listOf("text", "image"))
-        
+
         `when`(mockFavoriteModelsService.getModelById("openai/gpt-4o"))
             .thenReturn(visionModel)
-        
+
         val result = validator.validate(request, "test-002")
-        
+
         assertTrue(result is MultimodalContentValidator.ValidationResult.Valid)
     }
 
@@ -52,12 +52,12 @@ class MultimodalContentValidatorTest {
     fun `should reject image content for non-vision model`() {
         val request = createImageRequest()
         val textOnlyModel = createModelWithCapabilities(listOf("text"))
-        
+
         `when`(mockFavoriteModelsService.getModelById("openai/gpt-4o"))
             .thenReturn(textOnlyModel)
-        
+
         val result = validator.validate(request, "test-003")
-        
+
         assertTrue(result is MultimodalContentValidator.ValidationResult.Invalid)
         if (result is MultimodalContentValidator.ValidationResult.Invalid) {
             assertEquals(MultimodalContentValidator.ContentType.IMAGE, result.contentType)
@@ -68,12 +68,12 @@ class MultimodalContentValidatorTest {
     @Test
     fun `should skip validation when model not in cache`() {
         val request = createImageRequest()
-        
+
         `when`(mockFavoriteModelsService.getModelById("openai/gpt-4o"))
             .thenReturn(null)
-        
+
         val result = validator.validate(request, "test-004")
-        
+
         assertTrue(result is MultimodalContentValidator.ValidationResult.Valid)
     }
 
@@ -81,12 +81,12 @@ class MultimodalContentValidatorTest {
     fun `should detect audio content`() {
         val request = createAudioRequest()
         val audioModel = createModelWithCapabilities(listOf("text", "audio"))
-        
+
         `when`(mockFavoriteModelsService.getModelById("openai/gpt-4o-audio-preview"))
             .thenReturn(audioModel)
-        
+
         val result = validator.validate(request, "test-005")
-        
+
         assertTrue(result is MultimodalContentValidator.ValidationResult.Valid)
     }
 
@@ -108,7 +108,7 @@ class MultimodalContentValidatorTest {
                 {"type": "image_url", "image_url": {"url": "https://example.com/image.jpg"}}
             ]
         """.trimIndent()
-        
+
         val message = OpenAIChatMessage(
             role = "user",
             content = JsonParser.parseString(contentJson)
@@ -126,7 +126,7 @@ class MultimodalContentValidatorTest {
                 {"type": "input_audio", "input_audio": {"data": "base64data"}}
             ]
         """.trimIndent()
-        
+
         val message = OpenAIChatMessage(
             role = "user",
             content = JsonParser.parseString(contentJson)
@@ -149,4 +149,3 @@ class MultimodalContentValidatorTest {
         )
     }
 }
-
