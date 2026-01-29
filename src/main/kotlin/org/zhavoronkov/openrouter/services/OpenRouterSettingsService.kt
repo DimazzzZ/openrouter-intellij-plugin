@@ -110,7 +110,9 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
             application?.messageBus?.syncPublisher(
                 org.zhavoronkov.openrouter.listeners.OpenRouterSettingsListener.TOPIC
             )?.onSettingsChanged()
-        } catch (e: Exception) {
+        } catch (e: IllegalStateException) {
+            PluginLogger.Service.warn("Failed to persist settings state", e)
+        } catch (e: RuntimeException) {
             PluginLogger.Service.warn("Failed to persist settings state", e)
         }
     }

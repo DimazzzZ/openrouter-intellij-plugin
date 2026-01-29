@@ -280,13 +280,21 @@ class OpenRouterProxyService : Disposable {
                 try {
                     proxyServer.stop().get(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                     PluginLogger.Service.info("Proxy server stopped successfully")
-                } catch (e: Exception) {
+                } catch (e: java.util.concurrent.ExecutionException) {
+                    PluginLogger.Service.error("Error stopping proxy server during disposal", e)
+                } catch (e: java.util.concurrent.TimeoutException) {
+                    PluginLogger.Service.error("Error stopping proxy server during disposal", e)
+                } catch (e: IllegalStateException) {
+                    PluginLogger.Service.error("Error stopping proxy server during disposal", e)
+                } catch (e: RuntimeException) {
                     PluginLogger.Service.error("Error stopping proxy server during disposal", e)
                 }
             }
 
             PluginLogger.Service.info("OpenRouterProxyService disposed successfully")
-        } catch (e: Exception) {
+        } catch (e: IllegalStateException) {
+            PluginLogger.Service.error("Error during OpenRouterProxyService disposal", e)
+        } catch (e: RuntimeException) {
             PluginLogger.Service.error("Error during OpenRouterProxyService disposal", e)
         }
     }
