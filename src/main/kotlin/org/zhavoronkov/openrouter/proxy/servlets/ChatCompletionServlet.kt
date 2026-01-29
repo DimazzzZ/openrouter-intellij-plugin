@@ -9,8 +9,12 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
+import org.zhavoronkov.openrouter.proxy.validation.MultimodalContentValidator
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.utils.ErrorPatterns
+import org.zhavoronkov.openrouter.utils.KeyValidator
 import org.zhavoronkov.openrouter.utils.ModelAvailabilityNotifier
+import org.zhavoronkov.openrouter.utils.ModelSuggestions
 import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.io.IOException
@@ -50,17 +54,19 @@ class ChatCompletionServlet : HttpServlet() {
         // Request ID formatting
         private const val REQUEST_ID_PAD_WIDTH = 6
 
-        // API Key validation
-        private const val API_KEY_DISPLAY_LENGTH = 15
-
         // Streaming request constants
         private const val STREAMING_TIMEOUT_MS = 500L
         private const val STREAMING_CHUNK_DISPLAY_LENGTH = 15
 
         // HTTP status codes
         private const val HTTP_STATUS_NOT_FOUND = 404
+        private const val HTTP_STATUS_TOO_MANY_REQUESTS = 429
         private const val HTTP_STATUS_CLIENT_ERROR_MIN = 400
         private const val HTTP_STATUS_CLIENT_ERROR_MAX = 499
+        private const val HTTP_STATUS_SERVER_ERROR_MIN = 500
+
+        // Time conversion
+        private const val MILLIS_PER_SECOND = 1000
     }
 
     private val gson = Gson()
@@ -71,8 +77,74 @@ class ChatCompletionServlet : HttpServlet() {
         .build()
     private val settingsService = OpenRouterSettingsService.getInstance()
     private val requestValidator = RequestValidator(settingsService)
+    private val multimodalValidator = MultimodalContentValidator()
     private val streamingHandler = StreamingResponseHandler()
     private val nonStreamingHandler = NonStreamingResponseHandler(httpClient, gson)
+
+    /**
+     * Enum representing different types of multimodal content errors
+     */
+    private enum class MultimodalErrorType {
+        IMAGE, AUDIO, VIDEO, FILE;
+
+        fun createErrorMessage(): String = when (this) {
+            IMAGE -> createImageInputNotSupportedMessage()
+            AUDIO -> createAudioInputNotSupportedMessage()
+            VIDEO -> createVideoInputNotSupportedMessage()
+            FILE -> createFileInputNotSupportedMessage()
+        }
+
+        companion object {
+            private fun createImageInputNotSupportedMessage(): String = buildString {
+                append("This model doesn't support image input.\n\n")
+                append(ModelSuggestions.createSuggestionSection(
+                    "Try a vision-capable model like:",
+                    ModelSuggestions.VISION_MODELS
+                ))
+                append("\n\nCheck model capabilities: https://openrouter.ai/models")
+            }
+
+            private fun createAudioInputNotSupportedMessage(): String = buildString {
+                append("This model doesn't support audio input.\n\n")
+                append(ModelSuggestions.createSuggestionSection(
+                    "Try an audio-capable model like:",
+                    ModelSuggestions.AUDIO_MODELS
+                ))
+                append("\n\nCheck model capabilities: https://openrouter.ai/models")
+            }
+
+            private fun createVideoInputNotSupportedMessage(): String = buildString {
+                append("This model doesn't support video input.\n\n")
+                append(ModelSuggestions.createSuggestionSection(
+                    "Try a video-capable model like:",
+                    ModelSuggestions.VIDEO_MODELS
+                ))
+                append("\n\nCheck model capabilities: https://openrouter.ai/models")
+            }
+
+            private fun createFileInputNotSupportedMessage(): String = buildString {
+                append("This model doesn't support PDF/file input.\n\n")
+                append(ModelSuggestions.createSuggestionSection(
+                    "Try a document-capable model like:",
+                    ModelSuggestions.FILE_MODELS
+                ))
+                append("\n\nCheck model capabilities: https://openrouter.ai/models")
+            }
+        }
+    }
+
+    /**
+     * Detect multimodal error type from error body
+     */
+    private fun detectMultimodalErrorType(errorBody: String): MultimodalErrorType? {
+        return when {
+            ErrorPatterns.isImageNotSupported(errorBody) -> MultimodalErrorType.IMAGE
+            ErrorPatterns.isAudioNotSupported(errorBody) -> MultimodalErrorType.AUDIO
+            ErrorPatterns.isVideoNotSupported(errorBody) -> MultimodalErrorType.VIDEO
+            ErrorPatterns.isFileNotSupported(errorBody) -> MultimodalErrorType.FILE
+            else -> null
+        }
+    }
 
     override fun doPost(req: HttpServletRequest, resp: HttpServletResponse) {
         val requestNumber = requestCounter.incrementAndGet()
@@ -142,6 +214,17 @@ class ChatCompletionServlet : HttpServlet() {
         val openAIRequest = parseRequestBody(requestBody, resp, requestId) ?: return
 
         PluginLogger.Service.info("[Chat-$requestId] 📝 Model: '${openAIRequest.model}'")
+
+        // Pre-validate multimodal content against model capabilities
+        val validationResult = multimodalValidator.validate(openAIRequest, requestId)
+        if (validationResult is MultimodalContentValidator.ValidationResult.Invalid) {
+            PluginLogger.Service.warn(
+                "[Chat-$requestId] ⚠️ Pre-validation failed: ${validationResult.contentType.displayName} " +
+                    "not supported by model '${validationResult.modelId}'"
+            )
+            sendMultimodalValidationError(resp, validationResult, requestId)
+            return
+        }
 
         routeRequest(resp, openAIRequest, apiKey, requestId, startNs)
     }
@@ -313,71 +396,220 @@ class ChatCompletionServlet : HttpServlet() {
 
     /**
      * Handle error response from OpenRouter
+     * Sends error as OpenAI-compatible streaming chunk so AI Assistant can display it properly
      */
     private fun handleStreamingErrorResponse(context: StreamingErrorContext) {
         val errorBody = context.response.body?.string() ?: "Unknown error"
 
-        // Log as single consolidated message to avoid multiple stack traces
-        val keyDisplay = context.apiKey.take(API_KEY_DISPLAY_LENGTH)
+        // Log each piece of information separately to avoid IntelliJ logger truncation
+        val keyDisplay = KeyValidator.maskApiKey(context.apiKey)
         val keyLength = context.apiKey.length
-        val errorMessage = buildString {
-            append("[Chat-${context.requestId}] ❌ OpenRouter API Error: ${context.response.code}\n")
-            append("  Error details: $errorBody\n")
-            append("  Request URL: ${context.request.url}\n")
-            append("  API key prefix: $keyDisplay... (length: $keyLength)")
-        }
+        val statusCode = context.response.code
+        val requestId = context.requestId
 
         // Use warn() for expected API errors (404, 429, etc.) to avoid stack traces
         // Use error() only for unexpected errors (500, network failures, etc.)
-        if (context.response.code in HTTP_STATUS_CLIENT_ERROR_MIN..HTTP_STATUS_CLIENT_ERROR_MAX) {
-            PluginLogger.Service.warn(errorMessage)
+        val isClientError = statusCode in HTTP_STATUS_CLIENT_ERROR_MIN..HTTP_STATUS_CLIENT_ERROR_MAX
+        if (isClientError) {
+            PluginLogger.Service.warn("[Chat-$requestId] ❌ OpenRouter API Error: $statusCode")
         } else {
-            PluginLogger.Service.error(errorMessage)
+            PluginLogger.Service.warn("[Chat-$requestId] ❌ OpenRouter API Error: $statusCode (server error)")
         }
 
+        // Log error body separately so it's always visible for debugging
+        PluginLogger.Service.warn("[Chat-$requestId] ❌ Error response body: $errorBody")
+        PluginLogger.Service.debug("[Chat-$requestId] Request URL: ${context.request.url}")
+        PluginLogger.Service.debug("[Chat-$requestId] API key: $keyDisplay (length: $keyLength)")
+
         val bodyPreview = context.jsonBody.take(STREAMING_TIMEOUT_MS.toInt())
-        PluginLogger.Service.debug("[Chat-${context.requestId}] ❌ Full request body: $bodyPreview")
+        PluginLogger.Service.debug("[Chat-$requestId] ❌ Full request body: $bodyPreview")
 
         // Create user-friendly error message
         val userFriendlyMessage = createUserFriendlyErrorMessage(errorBody, context.response.code)
 
-        // Write error event with proper SSE format (data line + blank line)
-        context.writer.write("data: ${gson.toJson(mapOf("error" to mapOf("message" to userFriendlyMessage)))}\n\n")
-        // Write [DONE] event to signal end of stream
-        context.writer.write("data: [DONE]\n\n")
-        context.writer.flush()
+        // Send error as OpenAI-compatible streaming chunk
+        // This ensures AI Assistant can parse and display the error properly
+        sendOpenAICompatibleErrorChunk(context.writer, userFriendlyMessage, context.requestId)
+    }
+
+    /**
+     * Sends an error message as an OpenAI-compatible streaming chunk
+     * This format is required for AI Assistant to properly parse and display errors
+     */
+    private fun sendOpenAICompatibleErrorChunk(writer: PrintWriter, message: String, requestId: String) {
+        val escapedMessage = message.replace("\"", "\\\"").replace("\n", "\\n")
+        val chunkId = "chatcmpl-error-$requestId"
+        val timestamp = System.currentTimeMillis() / MILLIS_PER_SECOND
+
+        // Create a valid OpenAI streaming chunk with the error message in the content
+        val errorChunk = buildString {
+            append("{\"id\":\"$chunkId\",")
+            append("\"object\":\"chat.completion.chunk\",")
+            append("\"created\":$timestamp,")
+            append("\"model\":\"error\",")
+            append("\"choices\":[{")
+            append("\"index\":0,")
+            append("\"delta\":{\"role\":\"assistant\",\"content\":\"$escapedMessage\"},")
+            append("\"finish_reason\":\"stop\"")
+            append("}]}")
+        }
+
+        writer.println("data: $errorChunk")
+        writer.println()
+        writer.println("data: [DONE]")
+        writer.println()
+        writer.flush()
     }
 
     /**
      * Create a user-friendly error message based on the error response
+     * Handles all multimodal content type errors (image, audio, video, PDF/file)
      */
+    @Suppress("ReturnCount")
     private fun createUserFriendlyErrorMessage(errorBody: String, statusCode: Int): String {
-        // Check if this is a "No endpoints found" error (model unavailable)
-        if (statusCode == HTTP_STATUS_NOT_FOUND && errorBody.contains("No endpoints found", ignoreCase = true)) {
-            // Extract model name from error message
-            val modelNameRegex = """No endpoints found for ([^.]+)""".toRegex()
-            val modelName = modelNameRegex.find(errorBody)?.groupValues?.get(1) ?: "the requested model"
+        // First, try to extract the message from JSON error body
+        val extractedMessage = extractErrorMessageFromJson(errorBody)
 
-            // Show notification to user (only once per model per hour)
-            ModelAvailabilityNotifier.notifyModelUnavailable(modelName, errorBody)
-
-            return buildString {
-                append("❌ Model Unavailable: $modelName\n\n")
-                append("This model is currently unavailable on OpenRouter. This can happen when:\n")
-                append("• The model has been deprecated or removed\n")
-                append("• All providers for this model are temporarily down\n")
-                append("• The free tier for this model is unavailable\n\n")
-                append("💡 Suggested alternatives:\n")
-                append("• openai/gpt-4o-mini (fast, affordable)\n")
-                append("• anthropic/claude-3.5-sonnet (high quality)\n")
-                append("• google/gemini-pro-1.5 (large context)\n\n")
-                append("📚 Check model status: https://openrouter.ai/models\n")
-                append("⚙️ Update your model selection in AI Assistant settings")
-            }.toString()
+        // Check for "No endpoints found" pattern - can occur with 404 or 500 status codes
+        // OpenRouter may return different status codes for model availability issues
+        if (errorBody.contains("No endpoints found", ignoreCase = true)) {
+            return handleNoEndpointsFoundError(errorBody)
         }
 
-        // For other errors, return the original error message
-        return errorBody
+        // Check for free tier ended / migrate to paid errors (typically 404)
+        val freeTierError = handleFreeTierEndedError(errorBody)
+        if (freeTierError != null) {
+            return freeTierError
+        }
+
+        // Check for multimodal content type errors (typically 404)
+        if (statusCode == HTTP_STATUS_NOT_FOUND) {
+            val multimodalError = handleMultimodalContentTypeError(errorBody)
+            if (multimodalError != null) {
+                return multimodalError
+            }
+        }
+
+        // Check if this is a rate limit error (429)
+        if (statusCode == HTTP_STATUS_TOO_MANY_REQUESTS) {
+            return createRateLimitMessage(extractedMessage)
+        }
+
+        // Check for server errors (500+)
+        if (statusCode >= HTTP_STATUS_SERVER_ERROR_MIN) {
+            return createServerErrorMessage(extractedMessage, statusCode)
+        }
+
+        // For other errors, return the extracted message or a generic error
+        return extractedMessage ?: "Request failed (HTTP $statusCode). Please try again."
+    }
+
+    /**
+     * Handle "free period ended" / "migrate to paid" errors
+     * Returns null if no such error pattern is detected
+     */
+    private fun handleFreeTierEndedError(errorBody: String): String? {
+        // Check for free period ended pattern using ErrorPatterns
+        if (ErrorPatterns.isFreeTierEnded(errorBody)) {
+            // Extract model name from error message
+            val modelNameRegex = """migrate to the paid slug[:\s]+([^\s"]+)""".toRegex(RegexOption.IGNORE_CASE)
+            val paidSlug = modelNameRegex.find(errorBody)?.groupValues?.get(1)
+
+            // Show notification about the model change
+            val modelName = paidSlug ?: "the requested model"
+            ModelAvailabilityNotifier.notifyModelUnavailable(modelName, errorBody)
+
+            return createFreeTierEndedMessage(paidSlug)
+        }
+        return null
+    }
+
+    /**
+     * Create user-friendly message for free tier ended errors
+     */
+    private fun createFreeTierEndedMessage(paidSlug: String?): String = buildString {
+        append("⚠️ **Free Tier Ended**\n\n")
+        append("The free period for this model has ended.\n\n")
+        if (paidSlug != null) {
+            append("To continue using this model, switch to the paid version: `$paidSlug`\n\n")
+        }
+        append("**Alternatives:**\n")
+        append("• Select a different model in OpenRouter settings\n")
+        append("• Use another free model if available\n")
+        append("• Add credits to your OpenRouter account for paid models")
+    }
+
+    /**
+     * Handle "No endpoints found" errors - model unavailable or doesn't support requested features
+     */
+    private fun handleNoEndpointsFoundError(errorBody: String): String {
+        // Check for specific capability errors first using centralized detection
+        // Note: These are NOT model unavailability issues - the model is available but doesn't support the feature
+        // So we don't show "Model Unavailable" notification for these cases
+        detectMultimodalErrorType(errorBody)?.let { return it.createErrorMessage() }
+
+        // Generic "No endpoints found for <model>" error - this IS a true model unavailability issue
+        val modelNameRegex = """No endpoints found for ([^.]+)""".toRegex()
+        val modelName = modelNameRegex.find(errorBody)?.groupValues?.get(1) ?: "the requested model"
+        ModelAvailabilityNotifier.notifyModelUnavailable(modelName, errorBody)
+        return createModelUnavailableMessage(modelName)
+    }
+
+    /**
+     * Handle multimodal content type errors (image, audio, video, PDF/file not supported)
+     * Returns null if no multimodal error pattern is detected
+     */
+    private fun handleMultimodalContentTypeError(errorBody: String): String? {
+        // Note: These are NOT model unavailability issues - the model is available but doesn't support the feature
+        // So we don't show "Model Unavailable" notification for these cases
+        return detectMultimodalErrorType(errorBody)?.createErrorMessage()
+    }
+
+    /**
+     * Create a user-friendly message for server errors (HTTP 500+)
+     */
+    private fun createServerErrorMessage(extractedMessage: String?, statusCode: Int): String = buildString {
+        append("OpenRouter server error (HTTP $statusCode).\n\n")
+        if (extractedMessage != null) {
+            append("Details: $extractedMessage\n\n")
+        }
+        append("This is usually a temporary issue. Please try again in a moment.\n")
+        append("If the problem persists, check OpenRouter status: https://status.openrouter.ai")
+    }
+
+    private fun createModelUnavailableMessage(modelName: String): String = buildString {
+        append("Model Unavailable: $modelName\n\n")
+        append(ModelSuggestions.createSuggestionSection(
+            "This model is currently unavailable. Try:",
+            ModelSuggestions.GENERAL_MODELS
+        ))
+        append("\n\nCheck model status: https://openrouter.ai/models")
+    }
+
+    private fun createRateLimitMessage(extractedMessage: String?): String = buildString {
+        append("Rate limit exceeded. Please wait a moment and try again.\n\n")
+        if (extractedMessage != null && extractedMessage.contains(ErrorPatterns.FREE, ignoreCase = true)) {
+            append("Tip: Free tier models have lower rate limits. ")
+            append("Consider using a paid model for higher limits.")
+        }
+    }
+
+    /**
+     * Extracts the error message from a JSON error body.
+     * OpenRouter returns errors in format: {"error":{"message":"...","code":...}}
+     */
+    @Suppress("SwallowedException")
+    private fun extractErrorMessageFromJson(errorBody: String): String? {
+        return try {
+            val json = gson.fromJson(errorBody, com.google.gson.JsonObject::class.java)
+            json?.getAsJsonObject("error")?.get("message")?.asString
+        } catch (e: JsonSyntaxException) {
+            // Not valid JSON - expected for non-JSON error bodies, no need to log
+            null
+        } catch (e: IllegalStateException) {
+            // JSON doesn't have expected structure - expected for different error formats
+            null
+        }
     }
 
     /**
@@ -434,6 +666,33 @@ class ChatCompletionServlet : HttpServlet() {
             }
         }
         PluginLogger.Service.debug("[Chat-$requestId] Headers: $headers")
+    }
+
+    /**
+     * Send error response for multimodal validation failure.
+     * Returns a user-friendly error message explaining the capability mismatch.
+     */
+    private fun sendMultimodalValidationError(
+        resp: HttpServletResponse,
+        validationResult: MultimodalContentValidator.ValidationResult.Invalid,
+        requestId: String
+    ) {
+        resp.contentType = "application/json"
+        resp.status = HttpServletResponse.SC_BAD_REQUEST
+
+        val errorResponse = mapOf(
+            "error" to mapOf(
+                "message" to validationResult.errorMessage,
+                "type" to "invalid_request_error",
+                "code" to "model_capability_error",
+                "param" to "model"
+            )
+        )
+
+        PluginLogger.Service.info(
+            "[Chat-$requestId] Returning pre-validation error for ${validationResult.contentType.displayName}"
+        )
+        resp.writer.write(gson.toJson(errorResponse))
     }
 
     private fun sendErrorResponse(resp: HttpServletResponse, message: String, statusCode: Int) {

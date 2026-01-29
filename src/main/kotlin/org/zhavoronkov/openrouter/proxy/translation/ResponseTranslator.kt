@@ -194,8 +194,10 @@ object ResponseTranslator {
                 response.choices.isNotEmpty() &&
                 response.choices.all { choice ->
                     choice.message.role.isNotBlank() &&
-                    (choice.message.content.isJsonPrimitive &&
-                     choice.message.content.asString.isNotBlank())
+                        (
+                            choice.message.content.isJsonPrimitive &&
+                                choice.message.content.asString.isNotBlank()
+                            )
                 }
         } catch (e: NullPointerException) {
             PluginLogger.Service.error("Response validation failed: null value encountered", e)

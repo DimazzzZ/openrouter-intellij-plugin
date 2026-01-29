@@ -15,6 +15,9 @@ object KeyValidator {
     // Key format pattern - same for both regular and provisioning keys
     private const val API_KEY_PREFIX = "sk-or-v1-"
 
+    // Key masking configuration - show first 15 characters + "..."
+    private const val KEY_DISPLAY_LENGTH = 15
+
     /**
      * Validation result for API keys
      */
@@ -92,5 +95,20 @@ object KeyValidator {
      */
     fun isError(result: ValidationResult): Boolean {
         return result is ValidationResult.Invalid
+    }
+
+    /**
+     * Masks an API key for logging purposes
+     * Shows first 15 characters followed by "..." for consistent logging across the plugin
+     *
+     * @param apiKey The API key to mask
+     * @return Masked key in format "sk-or-v1-abc123..." or "****" for short keys
+     */
+    fun maskApiKey(apiKey: String): String {
+        return if (apiKey.length > KEY_DISPLAY_LENGTH) {
+            "${apiKey.take(KEY_DISPLAY_LENGTH)}..."
+        } else {
+            "****"
+        }
     }
 }

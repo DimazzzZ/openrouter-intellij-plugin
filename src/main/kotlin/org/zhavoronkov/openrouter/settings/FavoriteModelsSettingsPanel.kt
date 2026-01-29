@@ -55,6 +55,7 @@ class FavoriteModelsSettingsPanel : Disposable {
         private const val TABLE_PREFERRED_WIDTH = 300
         private const val TABLE_PREFERRED_HEIGHT = 250
         private const val TABLE_ROW_HEIGHT = 22
+        private const val CAPABILITIES_COLUMN_WIDTH = 100
     }
 
     private val settingsService = OpenRouterSettingsService.getInstance()
@@ -400,25 +401,37 @@ class FavoriteModelsSettingsPanel : Disposable {
     }
 
     /**
-     * Create table model for available models (single column)
+     * Create table model for available models with capabilities column
      */
     private fun createAvailableTableModel(): ListTableModel<OpenRouterModelInfo> {
-        val column = object : ColumnInfo<OpenRouterModelInfo, String>("Model ID") {
+        val modelColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Model ID") {
             override fun valueOf(item: OpenRouterModelInfo): String = item.id
             override fun getPreferredStringValue(): String = "anthropic/claude-3.5-sonnet-20241022"
         }
-        return ListTableModel(arrayOf(column), mutableListOf())
+        val capabilitiesColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Capabilities") {
+            override fun valueOf(item: OpenRouterModelInfo): String =
+                ModelProviderUtils.getCapabilitiesString(item)
+            override fun getPreferredStringValue(): String = "Vision, Audio"
+            override fun getWidth(table: javax.swing.JTable?): Int = JBUI.scale(CAPABILITIES_COLUMN_WIDTH)
+        }
+        return ListTableModel(arrayOf(modelColumn, capabilitiesColumn), mutableListOf())
     }
 
     /**
-     * Create table model for favorite models (single column)
+     * Create table model for favorite models with capabilities column
      */
     private fun createFavoriteTableModel(): ListTableModel<OpenRouterModelInfo> {
-        val column = object : ColumnInfo<OpenRouterModelInfo, String>("Model ID") {
+        val modelColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Model ID") {
             override fun valueOf(item: OpenRouterModelInfo): String = item.id
             override fun getPreferredStringValue(): String = "anthropic/claude-3.5-sonnet-20241022"
         }
-        return ListTableModel(arrayOf(column), mutableListOf())
+        val capabilitiesColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Capabilities") {
+            override fun valueOf(item: OpenRouterModelInfo): String =
+                ModelProviderUtils.getCapabilitiesString(item)
+            override fun getPreferredStringValue(): String = "Vision, Audio"
+            override fun getWidth(table: javax.swing.JTable?): Int = JBUI.scale(CAPABILITIES_COLUMN_WIDTH)
+        }
+        return ListTableModel(arrayOf(modelColumn, capabilitiesColumn), mutableListOf())
     }
 
     /**

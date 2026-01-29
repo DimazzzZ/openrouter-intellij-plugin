@@ -114,7 +114,11 @@ object ModelAvailabilityNotifier {
         return when {
             errorMessage.contains("deprecated", ignoreCase = true) ->
                 "Model has been deprecated"
-            errorMessage.contains("free tier", ignoreCase = true) ->
+            errorMessage.contains("period has ended", ignoreCase = true) ||
+                errorMessage.contains("migrate to", ignoreCase = true) ->
+                "Free period has ended - migrate to paid version"
+            errorMessage.contains("free tier", ignoreCase = true) ||
+                errorMessage.contains("free", ignoreCase = true) ->
                 "Free tier temporarily unavailable"
             errorMessage.contains("providers", ignoreCase = true) ->
                 "All providers are currently down"

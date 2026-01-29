@@ -248,6 +248,7 @@
             order="after Encoding"/>
 
         <!-- Startup activities -->
+        <postStartupActivity implementation="org.zhavoronkov.openrouter.startup.ApiKeyValidationStartupActivity"/>
         <postStartupActivity implementation="org.zhavoronkov.openrouter.startup.WelcomeNotificationActivity"/>
         <postStartupActivity implementation="org.zhavoronkov.openrouter.startup.ProxyServerStartupActivity"/>
         <postStartupActivity implementation="org.zhavoronkov.openrouter.startup.WhatsNewNotificationActivity"/>

@@ -121,12 +121,8 @@ object OpenRouterRequestBuilder {
             val authHeaderValue = "Bearer ${authToken.trim()}"
             builder.header("Authorization", authHeaderValue)
 
-            // Mask the token for logging
-            val maskedToken = if (authToken.length > 8) {
-                "${authToken.take(4)}...${authToken.takeLast(4)}"
-            } else {
-                "****"
-            }
+            // Mask the token for logging using centralized utility
+            val maskedToken = KeyValidator.maskApiKey(authToken)
             PluginLogger.Service.debug("[OpenRouter] Request: $method $url, Auth: Bearer $maskedToken")
         } else {
             PluginLogger.Service.debug("[OpenRouter] Request: $method $url, Auth: NONE")
