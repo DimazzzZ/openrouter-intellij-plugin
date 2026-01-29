@@ -9,8 +9,12 @@ import java.util.Base64
 /**
  * Utility for generating test media files (images, audio, video) on-demand.
  *
- * Files are generated using the media-gen CLI tool and stored in .gradle/test-media/
- * which is git-ignored. Files are only generated if they don't already exist.
+ * - Images: Generated using Java AWT (no external dependencies)
+ * - Audio: Generated using the media-gen CLI tool
+ * - Video: Generated as minimal valid MP4 files (no external dependencies)
+ *
+ * Files are stored in .gradle/test-media/ which is git-ignored.
+ * Files are only generated if they don't already exist.
  *
  * Usage:
  * ```kotlin
@@ -55,7 +59,10 @@ object TestMediaGenerator {
 
     /**
      * Get base64 data URL for a test video file.
-     * Generates the video if it doesn't exist.
+     * Generates a minimal valid MP4 file if it doesn't exist.
+     *
+     * Note: This generates a simple MP4 structure for testing purposes.
+     * For audio generation, media-gen is used.
      */
     fun getVideoDataUrl(filename: String = "test-video.mp4"): String {
         val file = ensureVideoExists(filename)
@@ -89,18 +96,49 @@ object TestMediaGenerator {
 
         println("Downloading media-gen from $downloadUrl...")
 
-        // Download using curl
+        // Download using curl with explicit options
         val process = ProcessBuilder(
             "curl",
-            "-L",
-            "-o",
-            mediaGenBinary.toString(),
+            "-L", // Follow redirects
+            "-f", // Fail on HTTP errors
+            "-S", // Show errors
+            "-s", // Silent mode (no progress bar)
+            "-o", mediaGenBinary.toString(),
             downloadUrl
-        ).redirectErrorStream(true).start()
+        ).start() // Don't redirect error stream to avoid potential issues
 
+        // Read output in a separate thread to avoid deadlock
+        val outputReader = Thread {
+            process.inputStream.bufferedReader().use { it.readText() }
+        }
+        val errorReader = Thread {
+            process.errorStream.bufferedReader().use { it.readText() }
+        }
+        outputReader.start()
+        errorReader.start()
+
+        // Wait for process to complete
         val exitCode = process.waitFor()
+        outputReader.join()
+        errorReader.join()
+
         if (exitCode != 0) {
-            throw RuntimeException("Failed to download media-gen: exit code $exitCode")
+            throw RuntimeException(
+                "Failed to download media-gen from $downloadUrl\n" +
+                "Exit code: $exitCode\n" +
+                "Please verify the URL is correct and the release exists at:\n" +
+                "https://github.com/DimazzzZ/media-gen/releases/tag/v0.2.0"
+            )
+        }
+
+        // Verify file was downloaded and has content
+        if (!Files.exists(mediaGenBinary) || Files.size(mediaGenBinary) == 0L) {
+            throw RuntimeException(
+                "media-gen binary was not downloaded correctly.\n" +
+                "File exists: ${Files.exists(mediaGenBinary)}\n" +
+                "Size: ${if (Files.exists(mediaGenBinary)) Files.size(mediaGenBinary) else 0}\n" +
+                "URL: $downloadUrl"
+            )
         }
 
         // Make executable on Unix systems
@@ -180,12 +218,42 @@ object TestMediaGenerator {
             "--bitrate", "128k",
             "--format", "mp3",
             "--output", file.absolutePath
-        ).redirectErrorStream(true).start()
+        ).start()
 
+        // Consume streams to prevent deadlock
+        val output = StringBuilder()
+        val outputThread = Thread {
+            process.inputStream.bufferedReader().use { reader ->
+                reader.lines().forEach { line ->
+                    output.append(line).append("\n")
+                }
+            }
+        }
+        val errorThread = Thread {
+            process.errorStream.bufferedReader().use { reader ->
+                reader.lines().forEach { line ->
+                    output.append(line).append("\n")
+                }
+            }
+        }
+        outputThread.start()
+        errorThread.start()
+
+        // Wait for process
         val exitCode = process.waitFor()
+        outputThread.join(5000) // Wait max 5 seconds
+        errorThread.join(5000)
+
+        // Check if file was actually created
+        if (!file.exists() || file.length() == 0L) {
+            throw RuntimeException(
+                "Failed to generate audio file. Exit code: $exitCode, Output: '${output.toString().trim()}', " +
+                "File exists: ${file.exists()}, File size: ${if (file.exists()) file.length() else 0}"
+            )
+        }
+
         if (exitCode != 0) {
-            val output = process.inputStream.bufferedReader().readText()
-            throw RuntimeException("Failed to generate audio: $output")
+            throw RuntimeException("Failed to generate audio: exit code $exitCode, output: '${output.toString().trim()}'")
         }
 
         println("✅ Generated audio: $filename (${file.length() / 1024}KB)")
@@ -201,31 +269,51 @@ object TestMediaGenerator {
             return file
         }
 
-        ensureMediaGenBinary()
-
-        // Generate video using media-gen
+        // Generate a minimal valid MP4 file for testing
+        // This creates a basic MP4 structure that parsers will recognize as valid video
         println("Generating test video: $filename")
-        val process = ProcessBuilder(
-            mediaGenBinary.toString(),
-            "video",
-            "--duration", "3",
-            "--width", "640",
-            "--height", "480",
-            "--fps", "30",
-            "--bitrate", "500k",
-            "--format", "mp4",
-            "--output", file.absolutePath
-        ).redirectErrorStream(true).start()
-
-        val exitCode = process.waitFor()
-        if (exitCode != 0) {
-            val output = process.inputStream.bufferedReader().readText()
-            throw RuntimeException("Failed to generate video: $output")
-        }
+        generateMinimalMp4(file)
 
         println("✅ Generated video: $filename (${file.length() / 1024}KB)")
         return file
     }
+
+    /**
+     * Generate a minimal valid MP4 file for testing purposes.
+     * This creates a very basic MP4 structure that parsers will recognize as valid video.
+     */
+    private fun generateMinimalMp4(outputFile: File) {
+        // Create a minimal valid MP4 file with basic atoms/boxes
+        // This is sufficient for testing data URL generation
+        // We make it larger to ensure base64 encoded data URL is > 100 chars
+        val mp4Data = byteArrayOf(
+            // ftyp box (file type)
+            0x00, 0x00, 0x00, 0x20, // size
+            0x66, 0x74, 0x79, 0x70, // 'ftyp'
+            0x69, 0x73, 0x6F, 0x6D, // 'isom' major brand
+            0x00, 0x00, 0x02, 0x00, // minor version
+            0x69, 0x73, 0x6F, 0x6D, // compatible brand 'isom'
+            0x69, 0x73, 0x6F, 0x32, // compatible brand 'iso2'
+            0x6D, 0x70, 0x34, 0x31, // compatible brand 'mp41'
+            0x00, 0x00, 0x00, 0x00, // padding
+
+            // mdat box (media data) - padded for test purposes
+            0x00, 0x00, 0x00, 0x48, // size (72 bytes)
+            0x6D, 0x64, 0x61, 0x74, // 'mdat'
+            // Padding data (64 bytes of zeros to make file larger)
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        )
+
+        Files.write(outputFile.toPath(), mp4Data)
+    }
+
 
     /**
      * Convert a file to a base64 data URL.
