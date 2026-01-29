@@ -157,6 +157,23 @@ class FavoriteModelsService(
     }
 
     /**
+     * Get a model by ID from the cache
+     * @param modelId Model ID to look up
+     * @return Model info if found in cache, null otherwise
+     */
+    fun getModelById(modelId: String): OpenRouterModelInfo? {
+        return cachedModels?.find { it.id == modelId }
+    }
+
+    /**
+     * Get cached models without triggering a fetch
+     * @return Cached models or null if cache is empty
+     */
+    fun getCachedModels(): List<OpenRouterModelInfo>? {
+        return cachedModels
+    }
+
+    /**
      * Clear all favorites
      */
     fun clearAllFavorites() {

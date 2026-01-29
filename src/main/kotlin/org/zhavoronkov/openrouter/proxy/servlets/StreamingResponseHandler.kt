@@ -85,10 +85,14 @@ class StreamingResponseHandler {
                     is ChunkValidationResult.Error -> {
                         errorDetected = true
                         errorMessage = validationResult.message
-                        // Forward the error chunk as-is (it's already in SSE format from OpenRouter)
-                        writer.println(line)
-                        writer.println()
-                        writer.flush()
+                        // Transform error into OpenAI-compatible streaming chunk
+                        // AI Assistant expects chat.completion.chunk format, not raw error JSON
+                        PluginLogger.Service.warn(
+                            "[Chat-$requestId] Error in stream: ${validationResult.message}"
+                        )
+                        // Enhance generic provider errors with more helpful messages
+                        val enhancedMessage = enhanceErrorMessage(validationResult.message)
+                        sendErrorChunk(writer, enhancedMessage, requestId)
                     }
                     is ChunkValidationResult.Invalid -> {
                         PluginLogger.Service.warn("[Chat-$requestId] Invalid chunk format: ${validationResult.reason}")
@@ -226,12 +230,52 @@ class StreamingResponseHandler {
     }
 
     /**
+     * Enhances generic error messages with more helpful context
+     */
+    private fun enhanceErrorMessage(message: String): String {
+        return when {
+            // Generic provider error - make it more helpful
+            message.equals("Provider returned error", ignoreCase = true) ||
+                message.contains("provider", ignoreCase = true) &&
+                message.contains("error", ignoreCase = true) ->
+                "⚠️ The model provider encountered an error.\n\n" +
+                    "This is usually a temporary issue. Try:\n" +
+                    "• Waiting a moment and trying again\n" +
+                    "• Switching to a different model\n" +
+                    "• Using a non-free model if available"
+
+            // Rate limiting
+            message.contains("rate limit", ignoreCase = true) ||
+                message.contains("too many requests", ignoreCase = true) ->
+                "⚠️ Rate limit exceeded.\n\n" +
+                    "Please wait a moment before trying again.\n" +
+                    "Free models have lower rate limits."
+
+            // Timeout
+            message.contains("timeout", ignoreCase = true) ->
+                "⚠️ Request timed out.\n\n" +
+                    "The model took too long to respond. Try:\n" +
+                    "• Sending a shorter message\n" +
+                    "• Using a faster model"
+
+            // Model unavailable
+            message.contains("unavailable", ignoreCase = true) ||
+                message.contains("no endpoints", ignoreCase = true) ->
+                "⚠️ Model temporarily unavailable.\n\n" +
+                    "Please try a different model or wait a moment."
+
+            // Default - return original message
+            else -> message
+        }
+    }
+
+    /**
      * Handles exceptions during streaming by sending an OpenAI-compatible error chunk
      */
     fun handleStreamingError(e: Exception, writer: PrintWriter, requestId: String) {
         PluginLogger.Service.error("[Chat-$requestId] Error during streaming", e)
         val errorMessage = "Streaming error: ${e.message ?: "Unknown error"}"
-        sendErrorChunk(writer, errorMessage, requestId)
+        sendErrorChunk(writer, enhanceErrorMessage(errorMessage), requestId)
         sendDoneMarker(writer)
     }
 

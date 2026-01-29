@@ -27,6 +27,7 @@ import org.zhavoronkov.openrouter.models.OpenRouterModelsResponse
 import org.zhavoronkov.openrouter.models.OpenRouterResponse
 import org.zhavoronkov.openrouter.models.ProvidersResponse
 import org.zhavoronkov.openrouter.models.QuotaInfo
+import org.zhavoronkov.openrouter.utils.KeyValidator
 import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import org.zhavoronkov.openrouter.utils.await
@@ -164,9 +165,9 @@ open class OpenRouterService(
 
     private fun logOutgoingRequest(apiKey: String, jsonBody: String) {
         PluginLogger.Service.info("[OR] POST ${getChatCompletionsEndpoint()}")
-        val keyPreview = apiKey.take(OpenRouterConstants.STRING_TRUNCATE_LENGTH)
+        val keyPreview = KeyValidator.maskApiKey(apiKey)
         PluginLogger.Service.debug(
-            "[OR] Headers: Authorization=Bearer $keyPreview…(redacted), Content-Type=application/json"
+            "[OR] Headers: Authorization=Bearer $keyPreview, Content-Type=application/json"
         )
         val bodyPreview = jsonBody.take(OpenRouterConstants.RESPONSE_PREVIEW_LENGTH)
         val isTruncated = jsonBody.length > OpenRouterConstants.RESPONSE_PREVIEW_LENGTH
@@ -278,9 +279,9 @@ open class OpenRouterService(
                     return@withContext ApiResult.Error("Provisioning key is required")
                 }
 
-                val keyPreview = provisioningKey.take(OpenRouterConstants.STRING_TRUNCATE_LENGTH)
+                val keyPreview = KeyValidator.maskApiKey(provisioningKey)
                 PluginLogger.Service.debug(
-                    "Fetching API keys list from OpenRouter with provisioning key: $keyPreview..."
+                    "Fetching API keys list from OpenRouter with provisioning key: $keyPreview"
                 )
                 PluginLogger.Service.debug("Making request to: ${getApiKeysEndpoint()}")
 

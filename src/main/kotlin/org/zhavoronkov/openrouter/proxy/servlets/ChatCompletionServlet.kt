@@ -9,7 +9,9 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
+import org.zhavoronkov.openrouter.proxy.validation.MultimodalContentValidator
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.utils.KeyValidator
 import org.zhavoronkov.openrouter.utils.ModelAvailabilityNotifier
 import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.utils.PluginLogger
@@ -50,9 +52,6 @@ class ChatCompletionServlet : HttpServlet() {
         // Request ID formatting
         private const val REQUEST_ID_PAD_WIDTH = 6
 
-        // API Key validation
-        private const val API_KEY_DISPLAY_LENGTH = 15
-
         // Streaming request constants
         private const val STREAMING_TIMEOUT_MS = 500L
         private const val STREAMING_CHUNK_DISPLAY_LENGTH = 15
@@ -76,6 +75,7 @@ class ChatCompletionServlet : HttpServlet() {
         .build()
     private val settingsService = OpenRouterSettingsService.getInstance()
     private val requestValidator = RequestValidator(settingsService)
+    private val multimodalValidator = MultimodalContentValidator()
     private val streamingHandler = StreamingResponseHandler()
     private val nonStreamingHandler = NonStreamingResponseHandler(httpClient, gson)
 
@@ -147,6 +147,17 @@ class ChatCompletionServlet : HttpServlet() {
         val openAIRequest = parseRequestBody(requestBody, resp, requestId) ?: return
 
         PluginLogger.Service.info("[Chat-$requestId] 📝 Model: '${openAIRequest.model}'")
+
+        // Pre-validate multimodal content against model capabilities
+        val validationResult = multimodalValidator.validate(openAIRequest, requestId)
+        if (validationResult is MultimodalContentValidator.ValidationResult.Invalid) {
+            PluginLogger.Service.warn(
+                "[Chat-$requestId] ⚠️ Pre-validation failed: ${validationResult.contentType.displayName} " +
+                    "not supported by model '${validationResult.modelId}'"
+            )
+            sendMultimodalValidationError(resp, validationResult, requestId)
+            return
+        }
 
         routeRequest(resp, openAIRequest, apiKey, requestId, startNs)
     }
@@ -324,7 +335,7 @@ class ChatCompletionServlet : HttpServlet() {
         val errorBody = context.response.body?.string() ?: "Unknown error"
 
         // Log each piece of information separately to avoid IntelliJ logger truncation
-        val keyDisplay = context.apiKey.take(API_KEY_DISPLAY_LENGTH)
+        val keyDisplay = KeyValidator.maskApiKey(context.apiKey)
         val keyLength = context.apiKey.length
         val statusCode = context.response.code
         val requestId = context.requestId
@@ -341,7 +352,7 @@ class ChatCompletionServlet : HttpServlet() {
         // Log error body separately so it's always visible for debugging
         PluginLogger.Service.warn("[Chat-$requestId] ❌ Error response body: $errorBody")
         PluginLogger.Service.debug("[Chat-$requestId] Request URL: ${context.request.url}")
-        PluginLogger.Service.debug("[Chat-$requestId] API key prefix: $keyDisplay... (length: $keyLength)")
+        PluginLogger.Service.debug("[Chat-$requestId] API key: $keyDisplay (length: $keyLength)")
 
         val bodyPreview = context.jsonBody.take(STREAMING_TIMEOUT_MS.toInt())
         PluginLogger.Service.debug("[Chat-$requestId] ❌ Full request body: $bodyPreview")
@@ -398,6 +409,12 @@ class ChatCompletionServlet : HttpServlet() {
             return handleNoEndpointsFoundError(errorBody)
         }
 
+        // Check for free tier ended / migrate to paid errors (typically 404)
+        val freeTierError = handleFreeTierEndedError(errorBody)
+        if (freeTierError != null) {
+            return freeTierError
+        }
+
         // Check for multimodal content type errors (typically 404)
         if (statusCode == HTTP_STATUS_NOT_FOUND) {
             val multimodalError = handleMultimodalContentTypeError(errorBody)
@@ -421,24 +438,62 @@ class ChatCompletionServlet : HttpServlet() {
     }
 
     /**
+     * Handle "free period ended" / "migrate to paid" errors
+     * Returns null if no such error pattern is detected
+     */
+    private fun handleFreeTierEndedError(errorBody: String): String? {
+        // Check for free period ended pattern
+        if (errorBody.contains("free", ignoreCase = true) &&
+            (errorBody.contains("period has ended", ignoreCase = true) ||
+                errorBody.contains("migrate to", ignoreCase = true) ||
+                errorBody.contains("paid slug", ignoreCase = true))
+        ) {
+            // Extract model name from error message
+            val modelNameRegex = """migrate to the paid slug[:\s]+([^\s"]+)""".toRegex(RegexOption.IGNORE_CASE)
+            val paidSlug = modelNameRegex.find(errorBody)?.groupValues?.get(1)
+
+            // Show notification about the model change
+            val modelName = paidSlug ?: "the requested model"
+            ModelAvailabilityNotifier.notifyModelUnavailable(modelName, errorBody)
+
+            return createFreeTierEndedMessage(paidSlug)
+        }
+        return null
+    }
+
+    /**
+     * Create user-friendly message for free tier ended errors
+     */
+    private fun createFreeTierEndedMessage(paidSlug: String?): String = buildString {
+        append("⚠️ **Free Tier Ended**\n\n")
+        append("The free period for this model has ended.\n\n")
+        if (paidSlug != null) {
+            append("To continue using this model, switch to the paid version: `$paidSlug`\n\n")
+        }
+        append("**Alternatives:**\n")
+        append("• Select a different model in OpenRouter settings\n")
+        append("• Use another free model if available\n")
+        append("• Add credits to your OpenRouter account for paid models")
+    }
+
+    /**
      * Handle "No endpoints found" errors - model unavailable or doesn't support requested features
      */
     private fun handleNoEndpointsFoundError(errorBody: String): String {
         // Check for specific capability errors first
+        // Note: These are NOT model unavailability issues - the model is available but doesn't support the feature
+        // So we don't show "Model Unavailable" notification for these cases
         if (errorBody.contains("support image input", ignoreCase = true)) {
-            ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
             return createImageInputNotSupportedMessage()
         }
         if (errorBody.contains("support audio input", ignoreCase = true) ||
             errorBody.contains("audio not supported", ignoreCase = true)
         ) {
-            ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
             return createAudioInputNotSupportedMessage()
         }
         if (errorBody.contains("support video input", ignoreCase = true) ||
             errorBody.contains("video not supported", ignoreCase = true)
         ) {
-            ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
             return createVideoInputNotSupportedMessage()
         }
         if (errorBody.contains("support pdf", ignoreCase = true) ||
@@ -446,11 +501,10 @@ class ChatCompletionServlet : HttpServlet() {
             errorBody.contains("pdf not supported", ignoreCase = true) ||
             errorBody.contains("file not supported", ignoreCase = true)
         ) {
-            ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
             return createFileInputNotSupportedMessage()
         }
 
-        // Generic "No endpoints found for <model>" error
+        // Generic "No endpoints found for <model>" error - this IS a true model unavailability issue
         val modelNameRegex = """No endpoints found for ([^.]+)""".toRegex()
         val modelName = modelNameRegex.find(errorBody)?.groupValues?.get(1) ?: "the requested model"
         ModelAvailabilityNotifier.notifyModelUnavailable(modelName, errorBody)
@@ -462,20 +516,19 @@ class ChatCompletionServlet : HttpServlet() {
      * Returns null if no multimodal error pattern is detected
      */
     private fun handleMultimodalContentTypeError(errorBody: String): String? {
+        // Note: These are NOT model unavailability issues - the model is available but doesn't support the feature
+        // So we don't show "Model Unavailable" notification for these cases
         if (errorBody.contains("support image input", ignoreCase = true)) {
-            ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
             return createImageInputNotSupportedMessage()
         }
         if (errorBody.contains("support audio input", ignoreCase = true) ||
             errorBody.contains("audio not supported", ignoreCase = true)
         ) {
-            ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
             return createAudioInputNotSupportedMessage()
         }
         if (errorBody.contains("support video input", ignoreCase = true) ||
             errorBody.contains("video not supported", ignoreCase = true)
         ) {
-            ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
             return createVideoInputNotSupportedMessage()
         }
         if (errorBody.contains("support pdf", ignoreCase = true) ||
@@ -483,7 +536,6 @@ class ChatCompletionServlet : HttpServlet() {
             errorBody.contains("pdf not supported", ignoreCase = true) ||
             errorBody.contains("file not supported", ignoreCase = true)
         ) {
-            ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
             return createFileInputNotSupportedMessage()
         }
         return null
@@ -626,6 +678,33 @@ class ChatCompletionServlet : HttpServlet() {
             }
         }
         PluginLogger.Service.debug("[Chat-$requestId] Headers: $headers")
+    }
+
+    /**
+     * Send error response for multimodal validation failure.
+     * Returns a user-friendly error message explaining the capability mismatch.
+     */
+    private fun sendMultimodalValidationError(
+        resp: HttpServletResponse,
+        validationResult: MultimodalContentValidator.ValidationResult.Invalid,
+        requestId: String
+    ) {
+        resp.contentType = "application/json"
+        resp.status = HttpServletResponse.SC_BAD_REQUEST
+
+        val errorResponse = mapOf(
+            "error" to mapOf(
+                "message" to validationResult.errorMessage,
+                "type" to "invalid_request_error",
+                "code" to "model_capability_error",
+                "param" to "model"
+            )
+        )
+
+        PluginLogger.Service.info(
+            "[Chat-$requestId] Returning pre-validation error for ${validationResult.contentType.displayName}"
+        )
+        resp.writer.write(gson.toJson(errorResponse))
     }
 
     private fun sendErrorResponse(resp: HttpServletResponse, message: String, statusCode: Int) {
