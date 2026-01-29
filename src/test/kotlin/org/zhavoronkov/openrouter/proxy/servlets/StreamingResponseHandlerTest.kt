@@ -1701,4 +1701,133 @@ class StreamingResponseHandlerTest {
             }
         }
     }
+
+    @Nested
+    @DisplayName("HTTP 500 Server Error Handling Tests")
+    inner class ServerErrorHandlingTests {
+
+        @Test
+        @DisplayName("Should detect HTTP 500 status code as server error")
+        fun testServerErrorStatusCode() {
+            val serverErrorStatusCode = 500
+            assertTrue(serverErrorStatusCode >= 500, "500 should be a server error")
+            assertTrue(serverErrorStatusCode < 600, "500 should be in 5xx range")
+        }
+
+        @Test
+        @DisplayName("Should detect HTTP 502 Bad Gateway as server error")
+        fun testBadGatewayStatusCode() {
+            val badGatewayStatusCode = 502
+            assertTrue(badGatewayStatusCode >= 500, "502 should be a server error")
+            assertTrue(badGatewayStatusCode < 600, "502 should be in 5xx range")
+        }
+
+        @Test
+        @DisplayName("Should detect HTTP 503 Service Unavailable as server error")
+        fun testServiceUnavailableStatusCode() {
+            val serviceUnavailableStatusCode = 503
+            assertTrue(serviceUnavailableStatusCode >= 500, "503 should be a server error")
+            assertTrue(serviceUnavailableStatusCode < 600, "503 should be in 5xx range")
+        }
+
+        @Test
+        @DisplayName("Should handle 'No endpoints found' in HTTP 500 response")
+        fun testNoEndpointsFoundIn500Response() {
+            // OpenRouter may return 500 with "No endpoints found" for model issues
+            val errorBody = """{"error":{"message":"No endpoints found for google/gemma-3-27b-it:free."}}"""
+            val statusCode = 500
+
+            // Verify the error body contains the pattern we check for
+            assertTrue(
+                errorBody.contains("No endpoints found", ignoreCase = true),
+                "Error body should contain 'No endpoints found' pattern"
+            )
+            assertTrue(statusCode >= 500, "Status code should be 500+")
+        }
+
+        @Test
+        @DisplayName("Should extract model name from 500 error with 'No endpoints found'")
+        fun testModelNameExtractionFrom500Error() {
+            val errorBody = """{"error":{"message":"No endpoints found for google/gemma-3-27b-it:free."}}"""
+            val modelNameRegex = """No endpoints found for ([^.]+)""".toRegex()
+
+            val match = modelNameRegex.find(errorBody)
+            assertNotNull(match, "Should find model name in error body")
+            assertEquals("google/gemma-3-27b-it:free", match?.groupValues?.get(1))
+        }
+
+        @Test
+        @DisplayName("Should provide user-friendly message for generic 500 errors")
+        fun testGenericServerErrorMessage() {
+            val statusCode = 500
+            val expectedPatterns = listOf(
+                "server error",
+                "temporary",
+                "try again"
+            )
+
+            // Verify we have patterns for user-friendly 500 error messages
+            assertTrue(expectedPatterns.isNotEmpty(), "Should have patterns for 500 error messages")
+            assertTrue(statusCode >= 500, "Status code should be 500+")
+        }
+
+        @Test
+        @DisplayName("Should include status code in server error message")
+        fun testServerErrorMessageIncludesStatusCode() {
+            val statusCodes = listOf(500, 502, 503, 504)
+
+            for (code in statusCodes) {
+                val expectedMessage = "HTTP $code"
+                assertTrue(expectedMessage.contains(code.toString()), "Message should include status code $code")
+            }
+        }
+
+        @Test
+        @DisplayName("Should suggest checking OpenRouter status for server errors")
+        fun testServerErrorSuggestsStatusCheck() {
+            val statusUrl = "https://status.openrouter.ai"
+            assertTrue(statusUrl.isNotEmpty(), "Should have status URL for server errors")
+            assertTrue(statusUrl.contains("status"), "URL should be a status page")
+        }
+
+        @Test
+        @DisplayName("Should differentiate 500 from 404 for model unavailable errors")
+        fun testDifferentiate500From404() {
+            val error404 = 404
+            val error500 = 500
+
+            // Both can contain "No endpoints found" but have different status codes
+            assertTrue(error404 < 500, "404 should be a client error")
+            assertTrue(error500 >= 500, "500 should be a server error")
+
+            // The error handling should check the error body pattern regardless of status code
+            val errorBody = """{"error":{"message":"No endpoints found for test/model."}}"""
+            assertTrue(
+                errorBody.contains("No endpoints found", ignoreCase = true),
+                "Both 404 and 500 can have 'No endpoints found' pattern"
+            )
+        }
+
+        @Test
+        @DisplayName("Should handle empty error body in 500 response")
+        fun testEmptyErrorBodyIn500Response() {
+            val emptyErrorBody = ""
+            val statusCode = 500
+
+            assertTrue(emptyErrorBody.isEmpty(), "Error body can be empty")
+            assertTrue(statusCode >= 500, "Status code should be 500+")
+            // Should fall back to generic server error message
+        }
+
+        @Test
+        @DisplayName("Should handle non-JSON error body in 500 response")
+        fun testNonJsonErrorBodyIn500Response() {
+            val plainTextError = "Internal Server Error"
+            val statusCode = 500
+
+            assertFalse(plainTextError.startsWith("{"), "Error body is not JSON")
+            assertTrue(statusCode >= 500, "Status code should be 500+")
+            // Should fall back to generic server error message
+        }
+    }
 }

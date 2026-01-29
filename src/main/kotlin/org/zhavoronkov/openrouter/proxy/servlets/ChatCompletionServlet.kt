@@ -62,6 +62,7 @@ class ChatCompletionServlet : HttpServlet() {
         private const val HTTP_STATUS_TOO_MANY_REQUESTS = 429
         private const val HTTP_STATUS_CLIENT_ERROR_MIN = 400
         private const val HTTP_STATUS_CLIENT_ERROR_MAX = 499
+        private const val HTTP_STATUS_SERVER_ERROR_MIN = 500
 
         // Time conversion
         private const val MILLIS_PER_SECOND = 1000
@@ -322,26 +323,28 @@ class ChatCompletionServlet : HttpServlet() {
     private fun handleStreamingErrorResponse(context: StreamingErrorContext) {
         val errorBody = context.response.body?.string() ?: "Unknown error"
 
-        // Log as single consolidated message to avoid multiple stack traces
+        // Log each piece of information separately to avoid IntelliJ logger truncation
         val keyDisplay = context.apiKey.take(API_KEY_DISPLAY_LENGTH)
         val keyLength = context.apiKey.length
-        val errorMessage = buildString {
-            append("[Chat-${context.requestId}] ❌ OpenRouter API Error: ${context.response.code}\n")
-            append("  Error details: $errorBody\n")
-            append("  Request URL: ${context.request.url}\n")
-            append("  API key prefix: $keyDisplay... (length: $keyLength)")
-        }
+        val statusCode = context.response.code
+        val requestId = context.requestId
 
         // Use warn() for expected API errors (404, 429, etc.) to avoid stack traces
         // Use error() only for unexpected errors (500, network failures, etc.)
-        if (context.response.code in HTTP_STATUS_CLIENT_ERROR_MIN..HTTP_STATUS_CLIENT_ERROR_MAX) {
-            PluginLogger.Service.warn(errorMessage)
+        val isClientError = statusCode in HTTP_STATUS_CLIENT_ERROR_MIN..HTTP_STATUS_CLIENT_ERROR_MAX
+        if (isClientError) {
+            PluginLogger.Service.warn("[Chat-$requestId] ❌ OpenRouter API Error: $statusCode")
         } else {
-            PluginLogger.Service.error(errorMessage)
+            PluginLogger.Service.warn("[Chat-$requestId] ❌ OpenRouter API Error: $statusCode (server error)")
         }
 
+        // Log error body separately so it's always visible for debugging
+        PluginLogger.Service.warn("[Chat-$requestId] ❌ Error response body: $errorBody")
+        PluginLogger.Service.debug("[Chat-$requestId] Request URL: ${context.request.url}")
+        PluginLogger.Service.debug("[Chat-$requestId] API key prefix: $keyDisplay... (length: $keyLength)")
+
         val bodyPreview = context.jsonBody.take(STREAMING_TIMEOUT_MS.toInt())
-        PluginLogger.Service.debug("[Chat-${context.requestId}] ❌ Full request body: $bodyPreview")
+        PluginLogger.Service.debug("[Chat-$requestId] ❌ Full request body: $bodyPreview")
 
         // Create user-friendly error message
         val userFriendlyMessage = createUserFriendlyErrorMessage(errorBody, context.response.code)
@@ -389,46 +392,17 @@ class ChatCompletionServlet : HttpServlet() {
         // First, try to extract the message from JSON error body
         val extractedMessage = extractErrorMessageFromJson(errorBody)
 
-        // Check for multimodal content type errors (404 with "support X input" pattern)
+        // Check for "No endpoints found" pattern - can occur with 404 or 500 status codes
+        // OpenRouter may return different status codes for model availability issues
+        if (errorBody.contains("No endpoints found", ignoreCase = true)) {
+            return handleNoEndpointsFoundError(errorBody)
+        }
+
+        // Check for multimodal content type errors (typically 404)
         if (statusCode == HTTP_STATUS_NOT_FOUND) {
-            // Check for image input not supported
-            if (errorBody.contains("support image input", ignoreCase = true)) {
-                ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
-                return createImageInputNotSupportedMessage()
-            }
-
-            // Check for audio input not supported
-            if (errorBody.contains("support audio input", ignoreCase = true) ||
-                errorBody.contains("audio not supported", ignoreCase = true)
-            ) {
-                ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
-                return createAudioInputNotSupportedMessage()
-            }
-
-            // Check for video input not supported
-            if (errorBody.contains("support video input", ignoreCase = true) ||
-                errorBody.contains("video not supported", ignoreCase = true)
-            ) {
-                ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
-                return createVideoInputNotSupportedMessage()
-            }
-
-            // Check for PDF/file input not supported
-            if (errorBody.contains("support pdf", ignoreCase = true) ||
-                errorBody.contains("support file", ignoreCase = true) ||
-                errorBody.contains("pdf not supported", ignoreCase = true) ||
-                errorBody.contains("file not supported", ignoreCase = true)
-            ) {
-                ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
-                return createFileInputNotSupportedMessage()
-            }
-
-            // Check for generic "No endpoints found for <model>" error
-            if (errorBody.contains("No endpoints found", ignoreCase = true)) {
-                val modelNameRegex = """No endpoints found for ([^.]+)""".toRegex()
-                val modelName = modelNameRegex.find(errorBody)?.groupValues?.get(1) ?: "the requested model"
-                ModelAvailabilityNotifier.notifyModelUnavailable(modelName, errorBody)
-                return createModelUnavailableMessage(modelName)
+            val multimodalError = handleMultimodalContentTypeError(errorBody)
+            if (multimodalError != null) {
+                return multimodalError
             }
         }
 
@@ -437,8 +411,94 @@ class ChatCompletionServlet : HttpServlet() {
             return createRateLimitMessage(extractedMessage)
         }
 
+        // Check for server errors (500+)
+        if (statusCode >= HTTP_STATUS_SERVER_ERROR_MIN) {
+            return createServerErrorMessage(extractedMessage, statusCode)
+        }
+
         // For other errors, return the extracted message or a generic error
         return extractedMessage ?: "Request failed (HTTP $statusCode). Please try again."
+    }
+
+    /**
+     * Handle "No endpoints found" errors - model unavailable or doesn't support requested features
+     */
+    private fun handleNoEndpointsFoundError(errorBody: String): String {
+        // Check for specific capability errors first
+        if (errorBody.contains("support image input", ignoreCase = true)) {
+            ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
+            return createImageInputNotSupportedMessage()
+        }
+        if (errorBody.contains("support audio input", ignoreCase = true) ||
+            errorBody.contains("audio not supported", ignoreCase = true)
+        ) {
+            ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
+            return createAudioInputNotSupportedMessage()
+        }
+        if (errorBody.contains("support video input", ignoreCase = true) ||
+            errorBody.contains("video not supported", ignoreCase = true)
+        ) {
+            ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
+            return createVideoInputNotSupportedMessage()
+        }
+        if (errorBody.contains("support pdf", ignoreCase = true) ||
+            errorBody.contains("support file", ignoreCase = true) ||
+            errorBody.contains("pdf not supported", ignoreCase = true) ||
+            errorBody.contains("file not supported", ignoreCase = true)
+        ) {
+            ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
+            return createFileInputNotSupportedMessage()
+        }
+
+        // Generic "No endpoints found for <model>" error
+        val modelNameRegex = """No endpoints found for ([^.]+)""".toRegex()
+        val modelName = modelNameRegex.find(errorBody)?.groupValues?.get(1) ?: "the requested model"
+        ModelAvailabilityNotifier.notifyModelUnavailable(modelName, errorBody)
+        return createModelUnavailableMessage(modelName)
+    }
+
+    /**
+     * Handle multimodal content type errors (image, audio, video, PDF/file not supported)
+     * Returns null if no multimodal error pattern is detected
+     */
+    private fun handleMultimodalContentTypeError(errorBody: String): String? {
+        if (errorBody.contains("support image input", ignoreCase = true)) {
+            ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
+            return createImageInputNotSupportedMessage()
+        }
+        if (errorBody.contains("support audio input", ignoreCase = true) ||
+            errorBody.contains("audio not supported", ignoreCase = true)
+        ) {
+            ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
+            return createAudioInputNotSupportedMessage()
+        }
+        if (errorBody.contains("support video input", ignoreCase = true) ||
+            errorBody.contains("video not supported", ignoreCase = true)
+        ) {
+            ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
+            return createVideoInputNotSupportedMessage()
+        }
+        if (errorBody.contains("support pdf", ignoreCase = true) ||
+            errorBody.contains("support file", ignoreCase = true) ||
+            errorBody.contains("pdf not supported", ignoreCase = true) ||
+            errorBody.contains("file not supported", ignoreCase = true)
+        ) {
+            ModelAvailabilityNotifier.notifyModelUnavailable("the requested model", errorBody)
+            return createFileInputNotSupportedMessage()
+        }
+        return null
+    }
+
+    /**
+     * Create a user-friendly message for server errors (HTTP 500+)
+     */
+    private fun createServerErrorMessage(extractedMessage: String?, statusCode: Int): String = buildString {
+        append("OpenRouter server error (HTTP $statusCode).\n\n")
+        if (extractedMessage != null) {
+            append("Details: $extractedMessage\n\n")
+        }
+        append("This is usually a temporary issue. Please try again in a moment.\n")
+        append("If the problem persists, check OpenRouter status: https://status.openrouter.ai")
     }
 
     private fun createImageInputNotSupportedMessage(): String = buildString {
