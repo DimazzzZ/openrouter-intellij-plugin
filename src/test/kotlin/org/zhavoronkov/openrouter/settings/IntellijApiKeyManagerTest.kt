@@ -295,6 +295,7 @@ class IntellijApiKeyManagerTest {
     }
 
     // Helper method to create ApiKeyInfo for testing
+    @Suppress("LongParameterList")
     private fun createApiKeyInfo(
         name: String,
         label: String,

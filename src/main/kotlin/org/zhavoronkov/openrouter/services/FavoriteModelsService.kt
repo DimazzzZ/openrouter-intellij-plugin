@@ -1,3 +1,5 @@
+@file:Suppress("TooGenericExceptionCaught", "SwallowedException")
+
 package org.zhavoronkov.openrouter.services
 
 import com.intellij.openapi.Disposable

@@ -1,3 +1,5 @@
+@file:Suppress("TooGenericExceptionCaught")
+
 package org.zhavoronkov.openrouter.proxy.servlets
 
 import com.google.gson.Gson

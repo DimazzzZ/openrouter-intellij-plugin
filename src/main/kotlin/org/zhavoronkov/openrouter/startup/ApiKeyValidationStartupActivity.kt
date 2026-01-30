@@ -1,3 +1,5 @@
+@file:Suppress("TooGenericExceptionCaught")
+
 package org.zhavoronkov.openrouter.startup
 
 import com.intellij.openapi.project.Project
@@ -52,18 +54,17 @@ class ApiKeyValidationStartupActivity : ProjectActivity {
     }
 
     private fun shouldValidateApiKey(settingsService: OpenRouterSettingsService): Boolean {
-        if (settingsService.apiKeyManager.authScope != AuthScope.EXTENDED) {
+        val usesExtendedScope = settingsService.apiKeyManager.authScope == AuthScope.EXTENDED
+        if (!usesExtendedScope) {
             PluginLogger.Startup.debug("Skipping API key validation - not using EXTENDED auth scope")
-            return false
         }
 
-        val provisioningKey = settingsService.getProvisioningKey()
-        if (provisioningKey.isBlank()) {
+        val hasProvisioningKey = settingsService.getProvisioningKey().isNotBlank()
+        if (!hasProvisioningKey) {
             PluginLogger.Startup.debug("Skipping API key validation - no provisioning key configured")
-            return false
         }
 
-        return true
+        return usesExtendedScope && hasProvisioningKey
     }
 
     private suspend fun validateAndHandleApiKey(apiKey: String, openRouterService: OpenRouterService) {

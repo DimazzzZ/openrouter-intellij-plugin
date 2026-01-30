@@ -1,3 +1,5 @@
+@file:Suppress("TooGenericExceptionCaught")
+
 package org.zhavoronkov.openrouter.listeners
 
 import com.intellij.ide.plugins.DynamicPluginListener

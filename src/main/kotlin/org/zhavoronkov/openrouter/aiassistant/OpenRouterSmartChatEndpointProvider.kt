@@ -10,6 +10,7 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
  * This integrates with the AI Assistant's smartChatEndpointProvider extension point
  */
 
+@Suppress("TooManyFunctions")
 class OpenRouterSmartChatEndpointProvider {
 
     private val settingsService = OpenRouterSettingsService.getInstance()

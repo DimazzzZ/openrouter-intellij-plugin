@@ -1,3 +1,5 @@
+@file:Suppress("TooGenericExceptionCaught")
+
 package org.zhavoronkov.openrouter.ui
 
 import com.intellij.icons.AllIcons

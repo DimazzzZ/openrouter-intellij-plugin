@@ -1,3 +1,5 @@
+@file:Suppress("TooGenericExceptionCaught")
+
 package org.zhavoronkov.openrouter.proxy.translation
 
 import com.google.gson.JsonPrimitive

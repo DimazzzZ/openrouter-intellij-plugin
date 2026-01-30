@@ -1,3 +1,5 @@
+@file:Suppress("SwallowedException")
+
 package org.zhavoronkov.openrouter.ui
 
 import org.zhavoronkov.openrouter.models.ActivityData

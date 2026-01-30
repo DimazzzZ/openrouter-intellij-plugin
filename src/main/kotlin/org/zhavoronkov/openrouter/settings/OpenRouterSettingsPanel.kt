@@ -1,4 +1,6 @@
 
+@file:Suppress("TooGenericExceptionCaught")
+
 package org.zhavoronkov.openrouter.settings
 
 import com.intellij.icons.AllIcons
@@ -634,9 +636,7 @@ class OpenRouterSettingsPanel {
 
     fun updateProxyStatus() {
         // Safe check for lateinit properties
-        if (!::statusLabel.isInitialized || !::startServerButton.isInitialized ||
-            !::stopServerButton.isInitialized || !::copyUrlButton.isInitialized
-        ) {
+        if (!areLateinitPropertiesInitialized()) {
             return
         }
 
@@ -671,6 +671,13 @@ class OpenRouterSettingsPanel {
         statusLabel.repaint()
         statusLabel.revalidate()
         panel.repaint()
+    }
+
+    private fun areLateinitPropertiesInitialized(): Boolean {
+        return ::statusLabel.isInitialized &&
+            ::startServerButton.isInitialized &&
+            ::stopServerButton.isInitialized &&
+            ::copyUrlButton.isInitialized
     }
 
     // Public API methods

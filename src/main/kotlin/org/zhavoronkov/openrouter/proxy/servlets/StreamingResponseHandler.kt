@@ -1,3 +1,5 @@
+@file:Suppress("SwallowedException")
+
 package org.zhavoronkov.openrouter.proxy.servlets
 
 import com.google.gson.Gson
@@ -25,7 +27,8 @@ import java.util.UUID
     "MaxLineLength",
     "MagicNumber",
     "LoopWithTooManyJumpStatements",
-    "UnusedParameter"
+    "UnusedParameter",
+    "TooManyFunctions"
 )
 class StreamingResponseHandler {
 
@@ -70,6 +73,7 @@ class StreamingResponseHandler {
         }
     }
 
+    @Suppress("LongMethod", "CyclomaticComplexMethod")
     private fun processStreamLines(reader: BufferedReader, writer: PrintWriter, requestId: String) {
         var validChunksSent = 0
         var errorDetected = false

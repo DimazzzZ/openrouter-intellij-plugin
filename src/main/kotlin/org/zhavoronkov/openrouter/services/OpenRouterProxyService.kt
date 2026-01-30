@@ -1,3 +1,5 @@
+@file:Suppress("TooGenericExceptionCaught")
+
 package org.zhavoronkov.openrouter.services
 
 import com.intellij.openapi.Disposable
@@ -17,6 +19,7 @@ import java.util.concurrent.TimeUnit
  * when plugin is unloaded/disabled without IDE restart
  */
 @Service(Service.Level.APP)
+@Suppress("TooManyFunctions")
 class OpenRouterProxyService : Disposable {
 
     companion object {

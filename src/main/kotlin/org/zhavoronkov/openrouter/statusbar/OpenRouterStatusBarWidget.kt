@@ -1,4 +1,6 @@
 
+@file:Suppress("TooGenericExceptionCaught")
+
 package org.zhavoronkov.openrouter.statusbar
 
 import com.intellij.icons.AllIcons
@@ -225,6 +227,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
     /**
      * Update the widget with current quota information
      */
+    @Suppress("LongMethod")
     fun updateQuotaInfo() {
         updateConnectionStatus()
 

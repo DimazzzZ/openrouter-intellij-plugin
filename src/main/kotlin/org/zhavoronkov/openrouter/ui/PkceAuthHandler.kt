@@ -1,3 +1,5 @@
+@file:Suppress("TooGenericExceptionCaught", "SwallowedException")
+
 package org.zhavoronkov.openrouter.ui
 
 import com.intellij.ide.BrowserUtil

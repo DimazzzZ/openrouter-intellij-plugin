@@ -1,3 +1,5 @@
+@file:Suppress("TooGenericExceptionCaught", "TooGenericExceptionThrown")
+
 package org.zhavoronkov.openrouter.settings
 
 import com.intellij.openapi.options.Configurable

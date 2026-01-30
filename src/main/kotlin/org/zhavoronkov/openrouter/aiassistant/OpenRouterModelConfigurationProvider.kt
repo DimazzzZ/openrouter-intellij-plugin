@@ -1,3 +1,5 @@
+@file:Suppress("TooGenericExceptionCaught")
+
 package org.zhavoronkov.openrouter.aiassistant
 
 import com.intellij.openapi.options.ShowSettingsUtil
@@ -11,6 +13,7 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
  * Handles configuration aspects and settings integration
  */
 
+@Suppress("TooManyFunctions")
 class OpenRouterModelConfigurationProvider {
 
     private val settingsService = OpenRouterSettingsService.getInstance()

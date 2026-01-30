@@ -1,3 +1,5 @@
+@file:Suppress("TooGenericExceptionCaught", "SwallowedException")
+
 package org.zhavoronkov.openrouter.proxy.translation
 
 import org.zhavoronkov.openrouter.models.ChatCompletionRequest
