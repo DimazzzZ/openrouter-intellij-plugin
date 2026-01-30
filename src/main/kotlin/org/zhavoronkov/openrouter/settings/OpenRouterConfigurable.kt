@@ -1,5 +1,3 @@
-@file:Suppress("TooGenericExceptionCaught", "TooGenericExceptionThrown")
-
 package org.zhavoronkov.openrouter.settings
 
 import com.intellij.openapi.options.Configurable
@@ -99,6 +97,7 @@ class OpenRouterConfigurable : Configurable {
 
     override fun getDisplayName(): String = "OpenRouter"
 
+    @Suppress("TooGenericExceptionCaught", "TooGenericExceptionThrown")
     override fun createComponent(): JComponent? {
         PluginLogger.Settings.info("OpenRouterConfigurable: createComponent called")
         try {
@@ -114,7 +113,7 @@ class OpenRouterConfigurable : Configurable {
         } catch (e: RuntimeException) {
             PluginLogger.Settings.error("OpenRouterConfigurable: failed to create component", e)
             throw e
-        } catch (e: Exception) {
+        } catch (e: IllegalStateException) {
             PluginLogger.Settings.error("OpenRouterConfigurable: unexpected error", e)
             throw RuntimeException(e)
         }

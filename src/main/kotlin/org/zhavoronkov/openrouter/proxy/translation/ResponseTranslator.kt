@@ -1,5 +1,3 @@
-@file:Suppress("TooGenericExceptionCaught")
-
 package org.zhavoronkov.openrouter.proxy.translation
 
 import com.google.gson.JsonPrimitive
@@ -203,11 +201,11 @@ object ResponseTranslator {
                                 choice.message.content.asString.isNotBlank()
                             )
                 }
-        } catch (e: NullPointerException) {
-            PluginLogger.Service.error("Response validation failed: null value encountered", e)
-            false
         } catch (e: IllegalStateException) {
             PluginLogger.Service.error("Response validation failed: invalid state", e)
+            false
+        } catch (e: IllegalArgumentException) {
+            PluginLogger.Service.error("Response validation failed: invalid argument", e)
             false
         }
     }

@@ -1,5 +1,3 @@
-@file:Suppress("SwallowedException")
-
 package org.zhavoronkov.openrouter.proxy.servlets
 
 import com.google.gson.Gson
@@ -230,6 +228,7 @@ class StreamingResponseHandler {
             val json = gson.fromJson(content, JsonObject::class.java)
             json.getAsJsonObject("error")?.get("message")?.asString
         } catch (e: JsonSyntaxException) {
+            PluginLogger.Service.debug("Content is not JSON, checking for error patterns: ${e.message}")
             // Not JSON - check for common error patterns using ErrorPatterns
             when {
                 content.contains(

@@ -1,5 +1,3 @@
-@file:Suppress("TooGenericExceptionCaught")
-
 package org.zhavoronkov.openrouter.aiassistant
 
 import com.google.gson.Gson
@@ -7,6 +5,8 @@ import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.TimeoutException
 
 /**
  * OpenRouter Chat Model Provider for AI Assistant integration
@@ -54,9 +54,12 @@ class OpenRouterChatModelProvider {
             } catch (e: IllegalStateException) {
                 PluginLogger.Service.error("Error sending chat request to OpenRouter - service not available", e)
                 ChatResponse.error("Chat request failed: ${e.message}")
-            } catch (e: RuntimeException) {
-                PluginLogger.Service.error("Error sending chat request to OpenRouter", e)
-                ChatResponse.error("Chat request failed: ${e.message}")
+            } catch (e: ExecutionException) {
+                PluginLogger.Service.error("Error executing chat request to OpenRouter", e)
+                ChatResponse.error("Chat request failed: ${e.cause?.message ?: e.message}")
+            } catch (e: TimeoutException) {
+                PluginLogger.Service.error("Chat request to OpenRouter timed out", e)
+                ChatResponse.error("Chat request timed out")
             }
         }
     }
@@ -89,9 +92,12 @@ class OpenRouterChatModelProvider {
             } catch (e: IllegalStateException) {
                 PluginLogger.Service.error("Error sending completion request to OpenRouter", e)
                 CompletionResponse.error("Completion request failed: ${e.message}")
-            } catch (e: RuntimeException) {
-                PluginLogger.Service.error("Error sending completion request to OpenRouter", e)
-                CompletionResponse.error("Completion request failed: ${e.message}")
+            } catch (e: ExecutionException) {
+                PluginLogger.Service.error("Error executing completion request to OpenRouter", e)
+                CompletionResponse.error("Completion request failed: ${e.cause?.message ?: e.message}")
+            } catch (e: TimeoutException) {
+                PluginLogger.Service.error("Completion request to OpenRouter timed out", e)
+                CompletionResponse.error("Completion request timed out")
             }
         }
     }
@@ -153,7 +159,10 @@ class OpenRouterChatModelProvider {
                     ChatResponse.error("HTTP ${response.code}: ${response.message}")
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: java.io.IOException) {
+            PluginLogger.Service.error("Error making OpenRouter request", e)
+            ChatResponse.error("Request failed: ${e.message}")
+        } catch (e: IllegalStateException) {
             PluginLogger.Service.error("Error making OpenRouter request", e)
             ChatResponse.error("Request failed: ${e.message}")
         }
@@ -165,7 +174,10 @@ class OpenRouterChatModelProvider {
                 responseBody.isNullOrBlank() -> ChatResponse.error("Empty response from OpenRouter")
                 else -> parseValidResponse(responseBody)
             }
-        } catch (e: Exception) {
+        } catch (e: com.google.gson.JsonParseException) {
+            PluginLogger.Service.error("Error parsing OpenRouter response", e)
+            ChatResponse.error("Response parsing failed: ${e.message}")
+        } catch (e: IllegalStateException) {
             PluginLogger.Service.error("Error parsing OpenRouter response", e)
             ChatResponse.error("Response parsing failed: ${e.message}")
         }

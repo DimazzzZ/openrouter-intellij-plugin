@@ -62,7 +62,10 @@ class OpenRouterModelProvider {
     fun isAvailable(): Boolean {
         return try {
             settingsService.isConfigured() && settingsService.getApiKey().isNotBlank()
-        } catch (e: Exception) {
+        } catch (e: IllegalStateException) {
+            PluginLogger.Service.warn("Error checking OpenRouter availability", e)
+            false
+        } catch (e: IllegalArgumentException) {
             PluginLogger.Service.warn("Error checking OpenRouter availability", e)
             false
         }
@@ -114,7 +117,10 @@ class OpenRouterModelProvider {
                     }
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: IllegalStateException) {
+            PluginLogger.Service.warn("OpenRouter connection test failed", e)
+            false
+        } catch (e: IllegalArgumentException) {
             PluginLogger.Service.warn("OpenRouter connection test failed", e)
             false
         }

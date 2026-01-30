@@ -1,5 +1,3 @@
-@file:Suppress("TooGenericExceptionCaught")
-
 package org.zhavoronkov.openrouter.services
 
 import com.intellij.openapi.Disposable
@@ -289,7 +287,7 @@ class OpenRouterProxyService : Disposable {
                     PluginLogger.Service.error("Error stopping proxy server during disposal", e)
                 } catch (e: IllegalStateException) {
                     PluginLogger.Service.error("Error stopping proxy server during disposal", e)
-                } catch (e: Exception) {
+                } catch (e: java.io.IOException) {
                     PluginLogger.Service.error("Error stopping proxy server during disposal", e)
                 }
             }
@@ -297,8 +295,10 @@ class OpenRouterProxyService : Disposable {
             PluginLogger.Service.info("OpenRouterProxyService disposed successfully")
         } catch (e: IllegalStateException) {
             PluginLogger.Service.error("Error during OpenRouterProxyService disposal", e)
-        } catch (e: RuntimeException) {
-            PluginLogger.Service.error("Error during OpenRouterProxyService disposal", e)
+        } catch (e: java.util.concurrent.ExecutionException) {
+            PluginLogger.Service.error("Execution error during OpenRouterProxyService disposal", e)
+        } catch (e: java.util.concurrent.TimeoutException) {
+            PluginLogger.Service.error("Timeout during OpenRouterProxyService disposal", e)
         }
     }
 }

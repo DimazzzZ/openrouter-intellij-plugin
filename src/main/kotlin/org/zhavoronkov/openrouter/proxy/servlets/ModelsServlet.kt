@@ -1,5 +1,3 @@
-@file:Suppress("TooGenericExceptionCaught")
-
 package org.zhavoronkov.openrouter.proxy.servlets
 
 import com.google.gson.Gson
@@ -107,7 +105,10 @@ class ModelsServlet(
         } catch (e: java.util.concurrent.TimeoutException) {
             PluginLogger.Service.error("[Models-$requestId] ❌ Models request timed out", e)
             sendErrorResponse(resp, "Request timed out", HttpServletResponse.SC_REQUEST_TIMEOUT)
-        } catch (e: Exception) {
+        } catch (e: java.io.IOException) {
+            PluginLogger.Service.error("[Models-$requestId] ❌ Models request failed", e)
+            sendErrorResponse(resp, "Internal server error: ${e.message}", HttpServletResponse.SC_INTERNAL_SERVER_ERROR)
+        } catch (e: IllegalStateException) {
             PluginLogger.Service.error("[Models-$requestId] ❌ Models request failed", e)
             sendErrorResponse(resp, "Internal server error: ${e.message}", HttpServletResponse.SC_INTERNAL_SERVER_ERROR)
         } finally {
@@ -198,7 +199,10 @@ class ModelsServlet(
                     createCoreModelsResponse()
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: java.io.IOException) {
+            PluginLogger.Service.warn("Failed to fetch models from OpenRouter, falling back to curated list", e)
+            createCoreModelsResponse()
+        } catch (e: java.lang.IllegalStateException) {
             PluginLogger.Service.warn("Failed to fetch models from OpenRouter, falling back to curated list", e)
             createCoreModelsResponse()
         }

@@ -1,5 +1,3 @@
-@file:Suppress("TooGenericExceptionCaught", "SwallowedException")
-
 package org.zhavoronkov.openrouter.services
 
 import com.intellij.openapi.Disposable
@@ -75,9 +73,13 @@ class FavoriteModelsService(
             // Coroutine was cancelled (e.g., timeout or parent job cancelled) - must rethrow
             throw e
         } catch (e: java.util.concurrent.TimeoutException) {
-            PluginLogger.Service.warn("[OpenRouter] Model fetch timed out")
+            PluginLogger.Service.warn("[OpenRouter] Model fetch timed out", e)
+            PluginLogger.Service.error("[OpenRouter] Timeout details", e)
             null
-        } catch (e: Exception) {
+        } catch (e: java.io.IOException) {
+            PluginLogger.Service.error("[OpenRouter] Error fetching models from API", e)
+            null
+        } catch (e: IllegalStateException) {
             PluginLogger.Service.error("[OpenRouter] Error fetching models from API", e)
             null
         }

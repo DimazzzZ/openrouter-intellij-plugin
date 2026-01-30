@@ -1,5 +1,3 @@
-@file:Suppress("TooGenericExceptionCaught")
-
 package org.zhavoronkov.openrouter.services
 
 import com.intellij.openapi.Disposable
@@ -116,8 +114,10 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
             )?.onSettingsChanged()
         } catch (e: IllegalStateException) {
             PluginLogger.Service.warn("Failed to persist settings state", e)
-        } catch (e: Exception) {
+        } catch (e: IllegalArgumentException) {
             PluginLogger.Service.warn("Failed to persist settings state", e)
+        } catch (e: java.io.IOException) {
+            PluginLogger.Service.warn("IO error persisting settings state", e)
         }
     }
 

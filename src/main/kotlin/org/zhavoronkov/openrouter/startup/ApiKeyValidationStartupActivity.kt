@@ -1,5 +1,3 @@
-@file:Suppress("TooGenericExceptionCaught")
-
 package org.zhavoronkov.openrouter.startup
 
 import com.intellij.openapi.project.Project
@@ -13,6 +11,7 @@ import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.settings.IntellijApiKeyManager
 import org.zhavoronkov.openrouter.utils.KeyValidator
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import java.io.IOException
 
 /**
  * Startup activity that validates the stored API key on plugin startup
@@ -48,8 +47,8 @@ class ApiKeyValidationStartupActivity : ProjectActivity {
             validateAndHandleApiKey(storedApiKey, openRouterService)
         } catch (e: IllegalStateException) {
             PluginLogger.Startup.error("Error during API key validation on startup - service not available", e)
-        } catch (e: RuntimeException) {
-            PluginLogger.Startup.error("Error during API key validation on startup", e)
+        } catch (e: IOException) {
+            PluginLogger.Startup.error("Network error during API key validation on startup", e)
         }
     }
 
@@ -119,8 +118,8 @@ class ApiKeyValidationStartupActivity : ProjectActivity {
                 PluginLogger.Startup.info("✅ API key regenerated successfully")
             } catch (e: IllegalStateException) {
                 PluginLogger.Startup.error("Failed to regenerate API key on startup - service not available", e)
-            } catch (e: RuntimeException) {
-                PluginLogger.Startup.error("Failed to regenerate API key on startup", e)
+            } catch (e: IOException) {
+                PluginLogger.Startup.error("Network error regenerating API key on startup", e)
             }
         }
     }

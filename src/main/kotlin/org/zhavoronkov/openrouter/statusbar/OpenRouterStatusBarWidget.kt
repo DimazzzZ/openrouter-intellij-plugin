@@ -1,6 +1,4 @@
 
-@file:Suppress("TooGenericExceptionCaught")
-
 package org.zhavoronkov.openrouter.statusbar
 
 import com.intellij.icons.AllIcons
@@ -313,13 +311,6 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
                     currentTooltip = "OpenRouter Status: Error - Network error"
                     updateStatusBar()
                 }
-            } catch (expectedError: Exception) {
-                ApplicationManager.getApplication().invokeLater {
-                    connectionStatus = ConnectionStatus.ERROR
-                    currentText = "Status: Error"
-                    currentTooltip = "OpenRouter Status: Error - Usage: ${expectedError.message}"
-                    updateStatusBar()
-                }
             }
         }
     }
@@ -497,7 +488,10 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
             if (!activityDate.isBefore(lastWeekStart) && !activityDate.isAfter(utcNow)) {
                 costs.lastWeek += usage
             }
-        } catch (e: Exception) {
+        } catch (e: IllegalArgumentException) {
+            com.intellij.openapi.diagnostic.Logger.getInstance(OpenRouterStatusBarWidget::class.java)
+                .warn("Error parsing activity date: ${activity.date}", e)
+        } catch (e: IllegalStateException) {
             com.intellij.openapi.diagnostic.Logger.getInstance(OpenRouterStatusBarWidget::class.java)
                 .warn("Error parsing activity date: ${activity.date}", e)
         }

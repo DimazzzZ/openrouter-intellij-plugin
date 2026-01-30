@@ -1,6 +1,4 @@
 
-@file:Suppress("TooGenericExceptionCaught")
-
 package org.zhavoronkov.openrouter.settings
 
 import com.intellij.icons.AllIcons
@@ -290,8 +288,8 @@ class OpenRouterSettingsPanel {
         statusLabel = JLabel("Status: Stopped")
 
         // Create the main panel using UI DSL v2
-        try {
-            panel = panel {
+        panel = try {
+            panel {
                 // Run Setup Wizard button
                 row {
                     button("Run Setup Wizard") {
@@ -408,9 +406,16 @@ class OpenRouterSettingsPanel {
                     }.layout(RowLayout.PARENT_GRID)
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: IllegalStateException) {
             PluginLogger.Settings.error("Failed to create settings panel", e)
-            panel = JPanel(BorderLayout()).apply {
+            JPanel(BorderLayout()).apply {
+                add(JLabel("Error creating settings panel: ${e.message}"), BorderLayout.NORTH)
+                val scrollPane = JScrollPane(javax.swing.JTextArea(e.stackTraceToString()))
+                add(scrollPane, BorderLayout.CENTER)
+            }
+        } catch (e: IllegalArgumentException) {
+            PluginLogger.Settings.error("Failed to create settings panel", e)
+            JPanel(BorderLayout()).apply {
                 add(JLabel("Error creating settings panel: ${e.message}"), BorderLayout.NORTH)
                 val scrollPane = JScrollPane(javax.swing.JTextArea(e.stackTraceToString()))
                 add(scrollPane, BorderLayout.CENTER)
@@ -504,7 +509,13 @@ class OpenRouterSettingsPanel {
             if (result) {
                 refreshUI()
             }
-        } catch (e: Exception) {
+        } catch (e: IllegalStateException) {
+            PluginLogger.Settings.error("Failed to show setup wizard", e)
+            Messages.showErrorDialog(
+                "Failed to show setup wizard: ${e.message}",
+                "Setup Wizard Error"
+            )
+        } catch (e: IllegalArgumentException) {
             PluginLogger.Settings.error("Failed to show setup wizard", e)
             Messages.showErrorDialog(
                 "Failed to show setup wizard: ${e.message}",
@@ -810,10 +821,10 @@ class OpenRouterSettingsPanel {
             PluginLogger.Settings.error("Invalid port number format: ${e.message}", e)
         } catch (e: IllegalStateException) {
             PluginLogger.Settings.error("Invalid state applying proxy settings: ${e.message}", e)
-        } catch (expectedError: Exception) {
+        } catch (e: IllegalArgumentException) {
             PluginLogger.Settings.error(
-                "Failed to apply current proxy settings: ${expectedError.message}",
-                expectedError
+                "Failed to apply current proxy settings: ${e.message}",
+                e
             )
         }
     }

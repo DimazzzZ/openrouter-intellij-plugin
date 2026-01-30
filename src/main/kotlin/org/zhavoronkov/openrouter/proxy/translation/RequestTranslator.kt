@@ -1,5 +1,3 @@
-@file:Suppress("TooGenericExceptionCaught", "SwallowedException")
-
 package org.zhavoronkov.openrouter.proxy.translation
 
 import org.zhavoronkov.openrouter.models.ChatCompletionRequest
@@ -17,11 +15,13 @@ object RequestTranslator {
     private val settingsService by lazy {
         try {
             OpenRouterSettingsService.getInstance()
-        } catch (e: IllegalStateException) {
+        } catch (expectedError: IllegalStateException) {
             // In test environment or when service not initialized yet
+            PluginLogger.Service.debug("Settings service not initialized", expectedError)
             null
-        } catch (e: RuntimeException) {
-            // Service creation failed
+        } catch (expectedError: IllegalArgumentException) {
+            // Service creation failed due to invalid state
+            PluginLogger.Service.debug("Settings service not available", expectedError)
             null
         }
     }
@@ -76,23 +76,14 @@ object RequestTranslator {
      * Validates that the translated request is valid for OpenRouter
      */
     fun validateTranslatedRequest(request: ChatCompletionRequest): Boolean {
-        return try {
-            // Basic validation
-            request.model.isNotBlank() &&
-                request.messages.isNotEmpty() &&
-                request.messages.all { message ->
-                    message.role.isNotBlank() && isValidContent(message.content)
-                } &&
-                (request.temperature == null || request.temperature in 0.0..2.0) &&
-                (request.maxTokens == null || request.maxTokens > 0) &&
-                (request.topP == null || request.topP in 0.0..1.0)
-        } catch (e: NullPointerException) {
-            PluginLogger.Service.error("Request validation failed: null value encountered", e)
-            false
-        } catch (e: IllegalArgumentException) {
-            PluginLogger.Service.error("Request validation failed: invalid argument", e)
-            false
-        }
+        return request.model.isNotBlank() &&
+            request.messages.isNotEmpty() &&
+            request.messages.all { message ->
+                message.role.isNotBlank() && isValidContent(message.content)
+            } &&
+            (request.temperature == null || request.temperature in 0.0..2.0) &&
+            (request.maxTokens == null || request.maxTokens > 0) &&
+            (request.topP == null || request.topP in 0.0..1.0)
     }
 
     /**

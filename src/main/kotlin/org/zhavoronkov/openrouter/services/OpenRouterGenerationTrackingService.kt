@@ -1,5 +1,3 @@
-@file:Suppress("TooGenericExceptionCaught")
-
 package org.zhavoronkov.openrouter.services
 
 import com.intellij.openapi.Disposable
@@ -138,7 +136,7 @@ class OpenRouterGenerationTrackingService :
             }
 
             PluginLogger.Service.info("OpenRouterGenerationTrackingService disposed successfully")
-        } catch (e: Exception) {
+        } catch (e: IllegalStateException) {
             PluginLogger.Service.error("Error during OpenRouterGenerationTrackingService disposal", e)
         }
     }

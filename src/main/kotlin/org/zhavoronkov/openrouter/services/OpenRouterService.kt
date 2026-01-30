@@ -1,5 +1,3 @@
-@file:Suppress("TooGenericExceptionCaught")
-
 package org.zhavoronkov.openrouter.services
 
 import com.google.gson.Gson
@@ -726,7 +724,7 @@ open class OpenRouterService(
             client.connectionPool.evictAll()
 
             PluginLogger.Service.info("OpenRouterService disposed successfully")
-        } catch (e: Exception) {
+        } catch (e: IllegalStateException) {
             PluginLogger.Service.error("Error during OpenRouterService disposal", e)
         }
     }
