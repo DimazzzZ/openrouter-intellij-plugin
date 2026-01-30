@@ -44,6 +44,7 @@ class OpenRouterModelProvider {
     /**
      * Get the provider name for AI Assistant
      */
+    @Suppress("unused") // Public API method
     fun getProviderName(): String = PROVIDER_NAME
 
     /**

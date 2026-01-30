@@ -50,15 +50,6 @@ class StreamingResponseHandler {
 
     private val gson = Gson()
 
-    /**
-     * Result of processing a stream - tracks what was sent
-     */
-    data class StreamResult(
-        val validChunksSent: Int,
-        val errorDetected: Boolean,
-        val errorMessage: String? = null
-    )
-
     fun streamResponseToClient(response: Response, writer: PrintWriter, requestId: String) {
         response.body?.use { responseBody ->
             val reader = BufferedReader(responseBody.charStream())
@@ -66,7 +57,7 @@ class StreamingResponseHandler {
         } ?: run {
             // No response body - send error chunk
             PluginLogger.Service.warn("[Chat-$requestId] Empty response body from OpenRouter")
-            sendErrorChunk(writer, "No response received from model. The model may not support this request type.", requestId)
+            sendErrorChunk(writer, "No response received from model. The model may not support this request type.")
             sendDoneMarker(writer)
         }
     }
@@ -75,7 +66,6 @@ class StreamingResponseHandler {
     private fun processStreamLines(reader: BufferedReader, writer: PrintWriter, requestId: String) {
         var validChunksSent = 0
         var errorDetected = false
-        var errorMessage: String? = null
         val nonDataLines = StringBuilder()
 
         while (true) {
@@ -96,7 +86,7 @@ class StreamingResponseHandler {
                     }
                     is ChunkValidationResult.Error -> {
                         errorDetected = true
-                        errorMessage = validationResult.message
+                        validationResult.message
                         // Transform error into OpenAI-compatible streaming chunk
                         // AI Assistant expects chat.completion.chunk format, not raw error JSON
                         PluginLogger.Service.warn(
@@ -104,7 +94,7 @@ class StreamingResponseHandler {
                         )
                         // Enhance generic provider errors with more helpful messages
                         val enhancedMessage = enhanceErrorMessage(validationResult.message)
-                        sendErrorChunk(writer, enhancedMessage, requestId)
+                        sendErrorChunk(writer, enhancedMessage)
                     }
                     is ChunkValidationResult.Invalid -> {
                         PluginLogger.Service.warn("[Chat-$requestId] Invalid chunk format: ${validationResult.reason}")
@@ -130,13 +120,12 @@ class StreamingResponseHandler {
             if (nonDataContent.isNotEmpty()) {
                 PluginLogger.Service.warn("[Chat-$requestId] No SSE data received. Non-data content: $nonDataContent")
                 val extractedError = extractErrorFromContent(nonDataContent)
-                sendErrorChunk(writer, extractedError ?: "Unexpected response format from model", requestId)
+                sendErrorChunk(writer, extractedError ?: "Unexpected response format from model")
             } else {
                 PluginLogger.Service.warn("[Chat-$requestId] Empty stream - no data received from model")
                 sendErrorChunk(
                     writer,
-                    "No response received from model. The model may be unavailable or doesn't support this request.",
-                    requestId
+                    "No response received from model. The model may be unavailable or doesn't support this request."
                 )
             }
         }
@@ -192,8 +181,8 @@ class StreamingResponseHandler {
     /**
      * Sends an error chunk in OpenAI-compatible streaming format
      */
-    private fun sendErrorChunk(writer: PrintWriter, message: String, requestId: String) {
-        val errorChunk = createErrorStreamChunk(message, requestId)
+    private fun sendErrorChunk(writer: PrintWriter, message: String) {
+        val errorChunk = createErrorStreamChunk(message)
         writer.println("$DATA_PREFIX$errorChunk")
         writer.println()
         writer.flush()
@@ -202,7 +191,7 @@ class StreamingResponseHandler {
     /**
      * Creates an OpenAI-compatible error chunk for streaming
      */
-    private fun createErrorStreamChunk(message: String, requestId: String): String {
+    private fun createErrorStreamChunk(message: String): String {
         val escapedMessage = message.replace("\"", "\\\"").replace("\n", "\\n")
         val chunkId = "chatcmpl-error-${UUID.randomUUID().toString().take(8)}"
         val timestamp = System.currentTimeMillis() / 1000
@@ -211,7 +200,7 @@ class StreamingResponseHandler {
     }
 
     /**
-     * Sends the [DONE] marker with proper SSE format
+     * Sends the \[DONE\] marker with proper SSE format
      */
     private fun sendDoneMarker(writer: PrintWriter) {
         writer.println("$DATA_PREFIX$DONE_MARKER")
@@ -294,7 +283,7 @@ class StreamingResponseHandler {
     fun handleStreamingError(e: Exception, writer: PrintWriter, requestId: String) {
         PluginLogger.Service.error("[Chat-$requestId] Error during streaming", e)
         val errorMessage = "Streaming error: ${e.message ?: "Unknown error"}"
-        sendErrorChunk(writer, enhanceErrorMessage(errorMessage), requestId)
+        sendErrorChunk(writer, enhanceErrorMessage(errorMessage))
         sendDoneMarker(writer)
     }
 
@@ -308,6 +297,7 @@ class StreamingResponseHandler {
      * Handles error responses from OpenRouter during streaming
      * Sends an OpenAI-compatible error chunk so AI Assistant can display the error
      */
+    @Suppress("unused") // Public API method for error handling
     fun handleStreamingErrorResponse(context: StreamingErrorContext) {
         val errorBody = context.response.body?.string() ?: "Unknown error"
         PluginLogger.Service.error(
@@ -324,7 +314,7 @@ class StreamingResponseHandler {
         val userFriendlyMessage = createUserFriendlyErrorMessage(errorBody, context.response.code)
 
         // Send as OpenAI-compatible streaming chunk so AI Assistant can display it
-        sendErrorChunk(writer, userFriendlyMessage, context.requestId)
+        sendErrorChunk(writer, userFriendlyMessage)
         sendDoneMarker(writer)
     }
 

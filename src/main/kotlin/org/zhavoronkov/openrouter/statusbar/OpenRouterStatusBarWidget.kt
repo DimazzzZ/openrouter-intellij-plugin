@@ -85,7 +85,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
     override fun getTooltipText(): String = currentTooltip
 
-    override fun getClickConsumer(): Consumer<MouseEvent>? {
+    override fun getClickConsumer(): Consumer<MouseEvent> {
         return Consumer { event ->
             // Always show the comprehensive popup menu on any click
             showPopupMenu(event)
@@ -388,7 +388,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
                     ApplicationManager.getApplication().invokeLater {
                         updateQuotaInfo()
                     }
-                } catch (e: InterruptedException) {
+                } catch (_: InterruptedException) {
                     Thread.currentThread().interrupt()
                     shouldContinueRefresh = false
                 } catch (e: IllegalStateException) {
@@ -549,7 +549,7 @@ data class PopupMenuItem(
                 override fun getIconFor(value: PopupMenuItem): Icon? = value.icon
                 override fun onChosen(selectedValue: PopupMenuItem, finalChoice: Boolean): PopupStep<*>? {
                     selectedValue.action?.invoke()
-                    return PopupStep.FINAL_CHOICE
+                    return FINAL_CHOICE
                 }
             }
         } else {

@@ -107,6 +107,7 @@ class OpenRouterProxyService : Disposable {
     /**
      * Restarts the proxy server
      */
+    @Suppress("unused") // Public API method
     fun restartServer(): CompletableFuture<Boolean> {
         return CompletableFuture.supplyAsync {
             try {
@@ -135,6 +136,7 @@ class OpenRouterProxyService : Disposable {
     /**
      * Tests the proxy server connection
      */
+    @Suppress("unused") // Public API method
     fun testServerConnection(): CompletableFuture<Boolean> {
         return proxyServer.testConnection()
     }
@@ -206,6 +208,7 @@ class OpenRouterProxyService : Disposable {
     /**
      * Gets the proxy URL for AI Assistant configuration
      */
+    @Suppress("unused") // Public API method
     fun getProxyUrl(): String? {
         val status = proxyServer.getStatus()
         return if (status.isRunning) status.url else null
@@ -214,6 +217,7 @@ class OpenRouterProxyService : Disposable {
     /**
      * Gets the proxy port
      */
+    @Suppress("unused") // Public API method
     fun getProxyPort(): Int? {
         val status = proxyServer.getStatus()
         return if (status.isRunning) status.port else null

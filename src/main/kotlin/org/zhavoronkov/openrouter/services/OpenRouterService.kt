@@ -107,6 +107,7 @@ open class OpenRouterService(
     /**
      * Get usage statistics for a specific generation
      */
+    @Suppress("unused") // Public API method
     suspend fun getGenerationStats(generationId: String): ApiResult<GenerationResponse> =
         withContext(Dispatchers.IO) {
             try {
@@ -127,7 +128,7 @@ open class OpenRouterService(
     /**
      * Create a chat completion using OpenRouter API
      */
-
+    @Suppress("unused") // Public API method
     suspend fun createChatCompletion(request: ChatCompletionRequest): ApiResult<ChatCompletionResponse> =
         withContext(Dispatchers.IO) {
             val startNs = System.nanoTime()
@@ -207,7 +208,7 @@ open class OpenRouterService(
                 "[OR] Chat completion failed: ${response.code} ${response.message} - $responseBody"
             )
             ApiResult.Error(
-                message = responseBody.ifBlank { response.message ?: "Chat completion failed" },
+                message = responseBody.ifBlank { response.message },
                 statusCode = response.code
             )
         }
@@ -341,6 +342,7 @@ open class OpenRouterService(
     /**
      * Get key info for backward compatibility - returns summary of all keys
      */
+    @Suppress("unused") // Public API method for backward compatibility
     suspend fun getKeyInfo(): ApiResult<KeyInfoResponse> {
         val result = getApiKeysList(settingsService.getProvisioningKey())
         return when (result) {
@@ -587,6 +589,7 @@ open class OpenRouterService(
      * Get list of available providers from OpenRouter
      * NOTE: This is a public endpoint that requires no authentication
      */
+    @Suppress("unused") // Public API method
     suspend fun getProviders(): ApiResult<ProvidersResponse> =
         fetchPublicEndpoint(
             getProvidersEndpoint(),

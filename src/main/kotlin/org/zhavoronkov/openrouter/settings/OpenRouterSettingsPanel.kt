@@ -26,7 +26,6 @@ import java.awt.datatransfer.StringSelection
 import javax.swing.JButton
 import javax.swing.JLabel
 import javax.swing.JPanel
-import javax.swing.JScrollPane
 import javax.swing.JSpinner
 import javax.swing.JTable
 import javax.swing.ListSelectionModel
@@ -56,8 +55,8 @@ class ApiKeyTableModel : AbstractTableModel() {
     override fun getValueAt(rowIndex: Int, columnIndex: Int): Any {
         val key = apiKeys[rowIndex]
         return when (columnIndex) {
-            COLUMN_LABEL -> key.label ?: ""
-            COLUMN_NAME -> key.name ?: ""
+            COLUMN_LABEL -> key.label
+            COLUMN_NAME -> key.name
             COLUMN_USAGE -> formatUsage(key.usage)
             COLUMN_LIMIT -> formatLimit(key.limit)
             COLUMN_STATUS -> if (!key.disabled) "Active" else "Inactive"
@@ -98,6 +97,7 @@ class ApiKeyTableModel : AbstractTableModel() {
         }
     }
 
+    @Suppress("unused") // Public API method
     fun getApiKeys(): List<ApiKeyInfo> {
         return apiKeys.toList()
     }
@@ -109,7 +109,8 @@ class ApiKeyTableModel : AbstractTableModel() {
 @Suppress("TooManyFunctions")
 class OpenRouterSettingsPanel {
 
-    private lateinit var panel: JPanel
+    @Suppress("RedundantLateinitModifier") // Uses ::panel.isInitialized check
+    private var panel: JPanel
     private val provisioningKeyField: JBPasswordField
     private val apiKeyField: JBPasswordField
     private val autoRefreshCheckBox: JBCheckBox
@@ -130,17 +131,18 @@ class OpenRouterSettingsPanel {
     private val apiKeyManager: ApiKeyManager
 
     // Proxy server status components
+    @Suppress("RedundantLateinitModifier") // Uses ::statusLabel.isInitialized check
     private lateinit var statusLabel: JLabel
     private lateinit var startServerButton: JButton
     private lateinit var stopServerButton: JButton
     private lateinit var copyUrlButton: JButton
 
     // Proxy configuration components
-    private lateinit var proxyAutoStartCheckBox: JBCheckBox
-    private lateinit var useSpecificPortCheckBox: JBCheckBox
-    private lateinit var proxyPortSpinner: JSpinner
-    private lateinit var proxyPortRangeStartSpinner: JSpinner
-    private lateinit var proxyPortRangeEndSpinner: JSpinner
+    private var proxyAutoStartCheckBox: JBCheckBox
+    private var useSpecificPortCheckBox: JBCheckBox
+    private var proxyPortSpinner: JSpinner
+    private var proxyPortRangeStartSpinner: JSpinner
+    private var proxyPortRangeEndSpinner: JSpinner
 
     // UI state tracking
     private var currentUiAuthScope: AuthScope = AuthScope.EXTENDED
@@ -148,13 +150,13 @@ class OpenRouterSettingsPanel {
     private lateinit var extendedRadioButton: javax.swing.JRadioButton
 
     // Authentication status labels
-    private lateinit var authScopeLabel: javax.swing.JLabel
+    private lateinit var authScopeLabel: JLabel
     private lateinit var authDescriptionLabel: javax.swing.JEditorPane
 
     // Scope predicates for visibility management
     private val uiPredicates = mutableListOf<UpdatablePredicate>()
 
-    private abstract inner class UpdatablePredicate : com.intellij.ui.layout.ComponentPredicate() {
+    private abstract class UpdatablePredicate : com.intellij.ui.layout.ComponentPredicate() {
         private val listeners = mutableListOf<(Boolean) -> Unit>()
         override fun addListener(listener: (Boolean) -> Unit) {
             listeners.add(listener)
@@ -410,14 +412,14 @@ class OpenRouterSettingsPanel {
             PluginLogger.Settings.error("Failed to create settings panel", e)
             JPanel(BorderLayout()).apply {
                 add(JLabel("Error creating settings panel: ${e.message}"), BorderLayout.NORTH)
-                val scrollPane = JScrollPane(javax.swing.JTextArea(e.stackTraceToString()))
+                val scrollPane = com.intellij.ui.components.JBScrollPane(javax.swing.JTextArea(e.stackTraceToString()))
                 add(scrollPane, BorderLayout.CENTER)
             }
         } catch (e: IllegalArgumentException) {
             PluginLogger.Settings.error("Failed to create settings panel", e)
             JPanel(BorderLayout()).apply {
                 add(JLabel("Error creating settings panel: ${e.message}"), BorderLayout.NORTH)
-                val scrollPane = JScrollPane(javax.swing.JTextArea(e.stackTraceToString()))
+                val scrollPane = com.intellij.ui.components.JBScrollPane(javax.swing.JTextArea(e.stackTraceToString()))
                 add(scrollPane, BorderLayout.CENTER)
             }
         }
@@ -470,7 +472,7 @@ class OpenRouterSettingsPanel {
         apiKeysPanel.add(toolbar, BorderLayout.NORTH)
 
         // Center: API Keys table in scroll pane
-        val scrollPane = JScrollPane(apiKeyTable)
+        val scrollPane = com.intellij.ui.components.JBScrollPane(apiKeyTable)
         apiKeysPanel.add(scrollPane, BorderLayout.CENTER)
     }
 
@@ -503,7 +505,7 @@ class OpenRouterSettingsPanel {
             PluginLogger.Settings.info("Run Setup Wizard button clicked")
             val project = ProjectManager.getInstance().openProjects.firstOrNull()
                 ?: ProjectManager.getInstance().defaultProject
-            PluginLogger.Settings.info("Showing setup wizard for project: ${project?.name ?: "default"}")
+            PluginLogger.Settings.info("Showing setup wizard for project: ${project.name}")
             val result = SetupWizardDialog.show(project)
             PluginLogger.Settings.info("Setup wizard completed with result: $result")
             if (result) {
@@ -549,6 +551,7 @@ class OpenRouterSettingsPanel {
         apiKeyManager.refreshApiKeys(forceRefresh = true)
     }
 
+    @Suppress("unused") // Public API method for external callers
     fun refreshApiKeys(forceRefresh: Boolean = true) {
         // Called from OpenRouterConfigurable - allow specifying forceRefresh
         apiKeyManager.refreshApiKeys(forceRefresh)
@@ -582,7 +585,7 @@ class OpenRouterSettingsPanel {
                     )
                 }
                 updateProxyStatus()
-            }, com.intellij.openapi.application.ModalityState.any())
+            }, ModalityState.any())
         }.exceptionally { throwable ->
             ApplicationManager.getApplication().invokeLater({
                 PluginLogger.Settings.error("Exception starting proxy server: ${throwable.message}", throwable)
@@ -591,7 +594,7 @@ class OpenRouterSettingsPanel {
                     "Proxy Start Failed"
                 )
                 updateProxyStatus()
-            }, com.intellij.openapi.application.ModalityState.any())
+            }, ModalityState.any())
             null
         }
     }
@@ -608,12 +611,12 @@ class OpenRouterSettingsPanel {
                     PluginLogger.Settings.warn("Failed to stop proxy server")
                 }
                 updateProxyStatus()
-            }, com.intellij.openapi.application.ModalityState.any())
+            }, ModalityState.any())
         }.exceptionally { throwable ->
             ApplicationManager.getApplication().invokeLater({
                 PluginLogger.Settings.error("Exception stopping proxy server: ${throwable.message}", throwable)
                 updateProxyStatus()
-            }, com.intellij.openapi.application.ModalityState.any())
+            }, ModalityState.any())
             null
         }
     }

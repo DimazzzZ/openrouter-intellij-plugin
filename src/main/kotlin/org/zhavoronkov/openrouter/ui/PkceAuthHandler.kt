@@ -90,7 +90,7 @@ class PkceAuthHandler(
                     BrowserUtil.browse(authUrl)
 
                     // Wait for callback with timeout
-                    serverSocket.soTimeout = SetupWizardConfig.PKCE_SERVER_TIMEOUT_MS.toInt()
+                    serverSocket.soTimeout = SetupWizardConfig.PKCE_SERVER_TIMEOUT_MS
 
                     try {
                         serverSocket.accept().use { socket ->
@@ -131,7 +131,7 @@ class PkceAuthHandler(
     /**
      * Handle the OAuth callback and extract the authorization code
      */
-    private fun handleCallback(socket: Socket, codeVerifier: String): String? {
+    private fun handleCallback(socket: Socket, @Suppress("UNUSED_PARAMETER") codeVerifier: String): String? {
         return try {
             val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
             val line = reader.readLine() ?: return null

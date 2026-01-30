@@ -59,7 +59,7 @@ import javax.swing.table.AbstractTableModel
     "MaxLineLength",
     "MagicNumber"
 )
-class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) {
+class SetupWizardDialog(@Suppress("unused") private val project: Project?) : DialogWrapper(project) {
 
     private val settingsService = OpenRouterSettingsService.getInstance()
     private val openRouterService = OpenRouterService.getInstance()
@@ -84,7 +84,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     // Initialize uiPredicates BEFORE creating panels
     private val uiPredicates = mutableListOf<UpdatablePredicate>()
 
-    private abstract inner class UpdatablePredicate : com.intellij.ui.layout.ComponentPredicate() {
+    private abstract class UpdatablePredicate : com.intellij.ui.layout.ComponentPredicate() {
         private val listeners = mutableListOf<(Boolean) -> Unit>()
 
         override fun addListener(listener: (Boolean) -> Unit) {
@@ -534,7 +534,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                 // Save settings before moving to models
                 settingsService.apiKeyManager.authScope = authScope
                 val key = String(keyField.password).trim()
-                if (authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR) {
+                if (authScope == AuthScope.REGULAR) {
                     settingsService.apiKeyManager.setApiKey(key)
                     // Clear provisioning key when switching to REGULAR mode
                     settingsService.apiKeyManager.setProvisioningKey("")
@@ -1021,7 +1021,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         }
 
         override fun getColumnClass(columnIndex: Int): Class<*> = when (columnIndex) {
-            0 -> java.lang.Boolean::class.java
+            0 -> Boolean::class.javaObjectType
             else -> String::class.java
         }
 

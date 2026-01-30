@@ -63,6 +63,7 @@ object ResponseTranslator {
      * Converts OpenRouter providers response to OpenAI models format
      * Note: providersResponse parameter is intentionally unused as we return a static list
      */
+    @Suppress("unused") // Public API method
     fun translateModelsResponse(
         @Suppress("UNUSED_PARAMETER") providersResponse: ProvidersResponse
     ): OpenAIModelsResponse {

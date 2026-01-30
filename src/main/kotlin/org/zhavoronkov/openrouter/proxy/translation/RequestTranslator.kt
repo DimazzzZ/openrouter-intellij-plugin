@@ -39,7 +39,7 @@ object RequestTranslator {
         PluginLogger.Service.debug("Model: ${openAIRequest.model}, Stream: ${openAIRequest.stream}")
 
         // Apply default max tokens only if feature is enabled (defaultMaxTokens > 0)
-        val defaultMaxTokens = if (settingsService?.uiPreferencesManager?.defaultMaxTokens ?: 0 > 0) {
+        val defaultMaxTokens = if ((settingsService?.uiPreferencesManager?.defaultMaxTokens ?: 0) > 0) {
             settingsService?.uiPreferencesManager?.defaultMaxTokens
         } else {
             null
@@ -102,6 +102,7 @@ object RequestTranslator {
     /**
      * Gets available model mappings for documentation/debugging
      */
+    @Suppress("unused") // Public API for documentation/debugging
     fun getModelMappings(): Map<String, String> {
         return mapOf(
             "gpt-4" to "openai/gpt-4",
