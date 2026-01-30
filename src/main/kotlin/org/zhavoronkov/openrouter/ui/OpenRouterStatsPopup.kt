@@ -65,11 +65,17 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
             OpenRouterService.getInstance()
         } catch (e: IllegalStateException) {
             // Service not available in test environment or initialization error
-            println("OpenRouterService not available: ${e.message}")
+            org.zhavoronkov.openrouter.utils.PluginLogger.Service.warn(
+                "OpenRouterService not available: ${e.message}",
+                e
+            )
             null
         } catch (e: NoClassDefFoundError) {
             // Service class not found
-            println("OpenRouterService class not found: ${e.message}")
+            org.zhavoronkov.openrouter.utils.PluginLogger.Service.warn(
+                "OpenRouterService class not found: ${e.message}",
+                e
+            )
             null
         }
 
@@ -78,11 +84,17 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
             OpenRouterSettingsService.getInstance()
         } catch (e: IllegalStateException) {
             // Service not available in test environment or initialization error
-            println("OpenRouterSettingsService not available: ${e.message}")
+            org.zhavoronkov.openrouter.utils.PluginLogger.Service.warn(
+                "OpenRouterSettingsService not available: ${e.message}",
+                e
+            )
             null
         } catch (e: NoClassDefFoundError) {
             // Service class not found
-            println("OpenRouterSettingsService class not found: ${e.message}")
+            org.zhavoronkov.openrouter.utils.PluginLogger.Service.warn(
+                "OpenRouterSettingsService class not found: ${e.message}",
+                e
+            )
             null
         }
     // private val trackingService = OpenRouterGenerationTrackingService.getInstance() // TEMPORARILY COMMENTED OUT
@@ -593,15 +605,23 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
             }
         } catch (e: java.time.format.DateTimeParseException) {
             // Log the problematic date format for debugging
-            println("Failed to parse activity date: '$dateString' - ${e.message}")
+            org.zhavoronkov.openrouter.utils.PluginLogger.Service.warn(
+                "Failed to parse activity date: '$dateString' - ${e.message}",
+                e
+            )
             null
         } catch (_: StringIndexOutOfBoundsException) {
             // Date string too short
-            println("Failed to parse activity date: '$dateString' - string too short")
+            org.zhavoronkov.openrouter.utils.PluginLogger.Service.warn(
+                "Failed to parse activity date: '$dateString' - string too short"
+            )
             null
         } catch (e: IllegalArgumentException) {
             // Invalid date format
-            println("Failed to parse activity date: '$dateString' - ${e.message}")
+            org.zhavoronkov.openrouter.utils.PluginLogger.Service.warn(
+                "Failed to parse activity date: '$dateString' - ${e.message}",
+                e
+            )
             null
         }
     }

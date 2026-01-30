@@ -1,8 +1,7 @@
-@file:Suppress("SwallowedException")
-
 package org.zhavoronkov.openrouter.ui
 
 import org.zhavoronkov.openrouter.models.ActivityData
+import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import java.util.Locale
@@ -138,11 +137,11 @@ object OpenRouterStatsUtils {
             }
         } catch (e: DateTimeParseException) {
             // Log the problematic date format for debugging
-            println("Failed to parse activity date: '$dateString' - ${e.message}")
+            PluginLogger.Service.warn("Failed to parse activity date: '$dateString' - ${e.message}", e)
             null
         } catch (e: StringIndexOutOfBoundsException) {
             // Handle case where dateString is shorter than expected
-            println("Invalid activity date format (too short): '$dateString'")
+            PluginLogger.Service.warn("Invalid activity date format (too short): '$dateString'", e)
             null
         }
     }

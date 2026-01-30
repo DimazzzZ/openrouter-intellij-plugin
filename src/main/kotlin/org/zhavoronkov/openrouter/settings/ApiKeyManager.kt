@@ -172,9 +172,6 @@ class ApiKeyManager(
         PluginLogger.Settings.info("========================================")
         PluginLogger.Settings.info("REFRESH BUTTON CLICKED - refreshApiKeys() called (forceRefresh: $forceRefresh)")
         PluginLogger.Settings.info("========================================")
-        println("========================================")
-        println("REFRESH BUTTON CLICKED - refreshApiKeys() called (forceRefresh: $forceRefresh)")
-        println("========================================")
 
         loadApiKeysInternal(forceRefresh)
     }
