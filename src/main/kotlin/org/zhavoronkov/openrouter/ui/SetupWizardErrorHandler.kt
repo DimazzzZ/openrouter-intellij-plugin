@@ -58,7 +58,10 @@ object SetupWizardErrorHandler {
      */
     fun handlePkceError(e: Exception, context: String): String {
         return when (e) {
-            is java.net.BindException -> "Port ${SetupWizardConfig.PKCE_PORT} is in use. OpenRouter requires port ${SetupWizardConfig.PKCE_PORT} for authentication."
+            is java.net.BindException -> {
+                val port = SetupWizardConfig.PKCE_PORT
+                "Port $port is in use. OpenRouter requires port $port for authentication."
+            }
             else -> {
                 SetupWizardLogger.error("PKCE error in $context", e)
                 "Authentication failed: ${e.message ?: "Unknown error"}"
@@ -77,7 +80,7 @@ object SetupWizardErrorHandler {
     /**
      * Create a standardized error result for validation failures
      */
-    fun createValidationError(message: String, originalError: ApiResult.Error): ApiResult.Error {
+    fun createValidationError(originalError: ApiResult.Error): ApiResult.Error {
         val friendlyMessage = handleValidationError(originalError)
         return ApiResult.Error(
             message = friendlyMessage,

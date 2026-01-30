@@ -286,7 +286,7 @@ class OpenRouterProxyService : Disposable {
                     PluginLogger.Service.error("Error stopping proxy server during disposal", e)
                 } catch (e: IllegalStateException) {
                     PluginLogger.Service.error("Error stopping proxy server during disposal", e)
-                } catch (e: RuntimeException) {
+                } catch (e: Exception) {
                     PluginLogger.Service.error("Error stopping proxy server during disposal", e)
                 }
             }

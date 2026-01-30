@@ -1,6 +1,5 @@
 package org.zhavoronkov.openrouter.proxy.validation
 
-import com.google.gson.Gson
 import com.google.gson.JsonParser
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -20,7 +19,6 @@ class MultimodalContentValidatorTest {
 
     private lateinit var mockFavoriteModelsService: FavoriteModelsService
     private lateinit var validator: MultimodalContentValidator
-    private val gson = Gson()
 
     @Suppress("UNUSED_VARIABLE")
     @BeforeEach

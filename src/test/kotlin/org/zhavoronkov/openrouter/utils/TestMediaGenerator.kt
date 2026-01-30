@@ -104,7 +104,8 @@ object TestMediaGenerator {
             "-f", // Fail on HTTP errors
             "-S", // Show errors
             "-s", // Silent mode (no progress bar)
-            "-o", mediaGenBinary.toString(),
+            "-o",
+            mediaGenBinary.toString(),
             downloadUrl
         ).start() // Don't redirect error stream to avoid potential issues
 
@@ -125,17 +126,17 @@ object TestMediaGenerator {
 
         check(exitCode == 0) {
             "Failed to download media-gen from $downloadUrl\n" +
-            "Exit code: $exitCode\n" +
-            "Please verify the URL is correct and the release exists at:\n" +
-            "https://github.com/DimazzzZ/media-gen/releases/tag/v0.2.0"
+                "Exit code: $exitCode\n" +
+                "Please verify the URL is correct and the release exists at:\n" +
+                "https://github.com/DimazzzZ/media-gen/releases/tag/v0.2.0"
         }
 
         // Verify file was downloaded and has content
         check(Files.exists(mediaGenBinary) && Files.size(mediaGenBinary) > 0L) {
             "media-gen binary was not downloaded correctly.\n" +
-            "File exists: ${Files.exists(mediaGenBinary)}\n" +
-            "Size: ${if (Files.exists(mediaGenBinary)) Files.size(mediaGenBinary) else 0}\n" +
-            "URL: $downloadUrl"
+                "File exists: ${Files.exists(mediaGenBinary)}\n" +
+                "Size: ${if (Files.exists(mediaGenBinary)) Files.size(mediaGenBinary) else 0}\n" +
+                "URL: $downloadUrl"
         }
 
         // Make executable on Unix systems
@@ -244,7 +245,7 @@ object TestMediaGenerator {
         // Check if file was actually created
         check(file.exists() && file.length() > 0L) {
             "Failed to generate audio file. Exit code: $exitCode, Output: '${output.toString().trim()}', " +
-            "File exists: ${file.exists()}, File size: ${if (file.exists()) file.length() else 0}"
+                "File exists: ${file.exists()}, File size: ${if (file.exists()) file.length() else 0}"
         }
 
         check(exitCode == 0) {
@@ -308,7 +309,6 @@ object TestMediaGenerator {
 
         Files.write(outputFile.toPath(), mp4Data)
     }
-
 
     /**
      * Convert a file to a base64 data URL.

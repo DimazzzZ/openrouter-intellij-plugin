@@ -157,9 +157,9 @@ open class OpenRouterService(
             } catch (e: IOException) {
                 PluginLogger.Service.error("[OR] Chat completion network error: ${e.message}", e)
                 ApiResult.Error(message = e.message ?: "Network error", throwable = e)
-            } catch (e: Exception) {
-                PluginLogger.Service.error("[OR] Chat completion unexpected error: ${e.message}", e)
-                ApiResult.Error(message = e.message ?: "Unexpected error", throwable = e)
+            } catch (e: JsonSyntaxException) {
+                PluginLogger.Service.error("[OR] Chat completion JSON parsing error: ${e.message}", e)
+                ApiResult.Error(message = e.message ?: "JSON parsing error", throwable = e)
             }
         }
 
@@ -701,9 +701,6 @@ open class OpenRouterService(
                 PluginLogger.Service.error("PKCE: Network error during exchange", e)
                 handleNetworkError(e, "Error exchanging auth code")
                 ApiResult.Error(message = e.message ?: "Network error", throwable = e)
-            } catch (e: Exception) {
-                PluginLogger.Service.error("PKCE: Unexpected error during exchange", e)
-                ApiResult.Error(message = e.message ?: "Unexpected error", throwable = e)
             }
         }
 

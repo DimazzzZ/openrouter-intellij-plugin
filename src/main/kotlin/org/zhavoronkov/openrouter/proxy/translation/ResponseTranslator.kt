@@ -63,7 +63,9 @@ object ResponseTranslator {
      * Converts OpenRouter providers response to OpenAI models format
      * Note: providersResponse parameter is intentionally unused as we return a static list
      */
-    fun translateModelsResponse(providersResponse: ProvidersResponse): OpenAIModelsResponse {
+    fun translateModelsResponse(
+        @Suppress("UNUSED_PARAMETER") providersResponse: ProvidersResponse
+    ): OpenAIModelsResponse {
         PluginLogger.Service.debug("Translating OpenRouter providers to OpenAI models format")
 
         // Focus on core OpenAI models that AI Assistant recognizes

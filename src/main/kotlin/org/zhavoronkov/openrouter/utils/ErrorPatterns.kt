@@ -78,9 +78,10 @@ object ErrorPatterns {
      */
     fun isFreeTierEnded(errorBody: String): Boolean {
         return errorBody.contains(FREE, ignoreCase = true) &&
-            (errorBody.contains(FREE_PERIOD_ENDED, ignoreCase = true) ||
-                errorBody.contains(MIGRATE_TO_PAID, ignoreCase = true) ||
-                errorBody.contains(PAID_SLUG, ignoreCase = true))
+            (
+                errorBody.contains(FREE_PERIOD_ENDED, ignoreCase = true) ||
+                    errorBody.contains(MIGRATE_TO_PAID, ignoreCase = true) ||
+                    errorBody.contains(PAID_SLUG, ignoreCase = true)
+                )
     }
 }
-

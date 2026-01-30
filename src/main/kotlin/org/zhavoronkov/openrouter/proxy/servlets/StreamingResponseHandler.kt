@@ -228,8 +228,14 @@ class StreamingResponseHandler {
         } catch (e: JsonSyntaxException) {
             // Not JSON - check for common error patterns using ErrorPatterns
             when {
-                content.contains(ErrorPatterns.RATE_LIMIT, ignoreCase = true) -> "Rate limit exceeded. Please try again later."
-                content.contains(ErrorPatterns.UNAUTHORIZED, ignoreCase = true) -> "Authentication failed. Please check your API key."
+                content.contains(
+                    ErrorPatterns.RATE_LIMIT,
+                    ignoreCase = true
+                ) -> "Rate limit exceeded. Please try again later."
+                content.contains(
+                    ErrorPatterns.UNAUTHORIZED,
+                    ignoreCase = true
+                ) -> "Authentication failed. Please check your API key."
                 content.contains(ErrorPatterns.NOT_FOUND, ignoreCase = true) -> "Model or endpoint not found."
                 content.contains(ErrorPatterns.UNAVAILABLE, ignoreCase = true) -> "Service temporarily unavailable."
                 content.contains(ErrorPatterns.TIMEOUT, ignoreCase = true) -> "Request timed out."

@@ -293,23 +293,7 @@ class OpenRouterSettingsPanel {
                 // Run Setup Wizard button
                 row {
                     button("Run Setup Wizard") {
-                        try {
-                            PluginLogger.Settings.info("Run Setup Wizard button clicked")
-                            val project = ProjectManager.getInstance().openProjects.firstOrNull()
-                                ?: ProjectManager.getInstance().defaultProject
-                            PluginLogger.Settings.info("Showing setup wizard for project: ${project?.name ?: "default"}")
-                            val result = SetupWizardDialog.show(project)
-                            PluginLogger.Settings.info("Setup wizard completed with result: $result")
-                            if (result) {
-                                refreshUI()
-                            }
-                        } catch (e: Exception) {
-                            PluginLogger.Settings.error("Failed to show setup wizard", e)
-                            Messages.showErrorDialog(
-                                "Failed to show setup wizard: ${e.message}",
-                                "Setup Wizard Error"
-                            )
-                        }
+                        runSetupWizard()
                     }
                     comment("Re-run the initial setup wizard to configure the plugin.")
                 }
@@ -339,7 +323,10 @@ class OpenRouterSettingsPanel {
                         }.component
                     }
                     row {
-                        text("To change your authentication settings, please use the <b>Run Setup Wizard</b> button above.")
+                        text(
+                            "To change your authentication settings, please use the " +
+                                "<b>Run Setup Wizard</b> button above."
+                        )
                     }
                 }
 
@@ -504,19 +491,23 @@ class OpenRouterSettingsPanel {
         return wrapperPanel
     }
 
-    private fun pasteToField(field: JBPasswordField) {
+    private fun runSetupWizard() {
         try {
-            val clipboard = Toolkit.getDefaultToolkit().systemClipboard
-            val data = clipboard.getData(java.awt.datatransfer.DataFlavor.stringFlavor) as String
-            field.text = data.trim()
-        } catch (e: java.awt.HeadlessException) {
-            PluginLogger.Settings.warn("Clipboard not available in headless environment", e)
-        } catch (e: java.awt.datatransfer.UnsupportedFlavorException) {
-            PluginLogger.Settings.warn("Clipboard data format not supported", e)
-        } catch (e: IllegalStateException) {
-            PluginLogger.Settings.warn("Invalid state accessing clipboard", e)
-        } catch (expectedError: Exception) {
-            PluginLogger.Settings.warn("Failed to paste from clipboard: ${expectedError.message}")
+            PluginLogger.Settings.info("Run Setup Wizard button clicked")
+            val project = ProjectManager.getInstance().openProjects.firstOrNull()
+                ?: ProjectManager.getInstance().defaultProject
+            PluginLogger.Settings.info("Showing setup wizard for project: ${project?.name ?: "default"}")
+            val result = SetupWizardDialog.show(project)
+            PluginLogger.Settings.info("Setup wizard completed with result: $result")
+            if (result) {
+                refreshUI()
+            }
+        } catch (e: Exception) {
+            PluginLogger.Settings.error("Failed to show setup wizard", e)
+            Messages.showErrorDialog(
+                "Failed to show setup wizard: ${e.message}",
+                "Setup Wizard Error"
+            )
         }
     }
 

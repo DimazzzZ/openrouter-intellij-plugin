@@ -16,7 +16,9 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
     name = "OpenRouterGenerationTracking",
     storages = [Storage("openrouter-generations.xml")]
 )
-class OpenRouterGenerationTrackingService : PersistentStateComponent<OpenRouterGenerationTrackingService.State>, Disposable {
+class OpenRouterGenerationTrackingService :
+    PersistentStateComponent<OpenRouterGenerationTrackingService.State>,
+    Disposable {
 
     data class State(
         var generations: MutableList<GenerationTrackingInfo> = mutableListOf()

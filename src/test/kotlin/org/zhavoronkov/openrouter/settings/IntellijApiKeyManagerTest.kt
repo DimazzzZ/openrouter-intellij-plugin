@@ -301,9 +301,7 @@ class IntellijApiKeyManagerTest {
         hash: String = "test-hash-${name.hashCode()}",
         limit: Double? = null,
         usage: Double = 0.0,
-        disabled: Boolean = false,
-        createdAt: String = "2025-01-01T00:00:00.000000+00:00",
-        updatedAt: String? = null
+        disabled: Boolean = false
     ): ApiKeyInfo {
         return ApiKeyInfo(
             name = name,
@@ -312,8 +310,8 @@ class IntellijApiKeyManagerTest {
             limit = limit,
             usage = usage,
             disabled = disabled,
-            createdAt = createdAt,
-            updatedAt = updatedAt
+            createdAt = "2025-01-01T00:00:00.000000+00:00",
+            updatedAt = null
         )
     }
 }

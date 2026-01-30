@@ -278,8 +278,15 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
                                 null
                             }
 
-                            currentText = formatStatusTextFromCredits(credits.totalUsage, credits.totalCredits)
-                            currentTooltip = formatStatusTooltipFromCredits(credits.totalUsage, credits.totalCredits, activityList)
+                            currentText = formatStatusTextFromCredits(
+                                credits.totalUsage,
+                                credits.totalCredits
+                            )
+                            currentTooltip = formatStatusTooltipFromCredits(
+                                credits.totalUsage,
+                                credits.totalCredits,
+                                activityList
+                            )
                         }
                         is ApiResult.Error -> {
                             connectionStatus = ConnectionStatus.ERROR

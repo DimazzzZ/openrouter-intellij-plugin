@@ -71,7 +71,9 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
         // Migration for v0.4.0: Detect existing provisioning keys and set authScope to EXTENDED
         // This fixes the issue where users upgrading from v0.3.0 had their settings "reset"
         // because authScope defaulted to REGULAR
-        if (settings.provisioningKey.isNotBlank() && settings.authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR) {
+        if (settings.provisioningKey.isNotBlank() &&
+            settings.authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR
+        ) {
             PluginLogger.Service.info("Migration: Detected existing provisioning key, setting authScope to EXTENDED")
             settings.authScope = org.zhavoronkov.openrouter.models.AuthScope.EXTENDED
         }
@@ -112,7 +114,7 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
             )?.onSettingsChanged()
         } catch (e: IllegalStateException) {
             PluginLogger.Service.warn("Failed to persist settings state", e)
-        } catch (e: RuntimeException) {
+        } catch (e: Exception) {
             PluginLogger.Service.warn("Failed to persist settings state", e)
         }
     }

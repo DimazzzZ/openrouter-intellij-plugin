@@ -75,7 +75,7 @@ class FavoriteModelsService(
         } catch (e: java.util.concurrent.TimeoutException) {
             PluginLogger.Service.warn("[OpenRouter] Model fetch timed out")
             null
-        } catch (e: RuntimeException) {
+        } catch (e: Exception) {
             PluginLogger.Service.error("[OpenRouter] Error fetching models from API", e)
             null
         }

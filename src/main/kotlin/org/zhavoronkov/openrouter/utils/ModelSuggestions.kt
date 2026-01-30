@@ -68,4 +68,3 @@ object ModelSuggestions {
         append(formatModelList(models))
     }
 }
-
