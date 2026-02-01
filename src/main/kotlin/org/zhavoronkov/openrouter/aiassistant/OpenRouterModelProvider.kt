@@ -3,6 +3,8 @@ package org.zhavoronkov.openrouter.aiassistant
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.zhavoronkov.openrouter.models.ApiResult
+import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
+import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.PluginLogger
@@ -14,11 +16,17 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
  * Note: This implementation uses educated guesses about the AI Assistant plugin's API
  * since the exact interface specifications are not publicly documented.
  */
-@Suppress("TooGenericExceptionCaught")
-class OpenRouterModelProvider {
-
-    private val openRouterService = OpenRouterService.getInstance()
-    private val settingsService = OpenRouterSettingsService.getInstance()
+@Suppress("TooGenericExceptionCaught", "TooManyFunctions")
+class OpenRouterModelProvider internal constructor(
+    private val openRouterService: OpenRouterService,
+    private val settingsService: OpenRouterSettingsService,
+    private val favoriteModelsService: FavoriteModelsService
+) {
+    constructor() : this(
+        openRouterService = OpenRouterService.getInstance(),
+        settingsService = OpenRouterSettingsService.getInstance(),
+        favoriteModelsService = FavoriteModelsService.getInstance()
+    )
 
     companion object {
         private const val PROVIDER_NAME = "OpenRouter"
@@ -28,8 +36,8 @@ class OpenRouterModelProvider {
         // Connection test timeout (in milliseconds)
         private const val CONNECTION_TEST_TIMEOUT_MS = 10000L
 
-        // Common OpenRouter models that work well for code assistance
-        private val SUPPORTED_MODELS = listOf(
+        // Fallback models if the /models endpoint is temporarily unavailable
+        private val FALLBACK_MODELS = listOf(
             "openai/gpt-4o",
             "openai/gpt-4o-mini",
             "anthropic/claude-3.5-sonnet",
@@ -78,15 +86,17 @@ class OpenRouterModelProvider {
      */
     fun getAvailableModels(): List<OpenRouterAIModel> {
         return if (isAvailable()) {
-            SUPPORTED_MODELS.map { modelId ->
+            val modelInfos = fetchAvailableModels()
+            modelInfos.map { modelInfo ->
                 OpenRouterAIModel(
-                    id = modelId,
-                    name = getModelDisplayName(modelId),
-                    description = getModelDescription(modelId),
+                    id = modelInfo.id,
+                    name = modelInfo.name.ifBlank { getModelDisplayName(modelInfo.id) },
+                    description = modelInfo.description ?: getModelDescription(modelInfo.id),
                     provider = "OpenRouter",
                     supportsChat = true,
                     supportsCompletion = true,
-                    supportsStreaming = true
+                    supportsStreaming = true,
+                    contextLength = modelInfo.contextLength
                 )
             }
         } else {
@@ -135,6 +145,49 @@ class OpenRouterModelProvider {
             !settingsService.isConfigured() -> "Not configured - Please set up OpenRouter API key"
             !testConnection() -> "Configuration issue - Please check API key"
             else -> "Ready - ${getAvailableModels().size} models available"
+        }
+    }
+
+    private fun fetchAvailableModels(): List<OpenRouterModelInfo> {
+        return try {
+            val models = runBlocking {
+                favoriteModelsService.getAvailableModels(forceRefresh = false)
+            }
+            if (models.isNullOrEmpty()) {
+                PluginLogger.Service.warn(
+                    "OpenRouter /models returned empty list; falling back to default models"
+                )
+                FALLBACK_MODELS.map { modelId ->
+                    OpenRouterModelInfo(
+                        id = modelId,
+                        name = modelId,
+                        created = System.currentTimeMillis() / 1000,
+                        description = null,
+                        architecture = null,
+                        topProvider = null,
+                        pricing = null,
+                        contextLength = null,
+                        perRequestLimits = null
+                    )
+                }
+            } else {
+                models
+            }
+        } catch (e: Exception) {
+            PluginLogger.Service.warn("Failed to fetch OpenRouter models, using fallback list", e)
+            FALLBACK_MODELS.map { modelId ->
+                OpenRouterModelInfo(
+                    id = modelId,
+                    name = modelId,
+                    created = System.currentTimeMillis() / 1000,
+                    description = null,
+                    architecture = null,
+                    topProvider = null,
+                    pricing = null,
+                    contextLength = null,
+                    perRequestLimits = null
+                )
+            }
         }
     }
 
