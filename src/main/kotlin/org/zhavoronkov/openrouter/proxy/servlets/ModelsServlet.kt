@@ -22,10 +22,11 @@ import java.util.concurrent.atomic.AtomicLong
  * Servlet that provides OpenAI-compatible /v1/models endpoint
  */
 class ModelsServlet(
-    private val openRouterService: OpenRouterService
+    private val openRouterService: OpenRouterService,
+    private val favoriteModelsProvider: () -> List<String> = {
+        OpenRouterSettingsService.getInstance().favoriteModelsManager.getFavoriteModels()
+    }
 ) : HttpServlet() {
-
-    private val settingsService = OpenRouterSettingsService.getInstance()
 
     companion object {
         private const val REQUEST_TIMEOUT_MS = 30000L // 30 seconds
@@ -129,7 +130,7 @@ class ModelsServlet(
     private fun createCoreModelsResponse(): OpenAIModelsResponse {
         // Return user's favorite models with FULL OpenRouter format (provider/model)
         // This is critical - OpenRouter API requires full model names with provider prefix
-        var favoriteModelIds = settingsService.favoriteModelsManager.getFavoriteModels()
+        var favoriteModelIds = favoriteModelsProvider()
 
         // If no favorites are set, ensure we have defaults
         if (favoriteModelIds.isEmpty()) {
