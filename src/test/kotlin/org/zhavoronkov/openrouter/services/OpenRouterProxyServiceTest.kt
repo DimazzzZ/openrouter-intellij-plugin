@@ -7,11 +7,10 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.mockito.Mockito.mock
-import org.mockito.Mockito.`when`
+import org.mockito.Mockito
 import org.zhavoronkov.openrouter.proxy.OpenRouterProxyServer
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 
 @DisplayName("OpenRouter Proxy Service Tests")
 class OpenRouterProxyServiceTest {
@@ -22,8 +21,8 @@ class OpenRouterProxyServiceTest {
 
     private fun initService() {
         service = OpenRouterProxyService()
-        mockProxyServer = mock(OpenRouterProxyServer::class.java)
-        mockSettingsService = mock(OpenRouterSettingsService::class.java)
+        mockProxyServer = Mockito.mock(OpenRouterProxyServer::class.java)
+        mockSettingsService = Mockito.mock(OpenRouterSettingsService::class.java)
         service.setDependenciesForTests(mockProxyServer, mockSettingsService)
     }
 
@@ -40,7 +39,7 @@ class OpenRouterProxyServiceTest {
                 url = "http://127.0.0.1:8081/v1/",
                 isConfigured = true
             )
-            `when`(mockProxyServer.getStatus()).thenReturn(status)
+            Mockito.`when`(mockProxyServer.getStatus()).thenReturn(status)
 
             assertEquals("http://127.0.0.1:8081/v1/", service.getProxyUrl())
             assertEquals(8081, service.getProxyPort())
@@ -56,7 +55,7 @@ class OpenRouterProxyServiceTest {
                 url = null,
                 isConfigured = true
             )
-            `when`(mockProxyServer.getStatus()).thenReturn(status)
+            Mockito.`when`(mockProxyServer.getStatus()).thenReturn(status)
 
             assertNull(service.getProxyUrl())
             assertNull(service.getProxyPort())
@@ -72,7 +71,7 @@ class OpenRouterProxyServiceTest {
                 url = "http://127.0.0.1:8081/v1/",
                 isConfigured = false
             )
-            `when`(mockProxyServer.getStatus()).thenReturn(status)
+            Mockito.`when`(mockProxyServer.getStatus()).thenReturn(status)
 
             assertFalse(service.isReady())
         }
@@ -86,7 +85,7 @@ class OpenRouterProxyServiceTest {
         fun `testServerConnection should delegate to proxy server`() {
             initService()
             val future = CompletableFuture.completedFuture(true)
-            `when`(mockProxyServer.testConnection()).thenReturn(future)
+            Mockito.`when`(mockProxyServer.testConnection()).thenReturn(future)
 
             val result = service.testServerConnection().get()
 
@@ -101,7 +100,7 @@ class OpenRouterProxyServiceTest {
         @Test
         fun `startServer should not start when not configured`() {
             initService()
-            `when`(mockSettingsService.isConfigured()).thenReturn(false)
+            Mockito.`when`(mockSettingsService.isConfigured()).thenReturn(false)
 
             val result = service.startServer().get(1, TimeUnit.SECONDS)
 
@@ -111,14 +110,14 @@ class OpenRouterProxyServiceTest {
         @Test
         fun `startServer should skip when already running`() {
             initService()
-            `when`(mockSettingsService.isConfigured()).thenReturn(true)
+            Mockito.`when`(mockSettingsService.isConfigured()).thenReturn(true)
             val status = OpenRouterProxyServer.ProxyServerStatus(
                 isRunning = true,
                 port = 8080,
                 url = "http://localhost:8080/v1",
                 isConfigured = true
             )
-            `when`(mockProxyServer.getStatus()).thenReturn(status)
+            Mockito.`when`(mockProxyServer.getStatus()).thenReturn(status)
 
             val result = service.startServer().get(1, TimeUnit.SECONDS)
 
@@ -134,7 +133,7 @@ class OpenRouterProxyServiceTest {
                 url = null,
                 isConfigured = true
             )
-            `when`(mockProxyServer.getStatus()).thenReturn(status)
+            Mockito.`when`(mockProxyServer.getStatus()).thenReturn(status)
 
             val result = service.stopServer().get(1, TimeUnit.SECONDS)
 
@@ -144,7 +143,7 @@ class OpenRouterProxyServiceTest {
         @Test
         fun `autoStartIfConfigured should return false when not configured`() {
             initService()
-            `when`(mockSettingsService.isConfigured()).thenReturn(false)
+            Mockito.`when`(mockSettingsService.isConfigured()).thenReturn(false)
 
             val result = service.autoStartIfConfigured().get(1, TimeUnit.SECONDS)
 
@@ -160,7 +159,7 @@ class OpenRouterProxyServiceTest {
                 url = "http://localhost:8080/v1",
                 isConfigured = true
             )
-            `when`(mockProxyServer.getStatus()).thenReturn(status)
+            Mockito.`when`(mockProxyServer.getStatus()).thenReturn(status)
 
             val result = service.forceStartServer().get(1, TimeUnit.SECONDS)
 

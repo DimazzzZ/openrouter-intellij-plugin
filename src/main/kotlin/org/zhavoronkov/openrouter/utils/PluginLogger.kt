@@ -13,46 +13,28 @@ object PluginLogger {
     private const val PLUGIN_NAME = "OpenRouter"
 
     // Logger instances for different components - lazy to support test environments
-    private val serviceLogger by lazy {
-        try {
-            Logger.getInstance("org.zhavoronkov.openrouter.services")
-        } catch (e: Throwable) {
-            null // In test environment or when Logger is not available
-        }
-    }
-    private val settingsLogger by lazy {
-        try {
-            Logger.getInstance("org.zhavoronkov.openrouter.settings")
-        } catch (e: Throwable) {
-            null
-        }
-    }
-    private val statusBarLogger by lazy {
-        try {
-            Logger.getInstance("org.zhavoronkov.openrouter.statusbar")
-        } catch (e: Throwable) {
-            null
-        }
-    }
-    private val modelsLogger by lazy {
-        try {
-            Logger.getInstance("org.zhavoronkov.openrouter.models")
-        } catch (e: Throwable) {
-            null
-        }
-    }
-    private val startupLogger by lazy {
-        try {
-            Logger.getInstance("org.zhavoronkov.openrouter.startup")
-        } catch (e: Throwable) {
-            null
-        }
-    }
+    private val serviceLogger by lazy { createLogger("org.zhavoronkov.openrouter.services") }
+    private val settingsLogger by lazy { createLogger("org.zhavoronkov.openrouter.settings") }
+    private val statusBarLogger by lazy { createLogger("org.zhavoronkov.openrouter.statusbar") }
+    private val modelsLogger by lazy { createLogger("org.zhavoronkov.openrouter.models") }
+    private val startupLogger by lazy { createLogger("org.zhavoronkov.openrouter.startup") }
 
     // Debug mode flag - can be controlled via system property
     private val debugEnabled: Boolean by lazy {
         System.getProperty("openrouter.debug", "false").toBoolean() ||
             System.getProperty("idea.log.debug.categories", "").contains("org.zhavoronkov.openrouter")
+    }
+
+    private fun createLogger(category: String): Logger? {
+        return try {
+            Logger.getInstance(category)
+        } catch (e: IllegalStateException) {
+            System.err.println("[$PLUGIN_NAME] Logger unavailable for $category: ${e.message}")
+            null
+        } catch (e: NoClassDefFoundError) {
+            System.err.println("[$PLUGIN_NAME] Logger class missing for $category: ${e.message}")
+            null
+        }
     }
 
     /**

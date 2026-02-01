@@ -1,5 +1,6 @@
 package org.zhavoronkov.openrouter.proxy.translation
 
+import com.intellij.openapi.application.ApplicationManager
 import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatMessage
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
@@ -13,6 +14,12 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
 object RequestTranslator {
 
     private val settingsService by lazy {
+        val application = ApplicationManager.getApplication()
+        if (application == null) {
+            PluginLogger.Service.debug("Application not available (test environment)")
+            return@lazy null
+        }
+
         try {
             OpenRouterSettingsService.getInstance()
         } catch (e: IllegalStateException) {
@@ -22,10 +29,6 @@ object RequestTranslator {
         } catch (e: IllegalArgumentException) {
             // Service creation failed due to invalid state
             PluginLogger.Service.debug("Settings service not available", e)
-            null
-        } catch (e: NullPointerException) {
-            // ApplicationManager.getApplication() returns null in test environment
-            PluginLogger.Service.debug("Application not available (test environment)", e)
             null
         }
     }
@@ -89,9 +92,6 @@ object RequestTranslator {
                 (request.temperature == null || request.temperature in 0.0..2.0) &&
                 (request.maxTokens == null || request.maxTokens > 0) &&
                 (request.topP == null || request.topP in 0.0..1.0)
-        } catch (e: NullPointerException) {
-            PluginLogger.Service.error("Request validation failed: null value encountered", e)
-            false
         } catch (e: IllegalArgumentException) {
             PluginLogger.Service.error("Request validation failed: invalid argument", e)
             false

@@ -82,7 +82,6 @@ class OpenRouterChatModelProviderTest {
         }
     }
 
-
     @Nested
     @DisplayName("Message List Tests")
     inner class MessageListTests {

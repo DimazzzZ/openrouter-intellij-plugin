@@ -1,5 +1,6 @@
 package org.zhavoronkov.openrouter.services
 
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertDoesNotThrow
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -8,17 +9,12 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import kotlinx.coroutines.runBlocking
 import org.mockito.ArgumentMatchers.anyList
 import org.mockito.ArgumentMatchers.anyString
-import org.mockito.Mockito.doAnswer
-import org.mockito.Mockito.mock
-import org.mockito.Mockito.times
-import org.mockito.Mockito.verify
-import org.mockito.Mockito.`when`
+import org.mockito.Mockito
+import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.models.OpenRouterModelsResponse
-import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.services.settings.FavoriteModelsManager
 
 /**
@@ -38,25 +34,25 @@ class FavoriteModelsServiceTest {
     @BeforeEach
     fun setup() {
         // Create mock settings service and manager
-        mockSettingsService = mock(OpenRouterSettingsService::class.java)
-        mockFavoriteModelsManager = mock(FavoriteModelsManager::class.java)
+        mockSettingsService = Mockito.mock(OpenRouterSettingsService::class.java)
+        mockFavoriteModelsManager = Mockito.mock(FavoriteModelsManager::class.java)
 
         // Setup mock behavior to use in-memory storage
         favoriteModelsStorage.clear()
-        `when`(mockFavoriteModelsManager.getFavoriteModels()).thenAnswer { favoriteModelsStorage.toList() }
-        doAnswer { invocation ->
+        Mockito.`when`(mockFavoriteModelsManager.getFavoriteModels()).thenAnswer { favoriteModelsStorage.toList() }
+        Mockito.doAnswer { invocation ->
             val models = invocation.getArgument<List<String>>(0)
             favoriteModelsStorage.clear()
             favoriteModelsStorage.addAll(models)
             null
         }.`when`(mockFavoriteModelsManager).setFavoriteModels(anyList())
-        `when`(mockFavoriteModelsManager.isFavoriteModel(anyString())).thenAnswer { invocation ->
+        Mockito.`when`(mockFavoriteModelsManager.isFavoriteModel(anyString())).thenAnswer { invocation ->
             val modelId = invocation.getArgument<String>(0)
             favoriteModelsStorage.contains(modelId)
         }
 
         // Wire the manager to the settings service
-        `when`(mockSettingsService.favoriteModelsManager).thenReturn(mockFavoriteModelsManager)
+        Mockito.`when`(mockSettingsService.favoriteModelsManager).thenReturn(mockFavoriteModelsManager)
 
         // Create service instance with mocked settings
         service = FavoriteModelsService(mockSettingsService)
@@ -222,38 +218,42 @@ class FavoriteModelsServiceTest {
     inner class AvailableModelsFetching {
 
         @Test
-        fun `should cache available models and reuse without force refresh`() = runBlocking {
-            val mockRouterService = mock(OpenRouterService::class.java)
-            val cachedModel = createTestModel("openai/gpt-4")
-            val response = OpenRouterModelsResponse(listOf(cachedModel))
-            `when`(mockRouterService.getModels()).thenReturn(ApiResult.Success(response, 200))
+        fun `should cache available models and reuse without force refresh`() {
+            runBlocking {
+                val mockRouterService = Mockito.mock(OpenRouterService::class.java)
+                val cachedModel = createTestModel("openai/gpt-4")
+                val response = OpenRouterModelsResponse(listOf(cachedModel))
+                Mockito.`when`(mockRouterService.getModels()).thenReturn(ApiResult.Success(response, 200))
 
-            service = FavoriteModelsService(mockSettingsService, mockRouterService)
-            service.clearCache()
+                service = FavoriteModelsService(mockSettingsService, mockRouterService)
+                service.clearCache()
 
-            val first = service.getAvailableModels()
-            val second = service.getAvailableModels()
+                val first = service.getAvailableModels()
+                val second = service.getAvailableModels()
 
-            assertEquals(1, first?.size, "Should return one model from API")
-            assertEquals("openai/gpt-4", first?.first()?.id)
-            assertEquals(1, second?.size, "Should return cached models on second call")
-            verify(mockRouterService, times(1)).getModels()
+                assertEquals(1, first?.size, "Should return one model from API")
+                assertEquals("openai/gpt-4", first?.first()?.id)
+                assertEquals(1, second?.size, "Should return cached models on second call")
+                Mockito.verify(mockRouterService, Mockito.times(1)).getModels()
+            }
         }
 
         @Test
-        fun `force refresh should bypass cache`() = runBlocking {
-            val mockRouterService = mock(OpenRouterService::class.java)
-            val cachedModel = createTestModel("openai/gpt-4")
-            val response = OpenRouterModelsResponse(listOf(cachedModel))
-            `when`(mockRouterService.getModels()).thenReturn(ApiResult.Success(response, 200))
+        fun `force refresh should bypass cache`() {
+            runBlocking {
+                val mockRouterService = Mockito.mock(OpenRouterService::class.java)
+                val cachedModel = createTestModel("openai/gpt-4")
+                val response = OpenRouterModelsResponse(listOf(cachedModel))
+                Mockito.`when`(mockRouterService.getModels()).thenReturn(ApiResult.Success(response, 200))
 
-            service = FavoriteModelsService(mockSettingsService, mockRouterService)
-            service.clearCache()
+                service = FavoriteModelsService(mockSettingsService, mockRouterService)
+                service.clearCache()
 
-            service.getAvailableModels()
-            service.getAvailableModels(forceRefresh = true)
+                service.getAvailableModels()
+                service.getAvailableModels(forceRefresh = true)
 
-            verify(mockRouterService, times(2)).getModels()
+                Mockito.verify(mockRouterService, Mockito.times(2)).getModels()
+            }
         }
     }
 
@@ -277,10 +277,10 @@ class FavoriteModelsServiceTest {
 
         @Test
         fun `should return cached model by id`() = runBlocking {
-            val mockRouterService = mock(OpenRouterService::class.java)
+            val mockRouterService = Mockito.mock(OpenRouterService::class.java)
             val cachedModel = createTestModel("openai/gpt-4")
             val response = OpenRouterModelsResponse(listOf(cachedModel))
-            `when`(mockRouterService.getModels()).thenReturn(ApiResult.Success(response, 200))
+            Mockito.`when`(mockRouterService.getModels()).thenReturn(ApiResult.Success(response, 200))
 
             service = FavoriteModelsService(mockSettingsService, mockRouterService)
             service.clearCache()
@@ -293,10 +293,10 @@ class FavoriteModelsServiceTest {
 
         @Test
         fun `should expose cached models`() = runBlocking {
-            val mockRouterService = mock(OpenRouterService::class.java)
+            val mockRouterService = Mockito.mock(OpenRouterService::class.java)
             val cachedModel = createTestModel("openai/gpt-4")
             val response = OpenRouterModelsResponse(listOf(cachedModel))
-            `when`(mockRouterService.getModels()).thenReturn(ApiResult.Success(response, 200))
+            Mockito.`when`(mockRouterService.getModels()).thenReturn(ApiResult.Success(response, 200))
 
             service = FavoriteModelsService(mockSettingsService, mockRouterService)
             service.clearCache()

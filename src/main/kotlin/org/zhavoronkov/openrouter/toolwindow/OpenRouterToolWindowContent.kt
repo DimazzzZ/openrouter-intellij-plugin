@@ -22,6 +22,7 @@ import javax.swing.SwingUtilities
 /**
  * Content for the OpenRouter tool window
  */
+@Suppress("TooManyFunctions")
 class OpenRouterToolWindowContent(
     private val project: Project,
     private val settingsService: OpenRouterSettingsService = OpenRouterSettingsService.getInstance(),
