@@ -22,7 +22,11 @@ import javax.swing.SwingUtilities
 /**
  * Content for the OpenRouter tool window
  */
-class OpenRouterToolWindowContent(private val project: Project) {
+class OpenRouterToolWindowContent(
+    private val project: Project,
+    private val settingsService: OpenRouterSettingsService = OpenRouterSettingsService.getInstance(),
+    private val openRouterService: OpenRouterService = OpenRouterService.getInstance()
+) {
 
     companion object {
         // UI Dimensions
@@ -42,9 +46,6 @@ class OpenRouterToolWindowContent(private val project: Project) {
     }
 
     private val contentPanel: JPanel
-    private val settingsService = OpenRouterSettingsService.getInstance()
-    private val openRouterService = OpenRouterService.getInstance()
-
     private val statusLabel = JBLabel("Loading...")
     private val quotaLabel = JBLabel("Quota: N/A")
     private val usageLabel = JBLabel("Usage: N/A")
@@ -246,4 +247,12 @@ class OpenRouterToolWindowContent(private val project: Project) {
     }
 
     fun getContentPanel(): JPanel = contentPanel
+
+    internal fun getStatusTextForTest(): String = statusLabel.text
+
+    internal fun getQuotaTextForTest(): String = quotaLabel.text
+
+    internal fun getUsageTextForTest(): String = usageLabel.text
+
+    internal fun getActivityTextForTest(): String = activityLabel.text
 }

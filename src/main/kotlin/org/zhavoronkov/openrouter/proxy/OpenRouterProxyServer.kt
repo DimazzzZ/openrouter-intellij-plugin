@@ -51,8 +51,24 @@ class OpenRouterProxyServer {
     private var currentPort: Int = 0
     private val isRunning = AtomicBoolean(false)
 
-    private val openRouterService = OpenRouterService.getInstance()
-    private val settingsService = OpenRouterSettingsService.getInstance()
+    private var openRouterServiceProvider: () -> OpenRouterService = {
+        OpenRouterService.getInstance()
+    }
+    private var settingsServiceProvider: () -> OpenRouterSettingsService = {
+        OpenRouterSettingsService.getInstance()
+    }
+    private val openRouterService: OpenRouterService
+        get() = openRouterServiceProvider()
+    private val settingsService: OpenRouterSettingsService
+        get() = settingsServiceProvider()
+
+    internal fun setDependenciesForTests(
+        openRouterService: OpenRouterService,
+        settingsService: OpenRouterSettingsService
+    ) {
+        openRouterServiceProvider = { openRouterService }
+        settingsServiceProvider = { settingsService }
+    }
 
     /**
      * Starts the proxy server on an available port
