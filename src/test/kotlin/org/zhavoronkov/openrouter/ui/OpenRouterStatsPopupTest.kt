@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.zhavoronkov.openrouter.models.ActivityData
 import java.time.LocalDate
-import java.util.*
 
 class OpenRouterStatsPopupTest {
 

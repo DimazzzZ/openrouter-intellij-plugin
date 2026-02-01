@@ -68,6 +68,7 @@ class OpenRouterChatModelProvider {
     /**
      * Send a completion request (for non-chat use cases)
      */
+    @Suppress("Unused")
     fun sendCompletionRequest(
         modelId: String,
         prompt: String,
@@ -107,7 +108,7 @@ class OpenRouterChatModelProvider {
      * Check if streaming is supported for the given model
      * @param modelId The model ID (reserved for future model-specific streaming support)
      */
-    @Suppress("UnusedParameter")
+    @Suppress("unused", "UnusedParameter")
     fun supportsStreaming(modelId: String): Boolean {
         // All OpenRouter models support streaming, parameter reserved for future model-specific logic
         return SUPPORTS_STREAMING
@@ -117,6 +118,7 @@ class OpenRouterChatModelProvider {
      * Get the estimated token count for a message
      * This is a rough approximation since we don't have access to the exact tokenizer
      */
+    @Suppress("Unused")
     fun estimateTokenCount(text: String): Int {
         return (text.length / CHARS_PER_TOKEN).coerceAtLeast(1)
     }

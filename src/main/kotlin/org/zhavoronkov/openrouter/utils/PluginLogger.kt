@@ -132,6 +132,7 @@ object PluginLogger {
          * Production-safe logging for troubleshooting.
          * Always logs important events regardless of debug mode.
          */
+        @Suppress("Unused")
         fun production(message: String) {
             settingsLogger?.info("[$PLUGIN_NAME][PROD] $message")
         }
@@ -140,6 +141,7 @@ object PluginLogger {
     /**
      * Status bar widget logging
      */
+    @Suppress("Unused")
     object StatusBar {
         fun info(message: String) = statusBarLogger?.info("[$PLUGIN_NAME] $message")
         fun warn(message: String) = statusBarLogger?.warn("[$PLUGIN_NAME] $message")
@@ -191,6 +193,7 @@ object PluginLogger {
     /**
      * Check if debug logging is enabled
      */
+    @Suppress("Unused")
     fun isDebugEnabled(): Boolean = debugEnabled
 
     /**
