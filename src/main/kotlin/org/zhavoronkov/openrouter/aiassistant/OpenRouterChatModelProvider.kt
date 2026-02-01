@@ -1,7 +1,6 @@
 package org.zhavoronkov.openrouter.aiassistant
 
 import com.google.gson.Gson
-import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
@@ -192,35 +191,23 @@ class OpenRouterChatModelProvider {
     }
 
     private fun parseResponseJson(responseJson: JsonObject): ChatResponse {
-        val errorObject = responseJson.getAsJsonObjectOrNull("error")
+        val errorObject = ResponseJsonParser.getAsJsonObjectOrNull(responseJson, "error")
         if (errorObject != null) {
-            val errorMessage = errorObject.getAsStringOrNull("message") ?: "Unknown error"
+            val errorMessage = ResponseJsonParser.getAsStringOrNull(errorObject, "message") ?: "Unknown error"
             return ChatResponse.error(errorMessage)
         }
 
-        val choices = responseJson.getAsJsonArrayOrNull("choices")
+        val choices = ResponseJsonParser.getAsJsonArrayOrNull(responseJson, "choices")
         val firstChoice = choices?.firstOrNull()?.takeIf { it.isJsonObject }?.asJsonObject
         val content = firstChoice
-            ?.getAsJsonObjectOrNull("message")
-            ?.getAsStringOrNull("content")
+            ?.let { ResponseJsonParser.getAsJsonObjectOrNull(it, "message") }
+            ?.let { ResponseJsonParser.getAsStringOrNull(it, "content") }
 
         return if (content != null) {
             ChatResponse.success(content)
         } else {
             ChatResponse.error("No choices or content in response")
         }
-    }
-
-    private fun JsonObject.getAsJsonObjectOrNull(memberName: String): JsonObject? {
-        return get(memberName)?.takeIf { it.isJsonObject }?.asJsonObject
-    }
-
-    private fun JsonObject.getAsJsonArrayOrNull(memberName: String): JsonArray? {
-        return get(memberName)?.takeIf { it.isJsonArray }?.asJsonArray
-    }
-
-    private fun JsonObject.getAsStringOrNull(memberName: String): String? {
-        return get(memberName)?.takeIf { it.isJsonPrimitive }?.asString
     }
 }
 

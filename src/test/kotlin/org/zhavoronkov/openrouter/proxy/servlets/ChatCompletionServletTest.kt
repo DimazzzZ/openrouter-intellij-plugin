@@ -14,6 +14,7 @@ import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import java.io.BufferedReader
+import java.io.IOException
 import java.io.PrintWriter
 import java.io.Reader
 import java.io.StringReader
@@ -36,7 +37,7 @@ class ChatCompletionServletTest {
 
     private class ThrowingReader : Reader() {
         override fun read(cbuf: CharArray, off: Int, len: Int): Int {
-            throw RuntimeException("Reader error")
+            throw IOException("Reader error")
         }
 
         override fun close() = Unit
