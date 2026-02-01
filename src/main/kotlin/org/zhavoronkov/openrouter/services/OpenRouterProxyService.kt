@@ -28,8 +28,24 @@ class OpenRouterProxyService : Disposable {
         }
     }
 
-    private val proxyServer = OpenRouterProxyServer.getInstance()
-    private val settingsService = OpenRouterSettingsService.getInstance()
+    internal fun setDependenciesForTests(
+        proxyServer: OpenRouterProxyServer,
+        settingsService: OpenRouterSettingsService
+    ) {
+        proxyServerProvider = { proxyServer }
+        settingsServiceProvider = { settingsService }
+    }
+
+    private var proxyServerProvider: () -> OpenRouterProxyServer = {
+        OpenRouterProxyServer.getInstance()
+    }
+    private var settingsServiceProvider: () -> OpenRouterSettingsService = {
+        OpenRouterSettingsService.getInstance()
+    }
+    private val proxyServer: OpenRouterProxyServer
+        get() = proxyServerProvider()
+    private val settingsService: OpenRouterSettingsService
+        get() = settingsServiceProvider()
 
     // Track active async operations for cleanup
     private val activeTasks = ConcurrentHashMap<String, CompletableFuture<*>>()

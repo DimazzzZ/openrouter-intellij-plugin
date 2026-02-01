@@ -25,12 +25,20 @@ class OpenRouterGenerationTrackingService :
     )
 
     private var state = State()
-    private val settingsService = OpenRouterSettingsService.getInstance()
+    private var settingsServiceProvider: () -> OpenRouterSettingsService = {
+        OpenRouterSettingsService.getInstance()
+    }
+    private val settingsService: OpenRouterSettingsService
+        get() = settingsServiceProvider()
 
     companion object {
         fun getInstance(): OpenRouterGenerationTrackingService {
             return ApplicationManager.getApplication().getService(OpenRouterGenerationTrackingService::class.java)
         }
+    }
+
+    internal fun setSettingsServiceForTests(service: OpenRouterSettingsService) {
+        settingsServiceProvider = { service }
     }
 
     override fun getState(): State {

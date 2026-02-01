@@ -15,13 +15,17 @@ object RequestTranslator {
     private val settingsService by lazy {
         try {
             OpenRouterSettingsService.getInstance()
-        } catch (expectedError: IllegalStateException) {
+        } catch (e: IllegalStateException) {
             // In test environment or when service not initialized yet
-            PluginLogger.Service.debug("Settings service not initialized", expectedError)
+            PluginLogger.Service.debug("Settings service not initialized", e)
             null
-        } catch (expectedError: IllegalArgumentException) {
+        } catch (e: IllegalArgumentException) {
             // Service creation failed due to invalid state
-            PluginLogger.Service.debug("Settings service not available", expectedError)
+            PluginLogger.Service.debug("Settings service not available", e)
+            null
+        } catch (e: NullPointerException) {
+            // ApplicationManager.getApplication() returns null in test environment
+            PluginLogger.Service.debug("Application not available (test environment)", e)
             null
         }
     }
@@ -76,14 +80,22 @@ object RequestTranslator {
      * Validates that the translated request is valid for OpenRouter
      */
     fun validateTranslatedRequest(request: ChatCompletionRequest): Boolean {
-        return request.model.isNotBlank() &&
-            request.messages.isNotEmpty() &&
-            request.messages.all { message ->
-                message.role.isNotBlank() && isValidContent(message.content)
-            } &&
-            (request.temperature == null || request.temperature in 0.0..2.0) &&
-            (request.maxTokens == null || request.maxTokens > 0) &&
-            (request.topP == null || request.topP in 0.0..1.0)
+        return try {
+            request.model.isNotBlank() &&
+                request.messages.isNotEmpty() &&
+                request.messages.all { message ->
+                    message.role.isNotBlank() && isValidContent(message.content)
+                } &&
+                (request.temperature == null || request.temperature in 0.0..2.0) &&
+                (request.maxTokens == null || request.maxTokens > 0) &&
+                (request.topP == null || request.topP in 0.0..1.0)
+        } catch (e: NullPointerException) {
+            PluginLogger.Service.error("Request validation failed: null value encountered", e)
+            false
+        } catch (e: IllegalArgumentException) {
+            PluginLogger.Service.error("Request validation failed: invalid argument", e)
+            false
+        }
     }
 
     /**

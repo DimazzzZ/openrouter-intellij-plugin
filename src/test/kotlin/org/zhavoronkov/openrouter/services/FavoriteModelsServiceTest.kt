@@ -8,12 +8,17 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import kotlinx.coroutines.runBlocking
 import org.mockito.ArgumentMatchers.anyList
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito.doAnswer
 import org.mockito.Mockito.mock
+import org.mockito.Mockito.times
+import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
+import org.zhavoronkov.openrouter.models.OpenRouterModelsResponse
+import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.services.settings.FavoriteModelsManager
 
 /**
@@ -209,6 +214,98 @@ class FavoriteModelsServiceTest {
             // Cache should be empty - this is verified by the service implementation
             // We can't directly test the cache state, but we can verify it doesn't crash
             assertDoesNotThrow { service.clearCache() }
+        }
+    }
+
+    @Nested
+    @DisplayName("Available Models Fetching")
+    inner class AvailableModelsFetching {
+
+        @Test
+        fun `should cache available models and reuse without force refresh`() = runBlocking {
+            val mockRouterService = mock(OpenRouterService::class.java)
+            val cachedModel = createTestModel("openai/gpt-4")
+            val response = OpenRouterModelsResponse(listOf(cachedModel))
+            `when`(mockRouterService.getModels()).thenReturn(ApiResult.Success(response, 200))
+
+            service = FavoriteModelsService(mockSettingsService, mockRouterService)
+            service.clearCache()
+
+            val first = service.getAvailableModels()
+            val second = service.getAvailableModels()
+
+            assertEquals(1, first?.size, "Should return one model from API")
+            assertEquals("openai/gpt-4", first?.first()?.id)
+            assertEquals(1, second?.size, "Should return cached models on second call")
+            verify(mockRouterService, times(1)).getModels()
+        }
+
+        @Test
+        fun `force refresh should bypass cache`() = runBlocking {
+            val mockRouterService = mock(OpenRouterService::class.java)
+            val cachedModel = createTestModel("openai/gpt-4")
+            val response = OpenRouterModelsResponse(listOf(cachedModel))
+            `when`(mockRouterService.getModels()).thenReturn(ApiResult.Success(response, 200))
+
+            service = FavoriteModelsService(mockSettingsService, mockRouterService)
+            service.clearCache()
+
+            service.getAvailableModels()
+            service.getAvailableModels(forceRefresh = true)
+
+            verify(mockRouterService, times(2)).getModels()
+        }
+    }
+
+    @Nested
+    @DisplayName("Model Lookup")
+    inner class ModelLookup {
+
+        @Test
+        fun `should return minimal model info when cache is missing`() {
+            favoriteModelsStorage.clear()
+            favoriteModelsStorage.add("openai/gpt-4")
+
+            val favorites = service.getFavoriteModels()
+
+            assertEquals(1, favorites.size)
+            val model = favorites.first()
+            assertEquals("openai/gpt-4", model.id)
+            assertEquals("openai/gpt-4", model.name)
+            assertEquals(null, model.description)
+        }
+
+        @Test
+        fun `should return cached model by id`() = runBlocking {
+            val mockRouterService = mock(OpenRouterService::class.java)
+            val cachedModel = createTestModel("openai/gpt-4")
+            val response = OpenRouterModelsResponse(listOf(cachedModel))
+            `when`(mockRouterService.getModels()).thenReturn(ApiResult.Success(response, 200))
+
+            service = FavoriteModelsService(mockSettingsService, mockRouterService)
+            service.clearCache()
+            service.getAvailableModels()
+
+            val model = service.getModelById("openai/gpt-4")
+
+            assertEquals(cachedModel, model)
+        }
+
+        @Test
+        fun `should expose cached models`() = runBlocking {
+            val mockRouterService = mock(OpenRouterService::class.java)
+            val cachedModel = createTestModel("openai/gpt-4")
+            val response = OpenRouterModelsResponse(listOf(cachedModel))
+            `when`(mockRouterService.getModels()).thenReturn(ApiResult.Success(response, 200))
+
+            service = FavoriteModelsService(mockSettingsService, mockRouterService)
+            service.clearCache()
+            service.getAvailableModels()
+
+            val cached = service.getCachedModels()
+
+            assertEquals(1, cached?.size)
+            assertEquals("openai/gpt-4", cached?.first()?.id)
         }
     }
 

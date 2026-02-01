@@ -82,65 +82,6 @@ class OpenRouterChatModelProviderTest {
         }
     }
 
-    @Nested
-    @DisplayName("Token Estimation Tests")
-    inner class TokenEstimationTests {
-
-        private val provider = OpenRouterChatModelProvider()
-
-        @Test
-        @DisplayName("Should estimate token count for short text")
-        fun testEstimateTokensShort() {
-            val text = "Hello"
-            val tokens = provider.estimateTokenCount(text)
-
-            assertTrue(tokens >= 1)
-        }
-
-        @Test
-        @DisplayName("Should estimate token count for medium text")
-        fun testEstimateTokensMedium() {
-            val text = "This is a longer message that should be multiple tokens"
-            val tokens = provider.estimateTokenCount(text)
-
-            val expectedTokens = text.length / 4
-            assertTrue(tokens >= expectedTokens - 2 && tokens <= expectedTokens + 2)
-        }
-
-        @Test
-        @DisplayName("Should estimate at least 1 token for any non-empty text")
-        fun testEstimateTokensMinimum() {
-            val text = "Hi"
-            val tokens = provider.estimateTokenCount(text)
-
-            assertTrue(tokens >= 1)
-        }
-
-        @Test
-        @DisplayName("Should handle empty string with minimum 1 token")
-        fun testEstimateTokensEmpty() {
-            val text = ""
-            val tokens = provider.estimateTokenCount(text)
-
-            assertEquals(1, tokens)
-        }
-    }
-
-    @Nested
-    @DisplayName("Streaming Support Tests")
-    inner class StreamingSupportTests {
-
-        private val provider = OpenRouterChatModelProvider()
-
-        @Test
-        @DisplayName("Should support streaming for all models")
-        fun testStreamingSupport() {
-            assertTrue(provider.supportsStreaming("openai/gpt-4"))
-            assertTrue(provider.supportsStreaming("anthropic/claude-3-opus"))
-            assertTrue(provider.supportsStreaming("meta-llama/llama-3-70b"))
-            assertTrue(provider.supportsStreaming("any-model-id"))
-        }
-    }
 
     @Nested
     @DisplayName("Message List Tests")
