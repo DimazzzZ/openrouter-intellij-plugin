@@ -14,6 +14,7 @@ import java.io.IOException
 /**
  * Manages the IntelliJ IDEA Plugin API key lifecycle
  */
+@Suppress("TooManyFunctions")
 class IntellijApiKeyManager(
     private val settingsService: OpenRouterSettingsService,
     private val openRouterService: OpenRouterService
@@ -37,10 +38,24 @@ class IntellijApiKeyManager(
             "ensureIntellijApiKeyExists: existingIntellijApiKey=${existingIntellijApiKey?.name ?: "null"}"
         )
 
+        val storedKeyMatchesRemote = validateStoredKeyMatchesRemote(existingIntellijApiKey, storedApiKey)
+
+        if (existingIntellijApiKey != null && storedApiKey.isNotEmpty() && storedKeyMatchesRemote) {
+            PluginLogger.Settings.debug("IntelliJ API key exists and stored key matches remote - no action needed")
+            return
+        }
+
+        handleApiKeyMismatchOrMissing(existingIntellijApiKey, storedApiKey, storedKeyMatchesRemote)
+    }
+
+    private fun validateStoredKeyMatchesRemote(
+        existingIntellijApiKey: ApiKeyInfo?,
+        storedApiKey: String
+    ): Boolean {
         // Validate that the stored API key actually matches the remote IntelliJ key
         // The label field contains a preview of the key (e.g., "sk-or-v1-abc...xyz")
         // We compare the prefix before "..." with the stored key's prefix
-        val storedKeyMatchesRemote = if (existingIntellijApiKey != null && storedApiKey.isNotEmpty()) {
+        return if (existingIntellijApiKey != null && storedApiKey.isNotEmpty()) {
             val keyLabel = existingIntellijApiKey.label
             // Label format is like "sk-or-v1-abc...xyz" - extract the prefix to compare
             val labelPrefix = if (keyLabel.contains("...")) {
@@ -59,27 +74,32 @@ class IntellijApiKeyManager(
         } else {
             false
         }
+    }
 
-        if (existingIntellijApiKey != null && storedApiKey.isNotEmpty() && storedKeyMatchesRemote) {
-            PluginLogger.Settings.debug("IntelliJ API key exists and stored key matches remote - no action needed")
-            return
-        }
-
-        if (existingIntellijApiKey != null && storedApiKey.isNotEmpty() && !storedKeyMatchesRemote) {
-            PluginLogger.Settings.warn(
-                "Stored API key does not match remote IntelliJ API key - regenerating"
-            )
-            if (!isCreatingApiKey) {
+    private fun handleApiKeyMismatchOrMissing(
+        existingIntellijApiKey: ApiKeyInfo?,
+        storedApiKey: String,
+        storedKeyMatchesRemote: Boolean
+    ) {
+        when {
+            existingIntellijApiKey != null && storedApiKey.isNotEmpty() && !storedKeyMatchesRemote -> {
+                PluginLogger.Settings.warn(
+                    "Stored API key does not match remote IntelliJ API key - regenerating"
+                )
+                if (!isCreatingApiKey) {
+                    recreateIntellijApiKeySilently()
+                }
+            }
+            existingIntellijApiKey == null && !isCreatingApiKey -> {
+                PluginLogger.Settings.info("IntelliJ API key not found, creating automatically")
+                createIntellijApiKeyOnce()
+            }
+            existingIntellijApiKey != null && storedApiKey.isEmpty() && !isCreatingApiKey -> {
+                PluginLogger.Settings.info(
+                    "IntelliJ API key exists remotely but not stored locally - regenerating silently"
+                )
                 recreateIntellijApiKeySilently()
             }
-        } else if (existingIntellijApiKey == null && !isCreatingApiKey) {
-            PluginLogger.Settings.info("IntelliJ API key not found, creating automatically")
-            createIntellijApiKeyOnce()
-        } else if (existingIntellijApiKey != null && storedApiKey.isEmpty() && !isCreatingApiKey) {
-            PluginLogger.Settings.info(
-                "IntelliJ API key exists remotely but not stored locally - regenerating silently"
-            )
-            recreateIntellijApiKeySilently()
         }
     }
 

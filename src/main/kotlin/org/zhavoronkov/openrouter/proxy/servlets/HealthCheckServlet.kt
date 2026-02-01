@@ -25,7 +25,19 @@ class HealthCheckServlet : HttpServlet() {
             resp.writer.write(gson.toJson(healthResponse))
 
             PluginLogger.Service.debug("Health check response sent successfully")
-        } catch (e: Exception) {
+        } catch (e: java.io.IOException) {
+            PluginLogger.Service.error("Health check failed", e)
+
+            resp.status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR
+            resp.contentType = "application/json"
+
+            val errorResponse = mapOf(
+                "status" to "error",
+                "message" to "Health check failed",
+                "error" to e.message
+            )
+            resp.writer.write(gson.toJson(errorResponse))
+        } catch (e: IllegalStateException) {
             PluginLogger.Service.error("Health check failed", e)
 
             resp.status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR

@@ -22,10 +22,11 @@ import java.util.concurrent.atomic.AtomicLong
  * Servlet that provides OpenAI-compatible /v1/models endpoint
  */
 class ModelsServlet(
-    private val openRouterService: OpenRouterService
+    private val openRouterService: OpenRouterService,
+    private val favoriteModelsProvider: () -> List<String> = {
+        OpenRouterSettingsService.getInstance().favoriteModelsManager.getFavoriteModels()
+    }
 ) : HttpServlet() {
-
-    private val settingsService = OpenRouterSettingsService.getInstance()
 
     companion object {
         private const val REQUEST_TIMEOUT_MS = 30000L // 30 seconds
@@ -105,7 +106,10 @@ class ModelsServlet(
         } catch (e: java.util.concurrent.TimeoutException) {
             PluginLogger.Service.error("[Models-$requestId] ❌ Models request timed out", e)
             sendErrorResponse(resp, "Request timed out", HttpServletResponse.SC_REQUEST_TIMEOUT)
-        } catch (e: Exception) {
+        } catch (e: java.io.IOException) {
+            PluginLogger.Service.error("[Models-$requestId] ❌ Models request failed", e)
+            sendErrorResponse(resp, "Internal server error: ${e.message}", HttpServletResponse.SC_INTERNAL_SERVER_ERROR)
+        } catch (e: IllegalStateException) {
             PluginLogger.Service.error("[Models-$requestId] ❌ Models request failed", e)
             sendErrorResponse(resp, "Internal server error: ${e.message}", HttpServletResponse.SC_INTERNAL_SERVER_ERROR)
         } finally {
@@ -126,7 +130,7 @@ class ModelsServlet(
     private fun createCoreModelsResponse(): OpenAIModelsResponse {
         // Return user's favorite models with FULL OpenRouter format (provider/model)
         // This is critical - OpenRouter API requires full model names with provider prefix
-        var favoriteModelIds = settingsService.favoriteModelsManager.getFavoriteModels()
+        var favoriteModelIds = favoriteModelsProvider()
 
         // If no favorites are set, ensure we have defaults
         if (favoriteModelIds.isEmpty()) {
@@ -196,7 +200,10 @@ class ModelsServlet(
                     createCoreModelsResponse()
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: java.io.IOException) {
+            PluginLogger.Service.warn("Failed to fetch models from OpenRouter, falling back to curated list", e)
+            createCoreModelsResponse()
+        } catch (e: java.lang.IllegalStateException) {
             PluginLogger.Service.warn("Failed to fetch models from OpenRouter, falling back to curated list", e)
             createCoreModelsResponse()
         }

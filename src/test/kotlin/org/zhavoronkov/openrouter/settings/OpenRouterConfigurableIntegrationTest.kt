@@ -2,7 +2,9 @@ package org.zhavoronkov.openrouter.settings
 
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import org.zhavoronkov.openrouter.models.AuthScope
-import javax.swing.*
+import javax.swing.JButton
+import javax.swing.JPasswordField
+import javax.swing.JRadioButton
 
 /**
  * Integration test that actually instantiates OpenRouterSettingsPanel and OpenRouterConfigurable

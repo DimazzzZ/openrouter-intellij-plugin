@@ -24,6 +24,7 @@ object AIAssistantIntegrationHelper {
     /**
      * Gets AI Assistant plugin information
      */
+    @Suppress("TooGenericExceptionCaught")
     fun getAIAssistantInfo(): AIAssistantInfo {
         return try {
             val pluginId = PluginId.getId(AI_ASSISTANT_PLUGIN_ID)
@@ -37,6 +38,7 @@ object AIAssistantIntegrationHelper {
             PluginLogger.Service.debug("Invalid plugin ID format: $AI_ASSISTANT_PLUGIN_ID", e)
             AIAssistantInfo(false, null)
         } catch (e: RuntimeException) {
+            // Catching RuntimeException as JetBrains plugin API may throw various unchecked exceptions
             PluginLogger.Service.debug("Runtime error checking AI Assistant", e)
             AIAssistantInfo(false, null)
         }
@@ -156,6 +158,7 @@ object AIAssistantIntegrationHelper {
         }
     }
 
+    @Suppress("TooGenericExceptionCaught")
     private fun handleWizardAction(project: Project?, status: IntegrationStatus) {
         when (status) {
             IntegrationStatus.AI_ASSISTANT_NOT_AVAILABLE -> {
@@ -179,6 +182,7 @@ object AIAssistantIntegrationHelper {
                     PluginLogger.Service.error("Plugin marketplace action not available", e)
                     showErrorDialog(project, "Failed to open plugin marketplace. Please install AI Assistant manually.")
                 } catch (e: RuntimeException) {
+                    // Catching RuntimeException as IntelliJ action API may throw various unchecked exceptions
                     PluginLogger.Service.error("Runtime error opening plugin marketplace", e)
                     showErrorDialog(project, "Failed to open plugin marketplace. Please install AI Assistant manually.")
                 }

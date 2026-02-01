@@ -29,6 +29,7 @@ import javax.swing.JSeparator
 /**
  * Dialog that displays OpenRouter usage statistics and information
  */
+@Suppress("TooManyFunctions")
 class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project) {
 
     init {
@@ -64,11 +65,17 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
             OpenRouterService.getInstance()
         } catch (e: IllegalStateException) {
             // Service not available in test environment or initialization error
-            println("OpenRouterService not available: ${e.message}")
+            org.zhavoronkov.openrouter.utils.PluginLogger.Service.warn(
+                "OpenRouterService not available: ${e.message}",
+                e
+            )
             null
         } catch (e: NoClassDefFoundError) {
             // Service class not found
-            println("OpenRouterService class not found: ${e.message}")
+            org.zhavoronkov.openrouter.utils.PluginLogger.Service.warn(
+                "OpenRouterService class not found: ${e.message}",
+                e
+            )
             null
         }
 
@@ -77,11 +84,17 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
             OpenRouterSettingsService.getInstance()
         } catch (e: IllegalStateException) {
             // Service not available in test environment or initialization error
-            println("OpenRouterSettingsService not available: ${e.message}")
+            org.zhavoronkov.openrouter.utils.PluginLogger.Service.warn(
+                "OpenRouterSettingsService not available: ${e.message}",
+                e
+            )
             null
         } catch (e: NoClassDefFoundError) {
             // Service class not found
-            println("OpenRouterSettingsService class not found: ${e.message}")
+            org.zhavoronkov.openrouter.utils.PluginLogger.Service.warn(
+                "OpenRouterSettingsService class not found: ${e.message}",
+                e
+            )
             null
         }
     // private val trackingService = OpenRouterGenerationTrackingService.getInstance() // TEMPORARILY COMMENTED OUT
@@ -438,8 +451,8 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
 
         val activities = activityResponse.data
         val today = LocalDate.now(java.time.ZoneId.of("UTC"))
-        val yesterday = today.minusDays(1)
-        val weekAgo = today.minusDays(6) // Last 7 days including today
+        val yesterday = today.minusDays(1L)
+        val weekAgo = today.minusDays((ACTIVITY_DAYS_WEEK - 1).toLong()) // Last 7 days including today
 
         // Filter activities by time periods
         val last24h = filterActivitiesByTime(activities, today, yesterday, weekAgo, isLast24h = true)
@@ -592,15 +605,23 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
             }
         } catch (e: java.time.format.DateTimeParseException) {
             // Log the problematic date format for debugging
-            println("Failed to parse activity date: '$dateString' - ${e.message}")
+            org.zhavoronkov.openrouter.utils.PluginLogger.Service.warn(
+                "Failed to parse activity date: '$dateString' - ${e.message}",
+                e
+            )
             null
         } catch (_: StringIndexOutOfBoundsException) {
             // Date string too short
-            println("Failed to parse activity date: '$dateString' - string too short")
+            org.zhavoronkov.openrouter.utils.PluginLogger.Service.warn(
+                "Failed to parse activity date: '$dateString' - string too short"
+            )
             null
-        } catch (expectedError: Exception) {
-            // Log the problematic date format for debugging
-            println("Failed to parse activity date: '$dateString' - ${expectedError.message}")
+        } catch (e: IllegalArgumentException) {
+            // Invalid date format
+            org.zhavoronkov.openrouter.utils.PluginLogger.Service.warn(
+                "Failed to parse activity date: '$dateString' - ${e.message}",
+                e
+            )
             null
         }
     }

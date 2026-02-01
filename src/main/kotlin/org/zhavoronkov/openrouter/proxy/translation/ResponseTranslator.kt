@@ -63,7 +63,10 @@ object ResponseTranslator {
      * Converts OpenRouter providers response to OpenAI models format
      * Note: providersResponse parameter is intentionally unused as we return a static list
      */
-    fun translateModelsResponse(providersResponse: ProvidersResponse): OpenAIModelsResponse {
+    @Suppress("unused") // Public API method
+    fun translateModelsResponse(
+        @Suppress("UNUSED_PARAMETER") providersResponse: ProvidersResponse
+    ): OpenAIModelsResponse {
         PluginLogger.Service.debug("Translating OpenRouter providers to OpenAI models format")
 
         // Focus on core OpenAI models that AI Assistant recognizes
@@ -199,11 +202,11 @@ object ResponseTranslator {
                                 choice.message.content.asString.isNotBlank()
                             )
                 }
-        } catch (e: NullPointerException) {
-            PluginLogger.Service.error("Response validation failed: null value encountered", e)
-            false
         } catch (e: IllegalStateException) {
             PluginLogger.Service.error("Response validation failed: invalid state", e)
+            false
+        } catch (e: IllegalArgumentException) {
+            PluginLogger.Service.error("Response validation failed: invalid argument", e)
             false
         }
     }

@@ -186,7 +186,11 @@ class OpenRouterSettingsPanelUITest : BasePlatformTestCase() {
         return findAllComponentsByText(container, componentClass, text).firstOrNull()
     }
 
-    private fun <T : Component> findAllComponentsByText(container: Container, componentClass: Class<T>, text: String): List<T> {
+    private fun <T : Component> findAllComponentsByText(
+        container: Container,
+        componentClass: Class<T>,
+        text: String
+    ): List<T> {
         val components = mutableListOf<T>()
         findComponentsByTextRecursive(container, componentClass, text, components)
         return components

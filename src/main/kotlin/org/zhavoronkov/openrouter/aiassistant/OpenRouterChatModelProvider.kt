@@ -1,10 +1,13 @@
 package org.zhavoronkov.openrouter.aiassistant
 
 import com.google.gson.Gson
+import com.google.gson.JsonObject
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.TimeoutException
 
 /**
  * OpenRouter Chat Model Provider for AI Assistant integration
@@ -49,9 +52,15 @@ class OpenRouterChatModelProvider {
                 val response = makeOpenRouterRequest(requestBody)
 
                 response ?: ChatResponse.error("No response from OpenRouter")
-            } catch (e: Exception) {
-                PluginLogger.Service.error("Error sending chat request to OpenRouter", e)
+            } catch (e: IllegalStateException) {
+                PluginLogger.Service.error("Error sending chat request to OpenRouter - service not available", e)
                 ChatResponse.error("Chat request failed: ${e.message}")
+            } catch (e: ExecutionException) {
+                PluginLogger.Service.error("Error executing chat request to OpenRouter", e)
+                ChatResponse.error("Chat request failed: ${e.cause?.message ?: e.message}")
+            } catch (e: TimeoutException) {
+                PluginLogger.Service.error("Chat request to OpenRouter timed out", e)
+                ChatResponse.error("Chat request timed out")
             }
         }
     }
@@ -59,6 +68,7 @@ class OpenRouterChatModelProvider {
     /**
      * Send a completion request (for non-chat use cases)
      */
+    @Suppress("Unused")
     fun sendCompletionRequest(
         modelId: String,
         prompt: String,
@@ -81,17 +91,24 @@ class OpenRouterChatModelProvider {
                 } else {
                     CompletionResponse.error(chatResponse.error ?: "Completion failed")
                 }
-            } catch (e: Exception) {
+            } catch (e: IllegalStateException) {
                 PluginLogger.Service.error("Error sending completion request to OpenRouter", e)
                 CompletionResponse.error("Completion request failed: ${e.message}")
+            } catch (e: ExecutionException) {
+                PluginLogger.Service.error("Error executing completion request to OpenRouter", e)
+                CompletionResponse.error("Completion request failed: ${e.cause?.message ?: e.message}")
+            } catch (e: TimeoutException) {
+                PluginLogger.Service.error("Completion request to OpenRouter timed out", e)
+                CompletionResponse.error("Completion request timed out")
             }
         }
     }
 
     /**
      * Check if streaming is supported for the given model
-     * @param modelId The model ID (currently unused, all models support streaming)
+     * @param modelId The model ID (reserved for future model-specific streaming support)
      */
+    @Suppress("unused", "UnusedParameter")
     fun supportsStreaming(modelId: String): Boolean {
         // All OpenRouter models support streaming, parameter reserved for future model-specific logic
         return SUPPORTS_STREAMING
@@ -101,6 +118,7 @@ class OpenRouterChatModelProvider {
      * Get the estimated token count for a message
      * This is a rough approximation since we don't have access to the exact tokenizer
      */
+    @Suppress("Unused")
     fun estimateTokenCount(text: String): Int {
         return (text.length / CHARS_PER_TOKEN).coerceAtLeast(1)
     }
@@ -144,7 +162,10 @@ class OpenRouterChatModelProvider {
                     ChatResponse.error("HTTP ${response.code}: ${response.message}")
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: java.io.IOException) {
+            PluginLogger.Service.error("Error making OpenRouter request", e)
+            ChatResponse.error("Request failed: ${e.message}")
+        } catch (e: IllegalStateException) {
             PluginLogger.Service.error("Error making OpenRouter request", e)
             ChatResponse.error("Request failed: ${e.message}")
         }
@@ -156,35 +177,34 @@ class OpenRouterChatModelProvider {
                 responseBody.isNullOrBlank() -> ChatResponse.error("Empty response from OpenRouter")
                 else -> parseValidResponse(responseBody)
             }
-        } catch (e: Exception) {
+        } catch (e: com.google.gson.JsonParseException) {
+            PluginLogger.Service.error("Error parsing OpenRouter response", e)
+            ChatResponse.error("Response parsing failed: ${e.message}")
+        } catch (e: IllegalStateException) {
             PluginLogger.Service.error("Error parsing OpenRouter response", e)
             ChatResponse.error("Response parsing failed: ${e.message}")
         }
     }
 
     private fun parseValidResponse(responseBody: String): ChatResponse {
-        val responseMap = gson.fromJson(responseBody, Map::class.java) as? Map<String, Any>
+        val responseJson = gson.fromJson(responseBody, JsonObject::class.java)
             ?: return ChatResponse.error("Invalid response format")
-        return parseResponseMap(responseMap)
+        return parseResponseJson(responseJson)
     }
 
-    private fun parseResponseMap(responseMap: Map<String, Any>): ChatResponse {
-        // Check for error in response
-        val error = responseMap["error"] as? Map<String, Any>
-        if (error != null) {
-            val errorMessage = error["message"] as? String ?: "Unknown error"
+    private fun parseResponseJson(responseJson: JsonObject): ChatResponse {
+        val errorObject = ResponseJsonParser.getAsJsonObjectOrNull(responseJson, "error")
+        if (errorObject != null) {
+            val errorMessage = ResponseJsonParser.getAsStringOrNull(errorObject, "message") ?: "Unknown error"
             return ChatResponse.error(errorMessage)
         }
 
-        // Parse successful response
-        val choices = responseMap["choices"] as? List<Map<String, Any>>
-        val content = if (choices != null && choices.isNotEmpty()) {
-            val firstChoice = choices[0]
-            val message = firstChoice["message"] as? Map<String, Any>
-            message?.get("content") as? String
-        } else {
-            null
-        }
+        val choices = ResponseJsonParser.getAsJsonArrayOrNull(responseJson, "choices")
+        val firstChoice = choices?.firstOrNull()?.takeIf { it.isJsonObject }?.asJsonObject
+        val content = firstChoice
+            ?.let { ResponseJsonParser.getAsJsonObjectOrNull(it, "message") }
+            ?.let { ResponseJsonParser.getAsStringOrNull(it, "content") }
+
         return if (content != null) {
             ChatResponse.success(content)
         } else {

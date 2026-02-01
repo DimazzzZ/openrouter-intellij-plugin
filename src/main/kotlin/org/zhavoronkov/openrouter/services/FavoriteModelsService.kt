@@ -16,6 +16,7 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
  * Note: This is a light service (uses @Service annotation) and must be final
  */
 @Service
+@Suppress("TooManyFunctions")
 class FavoriteModelsService(
     private val settingsService: OpenRouterSettingsService? = null,
     private val openRouterService: OpenRouterService? = null
@@ -68,8 +69,18 @@ class FavoriteModelsService(
                     }
                 }
             }
-        } catch (throwable: Throwable) {
-            PluginLogger.Service.error("[OpenRouter] Error fetching models from API", throwable)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // Coroutine was cancelled (e.g., timeout or parent job cancelled) - must rethrow
+            throw e
+        } catch (e: java.util.concurrent.TimeoutException) {
+            PluginLogger.Service.warn("[OpenRouter] Model fetch timed out", e)
+            PluginLogger.Service.error("[OpenRouter] Timeout details", e)
+            null
+        } catch (e: java.io.IOException) {
+            PluginLogger.Service.error("[OpenRouter] Error fetching models from API", e)
+            null
+        } catch (e: IllegalStateException) {
+            PluginLogger.Service.error("[OpenRouter] Error fetching models from API", e)
             null
         }
     }

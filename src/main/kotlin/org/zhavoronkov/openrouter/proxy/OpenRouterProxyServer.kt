@@ -51,8 +51,24 @@ class OpenRouterProxyServer {
     private var currentPort: Int = 0
     private val isRunning = AtomicBoolean(false)
 
-    private val openRouterService = OpenRouterService.getInstance()
-    private val settingsService = OpenRouterSettingsService.getInstance()
+    private var openRouterServiceProvider: () -> OpenRouterService = {
+        OpenRouterService.getInstance()
+    }
+    private var settingsServiceProvider: () -> OpenRouterSettingsService = {
+        OpenRouterSettingsService.getInstance()
+    }
+    private val openRouterService: OpenRouterService
+        get() = openRouterServiceProvider()
+    private val settingsService: OpenRouterSettingsService
+        get() = settingsServiceProvider()
+
+    internal fun setDependenciesForTests(
+        openRouterService: OpenRouterService,
+        settingsService: OpenRouterSettingsService
+    ) {
+        openRouterServiceProvider = { openRouterService }
+        settingsServiceProvider = { settingsService }
+    }
 
     /**
      * Starts the proxy server on an available port
@@ -111,8 +127,9 @@ class OpenRouterProxyServer {
                 PluginLogger.Service.error("Server already running or in invalid state", e)
                 isRunning.set(false)
                 false
-            } catch (e: RuntimeException) {
-                PluginLogger.Service.error("Runtime error starting proxy server", e)
+            } catch (e: InterruptedException) {
+                PluginLogger.Service.error("Server start interrupted", e)
+                Thread.currentThread().interrupt()
                 isRunning.set(false)
                 false
             }
@@ -144,8 +161,9 @@ class OpenRouterProxyServer {
             } catch (e: java.io.IOException) {
                 PluginLogger.Service.error("IO error stopping proxy server", e)
                 false
-            } catch (e: RuntimeException) {
-                PluginLogger.Service.error("Runtime error stopping proxy server", e)
+            } catch (e: InterruptedException) {
+                PluginLogger.Service.error("Server stop interrupted", e)
+                Thread.currentThread().interrupt()
                 false
             }
         }
@@ -208,8 +226,8 @@ class OpenRouterProxyServer {
             } catch (e: java.io.IOException) {
                 PluginLogger.Service.error("IO error during proxy connection test", e)
                 false
-            } catch (e: RuntimeException) {
-                PluginLogger.Service.error("Runtime error during proxy connection test", e)
+            } catch (e: IllegalStateException) {
+                PluginLogger.Service.error("Invalid state during proxy connection test", e)
                 false
             }
         }

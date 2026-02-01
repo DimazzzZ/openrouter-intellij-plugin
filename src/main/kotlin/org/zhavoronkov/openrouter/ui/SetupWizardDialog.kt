@@ -24,6 +24,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
@@ -39,6 +40,7 @@ import java.awt.BorderLayout
 import java.awt.CardLayout
 import java.awt.Dimension
 import java.awt.Font
+import java.io.IOException
 import javax.swing.ButtonGroup
 import javax.swing.JComponent
 import javax.swing.JPanel
@@ -50,7 +52,14 @@ import javax.swing.table.AbstractTableModel
 /**
  * Multi-step setup wizard for first-time users with validation and embedded model selection
  */
-class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) {
+@Suppress(
+    "TooManyFunctions",
+    "LargeClass",
+    "LongMethod",
+    "MaxLineLength",
+    "MagicNumber"
+)
+class SetupWizardDialog(@Suppress("unused") private val project: Project?) : DialogWrapper(project) {
 
     private val settingsService = OpenRouterSettingsService.getInstance()
     private val openRouterService = OpenRouterService.getInstance()
@@ -75,7 +84,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
     // Initialize uiPredicates BEFORE creating panels
     private val uiPredicates = mutableListOf<UpdatablePredicate>()
 
-    private abstract inner class UpdatablePredicate : com.intellij.ui.layout.ComponentPredicate() {
+    private abstract class UpdatablePredicate : com.intellij.ui.layout.ComponentPredicate() {
         private val listeners = mutableListOf<(Boolean) -> Unit>()
 
         override fun addListener(listener: (Boolean) -> Unit) {
@@ -525,7 +534,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                 // Save settings before moving to models
                 settingsService.apiKeyManager.authScope = authScope
                 val key = String(keyField.password).trim()
-                if (authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR) {
+                if (authScope == AuthScope.REGULAR) {
                     settingsService.apiKeyManager.setApiKey(key)
                     // Clear provisioning key when switching to REGULAR mode
                     settingsService.apiKeyManager.setProvisioningKey("")
@@ -720,7 +729,16 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                 }, ModalityState.any())
             } catch (e: CancellationException) {
                 SetupWizardLogger.logValidationEvent("Validation cancelled")
-            } catch (e: Exception) {
+                throw e
+            } catch (e: IOException) {
+                SetupWizardLogger.error("Validation exception", e)
+                ApplicationManager.getApplication().invokeLater({
+                    isValidating = false
+                    isKeyValid = false
+                    showValidationError(SetupWizardErrorHandler.handleNetworkError(e, "key validation"))
+                    updateButtons()
+                }, ModalityState.any())
+            } catch (e: IllegalStateException) {
                 SetupWizardLogger.error("Validation exception", e)
                 ApplicationManager.getApplication().invokeLater({
                     isValidating = false
@@ -885,7 +903,28 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
                     }
                     updateButtons()
                 }, ModalityState.any())
-            } catch (e: Exception) {
+            } catch (e: TimeoutCancellationException) {
+                SetupWizardLogger.error("Exception in loadModels", e)
+                ApplicationManager.getApplication().invokeLater({
+                    isLoadingModels = false
+                    modelsLoadingIcon.icon = AllIcons.General.Error
+                    modelsLoadingLabel.text = SetupWizardErrorHandler.handleModelLoadingError(e)
+                    modelsLoadingLabel.foreground = JBColor.RED
+                    updateButtons()
+                }, ModalityState.any())
+            } catch (e: CancellationException) {
+                SetupWizardLogger.logModelLoadingEvent("Model loading cancelled")
+                throw e
+            } catch (e: IOException) {
+                SetupWizardLogger.error("Exception in loadModels", e)
+                ApplicationManager.getApplication().invokeLater({
+                    isLoadingModels = false
+                    modelsLoadingIcon.icon = AllIcons.General.Error
+                    modelsLoadingLabel.text = SetupWizardErrorHandler.handleModelLoadingError(e)
+                    modelsLoadingLabel.foreground = JBColor.RED
+                    updateButtons()
+                }, ModalityState.any())
+            } catch (e: IllegalStateException) {
                 SetupWizardLogger.error("Exception in loadModels", e)
                 ApplicationManager.getApplication().invokeLater({
                     isLoadingModels = false
@@ -982,7 +1021,7 @@ class SetupWizardDialog(private val project: Project?) : DialogWrapper(project) 
         }
 
         override fun getColumnClass(columnIndex: Int): Class<*> = when (columnIndex) {
-            0 -> java.lang.Boolean::class.java
+            0 -> Boolean::class.javaObjectType
             else -> String::class.java
         }
 

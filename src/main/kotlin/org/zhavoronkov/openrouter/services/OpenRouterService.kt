@@ -57,6 +57,7 @@ import java.util.concurrent.TimeUnit
  *    - Publicly accessible information
  */
 
+@Suppress("TooManyFunctions")
 open class OpenRouterService(
     private val gson: Gson = Gson(),
     private val client: OkHttpClient = OkHttpClient.Builder()
@@ -84,7 +85,6 @@ open class OpenRouterService(
     private fun getApiKeysEndpoint() = "${getBaseUrl()}/keys"
     private fun getKeyEndpoint() = "${getBaseUrl()}/key"
     private fun getActivityEndpoint() = "${getBaseUrl()}/activity"
-    private fun getAuthKeyEndpoint() = "${getBaseUrl()}/auth/key"
     private fun getAuthKeysEndpoint() = "${getBaseUrl()}/auth/keys"
     private fun getProvidersEndpoint() = "${getBaseUrl()}/providers"
     private fun getModelsEndpoint() = "${getBaseUrl()}/models"
@@ -107,6 +107,7 @@ open class OpenRouterService(
     /**
      * Get usage statistics for a specific generation
      */
+    @Suppress("unused") // Public API method
     suspend fun getGenerationStats(generationId: String): ApiResult<GenerationResponse> =
         withContext(Dispatchers.IO) {
             try {
@@ -127,7 +128,7 @@ open class OpenRouterService(
     /**
      * Create a chat completion using OpenRouter API
      */
-
+    @Suppress("unused") // Public API method
     suspend fun createChatCompletion(request: ChatCompletionRequest): ApiResult<ChatCompletionResponse> =
         withContext(Dispatchers.IO) {
             val startNs = System.nanoTime()
@@ -157,9 +158,9 @@ open class OpenRouterService(
             } catch (e: IOException) {
                 PluginLogger.Service.error("[OR] Chat completion network error: ${e.message}", e)
                 ApiResult.Error(message = e.message ?: "Network error", throwable = e)
-            } catch (e: Exception) {
-                PluginLogger.Service.error("[OR] Chat completion unexpected error: ${e.message}", e)
-                ApiResult.Error(message = e.message ?: "Unexpected error", throwable = e)
+            } catch (e: JsonSyntaxException) {
+                PluginLogger.Service.error("[OR] Chat completion JSON parsing error: ${e.message}", e)
+                ApiResult.Error(message = e.message ?: "JSON parsing error", throwable = e)
             }
         }
 
@@ -207,7 +208,7 @@ open class OpenRouterService(
                 "[OR] Chat completion failed: ${response.code} ${response.message} - $responseBody"
             )
             ApiResult.Error(
-                message = responseBody.ifBlank { response.message ?: "Chat completion failed" },
+                message = responseBody.ifBlank { response.message },
                 statusCode = response.code
             )
         }
@@ -341,6 +342,7 @@ open class OpenRouterService(
     /**
      * Get key info for backward compatibility - returns summary of all keys
      */
+    @Suppress("unused") // Public API method for backward compatibility
     suspend fun getKeyInfo(): ApiResult<KeyInfoResponse> {
         val result = getApiKeysList(settingsService.getProvisioningKey())
         return when (result) {
@@ -587,6 +589,7 @@ open class OpenRouterService(
      * Get list of available providers from OpenRouter
      * NOTE: This is a public endpoint that requires no authentication
      */
+    @Suppress("unused") // Public API method
     suspend fun getProviders(): ApiResult<ProvidersResponse> =
         fetchPublicEndpoint(
             getProvidersEndpoint(),
@@ -701,9 +704,6 @@ open class OpenRouterService(
                 PluginLogger.Service.error("PKCE: Network error during exchange", e)
                 handleNetworkError(e, "Error exchanging auth code")
                 ApiResult.Error(message = e.message ?: "Network error", throwable = e)
-            } catch (e: Exception) {
-                PluginLogger.Service.error("PKCE: Unexpected error during exchange", e)
-                ApiResult.Error(message = e.message ?: "Unexpected error", throwable = e)
             }
         }
 
@@ -727,7 +727,7 @@ open class OpenRouterService(
             client.connectionPool.evictAll()
 
             PluginLogger.Service.info("OpenRouterService disposed successfully")
-        } catch (e: Exception) {
+        } catch (e: IllegalStateException) {
             PluginLogger.Service.error("Error during OpenRouterService disposal", e)
         }
     }

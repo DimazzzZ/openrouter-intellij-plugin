@@ -11,6 +11,7 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
  * Handles configuration aspects and settings integration
  */
 
+@Suppress("TooManyFunctions")
 class OpenRouterModelConfigurationProvider {
 
     private val settingsService = OpenRouterSettingsService.getInstance()
@@ -76,7 +77,9 @@ class OpenRouterModelConfigurationProvider {
                 project,
                 OpenRouterConfigurable::class.java
             )
-        } catch (e: Exception) {
+        } catch (e: IllegalStateException) {
+            PluginLogger.Service.error("Error opening OpenRouter settings", e)
+        } catch (e: IllegalArgumentException) {
             PluginLogger.Service.error("Error opening OpenRouter settings", e)
         }
     }
@@ -135,7 +138,13 @@ class OpenRouterModelConfigurationProvider {
                 )
                 else -> ValidationResult(isValid = true, message = "Model configuration is valid")
             }
-        } catch (e: Exception) {
+        } catch (e: IllegalStateException) {
+            PluginLogger.Service.error("Error validating model configuration", e)
+            ValidationResult(
+                isValid = false,
+                message = "Validation error: ${e.message}"
+            )
+        } catch (e: IllegalArgumentException) {
             PluginLogger.Service.error("Error validating model configuration", e)
             ValidationResult(
                 isValid = false,
@@ -170,7 +179,9 @@ class OpenRouterModelConfigurationProvider {
             } else {
                 PluginLogger.Service.info("OpenRouter provider deactivated for AI Assistant")
             }
-        } catch (e: Exception) {
+        } catch (e: IllegalStateException) {
+            PluginLogger.Service.error("Error handling provider state change", e)
+        } catch (e: IllegalArgumentException) {
             PluginLogger.Service.error("Error handling provider state change", e)
         }
     }

@@ -84,56 +84,85 @@ class StatsDataLoader(
                 PluginLogger.Service.debug("Activity result: ${activityResult::class.simpleName}")
 
                 PluginLogger.Service.debug("Invoking UI update on EDT")
-                ApplicationManager.getApplication().invokeLater({
-                    PluginLogger.Service.debug("EDT callback executing")
-                    when {
-                        apiKeysResult is ApiResult.Success && creditsResult is ApiResult.Success -> {
-                            PluginLogger.Service.debug("Both API keys and credits succeeded")
-                            val activityData = if (activityResult is ApiResult.Success) {
-                                activityResult.data
-                            } else {
-                                null
-                            }
-                            onResult(
-                                LoadResult.Success(
-                                    StatsData(
-                                        apiKeysResponse = apiKeysResult.data,
-                                        creditsResponse = creditsResult.data,
-                                        activityResponse = activityData
-                                    )
-                                )
-                            )
-                        }
-                        apiKeysResult is ApiResult.Error -> {
-                            PluginLogger.Service.error("Failed to load API keys: ${apiKeysResult.message}")
-                            onResult(LoadResult.Error("Failed to load API keys: ${apiKeysResult.message}"))
-                        }
-                        creditsResult is ApiResult.Error -> {
-                            PluginLogger.Service.error("Failed to load credits: ${creditsResult.message}")
-                            onResult(LoadResult.Error("Failed to load credits: ${creditsResult.message}"))
-                        }
-                        else -> {
-                            PluginLogger.Service.error("Unknown error loading stats data")
-                            onResult(LoadResult.Error(ERROR_MESSAGE))
-                        }
-                    }
-                }, ModalityState.any())
+                invokeOnEdtOrDirect {
+                    handleApiResults(apiKeysResult, creditsResult, activityResult, onResult)
+                }
             } catch (e: TimeoutCancellationException) {
-                PluginLogger.Service.error("Quota info loading timeout", e)
-                ApplicationManager.getApplication().invokeLater({
-                    onResult(LoadResult.Error(ERROR_MESSAGE))
-                }, ModalityState.any())
+                logLoadFailure("Quota info loading timeout", e)
+                invokeErrorOnEdt(onResult)
             } catch (e: IOException) {
-                PluginLogger.Service.error("Quota info network error", e)
-                ApplicationManager.getApplication().invokeLater({
-                    onResult(LoadResult.Error(ERROR_MESSAGE))
-                }, ModalityState.any())
+                logLoadFailure("Quota info network error", e)
+                invokeErrorOnEdt(onResult)
             } catch (expectedError: Exception) {
-                PluginLogger.Service.error("Failed to load quota info", expectedError)
-                ApplicationManager.getApplication().invokeLater({
-                    onResult(LoadResult.Error(ERROR_MESSAGE))
-                }, ModalityState.any())
+                logLoadFailure("Failed to load quota info", expectedError)
+                invokeErrorOnEdt(onResult)
             }
+        }
+    }
+
+    private fun handleApiResults(
+        apiKeysResult: ApiResult<ApiKeysListResponse>,
+        creditsResult: ApiResult<CreditsResponse>,
+        activityResult: ApiResult<ActivityResponse>,
+        onResult: (LoadResult) -> Unit
+    ) {
+        PluginLogger.Service.debug("EDT callback executing")
+        when {
+            apiKeysResult is ApiResult.Success && creditsResult is ApiResult.Success -> {
+                PluginLogger.Service.debug("Both API keys and credits succeeded")
+                val activityData = if (activityResult is ApiResult.Success) {
+                    activityResult.data
+                } else {
+                    null
+                }
+                onResult(
+                    LoadResult.Success(
+                        StatsData(
+                            apiKeysResponse = apiKeysResult.data,
+                            creditsResponse = creditsResult.data,
+                            activityResponse = activityData
+                        )
+                    )
+                )
+            }
+            apiKeysResult is ApiResult.Error -> {
+                PluginLogger.Service.error("Failed to load API keys: ${apiKeysResult.message}")
+                onResult(LoadResult.Error("Failed to load API keys: ${apiKeysResult.message}"))
+            }
+            creditsResult is ApiResult.Error -> {
+                PluginLogger.Service.error("Failed to load credits: ${creditsResult.message}")
+                onResult(LoadResult.Error("Failed to load credits: ${creditsResult.message}"))
+            }
+            else -> {
+                PluginLogger.Service.error("Unknown error loading stats data")
+                onResult(LoadResult.Error(ERROR_MESSAGE))
+            }
+        }
+    }
+
+    private fun invokeErrorOnEdt(onResult: (LoadResult) -> Unit) {
+        invokeOnEdtOrDirect {
+            onResult(LoadResult.Error(ERROR_MESSAGE))
+        }
+    }
+
+    private fun invokeOnEdtOrDirect(action: () -> Unit) {
+        val application = ApplicationManager.getApplication()
+        if (application != null) {
+            application.invokeLater(action, ModalityState.any())
+        } else {
+            PluginLogger.Service.debug(
+                "Application not available; invoking stats handler directly"
+            )
+            action()
+        }
+    }
+
+    private fun logLoadFailure(message: String, throwable: Throwable) {
+        if (ApplicationManager.getApplication() == null) {
+            PluginLogger.Service.warn(message, throwable)
+        } else {
+            PluginLogger.Service.error(message, throwable)
         }
     }
 }

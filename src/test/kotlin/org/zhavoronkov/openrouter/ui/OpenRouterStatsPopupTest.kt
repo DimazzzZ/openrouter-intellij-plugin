@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.zhavoronkov.openrouter.models.ActivityData
 import java.time.LocalDate
-import java.util.*
 
 class OpenRouterStatsPopupTest {
 
@@ -67,11 +66,9 @@ class OpenRouterStatsPopupTest {
 
         // Check that the first element is Long (total requests = 15)
         assertEquals(15L, result.first)
-        assertTrue(result.first is Long, "First element should be Long")
 
         // Check that the second element is Double (total usage = 2.0)
         assertEquals(2.0, result.second)
-        assertTrue(result.second is Double, "Second element should be Double")
     }
 
     @Test

@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit
  * when plugin is unloaded/disabled without IDE restart
  */
 @Service(Service.Level.APP)
+@Suppress("TooManyFunctions")
 class OpenRouterProxyService : Disposable {
 
     companion object {
@@ -27,8 +28,24 @@ class OpenRouterProxyService : Disposable {
         }
     }
 
-    private val proxyServer = OpenRouterProxyServer.getInstance()
-    private val settingsService = OpenRouterSettingsService.getInstance()
+    internal fun setDependenciesForTests(
+        proxyServer: OpenRouterProxyServer,
+        settingsService: OpenRouterSettingsService
+    ) {
+        proxyServerProvider = { proxyServer }
+        settingsServiceProvider = { settingsService }
+    }
+
+    private var proxyServerProvider: () -> OpenRouterProxyServer = {
+        OpenRouterProxyServer.getInstance()
+    }
+    private var settingsServiceProvider: () -> OpenRouterSettingsService = {
+        OpenRouterSettingsService.getInstance()
+    }
+    private val proxyServer: OpenRouterProxyServer
+        get() = proxyServerProvider()
+    private val settingsService: OpenRouterSettingsService
+        get() = settingsServiceProvider()
 
     // Track active async operations for cleanup
     private val activeTasks = ConcurrentHashMap<String, CompletableFuture<*>>()
@@ -106,6 +123,7 @@ class OpenRouterProxyService : Disposable {
     /**
      * Restarts the proxy server
      */
+    @Suppress("unused") // Public API method
     fun restartServer(): CompletableFuture<Boolean> {
         return CompletableFuture.supplyAsync {
             try {
@@ -134,6 +152,7 @@ class OpenRouterProxyService : Disposable {
     /**
      * Tests the proxy server connection
      */
+    @Suppress("unused") // Public API method
     fun testServerConnection(): CompletableFuture<Boolean> {
         return proxyServer.testConnection()
     }
@@ -205,6 +224,7 @@ class OpenRouterProxyService : Disposable {
     /**
      * Gets the proxy URL for AI Assistant configuration
      */
+    @Suppress("unused") // Public API method
     fun getProxyUrl(): String? {
         val status = proxyServer.getStatus()
         return if (status.isRunning) status.url else null
@@ -213,6 +233,7 @@ class OpenRouterProxyService : Disposable {
     /**
      * Gets the proxy port
      */
+    @Suppress("unused") // Public API method
     fun getProxyPort(): Int? {
         val status = proxyServer.getStatus()
         return if (status.isRunning) status.port else null
@@ -280,14 +301,24 @@ class OpenRouterProxyService : Disposable {
                 try {
                     proxyServer.stop().get(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                     PluginLogger.Service.info("Proxy server stopped successfully")
-                } catch (e: Exception) {
+                } catch (e: java.util.concurrent.ExecutionException) {
+                    PluginLogger.Service.error("Error stopping proxy server during disposal", e)
+                } catch (e: java.util.concurrent.TimeoutException) {
+                    PluginLogger.Service.error("Error stopping proxy server during disposal", e)
+                } catch (e: IllegalStateException) {
+                    PluginLogger.Service.error("Error stopping proxy server during disposal", e)
+                } catch (e: java.io.IOException) {
                     PluginLogger.Service.error("Error stopping proxy server during disposal", e)
                 }
             }
 
             PluginLogger.Service.info("OpenRouterProxyService disposed successfully")
-        } catch (e: Exception) {
+        } catch (e: IllegalStateException) {
             PluginLogger.Service.error("Error during OpenRouterProxyService disposal", e)
+        } catch (e: java.util.concurrent.ExecutionException) {
+            PluginLogger.Service.error("Execution error during OpenRouterProxyService disposal", e)
+        } catch (e: java.util.concurrent.TimeoutException) {
+            PluginLogger.Service.error("Timeout during OpenRouterProxyService disposal", e)
         }
     }
 }

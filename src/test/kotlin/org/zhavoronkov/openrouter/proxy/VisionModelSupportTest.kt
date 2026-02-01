@@ -59,10 +59,7 @@ class VisionModelSupportTest {
                         add(
                             "image_url",
                             JsonObject().apply {
-                                addProperty(
-                                    "url",
-                                    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
-                                )
+                                addProperty("url", "data:image/png;base64,SHORT_TEST_IMAGE")
                             }
                         )
                     }

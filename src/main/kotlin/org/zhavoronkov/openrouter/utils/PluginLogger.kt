@@ -12,12 +12,12 @@ object PluginLogger {
 
     private const val PLUGIN_NAME = "OpenRouter"
 
-    // Logger instances for different components
-    private val serviceLogger = Logger.getInstance("org.zhavoronkov.openrouter.services")
-    private val settingsLogger = Logger.getInstance("org.zhavoronkov.openrouter.settings")
-    private val statusBarLogger = Logger.getInstance("org.zhavoronkov.openrouter.statusbar")
-    private val modelsLogger = Logger.getInstance("org.zhavoronkov.openrouter.models")
-    private val startupLogger = Logger.getInstance("org.zhavoronkov.openrouter.startup")
+    // Logger instances for different components - lazy to support test environments
+    private val serviceLogger by lazy { createLogger("org.zhavoronkov.openrouter.services") }
+    private val settingsLogger by lazy { createLogger("org.zhavoronkov.openrouter.settings") }
+    private val statusBarLogger by lazy { createLogger("org.zhavoronkov.openrouter.statusbar") }
+    private val modelsLogger by lazy { createLogger("org.zhavoronkov.openrouter.models") }
+    private val startupLogger by lazy { createLogger("org.zhavoronkov.openrouter.startup") }
 
     // Debug mode flag - can be controlled via system property
     private val debugEnabled: Boolean by lazy {
@@ -25,26 +25,69 @@ object PluginLogger {
             System.getProperty("idea.log.debug.categories", "").contains("org.zhavoronkov.openrouter")
     }
 
+    private val testMode: Boolean by lazy {
+        System.getProperty("openrouter.testMode", "false").toBoolean()
+    }
+
+    private fun createLogger(category: String): Logger? {
+        return try {
+            Logger.getInstance(category)
+        } catch (e: IllegalStateException) {
+            System.err.println("[$PLUGIN_NAME] Logger unavailable for $category: ${e.message}")
+            null
+        } catch (e: NoClassDefFoundError) {
+            System.err.println("[$PLUGIN_NAME] Logger class missing for $category: ${e.message}")
+            null
+        }
+    }
+
     /**
      * Service-related logging
      */
     object Service {
-        fun info(message: String) = serviceLogger.info("[$PLUGIN_NAME] $message")
-        fun warn(message: String) = serviceLogger.warn("[$PLUGIN_NAME] $message")
-        fun warn(message: String, throwable: Throwable) = serviceLogger.warn("[$PLUGIN_NAME] $message", throwable)
-        fun error(message: String) = serviceLogger.error("[$PLUGIN_NAME] $message")
-        fun error(message: String, throwable: Throwable) = serviceLogger.error("[$PLUGIN_NAME] $message", throwable)
+        fun info(message: String) = serviceLogger?.info("[$PLUGIN_NAME] $message")
+        fun warn(message: String) {
+            if (testMode) {
+                debug(message)
+            } else {
+                serviceLogger?.warn("[$PLUGIN_NAME] $message")
+            }
+        }
+
+        fun warn(message: String, throwable: Throwable) {
+            if (testMode) {
+                debug(message, throwable)
+            } else {
+                serviceLogger?.warn("[$PLUGIN_NAME] $message", throwable)
+            }
+        }
+
+        fun error(message: String) {
+            if (testMode) {
+                debug(message)
+            } else {
+                serviceLogger?.error("[$PLUGIN_NAME] $message")
+            }
+        }
+
+        fun error(message: String, throwable: Throwable) {
+            if (testMode) {
+                debug(message, throwable)
+            } else {
+                serviceLogger?.error("[$PLUGIN_NAME] $message", throwable)
+            }
+        }
 
         fun debug(message: String) {
             if (debugEnabled) {
                 // Only log to logger, NOT to console (prevents duplicate logging)
-                serviceLogger.info("[$PLUGIN_NAME][DEBUG] $message")
+                serviceLogger?.info("[$PLUGIN_NAME][DEBUG] $message")
             }
         }
 
         fun debug(message: String, throwable: Throwable) {
             if (debugEnabled) {
-                serviceLogger.info("[$PLUGIN_NAME][DEBUG] $message", throwable)
+                serviceLogger?.info("[$PLUGIN_NAME][DEBUG] $message", throwable)
             }
         }
     }
@@ -54,34 +97,34 @@ object PluginLogger {
      */
     object Settings {
         fun info(message: String) {
-            settingsLogger.info("[$PLUGIN_NAME] $message")
+            settingsLogger?.info("[$PLUGIN_NAME] $message")
         }
 
         fun warn(message: String) {
-            settingsLogger.warn("[$PLUGIN_NAME] $message")
+            settingsLogger?.warn("[$PLUGIN_NAME] $message")
         }
 
         fun warn(message: String, throwable: Throwable) {
-            settingsLogger.warn("[$PLUGIN_NAME] $message", throwable)
+            settingsLogger?.warn("[$PLUGIN_NAME] $message", throwable)
         }
 
         fun error(message: String) {
-            settingsLogger.error("[$PLUGIN_NAME] $message")
+            settingsLogger?.error("[$PLUGIN_NAME] $message")
         }
 
         fun error(message: String, throwable: Throwable) {
-            settingsLogger.error("[$PLUGIN_NAME] $message", throwable)
+            settingsLogger?.error("[$PLUGIN_NAME] $message", throwable)
         }
 
         fun debug(message: String) {
             if (debugEnabled) {
-                settingsLogger.info("[$PLUGIN_NAME][DEBUG] $message")
+                settingsLogger?.info("[$PLUGIN_NAME][DEBUG] $message")
             }
         }
 
         fun debug(message: String, throwable: Throwable) {
             if (debugEnabled) {
-                settingsLogger.info("[$PLUGIN_NAME][DEBUG] $message", throwable)
+                settingsLogger?.info("[$PLUGIN_NAME][DEBUG] $message", throwable)
             }
         }
 
@@ -89,24 +132,26 @@ object PluginLogger {
          * Production-safe logging for troubleshooting.
          * Always logs important events regardless of debug mode.
          */
+        @Suppress("Unused")
         fun production(message: String) {
-            settingsLogger.info("[$PLUGIN_NAME][PROD] $message")
+            settingsLogger?.info("[$PLUGIN_NAME][PROD] $message")
         }
     }
 
     /**
      * Status bar widget logging
      */
+    @Suppress("Unused")
     object StatusBar {
-        fun info(message: String) = statusBarLogger.info("[$PLUGIN_NAME] $message")
-        fun warn(message: String) = statusBarLogger.warn("[$PLUGIN_NAME] $message")
-        fun warn(message: String, throwable: Throwable) = statusBarLogger.warn("[$PLUGIN_NAME] $message", throwable)
-        fun error(message: String) = statusBarLogger.error("[$PLUGIN_NAME] $message")
-        fun error(message: String, throwable: Throwable) = statusBarLogger.error("[$PLUGIN_NAME] $message", throwable)
+        fun info(message: String) = statusBarLogger?.info("[$PLUGIN_NAME] $message")
+        fun warn(message: String) = statusBarLogger?.warn("[$PLUGIN_NAME] $message")
+        fun warn(message: String, throwable: Throwable) = statusBarLogger?.warn("[$PLUGIN_NAME] $message", throwable)
+        fun error(message: String) = statusBarLogger?.error("[$PLUGIN_NAME] $message")
+        fun error(message: String, throwable: Throwable) = statusBarLogger?.error("[$PLUGIN_NAME] $message", throwable)
 
         fun debug(message: String) {
             if (debugEnabled) {
-                statusBarLogger.info("[$PLUGIN_NAME][DEBUG] $message")
+                statusBarLogger?.info("[$PLUGIN_NAME][DEBUG] $message")
             }
         }
     }
@@ -115,15 +160,15 @@ object PluginLogger {
      * Models/API data logging
      */
     object Models {
-        fun info(message: String) = modelsLogger.info("[$PLUGIN_NAME] $message")
-        fun warn(message: String) = modelsLogger.warn("[$PLUGIN_NAME] $message")
-        fun warn(message: String, throwable: Throwable) = modelsLogger.warn("[$PLUGIN_NAME] $message", throwable)
-        fun error(message: String) = modelsLogger.error("[$PLUGIN_NAME] $message")
-        fun error(message: String, throwable: Throwable) = modelsLogger.error("[$PLUGIN_NAME] $message", throwable)
+        fun info(message: String) = modelsLogger?.info("[$PLUGIN_NAME] $message")
+        fun warn(message: String) = modelsLogger?.warn("[$PLUGIN_NAME] $message")
+        fun warn(message: String, throwable: Throwable) = modelsLogger?.warn("[$PLUGIN_NAME] $message", throwable)
+        fun error(message: String) = modelsLogger?.error("[$PLUGIN_NAME] $message")
+        fun error(message: String, throwable: Throwable) = modelsLogger?.error("[$PLUGIN_NAME] $message", throwable)
 
         fun debug(message: String) {
             if (debugEnabled) {
-                modelsLogger.info("[$PLUGIN_NAME][DEBUG] $message")
+                modelsLogger?.info("[$PLUGIN_NAME][DEBUG] $message")
             }
         }
     }
@@ -132,15 +177,15 @@ object PluginLogger {
      * Startup activity logging
      */
     object Startup {
-        fun info(message: String) = startupLogger.info("[$PLUGIN_NAME] $message")
-        fun warn(message: String) = startupLogger.warn("[$PLUGIN_NAME] $message")
-        fun warn(message: String, throwable: Throwable) = startupLogger.warn("[$PLUGIN_NAME] $message", throwable)
-        fun error(message: String) = startupLogger.error("[$PLUGIN_NAME] $message")
-        fun error(message: String, throwable: Throwable) = startupLogger.error("[$PLUGIN_NAME] $message", throwable)
+        fun info(message: String) = startupLogger?.info("[$PLUGIN_NAME] $message")
+        fun warn(message: String) = startupLogger?.warn("[$PLUGIN_NAME] $message")
+        fun warn(message: String, throwable: Throwable) = startupLogger?.warn("[$PLUGIN_NAME] $message", throwable)
+        fun error(message: String) = startupLogger?.error("[$PLUGIN_NAME] $message")
+        fun error(message: String, throwable: Throwable) = startupLogger?.error("[$PLUGIN_NAME] $message", throwable)
 
         fun debug(message: String) {
             if (debugEnabled) {
-                startupLogger.info("[$PLUGIN_NAME][DEBUG] $message")
+                startupLogger?.info("[$PLUGIN_NAME][DEBUG] $message")
             }
         }
     }
@@ -148,22 +193,23 @@ object PluginLogger {
     /**
      * Check if debug logging is enabled
      */
+    @Suppress("Unused")
     fun isDebugEnabled(): Boolean = debugEnabled
 
     /**
      * Log debug information about the current logging configuration
      */
     fun logConfiguration() {
-        serviceLogger.info("[$PLUGIN_NAME] Debug logging enabled: $debugEnabled")
+        serviceLogger?.info("[$PLUGIN_NAME] Debug logging enabled: $debugEnabled")
         if (debugEnabled) {
-            serviceLogger.info("[$PLUGIN_NAME] Debug logging configuration:")
-            serviceLogger.info(
+            serviceLogger?.info("[$PLUGIN_NAME] Debug logging configuration:")
+            serviceLogger?.info(
                 "[$PLUGIN_NAME]   - openrouter.debug system property: ${System.getProperty(
                     "openrouter.debug",
                     "not set"
                 )}"
             )
-            serviceLogger.info(
+            serviceLogger?.info(
                 "[$PLUGIN_NAME]   - idea.log.debug.categories: ${System.getProperty(
                     "idea.log.debug.categories",
                     "not set"

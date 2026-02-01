@@ -16,19 +16,30 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
     name = "OpenRouterGenerationTracking",
     storages = [Storage("openrouter-generations.xml")]
 )
-class OpenRouterGenerationTrackingService : PersistentStateComponent<OpenRouterGenerationTrackingService.State>, Disposable {
+@Suppress("TooManyFunctions")
+class OpenRouterGenerationTrackingService :
+    PersistentStateComponent<OpenRouterGenerationTrackingService.State>,
+    Disposable {
 
     data class State(
         var generations: MutableList<GenerationTrackingInfo> = mutableListOf()
     )
 
     private var state = State()
-    private val settingsService = OpenRouterSettingsService.getInstance()
+    private var settingsServiceProvider: () -> OpenRouterSettingsService = {
+        OpenRouterSettingsService.getInstance()
+    }
+    private val settingsService: OpenRouterSettingsService
+        get() = settingsServiceProvider()
 
     companion object {
         fun getInstance(): OpenRouterGenerationTrackingService {
             return ApplicationManager.getApplication().getService(OpenRouterGenerationTrackingService::class.java)
         }
+    }
+
+    internal fun setSettingsServiceForTests(service: OpenRouterSettingsService) {
+        settingsServiceProvider = { service }
     }
 
     override fun getState(): State {
@@ -134,7 +145,7 @@ class OpenRouterGenerationTrackingService : PersistentStateComponent<OpenRouterG
             }
 
             PluginLogger.Service.info("OpenRouterGenerationTrackingService disposed successfully")
-        } catch (e: Exception) {
+        } catch (e: IllegalStateException) {
             PluginLogger.Service.error("Error during OpenRouterGenerationTrackingService disposal", e)
         }
     }

@@ -31,21 +31,16 @@ object KeyValidator {
      * Validates a key format (works for both API keys and provisioning keys)
      */
     fun validateKeyFormat(key: String): ValidationResult {
-        if (key.isBlank()) {
-            return ValidationResult.Invalid("Key cannot be empty")
-        }
-
-        if (key.length < OpenRouterConstants.MIN_KEY_LENGTH) {
-            return ValidationResult.Invalid(
+        return when {
+            key.isBlank() -> ValidationResult.Invalid("Key cannot be empty")
+            key.length < OpenRouterConstants.MIN_KEY_LENGTH -> ValidationResult.Invalid(
                 "Key is too short (minimum ${OpenRouterConstants.MIN_KEY_LENGTH} characters)"
             )
+            !key.startsWith(API_KEY_PREFIX) -> ValidationResult.Warning(
+                "OpenRouter keys should start with '$API_KEY_PREFIX'"
+            )
+            else -> ValidationResult.Valid
         }
-
-        if (!key.startsWith(API_KEY_PREFIX)) {
-            return ValidationResult.Warning("OpenRouter keys should start with '$API_KEY_PREFIX'")
-        }
-
-        return ValidationResult.Valid
     }
 
     /**
@@ -66,7 +61,10 @@ object KeyValidator {
 
     /**
      * Validates a key based on the authentication scope
+     * @param key The API key or provisioning key to validate
+     * @param authScope The authentication scope (not used for format validation)
      */
+    @Suppress("UNUSED_PARAMETER")
     fun validateKey(key: String, authScope: AuthScope): ValidationResult {
         return validateKeyFormat(key)
     }

@@ -26,7 +26,6 @@ import java.awt.datatransfer.StringSelection
 import javax.swing.JButton
 import javax.swing.JLabel
 import javax.swing.JPanel
-import javax.swing.JScrollPane
 import javax.swing.JSpinner
 import javax.swing.JTable
 import javax.swing.ListSelectionModel
@@ -56,8 +55,8 @@ class ApiKeyTableModel : AbstractTableModel() {
     override fun getValueAt(rowIndex: Int, columnIndex: Int): Any {
         val key = apiKeys[rowIndex]
         return when (columnIndex) {
-            COLUMN_LABEL -> key.label ?: ""
-            COLUMN_NAME -> key.name ?: ""
+            COLUMN_LABEL -> key.label
+            COLUMN_NAME -> key.name
             COLUMN_USAGE -> formatUsage(key.usage)
             COLUMN_LIMIT -> formatLimit(key.limit)
             COLUMN_STATUS -> if (!key.disabled) "Active" else "Inactive"
@@ -98,6 +97,7 @@ class ApiKeyTableModel : AbstractTableModel() {
         }
     }
 
+    @Suppress("unused") // Public API method
     fun getApiKeys(): List<ApiKeyInfo> {
         return apiKeys.toList()
     }
@@ -106,9 +106,11 @@ class ApiKeyTableModel : AbstractTableModel() {
 /**
  * Settings panel for OpenRouter configuration using IntelliJ UI DSL v2
  */
+@Suppress("TooManyFunctions")
 class OpenRouterSettingsPanel {
 
-    private lateinit var panel: JPanel
+    @Suppress("RedundantLateinitModifier") // Uses ::panel.isInitialized check
+    private var panel: JPanel
     private val provisioningKeyField: JBPasswordField
     private val apiKeyField: JBPasswordField
     private val autoRefreshCheckBox: JBCheckBox
@@ -129,17 +131,18 @@ class OpenRouterSettingsPanel {
     private val apiKeyManager: ApiKeyManager
 
     // Proxy server status components
+    @Suppress("RedundantLateinitModifier") // Uses ::statusLabel.isInitialized check
     private lateinit var statusLabel: JLabel
     private lateinit var startServerButton: JButton
     private lateinit var stopServerButton: JButton
     private lateinit var copyUrlButton: JButton
 
     // Proxy configuration components
-    private lateinit var proxyAutoStartCheckBox: JBCheckBox
-    private lateinit var useSpecificPortCheckBox: JBCheckBox
-    private lateinit var proxyPortSpinner: JSpinner
-    private lateinit var proxyPortRangeStartSpinner: JSpinner
-    private lateinit var proxyPortRangeEndSpinner: JSpinner
+    private var proxyAutoStartCheckBox: JBCheckBox
+    private var useSpecificPortCheckBox: JBCheckBox
+    private var proxyPortSpinner: JSpinner
+    private var proxyPortRangeStartSpinner: JSpinner
+    private var proxyPortRangeEndSpinner: JSpinner
 
     // UI state tracking
     private var currentUiAuthScope: AuthScope = AuthScope.EXTENDED
@@ -147,13 +150,13 @@ class OpenRouterSettingsPanel {
     private lateinit var extendedRadioButton: javax.swing.JRadioButton
 
     // Authentication status labels
-    private lateinit var authScopeLabel: javax.swing.JLabel
+    private lateinit var authScopeLabel: JLabel
     private lateinit var authDescriptionLabel: javax.swing.JEditorPane
 
     // Scope predicates for visibility management
     private val uiPredicates = mutableListOf<UpdatablePredicate>()
 
-    private abstract inner class UpdatablePredicate : com.intellij.ui.layout.ComponentPredicate() {
+    private abstract class UpdatablePredicate : com.intellij.ui.layout.ComponentPredicate() {
         private val listeners = mutableListOf<(Boolean) -> Unit>()
         override fun addListener(listener: (Boolean) -> Unit) {
             listeners.add(listener)
@@ -287,28 +290,12 @@ class OpenRouterSettingsPanel {
         statusLabel = JLabel("Status: Stopped")
 
         // Create the main panel using UI DSL v2
-        try {
-            panel = panel {
+        panel = try {
+            panel {
                 // Run Setup Wizard button
                 row {
                     button("Run Setup Wizard") {
-                        try {
-                            PluginLogger.Settings.info("Run Setup Wizard button clicked")
-                            val project = ProjectManager.getInstance().openProjects.firstOrNull()
-                                ?: ProjectManager.getInstance().defaultProject
-                            PluginLogger.Settings.info("Showing setup wizard for project: ${project?.name ?: "default"}")
-                            val result = SetupWizardDialog.show(project)
-                            PluginLogger.Settings.info("Setup wizard completed with result: $result")
-                            if (result) {
-                                refreshUI()
-                            }
-                        } catch (e: Exception) {
-                            PluginLogger.Settings.error("Failed to show setup wizard", e)
-                            Messages.showErrorDialog(
-                                "Failed to show setup wizard: ${e.message}",
-                                "Setup Wizard Error"
-                            )
-                        }
+                        runSetupWizard()
                     }
                     comment("Re-run the initial setup wizard to configure the plugin.")
                 }
@@ -338,7 +325,10 @@ class OpenRouterSettingsPanel {
                         }.component
                     }
                     row {
-                        text("To change your authentication settings, please use the <b>Run Setup Wizard</b> button above.")
+                        text(
+                            "To change your authentication settings, please use the " +
+                                "<b>Run Setup Wizard</b> button above."
+                        )
                     }
                 }
 
@@ -418,11 +408,18 @@ class OpenRouterSettingsPanel {
                     }.layout(RowLayout.PARENT_GRID)
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: IllegalStateException) {
             PluginLogger.Settings.error("Failed to create settings panel", e)
-            panel = JPanel(BorderLayout()).apply {
+            JPanel(BorderLayout()).apply {
                 add(JLabel("Error creating settings panel: ${e.message}"), BorderLayout.NORTH)
-                val scrollPane = JScrollPane(javax.swing.JTextArea(e.stackTraceToString()))
+                val scrollPane = com.intellij.ui.components.JBScrollPane(javax.swing.JTextArea(e.stackTraceToString()))
+                add(scrollPane, BorderLayout.CENTER)
+            }
+        } catch (e: IllegalArgumentException) {
+            PluginLogger.Settings.error("Failed to create settings panel", e)
+            JPanel(BorderLayout()).apply {
+                add(JLabel("Error creating settings panel: ${e.message}"), BorderLayout.NORTH)
+                val scrollPane = com.intellij.ui.components.JBScrollPane(javax.swing.JTextArea(e.stackTraceToString()))
                 add(scrollPane, BorderLayout.CENTER)
             }
         }
@@ -475,7 +472,7 @@ class OpenRouterSettingsPanel {
         apiKeysPanel.add(toolbar, BorderLayout.NORTH)
 
         // Center: API Keys table in scroll pane
-        val scrollPane = JScrollPane(apiKeyTable)
+        val scrollPane = com.intellij.ui.components.JBScrollPane(apiKeyTable)
         apiKeysPanel.add(scrollPane, BorderLayout.CENTER)
     }
 
@@ -503,19 +500,29 @@ class OpenRouterSettingsPanel {
         return wrapperPanel
     }
 
-    private fun pasteToField(field: JBPasswordField) {
+    private fun runSetupWizard() {
         try {
-            val clipboard = Toolkit.getDefaultToolkit().systemClipboard
-            val data = clipboard.getData(java.awt.datatransfer.DataFlavor.stringFlavor) as String
-            field.text = data.trim()
-        } catch (e: java.awt.HeadlessException) {
-            PluginLogger.Settings.warn("Clipboard not available in headless environment", e)
-        } catch (e: java.awt.datatransfer.UnsupportedFlavorException) {
-            PluginLogger.Settings.warn("Clipboard data format not supported", e)
+            PluginLogger.Settings.info("Run Setup Wizard button clicked")
+            val project = ProjectManager.getInstance().openProjects.firstOrNull()
+                ?: ProjectManager.getInstance().defaultProject
+            PluginLogger.Settings.info("Showing setup wizard for project: ${project.name}")
+            val result = SetupWizardDialog.show(project)
+            PluginLogger.Settings.info("Setup wizard completed with result: $result")
+            if (result) {
+                refreshUI()
+            }
         } catch (e: IllegalStateException) {
-            PluginLogger.Settings.warn("Invalid state accessing clipboard", e)
-        } catch (expectedError: Exception) {
-            PluginLogger.Settings.warn("Failed to paste from clipboard: ${expectedError.message}")
+            PluginLogger.Settings.error("Failed to show setup wizard", e)
+            Messages.showErrorDialog(
+                "Failed to show setup wizard: ${e.message}",
+                "Setup Wizard Error"
+            )
+        } catch (e: IllegalArgumentException) {
+            PluginLogger.Settings.error("Failed to show setup wizard", e)
+            Messages.showErrorDialog(
+                "Failed to show setup wizard: ${e.message}",
+                "Setup Wizard Error"
+            )
         }
     }
 
@@ -544,6 +551,7 @@ class OpenRouterSettingsPanel {
         apiKeyManager.refreshApiKeys(forceRefresh = true)
     }
 
+    @Suppress("unused") // Public API method for external callers
     fun refreshApiKeys(forceRefresh: Boolean = true) {
         // Called from OpenRouterConfigurable - allow specifying forceRefresh
         apiKeyManager.refreshApiKeys(forceRefresh)
@@ -577,7 +585,7 @@ class OpenRouterSettingsPanel {
                     )
                 }
                 updateProxyStatus()
-            }, com.intellij.openapi.application.ModalityState.any())
+            }, ModalityState.any())
         }.exceptionally { throwable ->
             ApplicationManager.getApplication().invokeLater({
                 PluginLogger.Settings.error("Exception starting proxy server: ${throwable.message}", throwable)
@@ -586,7 +594,7 @@ class OpenRouterSettingsPanel {
                     "Proxy Start Failed"
                 )
                 updateProxyStatus()
-            }, com.intellij.openapi.application.ModalityState.any())
+            }, ModalityState.any())
             null
         }
     }
@@ -603,12 +611,12 @@ class OpenRouterSettingsPanel {
                     PluginLogger.Settings.warn("Failed to stop proxy server")
                 }
                 updateProxyStatus()
-            }, com.intellij.openapi.application.ModalityState.any())
+            }, ModalityState.any())
         }.exceptionally { throwable ->
             ApplicationManager.getApplication().invokeLater({
                 PluginLogger.Settings.error("Exception stopping proxy server: ${throwable.message}", throwable)
                 updateProxyStatus()
-            }, com.intellij.openapi.application.ModalityState.any())
+            }, ModalityState.any())
             null
         }
     }
@@ -642,9 +650,7 @@ class OpenRouterSettingsPanel {
 
     fun updateProxyStatus() {
         // Safe check for lateinit properties
-        if (!::statusLabel.isInitialized || !::startServerButton.isInitialized ||
-            !::stopServerButton.isInitialized || !::copyUrlButton.isInitialized
-        ) {
+        if (!areLateinitPropertiesInitialized()) {
             return
         }
 
@@ -679,6 +685,13 @@ class OpenRouterSettingsPanel {
         statusLabel.repaint()
         statusLabel.revalidate()
         panel.repaint()
+    }
+
+    private fun areLateinitPropertiesInitialized(): Boolean {
+        return ::statusLabel.isInitialized &&
+            ::startServerButton.isInitialized &&
+            ::stopServerButton.isInitialized &&
+            ::copyUrlButton.isInitialized
     }
 
     // Public API methods
@@ -811,10 +824,10 @@ class OpenRouterSettingsPanel {
             PluginLogger.Settings.error("Invalid port number format: ${e.message}", e)
         } catch (e: IllegalStateException) {
             PluginLogger.Settings.error("Invalid state applying proxy settings: ${e.message}", e)
-        } catch (expectedError: Exception) {
+        } catch (e: IllegalArgumentException) {
             PluginLogger.Settings.error(
-                "Failed to apply current proxy settings: ${expectedError.message}",
-                expectedError
+                "Failed to apply current proxy settings: ${e.message}",
+                e
             )
         }
     }

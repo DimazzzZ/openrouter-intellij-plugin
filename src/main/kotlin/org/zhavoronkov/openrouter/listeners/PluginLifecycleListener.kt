@@ -55,7 +55,7 @@ class PluginLifecycleListener : DynamicPluginListener {
             }
 
             PluginLogger.Service.info("Plugin unload preparation completed")
-        } catch (e: Exception) {
+        } catch (e: IllegalStateException) {
             PluginLogger.Service.error("Error during plugin unload preparation", e)
         }
     }

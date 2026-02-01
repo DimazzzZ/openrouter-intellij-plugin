@@ -1,5 +1,6 @@
 package org.zhavoronkov.openrouter.proxy.translation
 
+import com.intellij.openapi.application.ApplicationManager
 import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatMessage
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
@@ -13,13 +14,21 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
 object RequestTranslator {
 
     private val settingsService by lazy {
+        val application = ApplicationManager.getApplication()
+        if (application == null) {
+            PluginLogger.Service.debug("Application not available (test environment)")
+            return@lazy null
+        }
+
         try {
             OpenRouterSettingsService.getInstance()
         } catch (e: IllegalStateException) {
             // In test environment or when service not initialized yet
+            PluginLogger.Service.debug("Settings service not initialized", e)
             null
-        } catch (e: RuntimeException) {
-            // Service creation failed
+        } catch (e: IllegalArgumentException) {
+            // Service creation failed due to invalid state
+            PluginLogger.Service.debug("Settings service not available", e)
             null
         }
     }
@@ -37,7 +46,7 @@ object RequestTranslator {
         PluginLogger.Service.debug("Model: ${openAIRequest.model}, Stream: ${openAIRequest.stream}")
 
         // Apply default max tokens only if feature is enabled (defaultMaxTokens > 0)
-        val defaultMaxTokens = if (settingsService?.uiPreferencesManager?.defaultMaxTokens ?: 0 > 0) {
+        val defaultMaxTokens = if ((settingsService?.uiPreferencesManager?.defaultMaxTokens ?: 0) > 0) {
             settingsService?.uiPreferencesManager?.defaultMaxTokens
         } else {
             null
@@ -75,7 +84,6 @@ object RequestTranslator {
      */
     fun validateTranslatedRequest(request: ChatCompletionRequest): Boolean {
         return try {
-            // Basic validation
             request.model.isNotBlank() &&
                 request.messages.isNotEmpty() &&
                 request.messages.all { message ->
@@ -84,9 +92,6 @@ object RequestTranslator {
                 (request.temperature == null || request.temperature in 0.0..2.0) &&
                 (request.maxTokens == null || request.maxTokens > 0) &&
                 (request.topP == null || request.topP in 0.0..1.0)
-        } catch (e: NullPointerException) {
-            PluginLogger.Service.error("Request validation failed: null value encountered", e)
-            false
         } catch (e: IllegalArgumentException) {
             PluginLogger.Service.error("Request validation failed: invalid argument", e)
             false
@@ -109,6 +114,7 @@ object RequestTranslator {
     /**
      * Gets available model mappings for documentation/debugging
      */
+    @Suppress("unused") // Public API for documentation/debugging
     fun getModelMappings(): Map<String, String> {
         return mapOf(
             "gpt-4" to "openai/gpt-4",

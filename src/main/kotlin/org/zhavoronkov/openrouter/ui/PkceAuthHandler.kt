@@ -11,6 +11,7 @@ import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import java.io.BufferedReader
+import java.io.IOException
 import java.io.InputStreamReader
 import java.io.PrintWriter
 import java.net.ServerSocket
@@ -23,6 +24,7 @@ import java.util.Base64
  * Dedicated handler for PKCE (Proof Key for Code Exchange) authentication flow
  * Extracts complex OAuth logic from SetupWizardDialog for better separation of concerns
  */
+@Suppress("MaxLineLength", "MagicNumber", "UnusedParameter", "ReturnCount")
 class PkceAuthHandler(
     private val coroutineScope: CoroutineScope,
     private val openRouterService: OpenRouterService,
@@ -88,7 +90,7 @@ class PkceAuthHandler(
                     BrowserUtil.browse(authUrl)
 
                     // Wait for callback with timeout
-                    serverSocket.soTimeout = SetupWizardConfig.PKCE_SERVER_TIMEOUT_MS.toInt()
+                    serverSocket.soTimeout = SetupWizardConfig.PKCE_SERVER_TIMEOUT_MS
 
                     try {
                         serverSocket.accept().use { socket ->
@@ -100,16 +102,26 @@ class PkceAuthHandler(
                             }
                         }
                     } catch (e: java.net.SocketTimeoutException) {
-                        SetupWizardLogger.logPkceEvent("Socket timeout")
+                        SetupWizardLogger.logPkceEvent("Socket timeout", "error=${e.message}")
+                        SetupWizardLogger.error("Socket timeout during authentication", e)
                         onError("Authentication timed out. Please try again.")
-                    } catch (e: Exception) {
-                        SetupWizardLogger.logPkceEvent("Error accepting connection", e.message ?: "Unknown error")
+                    } catch (e: IOException) {
+                        SetupWizardLogger.error("Error accepting connection", e)
+                        onError(SetupWizardErrorHandler.handlePkceError(e, "accepting connection"))
+                    } catch (e: IllegalStateException) {
+                        SetupWizardLogger.error("Error accepting connection", e)
                         onError(SetupWizardErrorHandler.handlePkceError(e, "accepting connection"))
                     }
 
                     SetupWizardLogger.logPkceEvent("Server stopped")
                 }
-            } catch (e: Exception) {
+            } catch (e: IOException) {
+                SetupWizardLogger.error("PKCE Flow Error", e)
+                onError(SetupWizardErrorHandler.handlePkceError(e, "starting server"))
+            } catch (e: SecurityException) {
+                SetupWizardLogger.error("PKCE Flow Error", e)
+                onError(SetupWizardErrorHandler.handlePkceError(e, "starting server"))
+            } catch (e: IllegalStateException) {
                 SetupWizardLogger.error("PKCE Flow Error", e)
                 onError(SetupWizardErrorHandler.handlePkceError(e, "starting server"))
             }
@@ -119,7 +131,7 @@ class PkceAuthHandler(
     /**
      * Handle the OAuth callback and extract the authorization code
      */
-    private fun handleCallback(socket: Socket, codeVerifier: String): String? {
+    private fun handleCallback(socket: Socket, @Suppress("UNUSED_PARAMETER") codeVerifier: String): String? {
         return try {
             val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
             val line = reader.readLine() ?: return null
@@ -149,7 +161,13 @@ class PkceAuthHandler(
                 writer.close()
                 return null
             }
-        } catch (e: Exception) {
+        } catch (e: IOException) {
+            SetupWizardLogger.error("Error handling callback", e)
+            null
+        } catch (e: IllegalStateException) {
+            SetupWizardLogger.error("Error handling callback", e)
+            null
+        } catch (e: IllegalArgumentException) {
             SetupWizardLogger.error("Error handling callback", e)
             null
         }
@@ -187,8 +205,13 @@ class PkceAuthHandler(
                         }
                     }
                 }, ModalityState.any())
-            } catch (e: Exception) {
-                SetupWizardLogger.logPkceEvent("Error in exchangeCode coroutine", e.message ?: "Unknown error")
+            } catch (e: IOException) {
+                SetupWizardLogger.error("Error in exchangeCode coroutine", e)
+                ApplicationManager.getApplication().invokeLater({
+                    onError(SetupWizardErrorHandler.handleNetworkError(e, "code exchange"))
+                }, ModalityState.any())
+            } catch (e: IllegalStateException) {
+                SetupWizardLogger.error("Error in exchangeCode coroutine", e)
                 ApplicationManager.getApplication().invokeLater({
                     onError(SetupWizardErrorHandler.handleNetworkError(e, "code exchange"))
                 }, ModalityState.any())

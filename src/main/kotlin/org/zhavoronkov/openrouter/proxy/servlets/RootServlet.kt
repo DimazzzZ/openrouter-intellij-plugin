@@ -57,7 +57,12 @@ class RootServlet : HttpServlet() {
 
             resp.writer.write(gson.toJson(apiInfo))
             PluginLogger.Service.debug("Root response sent successfully")
-        } catch (e: Exception) {
+        } catch (e: java.io.IOException) {
+            PluginLogger.Service.error("Error in root endpoint", e)
+            resp.status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR
+            resp.contentType = "application/json"
+            resp.writer.write(gson.toJson(mapOf("error" to "Internal server error")))
+        } catch (e: IllegalStateException) {
             PluginLogger.Service.error("Error in root endpoint", e)
             resp.status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR
             resp.contentType = "application/json"

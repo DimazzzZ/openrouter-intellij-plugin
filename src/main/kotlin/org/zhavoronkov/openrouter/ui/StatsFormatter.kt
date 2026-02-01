@@ -13,13 +13,16 @@ import java.util.Locale
 object StatsFormatter {
 
     private const val HOURS_IN_DAY = 24
+    private const val DATE_STRING_LENGTH = 10
+    private const val DEFAULT_DECIMALS = 3
+    private const val ACTIVITY_DECIMALS = 4
 
-    fun formatCurrency(value: Double, decimals: Int = 3): String {
+    fun formatCurrency(value: Double, decimals: Int = DEFAULT_DECIMALS): String {
         return String.format(Locale.US, "%.${decimals}f", value)
     }
 
     fun formatActivityText(requests: Long, usage: Double): String {
-        val usageStr = formatCurrency(usage, decimals = 4)
+        val usageStr = formatCurrency(usage, decimals = ACTIVITY_DECIMALS)
         return "$requests requests, $$usageStr"
     }
 
@@ -69,7 +72,11 @@ object StatsFormatter {
     private fun parseActivityDate(dateString: String): LocalDate? {
         return try {
             // Handle both "YYYY-MM-DD" and "YYYY-MM-DD HH:MM:SS" formats
-            val datePart = if (dateString.length > 10) dateString.substring(0, 10) else dateString
+            val datePart = if (dateString.length > DATE_STRING_LENGTH) {
+                dateString.substring(0, DATE_STRING_LENGTH)
+            } else {
+                dateString
+            }
             LocalDate.parse(datePart, DateTimeFormatter.ISO_DATE)
         } catch (e: DateTimeParseException) {
             PluginLogger.Service.error("Failed to parse activity date: $dateString", e)

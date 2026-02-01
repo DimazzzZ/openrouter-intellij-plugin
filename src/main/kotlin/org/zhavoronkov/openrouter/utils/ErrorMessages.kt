@@ -4,6 +4,7 @@ package org.zhavoronkov.openrouter.utils
  * Centralized error messages for the OpenRouter plugin
  * Provides consistent error message formatting across the codebase
  */
+@Suppress("TooManyFunctions")
 object ErrorMessages {
 
     // ========== Prefix Constants ==========

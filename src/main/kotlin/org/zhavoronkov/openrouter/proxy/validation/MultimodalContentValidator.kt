@@ -48,38 +48,45 @@ class MultimodalContentValidator(
         val modelId = request.model
         val detectedContentTypes = detectContentTypes(request)
 
-        if (detectedContentTypes.isEmpty()) {
-            PluginLogger.Service.debug("[Chat-$requestId] No multimodal content detected")
-            return ValidationResult.Valid
-        }
+        return when {
+            detectedContentTypes.isEmpty() -> {
+                PluginLogger.Service.debug("[Chat-$requestId] No multimodal content detected")
+                ValidationResult.Valid
+            }
+            else -> {
+                val contentTypesStr = detectedContentTypes.joinToString { it.displayName }
+                PluginLogger.Service.info("[Chat-$requestId] Detected multimodal content: $contentTypesStr")
 
-        PluginLogger.Service.info(
-            "[Chat-$requestId] Detected multimodal content: ${detectedContentTypes.joinToString { it.displayName }}"
-        )
+                // Look up model capabilities
+                val model = favoriteModelsService.getModelById(modelId)
+                if (model == null) {
+                    // Model not in cache - let OpenRouter handle validation
+                    PluginLogger.Service.debug(
+                        "[Chat-$requestId] Model '$modelId' not in cache, skipping pre-validation"
+                    )
+                    ValidationResult.Valid
+                } else {
+                    // Check each detected content type against model capabilities
+                    val unsupportedContentType = detectedContentTypes.firstOrNull { contentType ->
+                        !modelSupportsContentType(model, contentType)
+                    }
 
-        // Look up model capabilities
-        val model = favoriteModelsService.getModelById(modelId)
-        if (model == null) {
-            // Model not in cache - let OpenRouter handle validation
-            PluginLogger.Service.debug(
-                "[Chat-$requestId] Model '$modelId' not in cache, skipping pre-validation"
-            )
-            return ValidationResult.Valid
-        }
-
-        // Check each detected content type against model capabilities
-        for (contentType in detectedContentTypes) {
-            if (!modelSupportsContentType(model, contentType)) {
-                val errorMessage = createErrorMessage(contentType, modelId)
-                PluginLogger.Service.warn(
-                    "[Chat-$requestId] Model '$modelId' doesn't support ${contentType.displayName} input"
-                )
-                return ValidationResult.Invalid(contentType, modelId, errorMessage)
+                    if (unsupportedContentType != null) {
+                        val errorMessage = createErrorMessage(unsupportedContentType)
+                        PluginLogger.Service.warn(
+                            "[Chat-$requestId] Model '$modelId' doesn't support " +
+                                "${unsupportedContentType.displayName} input"
+                        )
+                        ValidationResult.Invalid(unsupportedContentType, modelId, errorMessage)
+                    } else {
+                        PluginLogger.Service.debug(
+                            "[Chat-$requestId] Model '$modelId' supports all detected content types"
+                        )
+                        ValidationResult.Valid
+                    }
+                }
             }
         }
-
-        PluginLogger.Service.debug("[Chat-$requestId] Model '$modelId' supports all detected content types")
-        return ValidationResult.Valid
     }
 
     /**
@@ -149,7 +156,7 @@ class MultimodalContentValidator(
      * Create a user-friendly error message for unsupported content type.
      * Dynamically suggests models from user's favorites that support the capability.
      */
-    private fun createErrorMessage(contentType: ContentType, modelId: String): String {
+    private fun createErrorMessage(contentType: ContentType): String {
         val capability = contentTypeToCapability(contentType)
         val suggestedModels = findCapableModelsInFavorites(capability)
 
@@ -233,4 +240,3 @@ class MultimodalContentValidator(
         fun getAudioCapableModels(): List<String> = ModelSuggestions.AUDIO_MODELS
     }
 }
-
