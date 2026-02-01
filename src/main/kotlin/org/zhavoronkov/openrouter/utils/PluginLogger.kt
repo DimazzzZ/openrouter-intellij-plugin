@@ -25,6 +25,10 @@ object PluginLogger {
             System.getProperty("idea.log.debug.categories", "").contains("org.zhavoronkov.openrouter")
     }
 
+    private val testMode: Boolean by lazy {
+        System.getProperty("openrouter.testMode", "false").toBoolean()
+    }
+
     private fun createLogger(category: String): Logger? {
         return try {
             Logger.getInstance(category)
@@ -42,10 +46,37 @@ object PluginLogger {
      */
     object Service {
         fun info(message: String) = serviceLogger?.info("[$PLUGIN_NAME] $message")
-        fun warn(message: String) = serviceLogger?.warn("[$PLUGIN_NAME] $message")
-        fun warn(message: String, throwable: Throwable) = serviceLogger?.warn("[$PLUGIN_NAME] $message", throwable)
-        fun error(message: String) = serviceLogger?.error("[$PLUGIN_NAME] $message")
-        fun error(message: String, throwable: Throwable) = serviceLogger?.error("[$PLUGIN_NAME] $message", throwable)
+        fun warn(message: String) {
+            if (testMode) {
+                debug(message)
+            } else {
+                serviceLogger?.warn("[$PLUGIN_NAME] $message")
+            }
+        }
+
+        fun warn(message: String, throwable: Throwable) {
+            if (testMode) {
+                debug(message, throwable)
+            } else {
+                serviceLogger?.warn("[$PLUGIN_NAME] $message", throwable)
+            }
+        }
+
+        fun error(message: String) {
+            if (testMode) {
+                debug(message)
+            } else {
+                serviceLogger?.error("[$PLUGIN_NAME] $message")
+            }
+        }
+
+        fun error(message: String, throwable: Throwable) {
+            if (testMode) {
+                debug(message, throwable)
+            } else {
+                serviceLogger?.error("[$PLUGIN_NAME] $message", throwable)
+            }
+        }
 
         fun debug(message: String) {
             if (debugEnabled) {

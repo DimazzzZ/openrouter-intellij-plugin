@@ -70,7 +70,7 @@ class ModalDialogRegressionTest {
     }
 
     @Test
-    @DisplayName("StatsDataLoader should use ModalityState.any() for all invokeLater calls")
+    @DisplayName("StatsDataLoader should use a modality state for all invokeLater calls")
     fun testStatsDataLoaderUsesModalityState() {
         // Given: StatsDataLoader source code
         val sourceFile = File("src/main/kotlin/org/zhavoronkov/openrouter/ui/StatsDataLoader.kt")
@@ -80,11 +80,11 @@ class ModalDialogRegressionTest {
         val invokeLaterPattern = Regex("invokeLater\\s*\\(")
         val invokeLaterMatches = invokeLaterPattern.findAll(sourceCode).count()
 
-        // Count ModalityState.any() calls
-        val modalityStatePattern = Regex("ModalityState\\.any\\(\\)")
+        // Count modality state usage
+        val modalityStatePattern = Regex("getAnyModalityState\\(\\)|ModalityState\\.any\\(\\)")
         val modalityStateMatches = modalityStatePattern.findAll(sourceCode).count()
 
-        // Then: All invokeLater calls should have ModalityState.any()
+        // Then: All invokeLater calls should include a modality state
         assertTrue(
             invokeLaterMatches > 0,
             "StatsDataLoader should have invokeLater calls"
@@ -92,7 +92,7 @@ class ModalDialogRegressionTest {
         assertEquals(
             invokeLaterMatches,
             modalityStateMatches,
-            "All invokeLater calls should use ModalityState.any()"
+            "All invokeLater calls should use a modality state"
         )
     }
 
@@ -172,12 +172,12 @@ class ModalDialogRegressionTest {
         // Find catch blocks
         val catchBlocks = sourceCode.split("catch").drop(1)
 
-        // Then: Each catch block should have ModalityState.any()
+        // Then: Each catch block should have a modality state
         for (catchBlock in catchBlocks) {
             if (catchBlock.contains("invokeLater")) {
                 assertTrue(
-                    catchBlock.contains("ModalityState.any()"),
-                    "Error handling invokeLater should use ModalityState.any()"
+                    catchBlock.contains("getAnyModalityState()") || catchBlock.contains("ModalityState.any()"),
+                    "Error handling invokeLater should use a modality state"
                 )
             }
         }

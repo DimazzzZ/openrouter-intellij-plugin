@@ -46,10 +46,8 @@ class DynamicPluginSupportTest {
             )
 
             // Verify it implements Disposable
-            assertTrue(
-                service is com.intellij.openapi.Disposable,
-                "OpenRouterService must implement Disposable for dynamic plugin support"
-            )
+            val serviceClass = Class.forName("org.zhavoronkov.openrouter.services.OpenRouterService")
+            assertTrue(com.intellij.openapi.Disposable::class.java.isAssignableFrom(serviceClass))
 
             // Verify dispose can be called without errors
             service.dispose()
@@ -61,10 +59,8 @@ class DynamicPluginSupportTest {
             val service = OpenRouterSettingsService()
 
             // Verify it implements Disposable
-            assertTrue(
-                service is com.intellij.openapi.Disposable,
-                "OpenRouterSettingsService must implement Disposable for dynamic plugin support"
-            )
+            val serviceClass = Class.forName("org.zhavoronkov.openrouter.services.OpenRouterSettingsService")
+            assertTrue(com.intellij.openapi.Disposable::class.java.isAssignableFrom(serviceClass))
 
             // Verify dispose can be called without errors
             service.dispose()

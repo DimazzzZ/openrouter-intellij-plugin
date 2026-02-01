@@ -15,6 +15,7 @@ import org.mockito.Mockito.`when`
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import java.io.BufferedReader
 import java.io.PrintWriter
+import java.io.Reader
 import java.io.StringReader
 import java.io.StringWriter
 
@@ -24,7 +25,6 @@ import java.io.StringWriter
  * These tests verify the actual implementation and behavior of the servlet.
  */
 @DisplayName("ChatCompletionServlet API Key Handling Tests")
-@org.junit.jupiter.api.Disabled("Disabled by default to avoid memory issues. Enable manually for servlet testing.")
 class ChatCompletionServletTest {
 
     private lateinit var servletHelper: TestableServletHelper
@@ -33,6 +33,14 @@ class ChatCompletionServletTest {
     private lateinit var responseWriter: StringWriter
     private lateinit var printWriter: PrintWriter
     private lateinit var mockSettingsService: OpenRouterSettingsService
+
+    private class ThrowingReader : Reader() {
+        override fun read(cbuf: CharArray, off: Int, len: Int): Int {
+            throw RuntimeException("Reader error")
+        }
+
+        override fun close() = Unit
+    }
 
     // Test helper class that simulates the servlet behavior without inheritance
     private class TestableServletHelper(
@@ -447,9 +455,7 @@ class ChatCompletionServletTest {
             `when`(mockSettingsService.getApiKey()).thenReturn(validApiKey)
 
             // And: Reader that throws exception
-            val mockReader = mock(BufferedReader::class.java)
-            `when`(mockReader.readText()).thenThrow(RuntimeException("Reader error"))
-            `when`(request.reader).thenReturn(mockReader)
+            `when`(request.reader).thenReturn(BufferedReader(ThrowingReader()))
 
             // When: Request is processed
             servletHelper.processRequest(request, response)

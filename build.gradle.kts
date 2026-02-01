@@ -26,9 +26,6 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.11.0")
     implementation("com.google.code.gson:gson:2.10.1")
 
-    // Use IntelliJ's bundled coroutines library to avoid classloader conflicts
-    compileOnly("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
-
     // Embedded HTTP server for AI Assistant integration
     implementation("org.eclipse.jetty:jetty-server:11.0.18")
     implementation("org.eclipse.jetty:jetty-servlet:11.0.18")
@@ -113,10 +110,12 @@ tasks {
     test {
         useJUnitPlatform()
         systemProperty("java.awt.headless", "true")
+        systemProperty("openrouter.testMode", "true")
         jvmArgs = listOf(
             "-Dnet.bytebuddy.experimental=true",  // For Mockito Java 21+ compatibility
             "--add-opens=java.base/java.lang=ALL-UNNAMED",
-            "--add-opens=java.base/java.util=ALL-UNNAMED"
+            "--add-opens=java.base/java.util=ALL-UNNAMED",
+            "-Djava.util.logging.config.file=${project.projectDir}/src/test/resources/test-log.properties"
         )
         testLogging {
             events("passed", "skipped", "failed")

@@ -84,17 +84,17 @@ class StatsDataLoader(
                 PluginLogger.Service.debug("Activity result: ${activityResult::class.simpleName}")
 
                 PluginLogger.Service.debug("Invoking UI update on EDT")
-                ApplicationManager.getApplication().invokeLater({
+                invokeOnEdtOrDirect {
                     handleApiResults(apiKeysResult, creditsResult, activityResult, onResult)
-                }, ModalityState.any())
+                }
             } catch (e: TimeoutCancellationException) {
-                PluginLogger.Service.error("Quota info loading timeout", e)
+                logLoadFailure("Quota info loading timeout", e)
                 invokeErrorOnEdt(onResult)
             } catch (e: IOException) {
-                PluginLogger.Service.error("Quota info network error", e)
+                logLoadFailure("Quota info network error", e)
                 invokeErrorOnEdt(onResult)
             } catch (expectedError: Exception) {
-                PluginLogger.Service.error("Failed to load quota info", expectedError)
+                logLoadFailure("Failed to load quota info", expectedError)
                 invokeErrorOnEdt(onResult)
             }
         }
@@ -141,8 +141,28 @@ class StatsDataLoader(
     }
 
     private fun invokeErrorOnEdt(onResult: (LoadResult) -> Unit) {
-        ApplicationManager.getApplication().invokeLater({
+        invokeOnEdtOrDirect {
             onResult(LoadResult.Error(ERROR_MESSAGE))
-        }, ModalityState.any())
+        }
+    }
+
+    private fun invokeOnEdtOrDirect(action: () -> Unit) {
+        val application = ApplicationManager.getApplication()
+        if (application != null) {
+            application.invokeLater(action, ModalityState.any())
+        } else {
+            PluginLogger.Service.debug(
+                "Application not available; invoking stats handler directly"
+            )
+            action()
+        }
+    }
+
+    private fun logLoadFailure(message: String, throwable: Throwable) {
+        if (ApplicationManager.getApplication() == null) {
+            PluginLogger.Service.warn(message, throwable)
+        } else {
+            PluginLogger.Service.error(message, throwable)
+        }
     }
 }

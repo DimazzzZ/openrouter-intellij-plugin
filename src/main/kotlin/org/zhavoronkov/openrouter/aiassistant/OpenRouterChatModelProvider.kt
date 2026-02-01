@@ -1,6 +1,8 @@
 package org.zhavoronkov.openrouter.aiassistant
 
 import com.google.gson.Gson
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.utils.PluginLogger
@@ -184,33 +186,41 @@ class OpenRouterChatModelProvider {
     }
 
     private fun parseValidResponse(responseBody: String): ChatResponse {
-        val responseMap = gson.fromJson(responseBody, Map::class.java) as? Map<String, Any>
+        val responseJson = gson.fromJson(responseBody, JsonObject::class.java)
             ?: return ChatResponse.error("Invalid response format")
-        return parseResponseMap(responseMap)
+        return parseResponseJson(responseJson)
     }
 
-    private fun parseResponseMap(responseMap: Map<String, Any>): ChatResponse {
-        // Check for error in response
-        val error = responseMap["error"] as? Map<String, Any>
-        if (error != null) {
-            val errorMessage = error["message"] as? String ?: "Unknown error"
+    private fun parseResponseJson(responseJson: JsonObject): ChatResponse {
+        val errorObject = responseJson.getAsJsonObjectOrNull("error")
+        if (errorObject != null) {
+            val errorMessage = errorObject.getAsStringOrNull("message") ?: "Unknown error"
             return ChatResponse.error(errorMessage)
         }
 
-        // Parse successful response
-        val choices = responseMap["choices"] as? List<Map<String, Any>>
-        val content = if (choices != null && choices.isNotEmpty()) {
-            val firstChoice = choices[0]
-            val message = firstChoice["message"] as? Map<String, Any>
-            message?.get("content") as? String
-        } else {
-            null
-        }
+        val choices = responseJson.getAsJsonArrayOrNull("choices")
+        val firstChoice = choices?.firstOrNull()?.takeIf { it.isJsonObject }?.asJsonObject
+        val content = firstChoice
+            ?.getAsJsonObjectOrNull("message")
+            ?.getAsStringOrNull("content")
+
         return if (content != null) {
             ChatResponse.success(content)
         } else {
             ChatResponse.error("No choices or content in response")
         }
+    }
+
+    private fun JsonObject.getAsJsonObjectOrNull(memberName: String): JsonObject? {
+        return get(memberName)?.takeIf { it.isJsonObject }?.asJsonObject
+    }
+
+    private fun JsonObject.getAsJsonArrayOrNull(memberName: String): JsonArray? {
+        return get(memberName)?.takeIf { it.isJsonArray }?.asJsonArray
+    }
+
+    private fun JsonObject.getAsStringOrNull(memberName: String): String? {
+        return get(memberName)?.takeIf { it.isJsonPrimitive }?.asString
     }
 }
 
