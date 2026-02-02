@@ -40,6 +40,31 @@ jobs:
         name: test-results
         path: build/reports/tests/test/
 
+    - name: Detekt SARIF diagnostics
+      if: always()
+      shell: bash
+      continue-on-error: true
+      run: |
+        SARIF_PATH="build/reports/detekt/detekt.sarif"
+        if [[ ! -f "$SARIF_PATH" ]]; then
+          echo "Detekt SARIF diagnostics: file not found at $SARIF_PATH"
+          exit 0
+        fi
+
+        FILE_SIZE=$(wc -c < "$SARIF_PATH" | tr -d ' ')
+        RUNS=$(jq '.runs | length' "$SARIF_PATH" 2>/dev/null || echo 0)
+        RULES=$(jq '[.runs[].tool.driver.rules | length] | add // 0' "$SARIF_PATH" 2>/dev/null || echo 0)
+        RESULTS=$(jq '[.runs[].results | length] | add // 0' "$SARIF_PATH" 2>/dev/null || echo 0)
+
+        echo "Detekt SARIF diagnostics"
+        echo "- file size: ${FILE_SIZE} bytes"
+        echo "- runs: ${RUNS}"
+        echo "- rules: ${RULES}"
+        echo "- total results: ${RESULTS}"
+        echo "Top 20 ruleIds by count:"
+        jq -r '.runs[].results[]?.ruleId? // empty' "$SARIF_PATH" 2>/dev/null \
+          | sort | uniq -c | sort -nr | head -20 || true
+
     - name: Upload Detekt SARIF
       uses: github/codeql-action/upload-sarif@v4
       if: always()

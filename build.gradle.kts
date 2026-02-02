@@ -60,6 +60,7 @@ detekt {
     allRules = false
     config.setFrom("$projectDir/config/detekt/detekt.yml")
     baseline = file("$projectDir/config/detekt/baseline.xml")
+    basePath = projectDir.absolutePath
 }
 
 // Configure publishing token for publishPlugin task
@@ -87,6 +88,7 @@ tasks.register<io.gitlab.arturbosch.detekt.Detekt>("detektSarif") {
     }
 
     jvmTarget = "17"
+    basePath = projectDir.absolutePath
     ignoreFailures = true
 }
 
