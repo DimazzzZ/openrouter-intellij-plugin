@@ -250,6 +250,7 @@ class OpenRouterProxyServer {
 
         context.addServlet(healthServlet, "/health")
         context.addServlet(modelsServlet, "/v1/models")
+        context.addServlet(modelsServlet, "/api/v0/models") // Gemini for Android Studio alias
         context.addServlet(modelsServlet, "/models") // AI Assistant compatibility alias
 
         context.addServlet(chatServlet, "/chat/completions") // AI Assistant compatibility alias
