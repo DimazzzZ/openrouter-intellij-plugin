@@ -1,13 +1,18 @@
 package org.zhavoronkov.openrouter.toolwindow
 
+import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.components.JBTabbedPane
 import com.intellij.util.ui.JBUI
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import org.zhavoronkov.openrouter.listeners.OpenRouterSettingsListener
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
@@ -27,40 +32,80 @@ class OpenRouterToolWindowContent(
     private val project: Project,
     private val settingsService: OpenRouterSettingsService = OpenRouterSettingsService.getInstance(),
     private val openRouterService: OpenRouterService = OpenRouterService.getInstance()
-) {
+) : Disposable {
 
     companion object {
         // UI Dimensions
         private const val MAIN_PANEL_BORDER = 10
         private const val TITLE_FONT_SIZE = 16f
         private const val CONTENT_SPACING = 5
-        private const val LABEL_SPACING_SMALL = 3
-        private const val LABEL_SPACING_MEDIUM = 4
         private const val LABEL_SPACING_LARGE = 20
         private const val CONFIGURATION_PANEL_BORDER = 10
-
-        // Configuration section vertical offset
-        private const val CONFIGURATION_SECTION_OFFSET = 3
-
-        // Percentage constants
         private const val PERCENTAGE_MULTIPLIER = 100
+
+        // Grid position constants
+        private const val GRID_STATUS_ROW = 0
+        private const val GRID_MODEL_ROW = 1
+        private const val GRID_QUOTA_ROW = 2
+        private const val GRID_USAGE_ROW = 3
+        private const val GRID_ACTIVITY_ROW = 4
+        private const val GRID_CONFIG_ROW = 5
     }
 
-    private val contentPanel: JPanel
+    private val mainPanel: JPanel
+    private val tabbedPane: JBTabbedPane
+    private val statusPanel: JPanel
+    private var configurationPanel: JPanel? = null
     private val statusLabel = JBLabel("Loading...")
     private val quotaLabel = JBLabel("Quota: N/A")
     private val usageLabel = JBLabel("Usage: N/A")
     private val modelLabel = JBLabel("Model: N/A")
     private val activityLabel = JBLabel("Recent Activity: N/A")
 
+    private val coroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private lateinit var chatPanel: ChatPanel
+
     init {
-        contentPanel = createMainPanel()
+        // Register for settings changes
+        val connection = ApplicationManager.getApplication().messageBus.connect(this)
+        connection.subscribe(
+            OpenRouterSettingsListener.TOPIC,
+            object : OpenRouterSettingsListener {
+                override fun onSettingsChanged() {
+                    SwingUtilities.invokeLater {
+                        updateConfigurationPanelVisibility()
+                        refreshData()
+                    }
+                }
+            }
+        )
+
+        // Create main panel with tabs
+        mainPanel = JPanel(BorderLayout())
+        mainPanel.border = JBUI.Borders.empty(MAIN_PANEL_BORDER)
+
+        // Create tabbed pane
+        tabbedPane = JBTabbedPane()
+
+        // Create status panel
+        statusPanel = createStatusPanel()
+        tabbedPane.addTab("Status", statusPanel)
+
+        // Create chat panel
+        chatPanel = ChatPanel(project, settingsService, openRouterService)
+        tabbedPane.addTab("Chat", chatPanel.getPanel())
+
+        // Select Chat tab by default
+        tabbedPane.selectedIndex = 1
+
+        mainPanel.add(tabbedPane, BorderLayout.CENTER)
+
+        // Initial data refresh
         refreshData()
     }
 
-    private fun createMainPanel(): JPanel {
+    private fun createStatusPanel(): JPanel {
         val panel = JPanel(BorderLayout())
-        panel.border = JBUI.Borders.empty(MAIN_PANEL_BORDER)
 
         // Header
         val headerPanel = JPanel(BorderLayout())
@@ -91,50 +136,51 @@ class OpenRouterToolWindowContent(
 
         // Status
         gbc.gridx = 0
-        gbc.gridy = 0
+        gbc.gridy = GRID_STATUS_ROW
         panel.add(JBLabel("Status:"), gbc)
         gbc.gridx = 1
         panel.add(statusLabel, gbc)
 
         // Model
         gbc.gridx = 0
-        gbc.gridy = LABEL_SPACING_SMALL
+        gbc.gridy = GRID_MODEL_ROW
         panel.add(JBLabel("Default Model:"), gbc)
         gbc.gridx = 1
         panel.add(modelLabel, gbc)
 
         // Quota
         gbc.gridx = 0
-        gbc.gridy = LABEL_SPACING_MEDIUM
+        gbc.gridy = GRID_QUOTA_ROW
         panel.add(JBLabel("Quota:"), gbc)
         gbc.gridx = 1
         panel.add(quotaLabel, gbc)
 
         // Usage
         gbc.gridx = 0
-        gbc.gridy = LABEL_SPACING_MEDIUM + 1
+        gbc.gridy = GRID_USAGE_ROW
         panel.add(JBLabel("Usage:"), gbc)
         gbc.gridx = 1
         panel.add(usageLabel, gbc)
 
         // Activity
         gbc.gridx = 0
-        gbc.gridy = LABEL_SPACING_MEDIUM + 2
+        gbc.gridy = GRID_ACTIVITY_ROW
         panel.add(JBLabel("Activity:"), gbc)
         gbc.gridx = 1
         panel.add(activityLabel, gbc)
 
-        // Configuration section
+        // Configuration section (dynamic)
         gbc.gridx = 0
-        gbc.gridy = LABEL_SPACING_MEDIUM + CONFIGURATION_SECTION_OFFSET
+        gbc.gridy = GRID_CONFIG_ROW
         gbc.gridwidth = 2
         gbc.fill = GridBagConstraints.HORIZONTAL
         gbc.insets = JBUI.insets(LABEL_SPACING_LARGE, CONTENT_SPACING, CONTENT_SPACING, CONTENT_SPACING)
 
-        if (!settingsService.isConfigured()) {
-            val configPanel = createConfigurationPanel()
-            panel.add(configPanel, gbc)
-        }
+        configurationPanel = createConfigurationPanel()
+        panel.add(configurationPanel, gbc)
+
+        // Update visibility based on current state
+        updateConfigurationPanelVisibility()
 
         return panel
     }
@@ -162,22 +208,25 @@ class OpenRouterToolWindowContent(
         return panel
     }
 
+    private fun updateConfigurationPanelVisibility() {
+        configurationPanel?.isVisible = !settingsService.isConfigured()
+    }
+
     private fun refreshData() {
+        updateConfigurationPanelVisibility()
+
         if (!settingsService.isConfigured()) {
             setUnconfiguredState()
             return
         }
 
         statusLabel.text = "Checking..."
-        // NOTE: Future version - Default model selection
-        // modelLabel.text = settingsService.getDefaultModel()
-        modelLabel.text = "N/A" // Placeholder until model selection is implemented
+        modelLabel.text = "N/A"
         activityLabel.text = "Loading..."
 
-        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-        scope.launch { loadConnectionStatus() }
-        scope.launch { loadQuotaInfo() }
-        scope.launch { loadActivityInfo() }
+        coroutineScope.launch { loadConnectionStatus() }
+        coroutineScope.launch { loadQuotaInfo() }
+        coroutineScope.launch { loadActivityInfo() }
     }
 
     private fun setUnconfiguredState() {
@@ -247,13 +296,14 @@ class OpenRouterToolWindowContent(
         }
     }
 
-    fun getContentPanel(): JPanel = contentPanel
+    fun getContentPanel(): JPanel = mainPanel
+
+    override fun dispose() {
+        coroutineScope.cancel()
+    }
 
     internal fun getStatusTextForTest(): String = statusLabel.text
-
     internal fun getQuotaTextForTest(): String = quotaLabel.text
-
     internal fun getUsageTextForTest(): String = usageLabel.text
-
     internal fun getActivityTextForTest(): String = activityLabel.text
 }

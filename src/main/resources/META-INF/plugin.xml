@@ -253,15 +253,13 @@
         <postStartupActivity implementation="org.zhavoronkov.openrouter.startup.ProxyServerStartupActivity"/>
         <postStartupActivity implementation="org.zhavoronkov.openrouter.startup.WhatsNewNotificationActivity"/>
 
-        <!-- Tool window - TEMPORARILY DISABLED -->
-        <!--
+        <!-- Tool window for status display -->
         <toolWindow
             id="OpenRouter"
             secondary="true"
             icon="org.zhavoronkov.openrouter.icons.OpenRouterIcons.TOOL_WINDOW"
             anchor="right"
             factoryClass="org.zhavoronkov.openrouter.toolwindow.OpenRouterToolWindowFactory"/>
-        -->
     </extensions>
 
     <!-- Application-level listeners for dynamic plugin support -->

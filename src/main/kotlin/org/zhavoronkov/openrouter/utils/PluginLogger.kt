@@ -190,6 +190,15 @@ object PluginLogger {
         }
     }
 
+    // Top-level convenience methods (delegate to Service logger)
+    fun info(message: String) = Service.info(message)
+    fun warn(message: String) = Service.warn(message)
+    fun warn(message: String, throwable: Throwable) = Service.warn(message, throwable)
+    fun error(message: String) = Service.error(message)
+    fun error(message: String, throwable: Throwable) = Service.error(message, throwable)
+    fun debug(message: String) = Service.debug(message)
+    fun debug(message: String, throwable: Throwable) = Service.debug(message, throwable)
+
     /**
      * Check if debug logging is enabled
      */

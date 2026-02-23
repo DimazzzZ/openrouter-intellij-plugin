@@ -17,6 +17,7 @@ class OpenRouterToolWindowFactory : ToolWindowFactory {
             "",
             false
         )
+        content.setDisposer(toolWindowContent)
         toolWindow.contentManager.addContent(content)
     }
 }
