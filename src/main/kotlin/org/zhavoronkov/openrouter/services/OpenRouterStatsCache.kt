@@ -14,7 +14,6 @@ import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.CreditsData
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.io.IOException
-import java.util.concurrent.CancellationException
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -165,12 +164,12 @@ class OpenRouterStatsCache : Disposable {
         } catch (e: IllegalStateException) {
             PluginLogger.Service.error("Stats cache: IllegalStateException during refresh", e)
             handleRefreshError("Error: ${e.message}")
-        } catch (e: CancellationException) {
-            PluginLogger.Service.warn("Stats cache: Coroutine cancelled during refresh")
-            // Don't report cancellation as an error, just log it
-        } catch (e: RuntimeException) {
-            PluginLogger.Service.error("Stats cache: RuntimeException during refresh", e)
-            handleRefreshError("Unexpected error: ${e.message}")
+        } catch (e: IllegalArgumentException) {
+            PluginLogger.Service.error("Stats cache: IllegalArgumentException during refresh", e)
+            handleRefreshError("Invalid argument: ${e.message}")
+        } catch (e: NullPointerException) {
+            PluginLogger.Service.error("Stats cache: NullPointerException during refresh", e)
+            handleRefreshError("Null pointer error: ${e.message}")
         } finally {
             isLoading.set(false)
             PluginLogger.Service.info("Stats cache: executeRefresh() finished")
@@ -276,7 +275,10 @@ class OpenRouterStatsCache : Disposable {
         lastUpdateTimestamp = System.currentTimeMillis()
 
         PluginLogger.Service.debug("Stats cache: Updated from popup")
-        notifySuccess(creditsResponse.data, activityResponse?.data)
+        // Only notify if ApplicationManager is available (not in unit tests)
+        if (ApplicationManager.getApplication() != null) {
+            notifySuccess(creditsResponse.data, activityResponse?.data)
+        }
     }
 
     private fun notifyLoading() {
