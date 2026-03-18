@@ -14,6 +14,7 @@ import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.CreditsData
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.io.IOException
+import java.util.concurrent.CancellationException
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -164,8 +165,11 @@ class OpenRouterStatsCache : Disposable {
         } catch (e: IllegalStateException) {
             PluginLogger.Service.error("Stats cache: IllegalStateException during refresh", e)
             handleRefreshError("Error: ${e.message}")
-        } catch (e: Exception) {
-            PluginLogger.Service.error("Stats cache: Unexpected exception during refresh", e)
+        } catch (e: CancellationException) {
+            PluginLogger.Service.warn("Stats cache: Coroutine cancelled during refresh")
+            // Don't report cancellation as an error, just log it
+        } catch (e: RuntimeException) {
+            PluginLogger.Service.error("Stats cache: RuntimeException during refresh", e)
             handleRefreshError("Unexpected error: ${e.message}")
         } finally {
             isLoading.set(false)

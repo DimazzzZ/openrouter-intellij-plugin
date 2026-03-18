@@ -612,5 +612,4 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
             null
         }
     }
-
 }

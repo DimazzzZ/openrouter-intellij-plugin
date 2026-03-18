@@ -231,18 +231,14 @@ class OpenRouterStatsCacheTest {
             return ApiKeysListResponse(
                 data = listOf(
                     ApiKeyInfo(
-                        key = "sk-test-key",
-                        keyHash = "abc123",
                         name = "Test Key",
                         label = "test",
+                        limit = 1000.0,
+                        usage = 25.0,
                         disabled = false,
-                        limit = 1000,
-                        costLimit = 100.0,
-                        usageLimit = null,
-                        rateLimit = null,
-                        allowCors = false,
                         createdAt = "2025-01-01T00:00:00Z",
-                        updatedAt = "2025-01-01T00:00:00Z"
+                        updatedAt = "2025-01-01T00:00:00Z",
+                        hash = "abc123"
                     )
                 )
             )
