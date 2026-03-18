@@ -14,31 +14,31 @@ import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.impl.status.EditorBasedWidget
 import com.intellij.ui.awt.RelativePoint
 import com.intellij.util.Consumer
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.async
-import kotlinx.coroutines.launch
 import org.zhavoronkov.openrouter.listeners.OpenRouterSettingsListener
+import org.zhavoronkov.openrouter.listeners.OpenRouterStatsListener
 import org.zhavoronkov.openrouter.models.ActivityData
-import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.ConnectionStatus
+import org.zhavoronkov.openrouter.models.CreditsData
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.services.OpenRouterStatsCache
 import org.zhavoronkov.openrouter.ui.OpenRouterStatsPopup
 import java.awt.event.MouseEvent
-import java.io.IOException
 import javax.swing.Icon
 
 /**
  * Enhanced status bar widget with comprehensive popup menu for OpenRouter
+ *
+ * This widget subscribes to [OpenRouterStatsListener.TOPIC] to receive updates
+ * from the shared [OpenRouterStatsCache], ensuring the tooltip stays in sync
+ * with data displayed in the Stats Popup dialog.
  */
 
 @Suppress("TooManyFunctions")
 class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), StatusBarWidget.IconPresentation {
 
-    private val openRouterService = OpenRouterService.getInstance()
     private val settingsService = OpenRouterSettingsService.getInstance()
+    private val statsCache = OpenRouterStatsCache.getInstance()
 
     private var connectionStatus = ConnectionStatus.NOT_CONFIGURED
     private var currentText = "Status: Not Configured"
@@ -171,6 +171,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
     // Action methods
     private fun showQuotaUsage() {
         // Show quota usage in a modal dialog
+        val openRouterService = OpenRouterService.getInstance()
         val statsPopup = OpenRouterStatsPopup(project, openRouterService, settingsService)
         statsPopup.showDialog()
     }
@@ -188,6 +189,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
             if (result == Messages.YES) {
                 settingsService.apiKeyManager.setApiKey("")
                 settingsService.apiKeyManager.setProvisioningKey("")
+                statsCache.clearCache()
                 updateConnectionStatus()
                 Messages.showInfoMessage(project, "Successfully logged out from OpenRouter.ai", "Logout")
             }
@@ -209,9 +211,10 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
     }
 
     /**
-     * Update the widget with current quota information
+     * Update the widget with current quota information.
+     * This triggers a refresh of the shared stats cache, which will notify
+     * all listeners (including this widget) when data is available.
      */
-    @Suppress("LongMethod")
     fun updateQuotaInfo() {
         updateConnectionStatus()
 
@@ -239,66 +242,36 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
             return
         }
 
+        // Use the shared stats cache - it will notify us via the listener when data is ready
+        statsCache.refresh()
+    }
+
+    /**
+     * Called when stats data has been refreshed successfully from the shared cache.
+     */
+    private fun onStatsUpdated(credits: CreditsData, activity: List<ActivityData>?) {
+        connectionStatus = ConnectionStatus.READY
+        currentText = formatStatusTextFromCredits(credits.totalUsage, credits.totalCredits)
+        currentTooltip = formatStatusTooltipFromCredits(credits.totalUsage, credits.totalCredits, activity)
+        updateStatusBar()
+    }
+
+    /**
+     * Called when stats loading has started.
+     */
+    private fun onStatsLoading() {
         connectionStatus = ConnectionStatus.CONNECTING
         updateStatusBar()
+    }
 
-        // Launch coroutine to fetch credits information
-        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-        scope.launch {
-            try {
-                // Fetch credits and activity in parallel
-                val creditsDeferred = async(Dispatchers.IO) { openRouterService.getCredits() }
-                val activityDeferred = async(Dispatchers.IO) { openRouterService.getActivity() }
-
-                val creditsResult = creditsDeferred.await()
-                val activityResult = activityDeferred.await()
-
-                ApplicationManager.getApplication().invokeLater {
-                    when (creditsResult) {
-                        is ApiResult.Success -> {
-                            connectionStatus = ConnectionStatus.READY
-                            val credits = creditsResult.data.data
-
-                            val activityList = if (activityResult is ApiResult.Success) {
-                                activityResult.data.data
-                            } else {
-                                null
-                            }
-
-                            currentText = formatStatusTextFromCredits(
-                                credits.totalUsage,
-                                credits.totalCredits
-                            )
-                            currentTooltip = formatStatusTooltipFromCredits(
-                                credits.totalUsage,
-                                credits.totalCredits,
-                                activityList
-                            )
-                        }
-                        is ApiResult.Error -> {
-                            connectionStatus = ConnectionStatus.ERROR
-                            currentText = "Status: Error"
-                            currentTooltip = "OpenRouter Status: Error - Usage: ${creditsResult.message}"
-                        }
-                    }
-                    updateStatusBar()
-                }
-            } catch (_: IllegalStateException) {
-                ApplicationManager.getApplication().invokeLater {
-                    connectionStatus = ConnectionStatus.ERROR
-                    currentText = "Status: Error"
-                    currentTooltip = "OpenRouter Status: Error - Invalid state"
-                    updateStatusBar()
-                }
-            } catch (_: IOException) {
-                ApplicationManager.getApplication().invokeLater {
-                    connectionStatus = ConnectionStatus.ERROR
-                    currentText = "Status: Error"
-                    currentTooltip = "OpenRouter Status: Error - Network error"
-                    updateStatusBar()
-                }
-            }
-        }
+    /**
+     * Called when stats loading has failed.
+     */
+    private fun onStatsError(errorMessage: String) {
+        connectionStatus = ConnectionStatus.ERROR
+        currentText = "Status: Error"
+        currentTooltip = "OpenRouter Status: Error - $errorMessage"
+        updateStatusBar()
     }
 
     private fun updateConnectionStatus() {
@@ -342,13 +315,24 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
     override fun install(statusBar: StatusBar) {
         super.install(statusBar)
-        // Initial update
-        updateQuotaInfo()
 
-        // Set up auto-refresh if enabled
-        if (settingsService.uiPreferencesManager.autoRefresh) {
-            startAutoRefresh()
-        }
+        // Subscribe to stats cache updates - this is the key to keeping tooltip in sync
+        ApplicationManager.getApplication().messageBus.connect(this).subscribe(
+            OpenRouterStatsListener.TOPIC,
+            object : OpenRouterStatsListener {
+                override fun onStatsUpdated(credits: CreditsData, activity: List<ActivityData>?) {
+                    this@OpenRouterStatusBarWidget.onStatsUpdated(credits, activity)
+                }
+
+                override fun onStatsLoading() {
+                    this@OpenRouterStatusBarWidget.onStatsLoading()
+                }
+
+                override fun onStatsError(errorMessage: String) {
+                    this@OpenRouterStatusBarWidget.onStatsError(errorMessage)
+                }
+            }
+        )
 
         // Subscribe to settings changes
         project.messageBus.connect(this).subscribe(
@@ -362,6 +346,14 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
                 }
             }
         )
+
+        // Initial update - trigger cache refresh
+        updateQuotaInfo()
+
+        // Set up auto-refresh if enabled
+        if (settingsService.uiPreferencesManager.autoRefresh) {
+            startAutoRefresh()
+        }
     }
 
     private fun startAutoRefresh() {

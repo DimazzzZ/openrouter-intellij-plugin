@@ -2,13 +2,15 @@ package org.zhavoronkov.openrouter.actions
 
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.project.Project
-import com.intellij.openapi.wm.WindowManager
 import org.zhavoronkov.openrouter.icons.OpenRouterIcons
-import org.zhavoronkov.openrouter.statusbar.OpenRouterStatusBarWidget
+import org.zhavoronkov.openrouter.services.OpenRouterStatsCache
 
 /**
- * Action to refresh OpenRouter quota information
+ * Action to refresh OpenRouter quota information.
+ *
+ * This action triggers a refresh of the shared [OpenRouterStatsCache],
+ * which will notify all listeners (status bar widget, stats popup, etc.)
+ * when fresh data is available.
  */
 class RefreshQuotaAction : AnAction(
     "Refresh Quota",
@@ -17,17 +19,12 @@ class RefreshQuotaAction : AnAction(
 ) {
 
     override fun actionPerformed(e: AnActionEvent) {
-        val project = e.project ?: return
-        refreshQuota(project)
+        // Trigger the shared stats cache refresh
+        // All subscribed listeners will be notified when data is ready
+        OpenRouterStatsCache.getInstance().refresh()
     }
 
     override fun update(e: AnActionEvent) {
         e.presentation.isEnabled = e.project != null
-    }
-
-    private fun refreshQuota(project: Project) {
-        val statusBar = WindowManager.getInstance().getStatusBar(project)
-        val widget = statusBar?.getWidget(OpenRouterStatusBarWidget.ID) as? OpenRouterStatusBarWidget
-        widget?.updateQuotaInfo()
     }
 }
