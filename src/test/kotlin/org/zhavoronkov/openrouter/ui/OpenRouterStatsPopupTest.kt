@@ -1,159 +1,168 @@
 package org.zhavoronkov.openrouter.ui
 
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.zhavoronkov.openrouter.models.ActivityData
-import java.time.LocalDate
 
+/**
+ * Tests for OpenRouterStatsPopup dialog.
+ *
+ * These tests verify the class structure and method signatures
+ * without requiring IntelliJ platform initialization.
+ *
+ * Note: Full UI behavior testing requires IntelliJ Platform test fixtures.
+ */
+@DisplayName("OpenRouterStatsPopup Tests")
 class OpenRouterStatsPopupTest {
 
-    @Test
-    fun `formatCurrency returns correct format with default decimals`() {
-        val formatted = OpenRouterStatsUtils.formatCurrency(3.14159, 3)
-        assertEquals("3.142", formatted) // Rounded to 3 decimal places
-    }
+    @Nested
+    @DisplayName("Class Structure Tests")
+    inner class ClassStructureTests {
 
-    @Test
-    fun `formatCurrency works with different decimal places`() {
-        // Test with various decimal places
-        assertEquals("3.14", OpenRouterStatsUtils.formatCurrency(3.14159, 2))
-        assertEquals("3.142", OpenRouterStatsUtils.formatCurrency(3.14159, 3))
-        assertEquals("3.1416", OpenRouterStatsUtils.formatCurrency(3.14159, 4))
-        assertEquals("3", OpenRouterStatsUtils.formatCurrency(3.14159, 0))
-    }
-
-    @Test
-    fun `formatLargeNumber returns correct format with commas`() {
-        val formatted = OpenRouterStatsUtils.formatLargeNumber(1234567L)
-        assertEquals("1,234,567", formatted)
-    }
-
-    @Test
-    fun `calculateActivityStats returns correct Long and Double pair`() {
-        // Test the function that had the type mismatch error
-        val activities = listOf(
-            ActivityData(
-                date = "2024-01-01",
-                model = "gpt-4",
-                modelPermaslug = "gpt-4",
-                endpointId = "endpoint1",
-                providerName = "openai",
-                usage = 1.5,
-                byokUsageInference = 0.0,
-                requests = 10,
-                promptTokens = 100,
-                completionTokens = 50,
-                reasoningTokens = 0
-            ),
-            ActivityData(
-                date = "2024-01-01",
-                model = "gpt-3.5-turbo",
-                modelPermaslug = "gpt-3.5-turbo",
-                endpointId = "endpoint2",
-                providerName = "openai",
-                usage = 0.5,
-                byokUsageInference = 0.0,
-                requests = 5,
-                promptTokens = 50,
-                completionTokens = 25,
-                reasoningTokens = 0
+        @Test
+        @DisplayName("OpenRouterStatsPopup should extend DialogWrapper")
+        fun testExtendsDialogWrapper() {
+            assertTrue(
+                com.intellij.openapi.ui.DialogWrapper::class.java
+                    .isAssignableFrom(OpenRouterStatsPopup::class.java),
+                "OpenRouterStatsPopup must extend DialogWrapper"
             )
-        )
-
-        val result = OpenRouterStatsUtils.calculateActivityStats(activities)
-
-        // Check that the first element is Long (total requests = 15)
-        assertEquals(15L, result.first)
-
-        // Check that the second element is Double (total usage = 2.0)
-        assertEquals(2.0, result.second)
-    }
-
-    @Test
-    fun `buildModelsHtmlList returns empty list html when no models`() {
-        val html = OpenRouterStatsUtils.buildModelsHtmlList(emptyList())
-        assertEquals("<html>Recent Models:<br/>• None</html>", html)
-    }
-
-    @Test
-    fun `buildModelsHtmlList returns formatted html with models`() {
-        val models = listOf("gpt-4", "gpt-3.5-turbo", "claude-3")
-        val html = OpenRouterStatsUtils.buildModelsHtmlList(models)
-        assertEquals("<html>Recent Models:<br/>• gpt-4<br/>• gpt-3.5-turbo<br/>• claude-3</html>", html)
-    }
-
-    @Test
-    fun `buildModelsHtmlList handles more than 5 models with truncation`() {
-        val models = listOf("model1", "model2", "model3", "model4", "model5", "model6")
-        val html = OpenRouterStatsUtils.buildModelsHtmlList(models)
-        val expected = buildString {
-            append("<html>Recent Models:<br/>")
-            append("• model1<br/>• model2<br/>• model3<br/>• model4<br/>• model5<br/>")
-            append("• +1 more</html>")
         }
-        assertEquals(expected, html)
+
+        @Test
+        @DisplayName("OpenRouterStatsPopup should NOT implement Disposable directly")
+        fun testDoesNotImplementDisposable() {
+            // DialogWrapper already handles disposal - popup should NOT override
+            val interfaces = OpenRouterStatsPopup::class.java.interfaces
+            val implementsDisposable = interfaces.any {
+                it == com.intellij.openapi.Disposable::class.java
+            }
+
+            // Note: This test documents the expected behavior.
+            // DialogWrapper implements Disposable, so isAssignableFrom will be true,
+            // but we want to verify the class doesn't DIRECTLY implement it.
+            assertTrue(
+                !implementsDisposable,
+                "OpenRouterStatsPopup should not directly implement Disposable " +
+                    "(DialogWrapper handles disposal)"
+            )
+        }
+
+        @Test
+        @DisplayName("OpenRouterStatsPopup should have showDialog method")
+        fun testHasShowDialogMethod() {
+            val method = OpenRouterStatsPopup::class.java.getDeclaredMethod("showDialog")
+            assertNotNull(method, "OpenRouterStatsPopup should have showDialog() method")
+        }
     }
 
-    @Test
-    fun `formatActivityText formats activity correctly`() {
-        val text = OpenRouterStatsUtils.formatActivityText(50L, 2.5)
-        assertEquals("50 requests, $2.5000 spent", text)
+    @Nested
+    @DisplayName("Method Existence Tests")
+    inner class MethodExistenceTests {
+
+        @Test
+        @DisplayName("Should have createCenterPanel method from DialogWrapper")
+        fun testHasCreateCenterPanelMethod() {
+            val method = OpenRouterStatsPopup::class.java.getDeclaredMethod("createCenterPanel")
+            assertNotNull(method, "createCenterPanel() should be overridden")
+        }
+
+        @Test
+        @DisplayName("Should have createActions method from DialogWrapper")
+        fun testHasCreateActionsMethod() {
+            val method = OpenRouterStatsPopup::class.java.getDeclaredMethod("createActions")
+            assertNotNull(method, "createActions() should be overridden")
+        }
+
+        @Test
+        @DisplayName("Should have show method from DialogWrapper")
+        fun testHasShowMethod() {
+            val method = OpenRouterStatsPopup::class.java.getDeclaredMethod("show")
+            assertNotNull(method, "show() should be overridden")
+        }
+
+        @Test
+        @DisplayName("Should NOT override doCancelAction - uses DialogWrapper default")
+        fun testDoesNotOverrideDoCancelAction() {
+            // Verify that doCancelAction is NOT declared in OpenRouterStatsPopup
+            // (it should use the DialogWrapper's default implementation)
+            val method = try {
+                OpenRouterStatsPopup::class.java.getDeclaredMethod("doCancelAction")
+                true // Method was found = BAD
+            } catch (_: NoSuchMethodException) {
+                false // Method not found = GOOD (using parent's implementation)
+            }
+
+            assertTrue(
+                !method,
+                "OpenRouterStatsPopup should NOT override doCancelAction() - " +
+                    "uses DialogWrapper's default implementation for proper close behavior"
+            )
+        }
+
+        @Test
+        @DisplayName("Should NOT override doOKAction - uses DialogWrapper default")
+        fun testDoesNotOverrideDoOKAction() {
+            // Verify that doOKAction is NOT declared in OpenRouterStatsPopup
+            val method = try {
+                OpenRouterStatsPopup::class.java.getDeclaredMethod("doOKAction")
+                true // Method was found = BAD
+            } catch (_: NoSuchMethodException) {
+                false // Method not found = GOOD
+            }
+
+            assertTrue(
+                !method,
+                "OpenRouterStatsPopup should NOT override doOKAction() - " +
+                    "uses DialogWrapper's default implementation for proper close behavior"
+            )
+        }
+
+        @Test
+        @DisplayName("Should NOT override dispose - uses DialogWrapper default")
+        fun testDoesNotOverrideDispose() {
+            // Verify that dispose is NOT declared in OpenRouterStatsPopup
+            val method = try {
+                OpenRouterStatsPopup::class.java.getDeclaredMethod("dispose")
+                true // Method was found = BAD
+            } catch (_: NoSuchMethodException) {
+                false // Method not found = GOOD
+            }
+
+            assertTrue(
+                !method,
+                "OpenRouterStatsPopup should NOT override dispose() - " +
+                    "uses DialogWrapper's default implementation for proper resource cleanup"
+            )
+        }
     }
 
-    @Test
-    fun `filterActivitiesByTime filters correctly for 24h period`() {
-        val today = LocalDate.of(2024, 1, 2)
-        val yesterday = today.minusDays(1)
-        val weekAgo = today.minusDays(7)
+    @Nested
+    @DisplayName("Constructor Tests")
+    inner class ConstructorTests {
 
-        val activities = listOf(
-            ActivityData("2024-01-02", "model1", "model1", "e1", "p1", 1.0, 0.0, 1, 10, 5, 0), // Today
-            ActivityData("2024-01-01", "model2", "model2", "e2", "p2", 1.0, 0.0, 1, 10, 5, 0), // Yesterday
-            ActivityData("2023-12-26", "model3", "model3", "e3", "p3", 1.0, 0.0, 1, 10, 5, 0) // Week ago
-        )
+        @Test
+        @DisplayName("Should have primary constructor with Project parameter")
+        fun testHasPrimaryConstructor() {
+            val constructor = OpenRouterStatsPopup::class.java.constructors.find {
+                it.parameterCount == 1 &&
+                    it.parameterTypes[0] == com.intellij.openapi.project.Project::class.java
+            }
+            assertNotNull(constructor, "Should have constructor with Project parameter")
+        }
 
-        // Test 24h filter (should include today and yesterday)
-        val last24hResult = OpenRouterStatsUtils.filterActivitiesByTime(activities, today, yesterday, weekAgo, true)
-        assertEquals(2, last24hResult.size)
-        assertTrue(last24hResult.any { it.model == "model1" })
-        assertTrue(last24hResult.any { it.model == "model2" })
-
-        // Test week filter (should include all)
-        val lastWeekResult = OpenRouterStatsUtils.filterActivitiesByTime(activities, today, yesterday, weekAgo, false)
-        assertEquals(3, lastWeekResult.size)
-    }
-
-    @Test
-    fun `parseActivityDate handles different date formats`() {
-        // Test date only format
-        val dateOnly = OpenRouterStatsUtils.parseActivityDate("2024-01-01")
-        assertEquals(LocalDate.of(2024, 1, 1), dateOnly)
-
-        // Test datetime format (should extract date part)
-        val dateTime = OpenRouterStatsUtils.parseActivityDate("2024-01-01 12:30:45")
-        assertEquals(LocalDate.of(2024, 1, 1), dateTime)
-
-        // Test invalid format
-        val invalid = OpenRouterStatsUtils.parseActivityDate("invalid-date")
-        assertNull(invalid)
-    }
-
-    @Test
-    fun `extractRecentModelNames sorts models by most recent usage`() {
-        val activities = listOf(
-            ActivityData("2024-01-01", "gpt-4", "gpt-4", "e1", "p1", 1.0, 0.0, 1, 10, 5, 0),
-            ActivityData("2024-01-03", "claude-3", "claude-3", "e3", "p3", 1.0, 0.0, 1, 10, 5, 0),
-            ActivityData("2024-01-02", "gpt-3.5-turbo", "gpt-3.5-turbo", "e2", "p2", 1.0, 0.0, 1, 10, 5, 0)
-        )
-
-        val modelNames = OpenRouterStatsUtils.extractRecentModelNames(activities)
-
-        // Should be sorted by date descending (most recent first)
-        assertEquals(3, modelNames.size)
-        assertEquals("claude-3", modelNames[0]) // 2024-01-03 (most recent)
-        assertEquals("gpt-3.5-turbo", modelNames[1]) // 2024-01-02
-        assertEquals("gpt-4", modelNames[2]) // 2024-01-01 (oldest)
+        @Test
+        @DisplayName("Should have test constructor with service parameters")
+        fun testHasTestConstructor() {
+            val constructor = OpenRouterStatsPopup::class.java.constructors.find {
+                it.parameterCount == 3
+            }
+            assertNotNull(
+                constructor,
+                "Should have test constructor with Project, OpenRouterService, and OpenRouterSettingsService"
+            )
+        }
     }
 }

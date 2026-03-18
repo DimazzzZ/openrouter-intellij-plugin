@@ -8,6 +8,12 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.zhavoronkov.openrouter.models.ActivityData
+import org.zhavoronkov.openrouter.models.ActivityResponse
+import org.zhavoronkov.openrouter.models.ApiKeyInfo
+import org.zhavoronkov.openrouter.models.ApiKeysListResponse
+import org.zhavoronkov.openrouter.models.CreditsData
+import org.zhavoronkov.openrouter.models.CreditsResponse
 
 /**
  * Tests for OpenRouterStatsCache service.
@@ -188,6 +194,179 @@ class OpenRouterStatsCacheTest {
             // Verify the refresh() method exists (it requires IntelliJ platform to run)
             val method = OpenRouterStatsCache::class.java.getDeclaredMethod("refresh")
             assertNotNull(method, "refresh() method should exist")
+        }
+    }
+
+    @Nested
+    @DisplayName("UpdateFromPopup Tests")
+    inner class UpdateFromPopupTests {
+
+        private fun createTestCreditsResponse(): CreditsResponse {
+            return CreditsResponse(
+                data = CreditsData(totalCredits = 100.0, totalUsage = 25.0)
+            )
+        }
+
+        private fun createTestActivityResponse(): ActivityResponse {
+            return ActivityResponse(
+                data = listOf(
+                    ActivityData(
+                        date = "2025-03-18",
+                        model = "gpt-4",
+                        modelPermaslug = "gpt-4",
+                        endpointId = "ep-1",
+                        providerName = "openai",
+                        usage = 5.0,
+                        byokUsageInference = null,
+                        requests = 10,
+                        promptTokens = 100,
+                        completionTokens = 50,
+                        reasoningTokens = null
+                    )
+                )
+            )
+        }
+
+        private fun createTestApiKeysResponse(): ApiKeysListResponse {
+            return ApiKeysListResponse(
+                data = listOf(
+                    ApiKeyInfo(
+                        key = "sk-test-key",
+                        keyHash = "abc123",
+                        name = "Test Key",
+                        label = "test",
+                        disabled = false,
+                        limit = 1000,
+                        costLimit = 100.0,
+                        usageLimit = null,
+                        rateLimit = null,
+                        allowCors = false,
+                        createdAt = "2025-01-01T00:00:00Z",
+                        updatedAt = "2025-01-01T00:00:00Z"
+                    )
+                )
+            )
+        }
+
+        @Test
+        @DisplayName("updateFromPopup should store credits data")
+        fun testUpdateFromPopupStoresCredits() {
+            val cache = OpenRouterStatsCache()
+            val creditsResponse = createTestCreditsResponse()
+            val apiKeysResponse = createTestApiKeysResponse()
+
+            cache.updateFromPopup(creditsResponse, null, apiKeysResponse)
+
+            assertNotNull(cache.getCachedCredits(), "Credits should be stored")
+            assertEquals(100.0, cache.getCachedCredits()?.totalCredits)
+            assertEquals(25.0, cache.getCachedCredits()?.totalUsage)
+        }
+
+        @Test
+        @DisplayName("updateFromPopup should store activity data when provided")
+        fun testUpdateFromPopupStoresActivity() {
+            val cache = OpenRouterStatsCache()
+            val creditsResponse = createTestCreditsResponse()
+            val activityResponse = createTestActivityResponse()
+            val apiKeysResponse = createTestApiKeysResponse()
+
+            cache.updateFromPopup(creditsResponse, activityResponse, apiKeysResponse)
+
+            assertNotNull(cache.getCachedActivity(), "Activity should be stored")
+            assertEquals(1, cache.getCachedActivity()?.size)
+            assertEquals("gpt-4", cache.getCachedActivity()?.firstOrNull()?.model)
+        }
+
+        @Test
+        @DisplayName("updateFromPopup should store null activity when not provided")
+        fun testUpdateFromPopupStoresNullActivity() {
+            val cache = OpenRouterStatsCache()
+            val creditsResponse = createTestCreditsResponse()
+            val apiKeysResponse = createTestApiKeysResponse()
+
+            cache.updateFromPopup(creditsResponse, null, apiKeysResponse)
+
+            assertNull(cache.getCachedActivity(), "Activity should be null when not provided")
+        }
+
+        @Test
+        @DisplayName("updateFromPopup should store API keys")
+        fun testUpdateFromPopupStoresApiKeys() {
+            val cache = OpenRouterStatsCache()
+            val creditsResponse = createTestCreditsResponse()
+            val apiKeysResponse = createTestApiKeysResponse()
+
+            cache.updateFromPopup(creditsResponse, null, apiKeysResponse)
+
+            assertNotNull(cache.getCachedApiKeys(), "API keys should be stored")
+            assertEquals(1, cache.getCachedApiKeys()?.data?.size)
+            assertEquals("Test Key", cache.getCachedApiKeys()?.data?.firstOrNull()?.name)
+        }
+
+        @Test
+        @DisplayName("updateFromPopup should update timestamp")
+        fun testUpdateFromPopupUpdatesTimestamp() {
+            val cache = OpenRouterStatsCache()
+            assertEquals(0L, cache.getLastUpdateTimestamp(), "Timestamp should be 0 initially")
+
+            val creditsResponse = createTestCreditsResponse()
+            val apiKeysResponse = createTestApiKeysResponse()
+
+            val beforeUpdate = System.currentTimeMillis()
+            cache.updateFromPopup(creditsResponse, null, apiKeysResponse)
+            val afterUpdate = System.currentTimeMillis()
+
+            assertTrue(
+                cache.getLastUpdateTimestamp() in beforeUpdate..afterUpdate,
+                "Timestamp should be updated to current time"
+            )
+        }
+
+        @Test
+        @DisplayName("updateFromPopup should clear last error")
+        fun testUpdateFromPopupClearsError() {
+            val cache = OpenRouterStatsCache()
+            val creditsResponse = createTestCreditsResponse()
+            val apiKeysResponse = createTestApiKeysResponse()
+
+            // First update should clear any error
+            cache.updateFromPopup(creditsResponse, null, apiKeysResponse)
+
+            assertNull(cache.getLastError(), "Last error should be null after successful update")
+        }
+
+        @Test
+        @DisplayName("updateFromPopup should make hasCachedData return true")
+        fun testUpdateFromPopupMakesHasCachedDataTrue() {
+            val cache = OpenRouterStatsCache()
+            assertFalse(cache.hasCachedData(), "Should not have cached data initially")
+
+            val creditsResponse = createTestCreditsResponse()
+            val apiKeysResponse = createTestApiKeysResponse()
+
+            cache.updateFromPopup(creditsResponse, null, apiKeysResponse)
+
+            assertTrue(cache.hasCachedData(), "Should have cached data after update")
+        }
+
+        @Test
+        @DisplayName("updateFromPopup should overwrite previous data")
+        fun testUpdateFromPopupOverwritesPreviousData() {
+            val cache = OpenRouterStatsCache()
+
+            // First update
+            val firstCredits = CreditsResponse(data = CreditsData(totalCredits = 50.0, totalUsage = 10.0))
+            val firstApiKeys = createTestApiKeysResponse()
+            cache.updateFromPopup(firstCredits, null, firstApiKeys)
+
+            assertEquals(50.0, cache.getCachedCredits()?.totalCredits)
+
+            // Second update with different values
+            val secondCredits = CreditsResponse(data = CreditsData(totalCredits = 200.0, totalUsage = 100.0))
+            cache.updateFromPopup(secondCredits, null, firstApiKeys)
+
+            assertEquals(200.0, cache.getCachedCredits()?.totalCredits)
+            assertEquals(100.0, cache.getCachedCredits()?.totalUsage)
         }
     }
 

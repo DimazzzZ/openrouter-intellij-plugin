@@ -1,10 +1,8 @@
 package org.zhavoronkov.openrouter.ui
 
-import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
-import com.intellij.openapi.util.Disposer
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.util.ui.JBUI
@@ -37,7 +35,7 @@ import javax.swing.JSeparator
  * the status bar widget tooltip.
  */
 @Suppress("TooManyFunctions")
-class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project), Disposable {
+class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project) {
 
     private val statsCache: OpenRouterStatsCache? by lazy {
         try {
@@ -50,7 +48,6 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
             null
         }
     }
-    private val disposable: Disposable = Disposer.newDisposable("OpenRouterStatsPopup")
 
     init {
         title = "OpenRouter Statistics"
@@ -349,6 +346,7 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
     /**
      * Subscribe to stats cache updates so that both the popup and status bar widget
      * update simultaneously when a refresh is triggered.
+     * Uses DialogWrapper's built-in disposable for automatic cleanup on dialog close.
      */
     private fun subscribeToStatsUpdates() {
         val application = ApplicationManager.getApplication() ?: return
@@ -357,21 +355,27 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
             object : OpenRouterStatsListener {
                 override fun onStatsUpdated(credits: CreditsData, activity: List<ActivityData>?) {
                     application.invokeLater {
-                        updateWithCredits(credits)
-                        updateWithActivity(activity)
-                        updateApiKeysFromCache()
+                        if (!isDisposed) {
+                            updateWithCredits(credits)
+                            updateWithActivity(activity)
+                            updateApiKeysFromCache()
+                        }
                     }
                 }
 
                 override fun onStatsLoading() {
                     application.invokeLater {
-                        setLoadingState()
+                        if (!isDisposed) {
+                            setLoadingState()
+                        }
                     }
                 }
 
                 override fun onStatsError(errorMessage: String) {
                     application.invokeLater {
-                        showErrorState(LabelState.ERROR, errorMessage)
+                        if (!isDisposed) {
+                            showErrorState(LabelState.ERROR, errorMessage)
+                        }
                     }
                 }
             }
@@ -609,17 +613,4 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         }
     }
 
-    override fun dispose() {
-        Disposer.dispose(disposable)
-    }
-
-    override fun doCancelAction() {
-        dispose()
-        super.doCancelAction()
-    }
-
-    override fun doOKAction() {
-        dispose()
-        super.doOKAction()
-    }
 }
