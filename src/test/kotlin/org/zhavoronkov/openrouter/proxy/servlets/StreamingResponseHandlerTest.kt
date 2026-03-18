@@ -19,9 +19,9 @@ class StreamingResponseHandlerTest {
     fun `streamResponseToClient should emit done marker`() {
         val bodyContent = """
             data: {\"id\":\"chatcmpl-1\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"Hi\"}}]}
-            
+
             data: [DONE]
-            
+
         """.trimIndent()
         val responseBody: ResponseBody = bodyContent.toResponseBody("text/event-stream".toMediaType())
         val response = Response.Builder()

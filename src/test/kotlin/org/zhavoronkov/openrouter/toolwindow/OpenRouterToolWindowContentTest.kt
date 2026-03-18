@@ -2,6 +2,7 @@ package org.zhavoronkov.openrouter.toolwindow
 
 import com.intellij.openapi.project.Project
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock
@@ -13,6 +14,10 @@ import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 class OpenRouterToolWindowContentTest {
 
     @Test
+    @Disabled(
+        "Requires IntelliJ platform test framework - " +
+            "OpenRouterToolWindowContent uses ApplicationManager.getApplication()"
+    )
     fun `unconfigured state should set labels`() {
         val project = mock(Project::class.java)
         val settingsService = mock(OpenRouterSettingsService::class.java)
