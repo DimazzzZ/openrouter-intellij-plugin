@@ -187,8 +187,8 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
             )
 
             if (result == Messages.YES) {
-                settingsService.apiKeyManager.setApiKey("")
-                settingsService.apiKeyManager.setProvisioningKey("")
+                // Use clearAllKeys() to remove from both PasswordSafe and legacy storage
+                settingsService.apiKeyManager.clearAllKeys()
                 statsCache.clearCache()
                 updateConnectionStatus()
                 Messages.showInfoMessage(project, "Successfully logged out from OpenRouter.ai", "Logout")
