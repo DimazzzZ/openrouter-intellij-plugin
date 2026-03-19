@@ -62,12 +62,23 @@ class OpenRouterProxyServer {
     private val settingsService: OpenRouterSettingsService
         get() = settingsServiceProvider()
 
+    // Optional custom servlet handler factory for testing
+    private var servletHandlerFactory: (() -> ServletContextHandler)? = null
+
     internal fun setDependenciesForTests(
         openRouterService: OpenRouterService,
         settingsService: OpenRouterSettingsService
     ) {
         openRouterServiceProvider = { openRouterService }
         settingsServiceProvider = { settingsService }
+    }
+
+    /**
+     * Sets a custom servlet handler factory for testing purposes.
+     * This allows tests to provide a handler that doesn't depend on IntelliJ services.
+     */
+    internal fun setServletHandlerFactoryForTests(factory: () -> ServletContextHandler) {
+        servletHandlerFactory = factory
     }
 
     /**
@@ -104,7 +115,7 @@ class OpenRouterProxyServer {
                 }
 
                 server = Server(port).apply {
-                    handler = createServletHandler()
+                    handler = servletHandlerFactory?.invoke() ?: createServletHandler()
                 }
 
                 server?.start()

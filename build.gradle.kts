@@ -6,6 +6,7 @@ plugins {
     id("org.jetbrains.kotlin.jvm") version "2.1.10"
     id("org.jetbrains.intellij") version "1.17.4"
     id("io.gitlab.arturbosch.detekt") version "1.23.7"
+    id("org.jetbrains.kotlinx.kover") version "0.9.1"
 }
 
 group = project.findProperty("pluginGroup") ?: "org.zhavoronkov"
