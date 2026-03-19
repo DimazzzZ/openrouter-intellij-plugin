@@ -1,30 +1,21 @@
 package org.zhavoronkov.openrouter.services
 
-import com.intellij.ide.util.PropertiesComponent
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNotEquals
-import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.mockito.Mockito.mock
 import org.zhavoronkov.openrouter.models.AuthScope
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
 
 @DisplayName("OpenRouter Settings Service Tests")
 class OpenRouterSettingsServiceTest {
 
-    private lateinit var propertiesComponent: PropertiesComponent
-    private lateinit var settingsService: OpenRouterSettingsService
-
     @BeforeEach
     fun setUp() {
-        propertiesComponent = mock(PropertiesComponent::class.java)
-        settingsService = OpenRouterSettingsService()
-        // We can't easily inject the mock, so we'll test the behavior indirectly
+        // Reset state between tests
     }
 
     @Nested
@@ -37,11 +28,14 @@ class OpenRouterSettingsServiceTest {
             // Create a service with empty provisioning key
             val service = OpenRouterSettingsService()
 
+            // Set auth scope to EXTENDED to test provisioning key configuration
+            service.apiKeyManager.authScope = AuthScope.EXTENDED
+
             // Since we can't mock the PropertiesComponent easily,
             // we'll test by setting and getting values
             service.apiKeyManager.setProvisioningKey("")
 
-            assertFalse(service.isConfigured())
+            assertFalse(service.isConfigured(), "Should be unconfigured when provisioning key is empty")
         }
 
         @Test
@@ -51,7 +45,7 @@ class OpenRouterSettingsServiceTest {
 
             // Set auth scope to EXTENDED before setting provisioning key
             // isConfigured() checks the key based on the current authScope
-            service.apiKeyManager.authScope = org.zhavoronkov.openrouter.models.AuthScope.EXTENDED
+            service.apiKeyManager.authScope = AuthScope.EXTENDED
             service.apiKeyManager.setProvisioningKey("test-provisioning-key")
 
             assertTrue(service.isConfigured())
@@ -62,9 +56,13 @@ class OpenRouterSettingsServiceTest {
         fun testIsConfiguredWithBlankProvisioningKey() {
             val service = OpenRouterSettingsService()
 
+            // Set auth scope to EXTENDED to test provisioning key configuration
+            service.apiKeyManager.authScope = AuthScope.EXTENDED
+
+            // Blank keys are treated as empty in PasswordSafe storage
             service.apiKeyManager.setProvisioningKey("   ")
 
-            assertFalse(service.isConfigured())
+            assertFalse(service.isConfigured(), "Should be unconfigured when provisioning key is blank")
         }
     }
 
@@ -461,39 +459,38 @@ class OpenRouterSettingsServiceTest {
         }
 
         @Test
-        @DisplayName("Should handle API key encryption without breaking persistence")
-        fun testApiKeyEncryptionPersistence() {
+        @DisplayName("Should handle API key storage securely via PasswordSafe")
+        fun testApiKeySecureStorage() {
             val service = OpenRouterSettingsService()
             val testApiKey = "sk-or-v1-encryption-test-key-with-sensitive-data"
 
-            // Set the API key (which should encrypt it)
+            // Set the API key (now stored in PasswordSafe or in-memory fallback for tests)
             service.apiKeyManager.setApiKey(testApiKey)
 
-            // The stored value should be encrypted
+            // The state.apiKey should be empty since we use PasswordSafe now
+            // (legacy storage is cleared on save)
             val state = service.state
-            assertNotNull(state.apiKey, "Encrypted API key should be stored")
-            assertNotEquals(testApiKey, state.apiKey, "Stored API key should be encrypted")
+            assertEquals("", state.apiKey, "API key should not be stored in XML state (uses PasswordSafe)")
 
-            // But retrieval should give us the original
+            // Retrieval should give us the original
             val retrievedKey = service.getApiKey()
-            assertEquals(testApiKey, retrievedKey, "Retrieved API key should be decrypted to original value")
+            assertEquals(testApiKey, retrievedKey, "API key should be retrievable from secure storage")
         }
 
         @Test
-        @DisplayName("Should handle empty and blank API keys without encryption")
+        @DisplayName("Should handle empty and blank API keys")
         fun testEmptyApiKeyPersistence() {
             val service = OpenRouterSettingsService()
 
             // Test empty key
             service.apiKeyManager.setApiKey("")
-            assertEquals("", service.getApiKey(), "Empty API key should be stored as empty")
-            assertEquals("", service.state.apiKey, "Empty API key should not be encrypted")
+            assertEquals("", service.getApiKey(), "Empty API key should be retrievable")
 
-            // Test blank key
+            // Test blank key - blank keys are removed (treated as empty)
             val blankKey = "   "
             service.apiKeyManager.setApiKey(blankKey)
-            assertEquals(blankKey, service.getApiKey(), "Blank API key should be stored as-is")
-            assertEquals(blankKey, service.state.apiKey, "Blank API key should not be encrypted")
+            // In the new implementation, blank keys are removed from storage
+            assertEquals("", service.getApiKey(), "Blank API key should be treated as empty")
         }
     }
 
@@ -827,7 +824,7 @@ class OpenRouterSettingsServiceTest {
             val service = OpenRouterSettingsService()
 
             // Create test state with proxy configuration
-            val testState = org.zhavoronkov.openrouter.models.OpenRouterSettings(
+            val testState = OpenRouterSettings(
                 proxyAutoStart = true,
                 proxyPort = 8889,
                 proxyPortRangeStart = 7000,

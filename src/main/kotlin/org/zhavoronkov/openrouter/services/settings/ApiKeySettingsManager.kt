@@ -4,10 +4,32 @@ import org.zhavoronkov.openrouter.models.AuthScope
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
 import org.zhavoronkov.openrouter.utils.EncryptionUtil
 import org.zhavoronkov.openrouter.utils.KeyValidator
+import org.zhavoronkov.openrouter.utils.PasswordSafeKeyStorage
 import org.zhavoronkov.openrouter.utils.PluginLogger
 
 /**
- * Manages API key and provisioning key settings
+ * Safely log a message, ignoring exceptions if logger is not available (e.g., in tests).
+ */
+@Suppress("TooGenericExceptionCaught", "SwallowedException")
+private inline fun logSafely(level: String = "debug", message: () -> String) {
+    try {
+        when (level) {
+            "info" -> PluginLogger.Service.info(message())
+            "warn" -> PluginLogger.Service.warn(message())
+            "error" -> PluginLogger.Service.error(message())
+            else -> PluginLogger.Service.debug(message())
+        }
+    } catch (_: Exception) {
+        // Intentionally swallowed - logging errors are ignored in test environments
+    }
+}
+
+/**
+ * Manages API key and provisioning key settings.
+ *
+ * Keys are stored securely using IntelliJ's PasswordSafe (OS-native credential storage).
+ * For backwards compatibility, legacy keys stored in XML settings are automatically
+ * migrated to PasswordSafe on first access.
  */
 class ApiKeySettingsManager(
     private val settings: OpenRouterSettings,
@@ -21,50 +43,76 @@ class ApiKeySettingsManager(
             onStateChanged()
         }
 
+    /**
+     * Gets the API key from secure storage.
+     *
+     * Retrieval order:
+     * 1. Try PasswordSafe (preferred, secure storage)
+     * 2. If not found, check legacy encrypted storage in XML settings
+     * 3. If legacy key exists, migrate it to PasswordSafe and clear from settings
+     *
+     * @return The API key, or empty string if not configured
+     */
+    @Suppress("ReturnCount")
     fun getApiKey(): String {
-        val encrypted = settings.apiKey
-        val decrypted = if (EncryptionUtil.isEncrypted(encrypted)) {
-            EncryptionUtil.decrypt(encrypted)
-        } else {
-            encrypted
+        // First, try PasswordSafe
+        val passwordSafeKey = PasswordSafeKeyStorage.getApiKey()
+        if (!passwordSafeKey.isNullOrBlank()) {
+            logSafely { "getApiKey: Retrieved from PasswordSafe (length: ${passwordSafeKey.length})" }
+            return passwordSafeKey
         }
-        PluginLogger.Service.debug(
-            "getApiKey: encrypted.length=${encrypted.length}, encrypted.isEmpty=${encrypted.isEmpty()}, " +
-                "decrypted.length=${decrypted.length}, decrypted.isEmpty=${decrypted.isEmpty()}"
-        )
-        return decrypted
+
+        // Check for legacy key in settings (encrypted in XML)
+        val legacyEncrypted = settings.apiKey
+        if (legacyEncrypted.isNotBlank()) {
+            val decrypted = if (EncryptionUtil.isEncrypted(legacyEncrypted)) {
+                EncryptionUtil.decrypt(legacyEncrypted)
+            } else {
+                legacyEncrypted
+            }
+
+            if (decrypted.isNotBlank()) {
+                logSafely("info") {
+                    "getApiKey: Found legacy API key, migrating to PasswordSafe (length: ${decrypted.length})"
+                }
+                // Migrate to PasswordSafe
+                PasswordSafeKeyStorage.setApiKey(decrypted)
+                // Clear from legacy storage
+                settings.apiKey = ""
+                onStateChanged()
+                return decrypted
+            }
+        }
+
+        logSafely { "getApiKey: No API key found" }
+        return ""
     }
 
+    /**
+     * Stores the API key in secure storage (PasswordSafe).
+     *
+     * @param apiKey The API key to store
+     */
     fun setApiKey(apiKey: String) {
-        PluginLogger.Service.info(
-            "setApiKey called: apiKey.length=${apiKey.length}, apiKey.isEmpty=${apiKey.isEmpty()}"
-        )
+        logSafely("info") { "setApiKey called: apiKey.length=${apiKey.length}, apiKey.isEmpty=${apiKey.isEmpty()}" }
 
-        val encryptedKey = if (apiKey.isNotBlank()) {
-            EncryptionUtil.encrypt(apiKey)
-        } else {
-            apiKey
+        // Store in PasswordSafe
+        PasswordSafeKeyStorage.setApiKey(apiKey)
+
+        // Clear any legacy storage
+        if (settings.apiKey.isNotBlank()) {
+            logSafely { "setApiKey: Clearing legacy API key from settings" }
+            settings.apiKey = ""
         }
-
-        PluginLogger.Service.info(
-            "setApiKey: encrypted.length=${encryptedKey.length}, encrypted.isEmpty=${encryptedKey.isEmpty()}"
-        )
-
-        val oldApiKey = settings.apiKey
-        settings.apiKey = encryptedKey
-
-        PluginLogger.Service.info(
-            "setApiKey: settings.apiKey changed from length ${oldApiKey.length} to ${settings.apiKey.length}"
-        )
-        PluginLogger.Service.info("setApiKey: settings.apiKey.isEmpty=${settings.apiKey.isEmpty()}")
 
         onStateChanged()
 
+        // Verify storage
         val retrieved = getApiKey()
-        PluginLogger.Service.info(
-            "setApiKey: verification after persistence - retrieved.length=${retrieved.length}, " +
-                "retrieved.isEmpty=${retrieved.isEmpty()}"
-        )
+        logSafely("info") {
+            "setApiKey: verification after storage - retrieved.length=${retrieved.length}, " +
+                "matches=${retrieved == apiKey}"
+        }
     }
 
     /**
@@ -86,33 +134,93 @@ class ApiKeySettingsManager(
         val apiKey = getApiKey()
 
         // Log which mode we're in for debugging
-        PluginLogger.Service.debug(
+        logSafely {
             "getStoredApiKey: authScope=${settings.authScope}, " +
                 "apiKey.length=${apiKey.length}, apiKey.isNotBlank=${apiKey.isNotBlank()}"
-        )
+        }
 
         return if (apiKey.isNotBlank()) apiKey else null
     }
 
+    /**
+     * Gets the provisioning key from secure storage.
+     *
+     * Retrieval order:
+     * 1. Try PasswordSafe (preferred, secure storage)
+     * 2. If not found, check legacy encrypted storage in XML settings
+     * 3. If legacy key exists, migrate it to PasswordSafe and clear from settings
+     *
+     * @return The provisioning key, or empty string if not configured
+     */
+    @Suppress("ReturnCount")
     fun getProvisioningKey(): String {
-        val encrypted = settings.provisioningKey
-        return if (EncryptionUtil.isEncrypted(encrypted)) {
-            EncryptionUtil.decrypt(encrypted)
-        } else {
-            encrypted
+        // First, try PasswordSafe
+        val passwordSafeKey = PasswordSafeKeyStorage.getProvisioningKey()
+        if (!passwordSafeKey.isNullOrBlank()) {
+            logSafely { "getProvisioningKey: Retrieved from PasswordSafe (length: ${passwordSafeKey.length})" }
+            return passwordSafeKey
         }
+
+        // Check for legacy key in settings (encrypted in XML)
+        val legacyEncrypted = settings.provisioningKey
+        if (legacyEncrypted.isNotBlank()) {
+            val decrypted = if (EncryptionUtil.isEncrypted(legacyEncrypted)) {
+                EncryptionUtil.decrypt(legacyEncrypted)
+            } else {
+                legacyEncrypted
+            }
+
+            if (decrypted.isNotBlank()) {
+                logSafely("info") {
+                    "getProvisioningKey: Found legacy key, migrating to PasswordSafe (length: ${decrypted.length})"
+                }
+                // Migrate to PasswordSafe
+                PasswordSafeKeyStorage.setProvisioningKey(decrypted)
+                // Clear from legacy storage
+                settings.provisioningKey = ""
+                onStateChanged()
+                return decrypted
+            }
+        }
+
+        logSafely { "getProvisioningKey: No provisioning key found" }
+        return ""
     }
 
+    /**
+     * Stores the provisioning key in secure storage (PasswordSafe).
+     *
+     * @param provisioningKey The provisioning key to store
+     */
     fun setProvisioningKey(provisioningKey: String) {
-        val encryptedKey = if (provisioningKey.isNotBlank()) {
-            EncryptionUtil.encrypt(provisioningKey)
-        } else {
-            provisioningKey
+        logSafely("info") {
+            "setProvisioningKey called: length=${provisioningKey.length}, isEmpty=${provisioningKey.isEmpty()}"
         }
-        settings.provisioningKey = encryptedKey
+
+        // Store in PasswordSafe
+        PasswordSafeKeyStorage.setProvisioningKey(provisioningKey)
+
+        // Clear any legacy storage
+        if (settings.provisioningKey.isNotBlank()) {
+            logSafely { "setProvisioningKey: Clearing legacy key from settings" }
+            settings.provisioningKey = ""
+        }
+
         onStateChanged()
+
+        // Verify storage
+        val retrieved = getProvisioningKey()
+        logSafely("info") {
+            "setProvisioningKey: verification after storage - retrieved.length=${retrieved.length}, " +
+                "matches=${retrieved == provisioningKey}"
+        }
     }
 
+    /**
+     * Checks if the plugin is configured with the necessary key for the current auth scope.
+     *
+     * @return true if configured, false otherwise
+     */
     fun isConfigured(): Boolean {
         return when (settings.authScope) {
             AuthScope.REGULAR -> getApiKey().isNotBlank()
@@ -157,5 +265,17 @@ class ApiKeySettingsManager(
                 }
             }
         }
+    }
+
+    /**
+     * Clears all stored keys from both PasswordSafe and legacy storage.
+     * Used for logout functionality.
+     */
+    fun clearAllKeys() {
+        PasswordSafeKeyStorage.clearAll()
+        settings.apiKey = ""
+        settings.provisioningKey = ""
+        onStateChanged()
+        logSafely("info") { "Cleared all API keys" }
     }
 }

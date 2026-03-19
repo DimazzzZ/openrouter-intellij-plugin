@@ -225,8 +225,7 @@
         <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterService"/>
         <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterSettingsService"/>
         <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService"/>
-        <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterProxyService"/>
-        <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterStatsCache"/>
+        <!-- OpenRouterProxyService and OpenRouterStatsCache use @Service annotation instead of XML registration -->
         
         <!-- Settings -->
         <applicationConfigurable

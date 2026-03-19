@@ -2,6 +2,7 @@ package org.zhavoronkov.openrouter.services
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.components.Service
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -25,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * When data is refreshed, all listeners subscribed to [OpenRouterStatsListener.TOPIC]
  * will be notified, ensuring UI consistency across all components.
  */
+@Service(Service.Level.APP)
 @Suppress("TooManyFunctions")
 class OpenRouterStatsCache : Disposable {
 
@@ -144,6 +146,7 @@ class OpenRouterStatsCache : Disposable {
         }
     }
 
+    @Suppress("TooGenericExceptionCaught")
     private suspend fun executeRefresh() {
         PluginLogger.Service.info("Stats cache: executeRefresh() started")
         val openRouterService = getOpenRouterServiceSafely()
@@ -167,9 +170,10 @@ class OpenRouterStatsCache : Disposable {
         } catch (e: IllegalArgumentException) {
             PluginLogger.Service.error("Stats cache: IllegalArgumentException during refresh", e)
             handleRefreshError("Invalid argument: ${e.message}")
-        } catch (e: NullPointerException) {
-            PluginLogger.Service.error("Stats cache: NullPointerException during refresh", e)
-            handleRefreshError("Null pointer error: ${e.message}")
+        } catch (e: RuntimeException) {
+            // Catch remaining RuntimeExceptions (including NPE) as fallback
+            PluginLogger.Service.error("Stats cache: RuntimeException during refresh", e)
+            handleRefreshError("Unexpected error: ${e.message}")
         } finally {
             isLoading.set(false)
             PluginLogger.Service.info("Stats cache: executeRefresh() finished")
