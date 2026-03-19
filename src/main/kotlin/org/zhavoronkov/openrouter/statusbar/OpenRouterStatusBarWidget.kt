@@ -19,6 +19,7 @@ import org.zhavoronkov.openrouter.listeners.OpenRouterStatsListener
 import org.zhavoronkov.openrouter.models.ActivityData
 import org.zhavoronkov.openrouter.models.ConnectionStatus
 import org.zhavoronkov.openrouter.models.CreditsData
+import org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.OpenRouterStatsCache
@@ -252,8 +253,25 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
     private fun onStatsUpdated(credits: CreditsData, activity: List<ActivityData>?) {
         connectionStatus = ConnectionStatus.READY
         currentText = formatStatusTextFromCredits(credits.totalUsage, credits.totalCredits)
-        currentTooltip = formatStatusTooltipFromCredits(credits.totalUsage, credits.totalCredits, activity)
+        currentTooltip = formatStatusTooltipFromCredits(credits.totalUsage, credits.totalCredits, activity, credits)
         updateStatusBar()
+
+        // Record a snapshot for the credit usage history service
+        recordCreditSnapshot(credits.totalUsage)
+    }
+
+    /**
+     * Record a credit usage snapshot when stats are updated.
+     */
+    private fun recordCreditSnapshot(totalUsage: Double) {
+        try {
+            val historyService = org.zhavoronkov.openrouter.services.CreditUsageHistoryService.getInstance()
+            historyService.recordSnapshot(totalUsage)
+        } catch (e: IllegalStateException) {
+            org.zhavoronkov.openrouter.utils.PluginLogger.Service.debug(
+                "CreditUsageHistoryService not available: ${e.message}"
+            )
+        }
     }
 
     /**
@@ -395,13 +413,26 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
     private fun formatStatusTooltipFromCredits(
         used: Double,
         total: Double,
-        activityList: List<ActivityData>? = null
+        activityList: List<ActivityData>? = null,
+        creditsData: CreditsData? = null
     ): String {
+        // Get tracking service for real-time "Today" data
+        val trackingService = try {
+            OpenRouterGenerationTrackingService.getInstance()
+        } catch (e: IllegalStateException) {
+            org.zhavoronkov.openrouter.utils.PluginLogger.Service.debug(
+                "Tracking service not available: ${e.message}"
+            )
+            null
+        }
+
         return StatusBarStatsFormatter.formatStatusTooltipFromCredits(
             connectionStatus.displayName,
             used,
             total,
-            activityList
+            activityList,
+            trackingService,
+            creditsData
         )
     }
 }

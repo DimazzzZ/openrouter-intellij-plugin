@@ -11,6 +11,7 @@ import org.zhavoronkov.openrouter.listeners.OpenRouterStatsListener
 import org.zhavoronkov.openrouter.models.ActivityData
 import org.zhavoronkov.openrouter.models.ApiKeysListResponse
 import org.zhavoronkov.openrouter.models.CreditsData
+import org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.OpenRouterStatsCache
@@ -322,7 +323,7 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         statsPanel.add(Box.createVerticalStrut(LABEL_SPACING))
 
         statsPanel.add(progressBar)
-        statsPanel.add(Box.createVerticalStrut(PROGRESS_BAR_HEIGHT.toInt()))
+        statsPanel.add(Box.createVerticalStrut(PROGRESS_BAR_HEIGHT))
 
         val separator = JSeparator()
         statsPanel.add(separator)
@@ -461,8 +462,29 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
     }
 
     private fun updateWithActivity(activities: List<ActivityData>?) {
+        // Get tracking service for real-time "Today" data
+        val trackingService = try {
+            OpenRouterGenerationTrackingService.getInstance()
+        } catch (e: IllegalStateException) {
+            org.zhavoronkov.openrouter.utils.PluginLogger.Service.debug(
+                "Tracking service not available: ${e.message}"
+            )
+            null
+        }
+
+        // Calculate today's cost from local tracking (real-time data)
+        val todayCostFromLocal = trackingService?.getTodayCost() ?: 0.0
+
         if (activities == null || activities.isEmpty()) {
-            setLabelsState(LabelState.NO_ACTIVITY)
+            // Even if no API activity, show local tracking data for today
+            if (todayCostFromLocal > 0) {
+                val cost = formatCurrency(todayCostFromLocal, CURRENCY_DECIMAL_PLACES)
+                activity24hLabel.text = "Last 24 hours: $$cost spent"
+                activityWeekLabel.text = "Last week: $NO_ACTIVITY_TEXT"
+                activityModelsLabel.text = NO_RECENT_MODELS_HTML
+            } else {
+                setLabelsState(LabelState.NO_ACTIVITY)
+            }
             return
         }
 
@@ -473,8 +495,12 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         val last24h = filterActivitiesByTime(activities, today, yesterday, weekAgo, isLast24h = true)
         val lastWeek = filterActivitiesByTime(activities, today, yesterday, weekAgo, isLast24h = false)
 
-        val (requests24h, usage24h) = calculateActivityStats(last24h)
+        val (requests24h, usage24hFromApi) = calculateActivityStats(last24h)
         val (requestsWeek, usageWeek) = calculateActivityStats(lastWeek)
+
+        // Use local tracking data for today if available (real-time),
+        // fall back to API data if local is empty
+        val usage24h = if (todayCostFromLocal > 0) todayCostFromLocal else usage24hFromApi
 
         activity24hLabel.text = "Last 24 hours: ${formatActivityText(requests24h, usage24h)}"
         activityWeekLabel.text = "Last week: ${formatActivityText(requestsWeek, usageWeek)}"
