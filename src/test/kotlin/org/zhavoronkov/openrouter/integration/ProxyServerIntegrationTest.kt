@@ -3,9 +3,9 @@ package org.zhavoronkov.openrouter.integration
 import com.google.gson.Gson
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.eclipse.jetty.ee10.servlet.ServletContextHandler
+import org.eclipse.jetty.ee10.servlet.ServletHolder
 import org.eclipse.jetty.server.Server
-import org.eclipse.jetty.servlet.ServletContextHandler
-import org.eclipse.jetty.servlet.ServletHolder
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -54,7 +54,7 @@ class ProxyServerIntegrationTest {
         // Create a standalone Jetty server for testing
         jettyServer = Server(proxyPort)
 
-        val context = ServletContextHandler(ServletContextHandler.SESSIONS)
+        val context = ServletContextHandler()
         context.contextPath = "/"
 
         // Add health check servlet (doesn't require IntelliJ services)

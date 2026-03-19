@@ -2,8 +2,8 @@ package org.zhavoronkov.openrouter.proxy
 
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.eclipse.jetty.servlet.ServletContextHandler
-import org.eclipse.jetty.servlet.ServletHolder
+import org.eclipse.jetty.ee10.servlet.ServletContextHandler
+import org.eclipse.jetty.ee10.servlet.ServletHolder
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -80,7 +80,7 @@ class OpenRouterProxyServerTest {
      * This mirrors the production createServletHandler() but uses test-safe dependencies.
      */
     private fun createTestServletHandler(): ServletContextHandler {
-        val context = ServletContextHandler(ServletContextHandler.SESSIONS)
+        val context = ServletContextHandler()
         context.contextPath = "/"
 
         // Add servlets with test-safe dependencies
@@ -104,7 +104,7 @@ class OpenRouterProxyServerTest {
         context.addServlet(rootServlet, "/")
 
         // Add CORS filter
-        context.addFilter(CorsFilter::class.java, "/*", null)
+        context.addFilter(CorsFilter::class.java, "/*", java.util.EnumSet.of(jakarta.servlet.DispatcherType.REQUEST))
 
         return context
     }

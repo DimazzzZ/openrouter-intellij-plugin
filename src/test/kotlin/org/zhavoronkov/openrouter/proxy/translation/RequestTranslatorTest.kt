@@ -132,16 +132,23 @@ class RequestTranslatorTest {
         @DisplayName("should handle array content (multimodal)")
         fun testArrayContent() {
             val contentArray = JsonArray().apply {
-                add(JsonObject().apply {
-                    addProperty("type", "text")
-                    addProperty("text", "What's in this image?")
-                })
-                add(JsonObject().apply {
-                    addProperty("type", "image_url")
-                    add("image_url", JsonObject().apply {
-                        addProperty("url", "https://example.com/image.png")
-                    })
-                })
+                add(
+                    JsonObject().apply {
+                        addProperty("type", "text")
+                        addProperty("text", "What's in this image?")
+                    }
+                )
+                add(
+                    JsonObject().apply {
+                        addProperty("type", "image_url")
+                        add(
+                            "image_url",
+                            JsonObject().apply {
+                                addProperty("url", "https://example.com/image.png")
+                            }
+                        )
+                    }
+                )
             }
 
             val openAIRequest = OpenAIChatCompletionRequest(
@@ -273,10 +280,12 @@ class RequestTranslatorTest {
         @DisplayName("should accept non-empty array content")
         fun testAcceptNonEmptyArrayContent() {
             val contentArray = JsonArray().apply {
-                add(JsonObject().apply {
-                    addProperty("type", "text")
-                    addProperty("text", "Hello")
-                })
+                add(
+                    JsonObject().apply {
+                        addProperty("type", "text")
+                        addProperty("text", "Hello")
+                    }
+                )
             }
 
             val openAIRequest = OpenAIChatCompletionRequest(
@@ -326,9 +335,11 @@ class RequestTranslatorTest {
                 messages = listOf(OpenAIChatMessage(role = "user", content = JsonPrimitive("Hi"))),
                 temperature = 0.0
             )
-            assertTrue(RequestTranslator.validateTranslatedRequest(
-                RequestTranslator.translateChatCompletionRequest(request1)
-            ))
+            assertTrue(
+                RequestTranslator.validateTranslatedRequest(
+                    RequestTranslator.translateChatCompletionRequest(request1)
+                )
+            )
 
             // Temperature = 2
             val request2 = OpenAIChatCompletionRequest(
@@ -336,9 +347,11 @@ class RequestTranslatorTest {
                 messages = listOf(OpenAIChatMessage(role = "user", content = JsonPrimitive("Hi"))),
                 temperature = 2.0
             )
-            assertTrue(RequestTranslator.validateTranslatedRequest(
-                RequestTranslator.translateChatCompletionRequest(request2)
-            ))
+            assertTrue(
+                RequestTranslator.validateTranslatedRequest(
+                    RequestTranslator.translateChatCompletionRequest(request2)
+                )
+            )
         }
 
         @Test
@@ -406,9 +419,11 @@ class RequestTranslatorTest {
                 messages = listOf(OpenAIChatMessage(role = "user", content = JsonPrimitive("Hi"))),
                 topP = 0.0
             )
-            assertTrue(RequestTranslator.validateTranslatedRequest(
-                RequestTranslator.translateChatCompletionRequest(request1)
-            ))
+            assertTrue(
+                RequestTranslator.validateTranslatedRequest(
+                    RequestTranslator.translateChatCompletionRequest(request1)
+                )
+            )
 
             // topP = 1
             val request2 = OpenAIChatCompletionRequest(
@@ -416,9 +431,11 @@ class RequestTranslatorTest {
                 messages = listOf(OpenAIChatMessage(role = "user", content = JsonPrimitive("Hi"))),
                 topP = 1.0
             )
-            assertTrue(RequestTranslator.validateTranslatedRequest(
-                RequestTranslator.translateChatCompletionRequest(request2)
-            ))
+            assertTrue(
+                RequestTranslator.validateTranslatedRequest(
+                    RequestTranslator.translateChatCompletionRequest(request2)
+                )
+            )
         }
 
         @Test

@@ -27,10 +27,10 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.11.0")
     implementation("com.google.code.gson:gson:2.10.1")
 
-    // Embedded HTTP server for AI Assistant integration
-    implementation("org.eclipse.jetty:jetty-server:11.0.18")
-    implementation("org.eclipse.jetty:jetty-servlet:11.0.18")
-    implementation("jakarta.servlet:jakarta.servlet-api:5.0.0")
+    // Embedded HTTP server for AI Assistant integration (Jetty 12)
+    implementation("org.eclipse.jetty:jetty-server:12.1.6")
+    implementation("org.eclipse.jetty.ee10:jetty-ee10-servlet:12.1.6")
+    implementation("jakarta.servlet:jakarta.servlet-api:6.0.0")
 
     // Test dependencies
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.2")

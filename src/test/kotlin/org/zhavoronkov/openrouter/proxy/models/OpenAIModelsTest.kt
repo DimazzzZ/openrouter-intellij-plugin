@@ -132,16 +132,23 @@ class OpenAIModelsTest {
         @DisplayName("should create message with array content (multimodal)")
         fun testArrayContent() {
             val contentArray = JsonArray().apply {
-                add(JsonObject().apply {
-                    addProperty("type", "text")
-                    addProperty("text", "What's in this image?")
-                })
-                add(JsonObject().apply {
-                    addProperty("type", "image_url")
-                    add("image_url", JsonObject().apply {
-                        addProperty("url", "https://example.com/image.png")
-                    })
-                })
+                add(
+                    JsonObject().apply {
+                        addProperty("type", "text")
+                        addProperty("text", "What's in this image?")
+                    }
+                )
+                add(
+                    JsonObject().apply {
+                        addProperty("type", "image_url")
+                        add(
+                            "image_url",
+                            JsonObject().apply {
+                                addProperty("url", "https://example.com/image.png")
+                            }
+                        )
+                    }
+                )
             }
 
             val message = OpenAIChatMessage(

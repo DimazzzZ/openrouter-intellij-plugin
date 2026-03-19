@@ -26,9 +26,12 @@ class MultimodalContentValidatorTest {
     private fun createImageContent(): JsonArray {
         val contentPart = JsonObject().apply {
             addProperty("type", "image_url")
-            add("image_url", JsonObject().apply {
-                addProperty("url", "https://example.com/image.png")
-            })
+            add(
+                "image_url",
+                JsonObject().apply {
+                    addProperty("url", "https://example.com/image.png")
+                }
+            )
         }
         return JsonArray().apply { add(contentPart) }
     }
@@ -36,10 +39,13 @@ class MultimodalContentValidatorTest {
     private fun createAudioContent(): JsonArray {
         val contentPart = JsonObject().apply {
             addProperty("type", "input_audio")
-            add("input_audio", JsonObject().apply {
-                addProperty("data", "base64audio")
-                addProperty("format", "mp3")
-            })
+            add(
+                "input_audio",
+                JsonObject().apply {
+                    addProperty("data", "base64audio")
+                    addProperty("format", "mp3")
+                }
+            )
         }
         return JsonArray().apply { add(contentPart) }
     }
@@ -47,9 +53,12 @@ class MultimodalContentValidatorTest {
     private fun createVideoContent(): JsonArray {
         val contentPart = JsonObject().apply {
             addProperty("type", "video_url")
-            add("video_url", JsonObject().apply {
-                addProperty("url", "https://youtube.com/watch?v=123")
-            })
+            add(
+                "video_url",
+                JsonObject().apply {
+                    addProperty("url", "https://youtube.com/watch?v=123")
+                }
+            )
         }
         return JsonArray().apply { add(contentPart) }
     }
@@ -57,10 +66,13 @@ class MultimodalContentValidatorTest {
     private fun createFileContent(): JsonArray {
         val contentPart = JsonObject().apply {
             addProperty("type", "file")
-            add("file", JsonObject().apply {
-                addProperty("filename", "document.pdf")
-                addProperty("file_data", "data:application/pdf;base64,...")
-            })
+            add(
+                "file",
+                JsonObject().apply {
+                    addProperty("filename", "document.pdf")
+                    addProperty("file_data", "data:application/pdf;base64,...")
+                }
+            )
         }
         return JsonArray().apply { add(contentPart) }
     }
@@ -269,9 +281,11 @@ class MultimodalContentValidatorTest {
 
             val validator = MultimodalContentValidator(favoriteService)
             val content = JsonArray().apply {
-                add(JsonObject().apply {
-                    addProperty("type", "audio")
-                })
+                add(
+                    JsonObject().apply {
+                        addProperty("type", "audio")
+                    }
+                )
             }
             val request = OpenAIChatCompletionRequest(
                 model = "openai/gpt-4",
@@ -340,9 +354,11 @@ class MultimodalContentValidatorTest {
 
             val validator = MultimodalContentValidator(favoriteService)
             val content = JsonArray().apply {
-                add(JsonObject().apply {
-                    addProperty("type", "video")
-                })
+                add(
+                    JsonObject().apply {
+                        addProperty("type", "video")
+                    }
+                )
             }
             val request = OpenAIChatCompletionRequest(
                 model = "openai/gpt-4",
@@ -429,9 +445,11 @@ class MultimodalContentValidatorTest {
 
             val validator = MultimodalContentValidator(favoriteService)
             val content = JsonArray().apply {
-                add(JsonObject().apply {
-                    addProperty("type", "document")
-                })
+                add(
+                    JsonObject().apply {
+                        addProperty("type", "document")
+                    }
+                )
             }
             val request = OpenAIChatCompletionRequest(
                 model = "openai/gpt-4",
@@ -482,7 +500,12 @@ class MultimodalContentValidatorTest {
 
             val validator = MultimodalContentValidator(favoriteService)
             val content = JsonArray().apply {
-                add(JsonObject().apply { addProperty("type", "text"); addProperty("text", "Check this:") })
+                add(
+                    JsonObject().apply {
+                        addProperty("type", "text")
+                        addProperty("text", "Check this:")
+                    }
+                )
                 add(JsonObject().apply { addProperty("type", "image_url") })
                 add(JsonObject().apply { addProperty("type", "input_audio") })
             }
@@ -506,7 +529,12 @@ class MultimodalContentValidatorTest {
 
             val validator = MultimodalContentValidator(favoriteService)
             val content = JsonArray().apply {
-                add(JsonObject().apply { addProperty("type", "text"); addProperty("text", "Check this:") })
+                add(
+                    JsonObject().apply {
+                        addProperty("type", "text")
+                        addProperty("text", "Check this:")
+                    }
+                )
                 add(JsonObject().apply { addProperty("type", "image_url") })
             }
             val request = OpenAIChatCompletionRequest(
@@ -600,10 +628,12 @@ class MultimodalContentValidatorTest {
             val favoriteService = createMockFavoriteService()
             val validator = MultimodalContentValidator(favoriteService)
             val content = JsonArray().apply {
-                add(JsonObject().apply {
-                    addProperty("text", "Hello")
-                    // No "type" field
-                })
+                add(
+                    JsonObject().apply {
+                        addProperty("text", "Hello")
+                        // No "type" field
+                    }
+                )
             }
             val request = OpenAIChatCompletionRequest(
                 model = "openai/gpt-4",

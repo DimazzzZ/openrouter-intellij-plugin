@@ -391,7 +391,11 @@ class ResponseTranslatorTest {
         @Test
         @DisplayName("should include error code when provided")
         fun testErrorCode() {
-            val error = ResponseTranslator.createErrorResponse("Invalid key", "invalid_request_error", "invalid_api_key")
+            val error = ResponseTranslator.createErrorResponse(
+                "Invalid key",
+                "invalid_request_error",
+                "invalid_api_key"
+            )
 
             assertEquals("invalid_api_key", error.error.code)
         }
