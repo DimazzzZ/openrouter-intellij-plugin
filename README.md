@@ -1,23 +1,25 @@
 # OpenRouter IntelliJ Plugin
 
 [![JetBrains Plugin](https://img.shields.io/badge/JetBrains-Plugin-orange.svg)](https://plugins.jetbrains.com/plugin/28520)
-[![Version](https://img.shields.io/badge/version-0.4.2-blue.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
+[![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
+[![CI](https://github.com/DimazzzZ/openrouter-intellij-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.ai), providing access to 400+ AI models with usage monitoring, quota tracking, and seamless JetBrains AI Assistant integration.
 
 ## Features
 
+- **💬 Chat Tool Window** - Multi-chat sessions directly in IDE sidebar with persistent history, token tracking, and model selection
 - **🤖 AI Assistant Proxy** - Configurable local proxy server (ports 8880-8899 by default) with auto-start control and flexible port selection
 - **📊 Status Bar Widget** - Real-time usage display with comprehensive popup menu
 - **🔑 Flexible Authentication** - OAuth/PKCE or Provisioning Key support with secure credential storage
-- **📈 Usage Analytics** - Track token consumption, costs, and model performance
+- **📈 Usage Analytics** - Track token consumption, costs, and model performance with real-time "Today" statistics
 - **🔴 Real-time Monitoring** - Live connection status with color-coded indicators
-- **📋 Statistics Popup** - Detailed usage analytics in modal dialog
+- **📋 Statistics Popup** - Detailed usage analytics in modal dialog with days remaining estimate
 - **⚙️ Settings Panel** - Configuration with validation and testing
 - **🌐 OpenAI Compatibility** - Full OpenAI API compatibility layer for custom integrations
-- **🔒 Security** - Encrypted API key storage with localhost-only proxy access
-- **🧪 Comprehensive Testing** - 475+ tests covering unit, integration, and E2E scenarios
+- **🔒 Security** - OS-native credential storage (Keychain, Credential Manager, libsecret) with localhost-only proxy access
+- **🧪 Comprehensive Testing** - 500+ tests covering unit, integration, and E2E scenarios
 - **🛠️ Developer-Friendly** - Extensive documentation and debugging capabilities
 - **⭐ Favorite Models** - Quick access to your preferred AI models with advanced filtering:
   - Filter by provider (OpenAI, Anthropic, Google, Meta, etc.)
@@ -34,7 +36,7 @@ An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.
 ### From Plugin Marketplace
 1. Open IntelliJ IDEA → `Settings` → `Plugins`
 2. Search for "OpenRouter" in Marketplace
-3. Click `Install` and restart IDE
+3. Click `Install` (no restart required!)
 
 ### Manual Installation
 1. Download the latest release from [GitHub](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
@@ -112,6 +114,18 @@ The wizard makes setup quick and easy, especially for first-time users!
 - **Documentation**: Links to OpenRouter API documentation
 - **Logout**: Clear stored credentials
 
+### Chat Tool Window
+Access via the right sidebar (`View` → `Tool Windows` → `OpenRouter`):
+
+- **Chat Tab** - Multi-chat interface for conversations with AI models
+- **Status Tab** - Account info, quota display, and usage statistics
+- **Create New Chat** - Click "+ New Chat" to start a conversation
+- **Model Selection** - Choose from your favorite models per chat session
+- **Persistent History** - Chats saved locally and restored on IDE restart
+- **Token Tracking** - Real-time token estimation for input and cumulative counts
+- **Keyboard Shortcuts** - `Enter` to send, `Cmd/Ctrl+Enter` for newline
+- **Context Menu** - Right-click on chats for quick actions (Open, Delete)
+
 ### Proxy Server Configuration
 Access via `Settings` → `Tools` → `OpenRouter` → `Proxy Server` section:
 
@@ -164,7 +178,7 @@ cd openrouter-intellij-plugin
 
 ### Testing
 ```bash
-# Run all tests (475+ tests)
+# Run all tests (500+ tests)
 ./gradlew test
 
 # Run core functionality tests only
@@ -189,17 +203,15 @@ The plugin supports installation, updates, and uninstallation **without IDE rest
 
 **Full Test** (Multiple Versions):
 ```bash
-# Build 3 test versions (0.4.0, 0.4.1, 0.4.2)
+# Build 3 test versions for upgrade testing
 ./scripts/build-test-versions.sh
 
-# Install v0.4.0 (may require restart on first install)
-# Update to v0.4.1 (should NOT require restart)
-# Update to v0.4.2 (should NOT require restart)
+# Install first version (may require restart on first install)
+# Update to next version (should NOT require restart)
+# Update again (should NOT require restart)
 ```
 
-See [LOCAL_DYNAMIC_PLUGIN_TESTING.md](docs/LOCAL_DYNAMIC_PLUGIN_TESTING.md) for detailed testing instructions.
-
-**Test Coverage**: 475+ tests with 100% pass rate
+**Test Coverage**: 500+ tests with 100% pass rate
 - Unit tests for data models, settings, and business logic
 - Integration tests for API key handling and proxy server functionality
 - Authentication tests with MockWebServer for realistic HTTP testing

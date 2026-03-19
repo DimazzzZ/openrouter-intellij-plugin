@@ -5,6 +5,72 @@ All notable changes to the OpenRouter IntelliJ Plugin will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-03-19
+
+### New Features
+
+#### 💬 Chat Tool Window
+- **Multi-Chat Support** - Create, switch between, and delete multiple chat sessions directly in the IDE
+- **Persistent Storage** - Chat history and model preferences saved to JSON files in the plugin config directory
+- **Token Tracking** - Real-time token estimation for input and cumulative token count per session
+- **Model Selection** - Choose from favorite models with persistence of last selected model
+- **Smart Title Generation** - Chat titles auto-generated from first message (truncated to 50 chars)
+- **Keyboard Shortcuts** - `Enter` to send message, `Cmd/Ctrl+Enter` to insert newline
+- **Tabbed Interface** - "Status" tab for account info, "Chat" tab for conversations
+- **Context Menu** - Right-click on chats for quick actions (Open, Delete)
+
+#### 📊 Shared Stats Management
+- **Centralized Cache** - New `OpenRouterStatsCache` service ensures consistent data across UI components
+- **Pub/Sub Architecture** - Uses IntelliJ's message bus pattern for update notifications
+- **Reduced API Calls** - Single fetch serves multiple consumers (status bar, popup, tool window)
+- **Thread-Safe** - Atomic state handling for concurrent refresh requests
+
+#### 🔐 Secure API Key Storage
+- **OS-Native Storage** - Uses Keychain (macOS), Credential Manager (Windows), libsecret/KWallet (Linux)
+- **Automatic Migration** - Legacy keys from encrypted XML settings automatically migrated to PasswordSafe
+- **Backward Compatible** - Seamless upgrade from previous versions with no data loss
+- **In-Memory Cache** - EDT-safe access with async persistence to PasswordSafe
+
+#### 📈 Real-Time Cost Tracking
+- **Accurate "Today" Statistics** - Local tracking when OpenRouter API data unavailable
+- **Credit Usage History** - Periodic snapshots (every 5 minutes) with 48-hour retention
+- **Days Remaining Estimate** - Calculated from yesterday's spending rate
+- **Timezone-Aware** - Proper day boundary calculations using local timezone
+
+### Security Fixes
+
+- **CVE-2023-3635 (Okio)** - Enforced `okio-jvm:3.4.0` to address GZIPSource denial of service vulnerability
+- **CVE-2020-15250 (JUnit)** - Enforced `junit:4.13.1` to address temporary file information disclosure
+
+### Improvements
+
+#### Dependency Updates
+| Dependency | Previous | New | Notes |
+|------------|----------|-----|-------|
+| Jetty Server | 11.0.18 | 12.1.6 | Major version upgrade with package migration |
+| Jetty Servlet | 11.0.18 | 12.1.6 (ee10) | New EE10 servlet package |
+| Jakarta Servlet API | 5.0.0 | 6.0.0 | Compatible with Jetty 12 |
+| AssertJ | 3.24.2 | 3.27.7 | Test framework update |
+
+#### Bug Fixes
+- **Duplicate API Key Handling** - Fixed issue where plugin only found first "IntelliJ IDEA Plugin" key
+- **Key Cleanup** - Automatic cleanup of orphan/duplicate API keys while keeping valid matching key
+- **Thread Safety** - Replaced `runBlocking` with proper coroutine scopes using `Dispatchers.IO`
+- **EDT Compliance** - In-memory caching prevents EDT violations when accessing PasswordSafe
+
+#### Code Quality
+- **Detekt Refactoring** - Code quality improvements with static analysis
+- **Test Coverage** - Enhanced tests for proxy server, multimodal validation, and OpenAI models
+- **Resource Management** - `IntellijApiKeyManager` implements `Disposable` for proper cleanup
+
+### Testing
+
+- **Proxy Server Tests** - Server lifecycle, port selection, HTTP integration, servlet validation
+- **Request/Response Translation** - Enhanced tests with JUnit 5 `@Nested` annotations
+- **Multimodal Validation** - Expanded coverage for image, audio, video, and file content types
+- **OpenAI Models** - New test coverage for all OpenAI API model classes
+- **Credit History** - Tests for interpolation, pruning, and timezone handling
+
 ## [0.4.2] - 2026-01-20
 
 ### Improvements

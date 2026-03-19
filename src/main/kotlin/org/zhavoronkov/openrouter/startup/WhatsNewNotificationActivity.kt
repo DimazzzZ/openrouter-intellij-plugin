@@ -26,7 +26,7 @@ import java.io.IOException
 class WhatsNewNotificationActivity : ProjectActivity {
 
     companion object {
-        private const val CURRENT_VERSION = "0.4.2"
+        private const val CURRENT_VERSION = "0.5.0"
         private const val CHANGELOG_URL =
             "https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/CHANGELOG.md"
     }
@@ -68,9 +68,18 @@ class WhatsNewNotificationActivity : ProjectActivity {
             .createNotification(
                 "OpenRouter Plugin Updated to v$CURRENT_VERSION",
                 """
-                <b>Improvements:</b><br/>
-                • <b>Multimodal Support</b> - Added support for image, audio, and video content with AI models<br/>
-                • <b>Test Coverage</b> - Added automated tests for multimodal capabilities
+                <b>💬 New Chat Tool Window:</b><br/>
+                • <b>Multi-Chat Support</b> - Create and manage multiple chat sessions in IDE sidebar<br/>
+                • <b>Persistent Storage</b> - Chat history saved locally with model preferences<br/>
+                • <b>Token Tracking</b> - Real-time token estimation per session<br/>
+                <br/>
+                <b>🔐 Security & Storage:</b><br/>
+                • <b>OS-Native Key Storage</b> - Keychain, Credential Manager, libsecret<br/>
+                • <b>CVE Fixes</b> - Patched Okio and JUnit vulnerabilities<br/>
+                <br/>
+                <b>📊 Improved Statistics:</b><br/>
+                • <b>Real-Time Cost Tracking</b> - Accurate "Today" stats with local tracking<br/>
+                • <b>Days Remaining</b> - Estimate based on spending rate
                 """.trimIndent(),
                 NotificationType.INFORMATION
             )
