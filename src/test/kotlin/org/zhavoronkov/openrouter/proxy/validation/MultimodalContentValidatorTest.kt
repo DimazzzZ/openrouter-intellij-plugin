@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalStdlibApi::class)
+
 package org.zhavoronkov.openrouter.proxy.validation
 
 import com.google.gson.JsonArray

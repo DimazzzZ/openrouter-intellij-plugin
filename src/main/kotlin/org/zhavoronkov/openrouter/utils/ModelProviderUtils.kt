@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalStdlibApi::class)
+
 package org.zhavoronkov.openrouter.utils
 
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo

@@ -27,6 +27,7 @@ repositories {
 configurations.all {
     resolutionStrategy {
         force("junit:junit:4.13.1") // CVE-2020-15250
+        force("com.squareup.okio:okio-jvm:3.4.0") // CVE-2023-3635
     }
 }
 
