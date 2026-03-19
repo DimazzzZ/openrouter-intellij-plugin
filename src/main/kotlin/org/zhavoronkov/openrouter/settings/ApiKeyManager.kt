@@ -1,11 +1,12 @@
 package org.zhavoronkov.openrouter.settings
 
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.ui.Messages
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import org.zhavoronkov.openrouter.models.ApiKeyInfo
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.services.OpenRouterService
@@ -17,6 +18,7 @@ import javax.swing.JTable
 /**
  * Handles API key management operations for OpenRouter settings
  */
+@Suppress("TooManyFunctions")
 class ApiKeyManager(
     private val settingsService: OpenRouterSettingsService,
     private val openRouterService: OpenRouterService,
@@ -31,6 +33,7 @@ class ApiKeyManager(
 
     private val dialogManager = ApiKeyDialogManager()
     private val intellijKeyManager = IntellijApiKeyManager(settingsService, openRouterService)
+    private val coroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     // Cache for API keys to avoid redundant API calls during settings dialog initialization
     private var cachedApiKeys: List<ApiKeyInfo>? = null
@@ -61,42 +64,49 @@ class ApiKeyManager(
     }
 
     private fun createApiKeyAsync(label: String) {
-        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-        scope.launch {
+        coroutineScope.launch(Dispatchers.IO) {
             try {
                 val result = openRouterService.createApiKey(label)
-                when (result) {
-                    is ApiResult.Success -> {
-                        PluginLogger.Settings.info("Successfully created API key with label: $label")
-                        dialogManager.showApiKeyDialog(result.data.key, label)
-                        refreshApiKeys()
+                ApplicationManager.getApplication().invokeLater({
+                    when (result) {
+                        is ApiResult.Success -> {
+                            PluginLogger.Settings.info("Successfully created API key with label: $label")
+                            dialogManager.showApiKeyDialog(result.data.key, label)
+                            refreshApiKeys()
+                        }
+                        is ApiResult.Error -> {
+                            PluginLogger.Settings.error("API call failed during key creation: ${result.message}")
+                            Messages.showErrorDialog(
+                                "Failed to create API key: ${result.message}",
+                                "API Key Creation Failed"
+                            )
+                        }
                     }
-                    is ApiResult.Error -> {
-                        PluginLogger.Settings.error("API call failed during key creation: ${result.message}")
-                        Messages.showErrorDialog(
-                            "Failed to create API key: ${result.message}",
-                            "API Key Creation Failed"
-                        )
-                    }
-                }
+                }, ModalityState.any())
             } catch (e: IllegalStateException) {
                 PluginLogger.Settings.error("Invalid state during key creation: ${e.message}", e)
-                Messages.showErrorDialog(
-                    "Failed to create API key due to invalid state. Please try again.",
-                    "API Key Creation Failed"
-                )
+                ApplicationManager.getApplication().invokeLater({
+                    Messages.showErrorDialog(
+                        "Failed to create API key due to invalid state. Please try again.",
+                        "API Key Creation Failed"
+                    )
+                }, ModalityState.any())
             } catch (e: IOException) {
                 PluginLogger.Settings.error("Network error during key creation: ${e.message}", e)
-                Messages.showErrorDialog(
-                    "Failed to create API key due to network error. Please try again.",
-                    "API Key Creation Failed"
-                )
+                ApplicationManager.getApplication().invokeLater({
+                    Messages.showErrorDialog(
+                        "Failed to create API key due to network error. Please try again.",
+                        "API Key Creation Failed"
+                    )
+                }, ModalityState.any())
             } catch (expectedError: Exception) {
                 PluginLogger.Settings.error("Exception during key creation: ${expectedError.message}", expectedError)
-                Messages.showErrorDialog(
-                    "Failed to create API key due to error. Please try again.",
-                    "API Key Creation Failed"
-                )
+                ApplicationManager.getApplication().invokeLater({
+                    Messages.showErrorDialog(
+                        "Failed to create API key due to error. Please try again.",
+                        "API Key Creation Failed"
+                    )
+                }, ModalityState.any())
             }
         }
     }
@@ -127,43 +137,48 @@ class ApiKeyManager(
     }
 
     private fun performApiKeyDeletion(apiKey: ApiKeyInfo, selectedRow: Int) {
-        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-        scope.launch {
+        coroutineScope.launch(Dispatchers.IO) {
             try {
                 val deleteResult = openRouterService.deleteApiKey(apiKey.hash)
-                when (deleteResult) {
-                    is ApiResult.Success -> {
-                        if (deleteResult.data.deleted) {
-                            PluginLogger.Settings.info("Successfully deleted API key: ${apiKey.name}")
-                            apiKeyTableModel.removeApiKey(selectedRow)
-                            Messages.showInfoMessage("API key deleted successfully.", "Success")
-                        } else {
+                ApplicationManager.getApplication().invokeLater({
+                    when (deleteResult) {
+                        is ApiResult.Success -> {
+                            if (deleteResult.data.deleted) {
+                                PluginLogger.Settings.info("Successfully deleted API key: ${apiKey.name}")
+                                apiKeyTableModel.removeApiKey(selectedRow)
+                                Messages.showInfoMessage("API key deleted successfully.", "Success")
+                            } else {
+                                Messages.showErrorDialog(
+                                    "Failed to delete API key. Please try again.",
+                                    "Deletion Failed"
+                                )
+                            }
+                        }
+                        is ApiResult.Error -> {
+                            PluginLogger.Settings.error("API call failed during key deletion: ${deleteResult.message}")
                             Messages.showErrorDialog(
-                                "Failed to delete API key. Please try again.",
+                                "Failed to delete API key: ${deleteResult.message}",
                                 "Deletion Failed"
                             )
                         }
                     }
-                    is ApiResult.Error -> {
-                        PluginLogger.Settings.error("API call failed during key deletion: ${deleteResult.message}")
-                        Messages.showErrorDialog(
-                            "Failed to delete API key: ${deleteResult.message}",
-                            "Deletion Failed"
-                        )
-                    }
-                }
+                }, ModalityState.any())
             } catch (e: IllegalStateException) {
                 PluginLogger.Settings.error("Invalid state during key deletion: ${e.message}", e)
-                Messages.showErrorDialog(
-                    "Failed to delete API key due to error. Please try again.",
-                    "Deletion Failed"
-                )
+                ApplicationManager.getApplication().invokeLater({
+                    Messages.showErrorDialog(
+                        "Failed to delete API key due to error. Please try again.",
+                        "Deletion Failed"
+                    )
+                }, ModalityState.any())
             } catch (e: IOException) {
                 PluginLogger.Settings.error("Network error during key deletion: ${e.message}", e)
-                Messages.showErrorDialog(
-                    "Failed to delete API key due to error. Please try again.",
-                    "Deletion Failed"
-                )
+                ApplicationManager.getApplication().invokeLater({
+                    Messages.showErrorDialog(
+                        "Failed to delete API key due to error. Please try again.",
+                        "Deletion Failed"
+                    )
+                }, ModalityState.any())
             }
         }
     }
@@ -173,10 +188,14 @@ class ApiKeyManager(
         PluginLogger.Settings.info("REFRESH BUTTON CLICKED - refreshApiKeys() called (forceRefresh: $forceRefresh)")
         PluginLogger.Settings.info("========================================")
 
-        loadApiKeysInternal(forceRefresh)
+        loadApiKeysAsync(forceRefresh)
     }
 
-    private fun loadApiKeysInternal(forceRefresh: Boolean) {
+    /**
+     * Loads API keys asynchronously on a background thread.
+     * Updates the table model on EDT after fetching.
+     */
+    private fun loadApiKeysAsync(forceRefresh: Boolean) {
         if (!settingsService.isConfigured()) {
             PluginLogger.Settings.debug("Not configured, clearing API keys table and cache")
             apiKeyTableModel.setApiKeys(emptyList())
@@ -185,61 +204,104 @@ class ApiKeyManager(
         }
 
         // Check cache first (unless force refresh)
-        if (!forceRefresh) {
-            val now = System.currentTimeMillis()
-            val cacheAge = now - cacheTimestamp
-            val isCacheValid = cachedApiKeys != null && cacheAge < CACHE_DURATION_MS
+        if (!forceRefresh && useCachedApiKeysIfValid()) {
+            return
+        }
 
-            if (isCacheValid) {
-                PluginLogger.Settings.debug("Using cached API keys (${cachedApiKeys?.size} keys, age: ${cacheAge}ms)")
-                apiKeyTableModel.setApiKeys(cachedApiKeys!!)
-                return
-            } else if (cachedApiKeys != null) {
-                PluginLogger.Settings.debug(
-                    "Cache expired (age: ${cacheAge}ms > ${CACHE_DURATION_MS}ms), fetching fresh data"
-                )
-            }
-        } else {
+        if (forceRefresh) {
             PluginLogger.Settings.debug("Force refresh requested, bypassing cache")
         }
 
-        // Fetch from API
-        runBlocking {
-            try {
-                val result = openRouterService.getApiKeysList(settingsService.getProvisioningKey())
-                when (result) {
-                    is ApiResult.Success -> {
-                        val apiKeys = result.data.data
-                        PluginLogger.Settings.info("Loaded ${apiKeys.size} API keys from OpenRouter")
+        // Fetch from API on background thread
+        coroutineScope.launch(Dispatchers.IO) {
+            fetchAndUpdateApiKeys()
+        }
+    }
 
-                        // Update cache
-                        cachedApiKeys = apiKeys
-                        cacheTimestamp = System.currentTimeMillis()
-                        PluginLogger.Settings.debug("Updated API keys cache (${apiKeys.size} keys)")
+    /**
+     * Checks if cache is valid and uses it if so.
+     * @return true if cache was used, false if fetch is needed
+     */
+    private fun useCachedApiKeysIfValid(): Boolean {
+        val now = System.currentTimeMillis()
+        val cacheAge = now - cacheTimestamp
+        val isCacheValid = cachedApiKeys != null && cacheAge < CACHE_DURATION_MS
 
-                        apiKeyTableModel.setApiKeys(apiKeys)
-                        intellijKeyManager.ensureIntellijApiKeyExists(apiKeys)
-                    }
-                    is ApiResult.Error -> {
-                        PluginLogger.Settings.warn("Failed to load API keys: ${result.message}")
-                        apiKeyTableModel.setApiKeys(emptyList())
-                        clearCache()
-                    }
+        if (isCacheValid) {
+            PluginLogger.Settings.debug("Using cached API keys (${cachedApiKeys?.size} keys, age: ${cacheAge}ms)")
+            apiKeyTableModel.setApiKeys(cachedApiKeys!!)
+            return true
+        } else if (cachedApiKeys != null) {
+            PluginLogger.Settings.debug(
+                "Cache expired (age: ${cacheAge}ms > ${CACHE_DURATION_MS}ms), fetching fresh data"
+            )
+        }
+        return false
+    }
+
+    /**
+     * Fetches API keys from OpenRouter and updates the UI.
+     * Must be called from a background thread.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun fetchAndUpdateApiKeys() {
+        try {
+            val result = openRouterService.getApiKeysList(settingsService.getProvisioningKey())
+            ApplicationManager.getApplication().invokeLater({
+                handleApiKeysResult(result)
+            }, ModalityState.any())
+        } catch (e: IllegalStateException) {
+            PluginLogger.Settings.error("Invalid state while refreshing API keys: ${e.message}", e)
+            clearApiKeysOnEdt()
+        } catch (e: IOException) {
+            PluginLogger.Settings.error("Network error while refreshing API keys: ${e.message}", e)
+            clearApiKeysOnEdt()
+        } catch (expectedError: Exception) {
+            PluginLogger.Settings.error("Failed to refresh API keys: ${expectedError.message}", expectedError)
+            clearApiKeysOnEdt()
+        }
+    }
+
+    /**
+     * Handles the result of fetching API keys.
+     * Must be called on EDT.
+     */
+    private fun handleApiKeysResult(result: ApiResult<*>) {
+        when (result) {
+            is ApiResult.Success<*> -> {
+                @Suppress("UNCHECKED_CAST")
+                val apiKeys = (result.data as? org.zhavoronkov.openrouter.models.ApiKeysListResponse)?.data
+                    ?: emptyList()
+                PluginLogger.Settings.info("Loaded ${apiKeys.size} API keys from OpenRouter")
+
+                // Update cache
+                cachedApiKeys = apiKeys
+                cacheTimestamp = System.currentTimeMillis()
+                PluginLogger.Settings.debug("Updated API keys cache (${apiKeys.size} keys)")
+
+                apiKeyTableModel.setApiKeys(apiKeys)
+
+                // Ensure IntelliJ API key exists (runs async)
+                coroutineScope.launch(Dispatchers.IO) {
+                    intellijKeyManager.ensureIntellijApiKeyExists(apiKeys)
                 }
-            } catch (e: IllegalStateException) {
-                PluginLogger.Settings.error("Invalid state while refreshing API keys: ${e.message}", e)
-                apiKeyTableModel.setApiKeys(emptyList())
-                clearCache()
-            } catch (e: IOException) {
-                PluginLogger.Settings.error("Network error while refreshing API keys: ${e.message}", e)
-                apiKeyTableModel.setApiKeys(emptyList())
-                clearCache()
-            } catch (expectedError: Exception) {
-                PluginLogger.Settings.error("Failed to refresh API keys: ${expectedError.message}", expectedError)
+            }
+            is ApiResult.Error -> {
+                PluginLogger.Settings.warn("Failed to load API keys: ${result.message}")
                 apiKeyTableModel.setApiKeys(emptyList())
                 clearCache()
             }
         }
+    }
+
+    /**
+     * Clears API keys table on EDT.
+     */
+    private fun clearApiKeysOnEdt() {
+        ApplicationManager.getApplication().invokeLater({
+            apiKeyTableModel.setApiKeys(emptyList())
+            clearCache()
+        }, ModalityState.any())
     }
 
     fun clearCache() {
@@ -251,8 +313,6 @@ class ApiKeyManager(
     fun loadApiKeysWithoutAutoCreate() {
         PluginLogger.Settings.debug("Loading API keys without auto-creation (will use cache if available)")
         // Use cached data if available (don't force refresh)
-        loadApiKeysInternal(forceRefresh = false)
+        loadApiKeysAsync(forceRefresh = false)
     }
-
-    fun getIntellijKeyManager(): IntellijApiKeyManager = intellijKeyManager
 }

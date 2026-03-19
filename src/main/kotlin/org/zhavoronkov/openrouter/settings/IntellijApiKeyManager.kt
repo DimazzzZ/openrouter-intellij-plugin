@@ -1,8 +1,13 @@
 package org.zhavoronkov.openrouter.settings
 
 import com.google.gson.JsonSyntaxException
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import org.zhavoronkov.openrouter.models.ApiKeyInfo
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.services.OpenRouterService
@@ -12,91 +17,143 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.io.IOException
 
 /**
- * Manages the IntelliJ IDEA Plugin API key lifecycle
+ * Manages the IntelliJ IDEA Plugin API key lifecycle.
+ *
+ * All network operations are performed on background threads using coroutines
+ * to avoid EDT (Event Dispatch Thread) violations.
  */
 @Suppress("TooManyFunctions")
 class IntellijApiKeyManager(
     private val settingsService: OpenRouterSettingsService,
     private val openRouterService: OpenRouterService
-) {
+) : Disposable {
+
+    // Coroutine scope for background operations - uses IO dispatcher to avoid EDT violations
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     companion object {
         private const val INTELLIJ_API_KEY_NAME = "IntelliJ IDEA Plugin"
-    }
 
-    private var isCreatingApiKey = false
+        // Singleton flag to prevent concurrent API key creation across all instances
+        @Volatile
+        private var isCreatingApiKey = false
+
+        // Lock object for synchronization
+        private val creationLock = Any()
+    }
 
     fun ensureIntellijApiKeyExists(currentApiKeys: List<ApiKeyInfo>) {
-        val storedApiKey = settingsService.getApiKey()
-        val existingIntellijApiKey = currentApiKeys.find { it.name == INTELLIJ_API_KEY_NAME }
+        // Use synchronized block to prevent concurrent key operations
+        synchronized(creationLock) {
+            if (isCreatingApiKey) {
+                PluginLogger.Settings.debug("Already creating API key, skipping ensureIntellijApiKeyExists")
+                return
+            }
 
-        PluginLogger.Settings.debug(
-            "ensureIntellijApiKeyExists: storedApiKey.length=${storedApiKey.length}, " +
-                "storedApiKey.isEmpty=${storedApiKey.isEmpty()}"
-        )
-        PluginLogger.Settings.debug(
-            "ensureIntellijApiKeyExists: existingIntellijApiKey=${existingIntellijApiKey?.name ?: "null"}"
-        )
+            val storedApiKey = settingsService.getApiKey()
+            // Find ALL keys with the IntelliJ name, not just the first one
+            val existingIntellijApiKeys = currentApiKeys.filter { it.name == INTELLIJ_API_KEY_NAME }
 
-        val storedKeyMatchesRemote = validateStoredKeyMatchesRemote(existingIntellijApiKey, storedApiKey)
+            PluginLogger.Settings.debug(
+                "ensureIntellijApiKeyExists: storedApiKey.length=${storedApiKey.length}, " +
+                    "storedApiKey.isEmpty=${storedApiKey.isEmpty()}"
+            )
+            PluginLogger.Settings.debug(
+                "ensureIntellijApiKeyExists: found ${existingIntellijApiKeys.size} IntelliJ API key(s)"
+            )
 
-        if (existingIntellijApiKey != null && storedApiKey.isNotEmpty() && storedKeyMatchesRemote) {
-            PluginLogger.Settings.debug("IntelliJ API key exists and stored key matches remote - no action needed")
-            return
+            // Check if stored key matches ANY of the existing keys
+            val matchingKey = findMatchingKey(existingIntellijApiKeys, storedApiKey)
+
+            if (matchingKey != null && storedApiKey.isNotEmpty()) {
+                // We have a valid key that matches - check if there are duplicates to clean up
+                val duplicateCount = existingIntellijApiKeys.size - 1
+                if (duplicateCount > 0) {
+                    PluginLogger.Settings.warn(
+                        "Found $duplicateCount duplicate IntelliJ API key(s) - cleaning up"
+                    )
+                    cleanupDuplicateKeys(existingIntellijApiKeys, matchingKey)
+                } else {
+                    PluginLogger.Settings.debug(
+                        "IntelliJ API key exists and stored key matches - no action needed"
+                    )
+                }
+                return
+            }
+
+            handleApiKeyMismatchOrMissing(existingIntellijApiKeys, storedApiKey, matchingKey)
         }
-
-        handleApiKeyMismatchOrMissing(existingIntellijApiKey, storedApiKey, storedKeyMatchesRemote)
     }
 
-    private fun validateStoredKeyMatchesRemote(
-        existingIntellijApiKey: ApiKeyInfo?,
-        storedApiKey: String
-    ): Boolean {
-        // Validate that the stored API key actually matches the remote IntelliJ key
-        // The label field contains a preview of the key (e.g., "sk-or-v1-abc...xyz")
-        // We compare the prefix before "..." with the stored key's prefix
-        return if (existingIntellijApiKey != null && storedApiKey.isNotEmpty()) {
-            val keyLabel = existingIntellijApiKey.label
+    /**
+     * Find a key from the list that matches the stored API key prefix.
+     * Returns the first matching key or null if no match found.
+     */
+    @Suppress("ReturnCount")
+    private fun findMatchingKey(keys: List<ApiKeyInfo>, storedApiKey: String): ApiKeyInfo? {
+        if (storedApiKey.isEmpty()) return null
+
+        for (key in keys) {
+            val keyLabel = key.label
             // Label format is like "sk-or-v1-abc...xyz" - extract the prefix to compare
             val labelPrefix = if (keyLabel.contains("...")) {
                 keyLabel.substringBefore("...")
             } else {
-                // If no "...", use the whole label as prefix (shouldn't happen normally)
                 keyLabel
             }
             val storedKeyPrefix = storedApiKey.take(labelPrefix.length)
-            val matches = storedKeyPrefix == labelPrefix
-            PluginLogger.Settings.debug(
-                "ensureIntellijApiKeyExists: keyLabel=$keyLabel, " +
-                    "labelPrefix=$labelPrefix, storedKeyPrefix=$storedKeyPrefix, matches=$matches"
-            )
-            matches
-        } else {
-            false
+            if (storedKeyPrefix == labelPrefix) {
+                PluginLogger.Settings.debug(
+                    "findMatchingKey: found match - keyLabel=$keyLabel, storedKeyPrefix=$storedKeyPrefix"
+                )
+                return key
+            }
+        }
+
+        PluginLogger.Settings.debug("findMatchingKey: no matching key found for stored API key")
+        return null
+    }
+
+    /**
+     * Clean up duplicate keys, keeping only the matching one
+     */
+    private fun cleanupDuplicateKeys(allKeys: List<ApiKeyInfo>, keepKey: ApiKeyInfo) {
+        val keysToDelete = allKeys.filter { it.hash != keepKey.hash }
+        PluginLogger.Settings.info("Cleaning up ${keysToDelete.size} duplicate IntelliJ API key(s)")
+
+        for (key in keysToDelete) {
+            PluginLogger.Settings.debug("Deleting duplicate key: ${key.label}")
+            deleteIntellijApiKeySilently(key.hash)
         }
     }
 
     private fun handleApiKeyMismatchOrMissing(
-        existingIntellijApiKey: ApiKeyInfo?,
+        existingIntellijApiKeys: List<ApiKeyInfo>,
         storedApiKey: String,
-        storedKeyMatchesRemote: Boolean
+        matchingKey: ApiKeyInfo?
     ) {
         when {
-            existingIntellijApiKey != null && storedApiKey.isNotEmpty() && !storedKeyMatchesRemote -> {
+            // Case 1: Keys exist but none match stored key - delete all and recreate
+            existingIntellijApiKeys.isNotEmpty() && storedApiKey.isNotEmpty() && matchingKey == null -> {
+                val keyCount = existingIntellijApiKeys.size
                 PluginLogger.Settings.warn(
-                    "Stored API key does not match remote IntelliJ API key - regenerating"
+                    "Stored API key does not match any of $keyCount remote IntelliJ API key(s) - " +
+                        "deleting all and regenerating"
                 )
                 if (!isCreatingApiKey) {
                     recreateIntellijApiKeySilently()
                 }
             }
-            existingIntellijApiKey == null && !isCreatingApiKey -> {
+            // Case 2: No keys exist - create one
+            existingIntellijApiKeys.isEmpty() && !isCreatingApiKey -> {
                 PluginLogger.Settings.info("IntelliJ API key not found, creating automatically")
                 createIntellijApiKeyOnce()
             }
-            existingIntellijApiKey != null && storedApiKey.isEmpty() && !isCreatingApiKey -> {
+            // Case 3: Keys exist but no stored key - delete all and recreate
+            existingIntellijApiKeys.isNotEmpty() && storedApiKey.isEmpty() && !isCreatingApiKey -> {
                 PluginLogger.Settings.info(
-                    "IntelliJ API key exists remotely but not stored locally - regenerating silently"
+                    "IntelliJ API key(s) exist remotely but not stored locally - " +
+                        "deleting ${existingIntellijApiKeys.size} key(s) and regenerating"
                 )
                 recreateIntellijApiKeySilently()
             }
@@ -104,10 +161,16 @@ class IntellijApiKeyManager(
     }
 
     fun createIntellijApiKeyOnce() {
-        isCreatingApiKey = true
+        synchronized(creationLock) {
+            if (isCreatingApiKey) {
+                PluginLogger.Settings.debug("Already creating API key, skipping createIntellijApiKeyOnce")
+                return
+            }
+            isCreatingApiKey = true
+        }
 
-        // Use runBlocking since this is called during settings initialization
-        runBlocking {
+        // Use coroutine scope to avoid EDT violations
+        scope.launch {
             try {
                 val result = openRouterService.createApiKey(INTELLIJ_API_KEY_NAME)
                 when (result) {
@@ -140,18 +203,15 @@ class IntellijApiKeyManager(
         createIntellijApiKeyOnce()
     }
 
-    fun resetApiKeyCreationFlag() {
-        isCreatingApiKey = false
-        PluginLogger.Settings.info("Reset API key creation flag")
-    }
-
     private fun recreateIntellijApiKeySilently() {
-        if (isCreatingApiKey) {
-            PluginLogger.Settings.debug("Already creating API key, skipping silent regeneration")
-            return
+        synchronized(creationLock) {
+            if (isCreatingApiKey) {
+                PluginLogger.Settings.debug("Already creating API key, skipping silent regeneration")
+                return
+            }
+            isCreatingApiKey = true
         }
 
-        isCreatingApiKey = true
         PluginLogger.Settings.info("Starting silent regeneration of IntelliJ API key")
 
         try {
@@ -162,7 +222,7 @@ class IntellijApiKeyManager(
     }
 
     private fun deleteIntellijApiKeySilently(keyHash: String) {
-        runBlocking {
+        scope.launch {
             try {
                 PluginLogger.Settings.debug("Deleting existing remote IntelliJ API key")
                 val deleteResult = openRouterService.deleteApiKey(keyHash)
@@ -172,7 +232,7 @@ class IntellijApiKeyManager(
                             PluginLogger.Settings.error(
                                 "Failed to delete existing IntelliJ API key during silent regeneration"
                             )
-                            return@runBlocking
+                            return@launch
                         }
                         PluginLogger.Settings.debug("Successfully deleted existing remote IntelliJ API key")
                     }
@@ -180,7 +240,7 @@ class IntellijApiKeyManager(
                         PluginLogger.Settings.error(
                             "Failed to delete existing IntelliJ API key: ${deleteResult.message}"
                         )
-                        return@runBlocking
+                        return@launch
                     }
                 }
             } catch (e: IllegalStateException) {
@@ -189,9 +249,11 @@ class IntellijApiKeyManager(
                     e
                 )
             } catch (e: IOException) {
-                val errorMsg = "Network error deleting existing IntelliJ API key during silent regeneration: " +
-                    "${e.message ?: "Unknown error"}"
-                PluginLogger.Settings.error(errorMsg, e)
+                val errorMessage = e.message ?: "Unknown error"
+                PluginLogger.Settings.error(
+                    "Network error deleting existing IntelliJ API key during silent regeneration: $errorMessage",
+                    e
+                )
             } catch (e: JsonSyntaxException) {
                 PluginLogger.Settings.error(
                     "JSON parsing error deleting existing IntelliJ API key during silent regeneration: ${e.message}",
@@ -201,50 +263,57 @@ class IntellijApiKeyManager(
         }
     }
 
-    private fun createIntellijApiKeySilently() {
-        runBlocking {
-            try {
-                PluginLogger.Settings.debug("Creating new IntelliJ API key")
-                val result = openRouterService.createApiKey(INTELLIJ_API_KEY_NAME)
+    private suspend fun createIntellijApiKeySilently() {
+        try {
+            PluginLogger.Settings.debug("Creating new IntelliJ API key")
+            val result = openRouterService.createApiKey(INTELLIJ_API_KEY_NAME)
 
-                when (result) {
-                    is ApiResult.Success -> {
-                        val apiKey = result.data
-                        saveAndVerifyApiKey(apiKey.key)
-                        refreshStatusBarWidget()
-                    }
-                    is ApiResult.Error -> {
-                        PluginLogger.Settings.error(
-                            "Failed to create new IntelliJ API key during silent regeneration: ${result.message}"
-                        )
-                    }
+            when (result) {
+                is ApiResult.Success -> {
+                    val apiKey = result.data
+                    saveAndVerifyApiKey(apiKey.key)
+                    refreshStatusBarWidget()
                 }
-            } catch (e: IllegalStateException) {
-                PluginLogger.Settings.error(
-                    "Invalid state creating new IntelliJ API key during silent regeneration: ${e.message}",
-                    e
-                )
-            } catch (e: IOException) {
-                PluginLogger.Settings.error(
-                    "Network error creating new IntelliJ API key during silent regeneration: ${e.message}",
-                    e
-                )
-            } catch (e: JsonSyntaxException) {
-                PluginLogger.Settings.error(
-                    "JSON parsing error creating new IntelliJ API key during silent regeneration: ${e.message}",
-                    e
-                )
+                is ApiResult.Error -> {
+                    PluginLogger.Settings.error(
+                        "Failed to create new IntelliJ API key during silent regeneration: ${result.message}"
+                    )
+                }
             }
+        } catch (e: IllegalStateException) {
+            PluginLogger.Settings.error(
+                "Invalid state creating new IntelliJ API key during silent regeneration: ${e.message}",
+                e
+            )
+        } catch (e: IOException) {
+            PluginLogger.Settings.error(
+                "Network error creating new IntelliJ API key during silent regeneration: ${e.message}",
+                e
+            )
+        } catch (e: JsonSyntaxException) {
+            PluginLogger.Settings.error(
+                "JSON parsing error creating new IntelliJ API key during silent regeneration: ${e.message}",
+                e
+            )
         }
     }
 
     private fun manageIntellijApiKeySilently() {
-        runBlocking {
+        scope.launch {
             try {
                 val keysResult = openRouterService.getApiKeysList()
                 if (keysResult is ApiResult.Success) {
-                    val intellijKey = keysResult.data.data.find { it.name == INTELLIJ_API_KEY_NAME }
-                    intellijKey?.let { deleteIntellijApiKeySilently(it.hash) }
+                    // Find ALL keys with the IntelliJ name and delete them all
+                    val intellijKeys = keysResult.data.data.filter { it.name == INTELLIJ_API_KEY_NAME }
+                    if (intellijKeys.isNotEmpty()) {
+                        PluginLogger.Settings.info(
+                            "Deleting ${intellijKeys.size} existing IntelliJ API key(s) before creating new one"
+                        )
+                        for (key in intellijKeys) {
+                            PluginLogger.Settings.debug("Deleting key: ${key.label}")
+                            deleteIntellijApiKeyAsync(key.hash)
+                        }
+                    }
                 }
                 createIntellijApiKeySilently()
             } catch (e: IllegalStateException) {
@@ -254,6 +323,49 @@ class IntellijApiKeyManager(
             } catch (e: JsonSyntaxException) {
                 PluginLogger.Settings.error("JSON parsing error managing IntelliJ API key: ${e.message}", e)
             }
+        }
+    }
+
+    /**
+     * Deletes an API key asynchronously within a coroutine context.
+     */
+    private suspend fun deleteIntellijApiKeyAsync(keyHash: String) {
+        try {
+            PluginLogger.Settings.debug("Deleting existing remote IntelliJ API key")
+            val deleteResult = openRouterService.deleteApiKey(keyHash)
+            when (deleteResult) {
+                is ApiResult.Success -> {
+                    if (!deleteResult.data.deleted) {
+                        PluginLogger.Settings.error(
+                            "Failed to delete existing IntelliJ API key during silent regeneration"
+                        )
+                        return
+                    }
+                    PluginLogger.Settings.debug("Successfully deleted existing remote IntelliJ API key")
+                }
+                is ApiResult.Error -> {
+                    PluginLogger.Settings.error(
+                        "Failed to delete existing IntelliJ API key: ${deleteResult.message}"
+                    )
+                    return
+                }
+            }
+        } catch (e: IllegalStateException) {
+            PluginLogger.Settings.error(
+                "Invalid state deleting existing IntelliJ API key during silent regeneration: ${e.message}",
+                e
+            )
+        } catch (e: IOException) {
+            val errorMessage = e.message ?: "Unknown error"
+            PluginLogger.Settings.error(
+                "Network error deleting existing IntelliJ API key during silent regeneration: $errorMessage",
+                e
+            )
+        } catch (e: JsonSyntaxException) {
+            PluginLogger.Settings.error(
+                "JSON parsing error deleting existing IntelliJ API key during silent regeneration: ${e.message}",
+                e
+            )
         }
     }
 
@@ -282,5 +394,12 @@ class IntellijApiKeyManager(
                 statusBarWidget?.updateQuotaInfo()
             }
         }
+    }
+
+    /**
+     * Disposes of resources and cancels any pending coroutine operations.
+     */
+    override fun dispose() {
+        scope.cancel()
     }
 }

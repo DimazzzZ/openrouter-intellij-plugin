@@ -62,8 +62,8 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         const val LOGIN_MENU_TEXT = "Login to OpenRouter.ai"
         const val LOGOUT_MENU_TEXT = "Logout from OpenRouter.ai"
         const val SETTINGS_MENU_TEXT = "Settings"
-        const val DOCUMENTATION_MENU_TEXT = "View OpenRouter Documentation..."
-        const val FEEDBACK_MENU_TEXT = "View Feedback Repository..."
+        const val DOCUMENTATION_MENU_TEXT = "OpenRouter Documentation..."
+        const val FEEDBACK_MENU_TEXT = "Feedback Repository..."
 
         // Time conversion: milliseconds per second
         private const val MILLIS_PER_SECOND = 1000L

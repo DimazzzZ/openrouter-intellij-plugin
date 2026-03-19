@@ -6,6 +6,7 @@ import org.zhavoronkov.openrouter.proxy.servlets.RequestValidator
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.ModelAvailabilityNotifier
+import org.zhavoronkov.openrouter.utils.PasswordSafeKeyStorage
 import org.zhavoronkov.openrouter.utils.PluginLogger
 
 /**
@@ -71,5 +72,10 @@ class PluginLifecycleListener : DynamicPluginListener {
 
         PluginLogger.Service.info("OpenRouter plugin loaded: version ${pluginDescriptor.version}")
         PluginLogger.Service.info("Dynamic plugin support: enabled")
+
+        // Preload API keys from PasswordSafe on background thread
+        // This prevents EDT violations when keys are accessed from UI components
+        PasswordSafeKeyStorage.preloadKeys()
+        PluginLogger.Service.debug("PasswordSafe key preload triggered")
     }
 }

@@ -11,9 +11,9 @@ import javax.swing.Icon
  */
 object OpenRouterIcons {
 
-    /** Icon for the tool window (16x16) */
+    /** Icon for the tool window (13x13 as required by IntelliJ) */
     @JvmField
-    val TOOL_WINDOW: Icon = IconLoader.getIcon("/icons/openrouter-16.png", OpenRouterIcons::class.java)
+    val TOOL_WINDOW: Icon = IconLoader.getIcon("/icons/openrouter-13.png", OpenRouterIcons::class.java)
 
     /** Icon for the status bar widget (13x13) */
     @JvmField
