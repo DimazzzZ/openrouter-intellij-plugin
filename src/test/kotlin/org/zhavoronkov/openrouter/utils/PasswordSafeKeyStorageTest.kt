@@ -19,8 +19,9 @@ class PasswordSafeKeyStorageTest {
 
     @BeforeEach
     fun setUp() {
-        // Clear all keys before each test to ensure isolation
-        PasswordSafeKeyStorage.clearAll()
+        // Reset cache state and clear all keys before each test to ensure isolation
+        // resetCacheForTesting() clears the cache, preload flag, and in-memory storage
+        PasswordSafeKeyStorage.resetCacheForTesting()
     }
 
     @Nested

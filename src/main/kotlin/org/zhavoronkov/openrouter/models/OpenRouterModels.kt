@@ -156,25 +156,20 @@ data class ModelPricing(
     val request: String? = null
 )
 
-// Legacy model info for backward compatibility
-data class ModelInfo(
-    val id: String,
-    val name: String,
-    val description: String? = null,
-    val pricing: ModelPricing? = null
-)
-
 /**
- * Generation tracking data
+ * Generation tracking data.
+ *
+ * Properties are mutable (`var`) with default values for IntelliJ XML serialization.
+ * See: https://jb.gg/ij-psoc
  */
 data class GenerationTrackingInfo(
-    val generationId: String,
-    val model: String,
-    val timestamp: Long,
-    val promptTokens: Int? = null,
-    val completionTokens: Int? = null,
-    val totalTokens: Int? = null,
-    val totalCost: Double? = null
+    var generationId: String = "",
+    var model: String = "",
+    var timestamp: Long = 0L,
+    var promptTokens: Int? = null,
+    var completionTokens: Int? = null,
+    var totalTokens: Int? = null,
+    var totalCost: Double? = null
 )
 
 /**
