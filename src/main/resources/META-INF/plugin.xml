@@ -225,7 +225,7 @@
         <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterService"/>
         <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterSettingsService"/>
         <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService"/>
-        <!-- OpenRouterProxyService and OpenRouterStatsCache use @Service annotation instead of XML registration -->
+        <!-- OpenRouterProxyService, OpenRouterStatsCache, CreditUsageHistoryService use @Service annotation -->
         
         <!-- Settings -->
         <applicationConfigurable
@@ -252,6 +252,7 @@
         <postStartupActivity implementation="org.zhavoronkov.openrouter.startup.WelcomeNotificationActivity"/>
         <postStartupActivity implementation="org.zhavoronkov.openrouter.startup.ProxyServerStartupActivity"/>
         <postStartupActivity implementation="org.zhavoronkov.openrouter.startup.WhatsNewNotificationActivity"/>
+        <postStartupActivity implementation="org.zhavoronkov.openrouter.startup.CreditHistoryStartupActivity"/>
 
         <!-- Tool window for status display -->
         <toolWindow

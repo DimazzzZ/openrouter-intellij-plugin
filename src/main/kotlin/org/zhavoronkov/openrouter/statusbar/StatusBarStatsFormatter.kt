@@ -1,6 +1,9 @@
 package org.zhavoronkov.openrouter.statusbar
 
 import org.zhavoronkov.openrouter.models.ActivityData
+import org.zhavoronkov.openrouter.models.CreditsData
+import org.zhavoronkov.openrouter.services.CreditUsageHistoryService
+import org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -9,6 +12,7 @@ import java.util.Locale
 /**
  * Extracted helpers for OpenRouterStatusBarWidget formatting logic.
  */
+@Suppress("TooManyFunctions")
 object StatusBarStatsFormatter {
 
     private const val DAYS_IN_WEEK = 7
@@ -19,6 +23,18 @@ object StatusBarStatsFormatter {
         var today: Double = 0.0,
         var yesterday: Double = 0.0,
         var lastWeek: Double = 0.0
+    )
+
+    /**
+     * Parameters for tooltip formatting.
+     */
+    data class TooltipParams(
+        val statusText: String,
+        val used: Double,
+        val total: Double,
+        val activityList: List<ActivityData>? = null,
+        val trackingService: OpenRouterGenerationTrackingService? = null,
+        val creditsData: CreditsData? = null
     )
 
     fun formatStatusTextFromCredits(used: Double, total: Double, showCosts: Boolean): String {
@@ -36,17 +52,35 @@ object StatusBarStatsFormatter {
         }
     }
 
+    @Suppress("LongParameterList")
     fun formatStatusTooltipFromCredits(
         statusText: String,
         used: Double,
         total: Double,
-        activityList: List<ActivityData>? = null
+        activityList: List<ActivityData>? = null,
+        trackingService: OpenRouterGenerationTrackingService? = null,
+        creditsData: CreditsData? = null
     ): String {
-        val usedText = "$${String.format(Locale.US, "%.3f", used)}"
-        val totalText = if (total > 0) "$${String.format(Locale.US, "%.2f", total)}" else "Unlimited"
+        val params = TooltipParams(statusText, used, total, activityList, trackingService, creditsData)
+        return formatStatusTooltip(params)
+    }
 
-        val activityRows = if (activityList != null) {
-            calculateActivityRows(activityList)
+    private fun formatStatusTooltip(params: TooltipParams): String {
+        val usedText = "$${String.format(Locale.US, "%.3f", params.used)}"
+        val totalText = if (params.total > 0) {
+            "$${String.format(Locale.US, "%.2f", params.total)}"
+        } else {
+            "Unlimited"
+        }
+        val remaining = if (params.total > 0) params.total - params.used else 0.0
+
+        val activityRows = if (params.activityList != null) {
+            calculateActivityRowsWithHistory(
+                params.activityList,
+                params.trackingService,
+                params.creditsData,
+                remaining
+            )
         } else {
             ""
         }
@@ -56,7 +90,7 @@ object StatusBarStatsFormatter {
             <table border='0' cellpadding='1' cellspacing='0'>
               <tr><td colspan='2'><b>Connection</b></td></tr>
               <tr height='2'><td></td></tr>
-              <tr><td>Status:</td><td align='right' style='padding-left: 30px;'>$statusText</td></tr>
+              <tr><td>Status:</td><td align='right' style='padding-left: 30px;'>${params.statusText}</td></tr>
               <tr><td>Auth:</td><td align='right' style='padding-left: 30px;'>Provisioning Key</td></tr>
               <tr height='8'><td></td></tr>
               <tr><td colspan='2'><b>Credits</b></td></tr>
@@ -69,7 +103,20 @@ object StatusBarStatsFormatter {
         """.trimIndent()
     }
 
+    /**
+     * Calculate activity rows using API data for all metrics.
+     */
     fun calculateActivityRows(activityList: List<ActivityData>): String {
+        return calculateActivityRows(activityList, null)
+    }
+
+    /**
+     * Calculate activity rows with optional local tracking for "Today" metric.
+     */
+    fun calculateActivityRows(
+        activityList: List<ActivityData>,
+        trackingService: OpenRouterGenerationTrackingService?
+    ): String {
         val utcNow = LocalDate.now(ZoneId.of("UTC"))
         val yesterday = utcNow.minusDays(1)
         val lastWeekStart = utcNow.minusDays((DAYS_IN_WEEK - 1).toLong())
@@ -80,7 +127,9 @@ object StatusBarStatsFormatter {
             processActivity(activity, utcNow, yesterday, lastWeekStart, costs)
         }
 
-        return formatActivityRowsHtml(costs.today, costs.yesterday, costs.lastWeek)
+        val todayCost = trackingService?.getTodayCost() ?: costs.today
+
+        return formatActivityRowsHtml(todayCost, costs.yesterday, costs.lastWeek)
     }
 
     fun processActivity(
@@ -125,6 +174,83 @@ object StatusBarStatsFormatter {
           <tr><td>Today:</td><td align='right' style='padding-left: 30px;'>$todayText</td></tr>
           <tr><td>Yesterday:</td><td align='right' style='padding-left: 30px;'>$yesterdayText</td></tr>
           <tr><td>7 Days:</td><td align='right' style='padding-left: 30px;'>$lastWeekText</td></tr>
+        """.trimIndent()
+    }
+
+    /**
+     * Calculate activity rows using credit usage history service for accurate "today" calculation.
+     */
+    fun calculateActivityRowsWithHistory(
+        activityList: List<ActivityData>,
+        trackingService: OpenRouterGenerationTrackingService?,
+        creditsData: CreditsData?,
+        remainingCredits: Double
+    ): String {
+        val utcNow = LocalDate.now(ZoneId.of("UTC"))
+        val yesterday = utcNow.minusDays(1)
+        val lastWeekStart = utcNow.minusDays((DAYS_IN_WEEK - 1).toLong())
+
+        val costs = ActivityCosts()
+
+        activityList.forEach { activity ->
+            processActivity(activity, utcNow, yesterday, lastWeekStart, costs)
+        }
+
+        val todayCost = calculateTodayCostFromHistory(creditsData)
+            ?: trackingService?.getTodayCost()
+            ?: costs.today
+
+        val yesterdayCost = costs.yesterday
+        val daysRemaining = calculateDaysRemainingFromHistory(remainingCredits, yesterdayCost)
+
+        return formatActivityRowsHtmlWithDays(todayCost, yesterdayCost, costs.lastWeek, daysRemaining)
+    }
+
+    @Suppress("SwallowedException")
+    private fun calculateTodayCostFromHistory(creditsData: CreditsData?): Double? {
+        if (creditsData == null) return null
+
+        return try {
+            val historyService = CreditUsageHistoryService.getInstance()
+            historyService.calculateTodaySpent(creditsData.totalUsage)
+        } catch (_: IllegalStateException) {
+            // Service not available during initialization - fallback to other methods
+            null
+        }
+    }
+
+    @Suppress("SwallowedException")
+    private fun calculateDaysRemainingFromHistory(remainingCredits: Double, yesterdaySpent: Double): Int? {
+        if (yesterdaySpent <= 0) return null
+
+        return try {
+            val historyService = CreditUsageHistoryService.getInstance()
+            historyService.calculateDaysRemaining(remainingCredits, yesterdaySpent)
+        } catch (_: IllegalStateException) {
+            // Service not available - use fallback calculation
+            if (yesterdaySpent > 0) (remainingCredits / yesterdaySpent).toInt() else null
+        }
+    }
+
+    private fun formatActivityRowsHtmlWithDays(
+        todayCost: Double,
+        yesterdayCost: Double,
+        lastWeekCost: Double,
+        daysRemaining: Int?
+    ): String {
+        val todayText = "$${String.format(Locale.US, "%.3f", todayCost)}"
+        val yesterdayText = "$${String.format(Locale.US, "%.3f", yesterdayCost)}"
+        val lastWeekText = "$${String.format(Locale.US, "%.3f", lastWeekCost)}"
+        val daysText = daysRemaining?.let { "~$it days" } ?: "N/A"
+
+        return """
+          <tr height='8'><td></td></tr>
+          <tr><td colspan='2'><b>Activity</b></td></tr>
+          <tr height='2'><td></td></tr>
+          <tr><td>Today:</td><td align='right' style='padding-left: 30px;'>$todayText</td></tr>
+          <tr><td>Yesterday:</td><td align='right' style='padding-left: 30px;'>$yesterdayText</td></tr>
+          <tr><td>7 Days:</td><td align='right' style='padding-left: 30px;'>$lastWeekText</td></tr>
+          <tr><td>Remaining:</td><td align='right' style='padding-left: 30px;'>$daysText</td></tr>
         """.trimIndent()
     }
 }
