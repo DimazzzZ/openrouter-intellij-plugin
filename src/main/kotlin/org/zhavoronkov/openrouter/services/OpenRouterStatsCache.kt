@@ -171,7 +171,7 @@ class OpenRouterStatsCache : Disposable {
             PluginLogger.Service.error("Stats cache: IllegalArgumentException during refresh", e)
             handleRefreshError("Invalid argument: ${e.message}")
         } catch (e: RuntimeException) {
-            // Catch remaining RuntimeExceptions (including NPE) as fallback
+            // Catch remaining runtime exceptions (including NPE) to prevent crashes
             PluginLogger.Service.error("Stats cache: RuntimeException during refresh", e)
             handleRefreshError("Unexpected error: ${e.message}")
         } finally {

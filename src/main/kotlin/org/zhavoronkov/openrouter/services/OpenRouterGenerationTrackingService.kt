@@ -7,6 +7,8 @@ import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import org.zhavoronkov.openrouter.models.GenerationTrackingInfo
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * Service for tracking OpenRouter API generations and their costs
@@ -128,6 +130,50 @@ class OpenRouterGenerationTrackingService :
             state.generations[index] = updated
         }
     }
+
+    /**
+     * Get the start of day timestamp in milliseconds for a given number of days ago.
+     * Uses the system's default timezone to match user expectations.
+     *
+     * @param daysAgo Number of days in the past (0 = today, 1 = yesterday, etc.)
+     * @return Epoch milliseconds for the start of that day
+     */
+    private fun getStartOfDayMillis(daysAgo: Int): Long {
+        val zone = ZoneId.systemDefault()
+        val date = LocalDate.now(zone).minusDays(daysAgo.toLong())
+        return date.atStartOfDay(zone).toInstant().toEpochMilli()
+    }
+
+    /**
+     * Get the cost of generations for a specific day.
+     *
+     * @param daysAgo Number of days in the past (0 = today, 1 = yesterday, etc.)
+     * @return Total cost for that day
+     */
+    fun getCostForDay(daysAgo: Int): Double {
+        val startOfDay = getStartOfDayMillis(daysAgo)
+        val endOfDay = getStartOfDayMillis(daysAgo - 1) // Start of next day
+
+        return state.generations
+            .filter { it.timestamp >= startOfDay && it.timestamp < endOfDay }
+            .mapNotNull { it.totalCost }
+            .sum()
+    }
+
+    /**
+     * Get today's total cost from locally tracked generations.
+     * This provides real-time data that the API may not have yet.
+     *
+     * @return Total cost for today's generations
+     */
+    fun getTodayCost(): Double = getCostForDay(0)
+
+    /**
+     * Get yesterday's total cost from locally tracked generations.
+     *
+     * @return Total cost for yesterday's generations
+     */
+    fun getYesterdayCost(): Double = getCostForDay(1)
 
     /**
      * Dispose method for dynamic plugin support

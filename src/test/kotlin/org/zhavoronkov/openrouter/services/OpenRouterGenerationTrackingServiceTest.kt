@@ -10,6 +10,8 @@ import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
 import org.zhavoronkov.openrouter.models.GenerationTrackingInfo
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
+import java.time.LocalDate
+import java.time.ZoneId
 
 @DisplayName("OpenRouter Generation Tracking Service Tests")
 class OpenRouterGenerationTrackingServiceTest {
@@ -155,6 +157,142 @@ class OpenRouterGenerationTrackingServiceTest {
             service.clearGenerations()
 
             assertTrue(service.getRecentGenerations(10).isEmpty())
+        }
+    }
+
+    @Nested
+    @DisplayName("Daily Cost Calculations")
+    inner class DailyCostCalculations {
+
+        private fun getStartOfDayMillis(daysAgo: Int): Long {
+            val zone = ZoneId.systemDefault()
+            val date = LocalDate.now(zone).minusDays(daysAgo.toLong())
+            return date.atStartOfDay(zone).toInstant().toEpochMilli()
+        }
+
+        private fun createGenerationWithTimestamp(
+            id: String,
+            timestamp: Long,
+            totalCost: Double? = 0.5
+        ): GenerationTrackingInfo {
+            return GenerationTrackingInfo(
+                generationId = id,
+                model = "openai/gpt-4",
+                timestamp = timestamp,
+                promptTokens = null,
+                completionTokens = null,
+                totalTokens = 100,
+                totalCost = totalCost
+            )
+        }
+
+        @Test
+        fun `getTodayCost should return sum of today's generations`() {
+            val state = OpenRouterSettings(trackGenerations = true)
+            `when`(mockSettingsService.getState()).thenReturn(state)
+
+            // Create generations for today
+            val todayMidMorning = getStartOfDayMillis(0) + 10 * 60 * 60 * 1000 // 10 AM today
+            val todayAfternoon = getStartOfDayMillis(0) + 15 * 60 * 60 * 1000 // 3 PM today
+
+            service.trackGeneration(createGenerationWithTimestamp("today-1", todayMidMorning, 0.25))
+            service.trackGeneration(createGenerationWithTimestamp("today-2", todayAfternoon, 0.35))
+
+            assertEquals(0.60, service.getTodayCost(), 0.0001)
+        }
+
+        @Test
+        fun `getYesterdayCost should return sum of yesterday's generations`() {
+            val state = OpenRouterSettings(trackGenerations = true)
+            `when`(mockSettingsService.getState()).thenReturn(state)
+
+            // Create generations for yesterday
+            val yesterdayMorning = getStartOfDayMillis(1) + 9 * 60 * 60 * 1000 // 9 AM yesterday
+            val yesterdayEvening = getStartOfDayMillis(1) + 20 * 60 * 60 * 1000 // 8 PM yesterday
+
+            service.trackGeneration(createGenerationWithTimestamp("yesterday-1", yesterdayMorning, 0.15))
+            service.trackGeneration(createGenerationWithTimestamp("yesterday-2", yesterdayEvening, 0.20))
+
+            assertEquals(0.35, service.getYesterdayCost(), 0.0001)
+        }
+
+        @Test
+        fun `getTodayCost should exclude yesterday's generations`() {
+            val state = OpenRouterSettings(trackGenerations = true)
+            `when`(mockSettingsService.getState()).thenReturn(state)
+
+            // Create generations for today and yesterday
+            val todayTimestamp = getStartOfDayMillis(0) + 12 * 60 * 60 * 1000 // noon today
+            val yesterdayTimestamp = getStartOfDayMillis(1) + 12 * 60 * 60 * 1000 // noon yesterday
+
+            service.trackGeneration(createGenerationWithTimestamp("today", todayTimestamp, 0.50))
+            service.trackGeneration(createGenerationWithTimestamp("yesterday", yesterdayTimestamp, 1.00))
+
+            assertEquals(0.50, service.getTodayCost(), 0.0001)
+        }
+
+        @Test
+        fun `getYesterdayCost should exclude today's and older generations`() {
+            val state = OpenRouterSettings(trackGenerations = true)
+            `when`(mockSettingsService.getState()).thenReturn(state)
+
+            // Create generations for today, yesterday, and 2 days ago
+            val todayTimestamp = getStartOfDayMillis(0) + 12 * 60 * 60 * 1000
+            val yesterdayTimestamp = getStartOfDayMillis(1) + 12 * 60 * 60 * 1000
+            val twoDaysAgoTimestamp = getStartOfDayMillis(2) + 12 * 60 * 60 * 1000
+
+            service.trackGeneration(createGenerationWithTimestamp("today", todayTimestamp, 0.50))
+            service.trackGeneration(createGenerationWithTimestamp("yesterday", yesterdayTimestamp, 0.30))
+            service.trackGeneration(createGenerationWithTimestamp("two-days-ago", twoDaysAgoTimestamp, 0.80))
+
+            assertEquals(0.30, service.getYesterdayCost(), 0.0001)
+        }
+
+        @Test
+        fun `getCostForDay should work for arbitrary days ago`() {
+            val state = OpenRouterSettings(trackGenerations = true)
+            `when`(mockSettingsService.getState()).thenReturn(state)
+
+            // Create generations for 3 days ago
+            val threeDaysAgo = getStartOfDayMillis(3) + 12 * 60 * 60 * 1000
+
+            service.trackGeneration(createGenerationWithTimestamp("three-days", threeDaysAgo, 0.75))
+
+            assertEquals(0.75, service.getCostForDay(3), 0.0001)
+        }
+
+        @Test
+        fun `getTodayCost should return zero when no generations today`() {
+            val state = OpenRouterSettings(trackGenerations = true)
+            `when`(mockSettingsService.getState()).thenReturn(state)
+
+            // Only add yesterday's generation
+            val yesterdayTimestamp = getStartOfDayMillis(1) + 12 * 60 * 60 * 1000
+            service.trackGeneration(createGenerationWithTimestamp("yesterday", yesterdayTimestamp, 0.50))
+
+            assertEquals(0.0, service.getTodayCost(), 0.0001)
+        }
+
+        @Test
+        fun `getTodayCost should ignore null cost values`() {
+            val state = OpenRouterSettings(trackGenerations = true)
+            `when`(mockSettingsService.getState()).thenReturn(state)
+
+            val todayTimestamp = getStartOfDayMillis(0) + 12 * 60 * 60 * 1000
+
+            service.trackGeneration(createGenerationWithTimestamp("today-1", todayTimestamp, 0.25))
+            service.trackGeneration(createGenerationWithTimestamp("today-2", todayTimestamp, null))
+            service.trackGeneration(createGenerationWithTimestamp("today-3", todayTimestamp, 0.15))
+
+            assertEquals(0.40, service.getTodayCost(), 0.0001)
+        }
+
+        @Test
+        fun `getTodayCost should return zero when generations list is empty`() {
+            val state = OpenRouterSettings(trackGenerations = true)
+            `when`(mockSettingsService.getState()).thenReturn(state)
+
+            assertEquals(0.0, service.getTodayCost(), 0.0001)
         }
     }
 
