@@ -23,6 +23,13 @@ repositories {
     mavenCentral()
 }
 
+// Force patched versions of vulnerable transitive dependencies
+configurations.all {
+    resolutionStrategy {
+        force("junit:junit:4.13.1") // CVE-2020-15250
+    }
+}
+
 dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.11.0")
     implementation("com.google.code.gson:gson:2.10.1")
