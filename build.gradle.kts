@@ -6,6 +6,7 @@ plugins {
     id("org.jetbrains.kotlin.jvm") version "2.1.10"
     id("org.jetbrains.intellij") version "1.17.4"
     id("io.gitlab.arturbosch.detekt") version "1.23.7"
+    id("org.jetbrains.kotlinx.kover") version "0.9.1"
 }
 
 group = project.findProperty("pluginGroup") ?: "org.zhavoronkov"
@@ -22,14 +23,22 @@ repositories {
     mavenCentral()
 }
 
+// Force patched versions of vulnerable transitive dependencies
+configurations.all {
+    resolutionStrategy {
+        force("junit:junit:4.13.1") // CVE-2020-15250
+        force("com.squareup.okio:okio-jvm:3.4.0") // CVE-2023-3635
+    }
+}
+
 dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.11.0")
     implementation("com.google.code.gson:gson:2.10.1")
 
-    // Embedded HTTP server for AI Assistant integration
-    implementation("org.eclipse.jetty:jetty-server:11.0.18")
-    implementation("org.eclipse.jetty:jetty-servlet:11.0.18")
-    implementation("jakarta.servlet:jakarta.servlet-api:5.0.0")
+    // Embedded HTTP server for AI Assistant integration (Jetty 12)
+    implementation("org.eclipse.jetty:jetty-server:12.1.6")
+    implementation("org.eclipse.jetty.ee10:jetty-ee10-servlet:12.1.6")
+    implementation("jakarta.servlet:jakarta.servlet-api:6.0.0")
 
     // Test dependencies
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.2")
@@ -39,7 +48,7 @@ dependencies {
     testImplementation("org.mockito:mockito-junit-jupiter:5.7.0")
     testImplementation("org.mockito.kotlin:mockito-kotlin:5.1.0")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.11.0")
-    testImplementation("org.assertj:assertj-core:3.24.2")
+    testImplementation("org.assertj:assertj-core:3.27.7")
 
 
     // Detekt plugins

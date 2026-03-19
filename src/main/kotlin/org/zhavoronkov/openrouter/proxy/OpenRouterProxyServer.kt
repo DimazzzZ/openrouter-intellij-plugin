@@ -2,9 +2,9 @@ package org.zhavoronkov.openrouter.proxy
 
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.eclipse.jetty.ee10.servlet.ServletContextHandler
+import org.eclipse.jetty.ee10.servlet.ServletHolder
 import org.eclipse.jetty.server.Server
-import org.eclipse.jetty.servlet.ServletContextHandler
-import org.eclipse.jetty.servlet.ServletHolder
 import org.zhavoronkov.openrouter.proxy.servlets.ChatCompletionServlet
 import org.zhavoronkov.openrouter.proxy.servlets.EnginesServlet
 import org.zhavoronkov.openrouter.proxy.servlets.HealthCheckServlet
@@ -62,12 +62,23 @@ class OpenRouterProxyServer {
     private val settingsService: OpenRouterSettingsService
         get() = settingsServiceProvider()
 
+    // Optional custom servlet handler factory for testing
+    private var servletHandlerFactory: (() -> ServletContextHandler)? = null
+
     internal fun setDependenciesForTests(
         openRouterService: OpenRouterService,
         settingsService: OpenRouterSettingsService
     ) {
         openRouterServiceProvider = { openRouterService }
         settingsServiceProvider = { settingsService }
+    }
+
+    /**
+     * Sets a custom servlet handler factory for testing purposes.
+     * This allows tests to provide a handler that doesn't depend on IntelliJ services.
+     */
+    internal fun setServletHandlerFactoryForTests(factory: () -> ServletContextHandler) {
+        servletHandlerFactory = factory
     }
 
     /**
@@ -104,7 +115,7 @@ class OpenRouterProxyServer {
                 }
 
                 server = Server(port).apply {
-                    handler = createServletHandler()
+                    handler = servletHandlerFactory?.invoke() ?: createServletHandler()
                 }
 
                 server?.start()
@@ -237,7 +248,7 @@ class OpenRouterProxyServer {
      * Creates the servlet handler with all endpoints
      */
     private fun createServletHandler(): ServletContextHandler {
-        val context = ServletContextHandler(ServletContextHandler.SESSIONS)
+        val context = ServletContextHandler()
         context.contextPath = "/"
 
         // Add servlets
@@ -260,7 +271,7 @@ class OpenRouterProxyServer {
         context.addServlet(rootServlet, "/") // Root servlet handles /models and other routes
 
         // Add CORS filter for browser compatibility
-        context.addFilter(CorsFilter::class.java, "/*", null)
+        context.addFilter(CorsFilter::class.java, "/*", java.util.EnumSet.of(jakarta.servlet.DispatcherType.REQUEST))
 
         return context
     }

@@ -1,4 +1,6 @@
 
+@file:OptIn(ExperimentalStdlibApi::class)
+
 package org.zhavoronkov.openrouter.settings
 
 import com.intellij.icons.AllIcons
@@ -650,13 +652,6 @@ class FavoriteModelsSettingsPanel : Disposable {
     private fun addPresetToFavorites(presetModelIds: List<String>) {
         if (!keyPresent) return
         favoriteTableManager.addPresetModels(presetModelIds, allAvailableModels)
-    }
-
-    /**
-     * Update provider dropdown with unique providers from available models
-     */
-    private fun updateProviderDropdown() {
-        modelsFilterManager.updateProviderDropdown()
     }
 
     /**
