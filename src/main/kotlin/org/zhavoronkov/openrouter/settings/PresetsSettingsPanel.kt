@@ -22,12 +22,17 @@ import javax.swing.ListSelectionModel
  * Settings panel for managing OpenRouter Presets
  * This appears as a sub-page under Tools -> OpenRouter -> Presets
  */
+@Suppress("TooManyFunctions")
 class PresetsSettingsPanel : Disposable {
 
     companion object {
         private const val MIN_PANEL_WIDTH = 600
         private const val MIN_PANEL_HEIGHT = 400
         private const val LIST_PREFERRED_HEIGHT = 200
+        private const val LIST_WIDTH_OFFSET = 50
+        private const val PANEL_BORDER_SIZE = 10
+        private const val CELL_PADDING_HORIZONTAL = 8
+        private const val CELL_PADDING_VERTICAL = 4
     }
 
     private val settingsService = OpenRouterSettingsService.getInstance()
@@ -103,7 +108,9 @@ class PresetsSettingsPanel : Disposable {
                         .disableAddAction() // We have our own Add button
                         .setRemoveAction { removeSelectedPreset() }
                         .disableUpDownActions()
-                        .setPreferredSize(Dimension(MIN_PANEL_WIDTH - 50, LIST_PREFERRED_HEIGHT))
+                        .setPreferredSize(
+                            Dimension(MIN_PANEL_WIDTH - LIST_WIDTH_OFFSET, LIST_PREFERRED_HEIGHT)
+                        )
 
                     cell(decorator.createPanel())
                         .align(Align.FILL)
@@ -113,7 +120,7 @@ class PresetsSettingsPanel : Disposable {
         }
 
         panel.minimumSize = Dimension(MIN_PANEL_WIDTH, MIN_PANEL_HEIGHT)
-        panel.border = JBUI.Borders.empty(10)
+        panel.border = JBUI.Borders.empty(PANEL_BORDER_SIZE)
 
         return panel
     }
@@ -136,39 +143,47 @@ class PresetsSettingsPanel : Disposable {
         if (!::presetSlugTextField.isInitialized) return
 
         val slug = presetSlugTextField.text.trim()
-        if (slug.isBlank()) {
-            Messages.showWarningDialog(
-                "Please enter a preset slug (e.g., 'email-copywriter')",
-                "Empty Preset Slug"
-            )
-            return
+        val validationResult = validateAndNormalizeSlug(slug)
+
+        when (validationResult) {
+            is SlugValidationResult.Empty -> {
+                Messages.showWarningDialog(
+                    "Please enter a preset slug (e.g., 'email-copywriter')",
+                    "Empty Preset Slug"
+                )
+            }
+            is SlugValidationResult.Invalid -> {
+                Messages.showWarningDialog(
+                    "Invalid preset slug. Use only letters, numbers, and hyphens.",
+                    "Invalid Preset Slug"
+                )
+            }
+            is SlugValidationResult.Duplicate -> {
+                Messages.showInfoMessage(
+                    "Preset '${validationResult.slug}' is already added.",
+                    "Preset Already Exists"
+                )
+            }
+            is SlugValidationResult.Valid -> {
+                presetsListModel.addElement(validationResult.slug)
+                presetSlugTextField.text = ""
+                PluginLogger.Settings.info("Added preset: ${validationResult.slug}")
+            }
         }
+    }
 
-        // Normalize the slug
-        val normalizedSlug = normalizeSlug(slug)
+    private fun validateAndNormalizeSlug(slug: String): SlugValidationResult = when {
+        slug.isBlank() -> SlugValidationResult.Empty
+        normalizeSlug(slug).isBlank() -> SlugValidationResult.Invalid
+        getCurrentPresets().contains(normalizeSlug(slug)) -> SlugValidationResult.Duplicate(normalizeSlug(slug))
+        else -> SlugValidationResult.Valid(normalizeSlug(slug))
+    }
 
-        if (normalizedSlug.isBlank()) {
-            Messages.showWarningDialog(
-                "Invalid preset slug. Use only letters, numbers, and hyphens.",
-                "Invalid Preset Slug"
-            )
-            return
-        }
-
-        // Check for duplicates
-        val existingPresets = getCurrentPresets()
-        if (existingPresets.contains(normalizedSlug)) {
-            Messages.showInfoMessage(
-                "Preset '$normalizedSlug' is already added.",
-                "Preset Already Exists"
-            )
-            return
-        }
-
-        presetsListModel.addElement(normalizedSlug)
-        presetSlugTextField.text = ""
-
-        PluginLogger.Settings.info("Added preset: $normalizedSlug")
+    private sealed class SlugValidationResult {
+        data object Empty : SlugValidationResult()
+        data object Invalid : SlugValidationResult()
+        data class Duplicate(val slug: String) : SlugValidationResult()
+        data class Valid(val slug: String) : SlugValidationResult()
     }
 
     /**
@@ -254,7 +269,7 @@ class PresetsSettingsPanel : Disposable {
                 toolTipText = "Preset slug: $preset"
             }
 
-            border = JBUI.Borders.empty(4, 8)
+            border = JBUI.Borders.empty(CELL_PADDING_VERTICAL, CELL_PADDING_HORIZONTAL)
 
             return this
         }
