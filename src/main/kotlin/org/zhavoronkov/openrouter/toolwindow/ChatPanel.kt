@@ -22,6 +22,7 @@ import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatMessage
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.services.settings.PresetsManager
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.CardLayout
@@ -490,13 +491,30 @@ class ChatPanel(
 
     private fun loadFavoriteModels() {
         val favorites = settingsService.favoriteModelsManager.getFavoriteModels()
+        val customPresets = settingsService.presetsManager.getCustomPresets()
         val model = DefaultComboBoxModel<String>()
 
-        if (favorites.isEmpty()) {
+        // Add built-in presets/routers first
+        PresetsManager.BUILT_IN_PRESETS.forEach { preset ->
+            model.addElement(preset.id)
+        }
+
+        // Add custom presets (with @preset/ prefix)
+        customPresets.forEach { presetSlug ->
+            model.addElement(settingsService.presetsManager.getPresetModelId(presetSlug))
+        }
+
+        // Add separator if we have presets and favorites
+        val hasPresets = model.size > 0
+        val hasFavorites = favorites.isNotEmpty()
+
+        // Add favorite models
+        if (hasFavorites) {
+            favorites.forEach { model.addElement(it) }
+        } else if (!hasPresets) {
+            // Fallback if no favorites and no presets configured
             model.addElement("openai/gpt-4o")
             model.addElement("anthropic/claude-3.5-sonnet")
-        } else {
-            favorites.forEach { model.addElement(it) }
         }
 
         modelComboBox.model = model
