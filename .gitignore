@@ -49,7 +49,6 @@ Thumbs.db
 *.temp
 *.swp
 *.swo
-*~
 REFACTORING_PROGRESS.md
 
 # CMake
@@ -66,6 +65,7 @@ fabric.properties
 
 # IntelliJ Plugin specific
 .qodana/
+.intellijPlatform/
 
 # Local environment files
 .env
