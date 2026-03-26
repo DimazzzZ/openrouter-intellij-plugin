@@ -1,26 +1,20 @@
-import org.jetbrains.intellij.tasks.PublishPluginTask
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-
 plugins {
     id("java")
-    id("org.jetbrains.kotlin.jvm") version "2.1.10"
-    id("org.jetbrains.intellij") version "1.17.4"
-    id("io.gitlab.arturbosch.detekt") version "1.23.7"
+    kotlin("jvm") version "2.0.21"
+    id("io.gitlab.arturbosch.detekt") version "1.23.8"
     id("org.jetbrains.kotlinx.kover") version "0.9.1"
+    id("org.jetbrains.intellij.platform") version "2.3.0"
 }
 
 group = project.findProperty("pluginGroup") ?: "org.zhavoronkov"
-version = project.findProperty("pluginVersion") ?: "0.3.0"
-
-// Configure Java toolchain to use Java 17 specifically
-java {
-    toolchain {
-        languageVersion.set(JavaLanguageVersion.of(17))
-    }
-}
+version = project.findProperty("pluginVersion") ?: "0.5.0"
 
 repositories {
     mavenCentral()
+    // IntelliJ Platform Gradle Plugin 2.x repositories
+    intellijPlatform {
+        defaultRepositories()
+    }
 }
 
 // Force patched versions of vulnerable transitive dependencies
@@ -32,8 +26,8 @@ configurations.all {
 }
 
 dependencies {
-    implementation("com.squareup.okhttp3:okhttp:4.11.0")
-    implementation("com.google.code.gson:gson:2.10.1")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.google.code.gson:gson:2.11.0")
 
     // Embedded HTTP server for AI Assistant integration (Jetty 12)
     implementation("org.eclipse.jetty:jetty-server:12.1.6")
@@ -41,26 +35,63 @@ dependencies {
     implementation("jakarta.servlet:jakarta.servlet-api:6.0.0")
 
     // Test dependencies
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.2")
-    testImplementation("org.junit.jupiter:junit-jupiter-params:5.9.2")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.2")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation("org.mockito:mockito-core:5.7.0")
     testImplementation("org.mockito:mockito-junit-jupiter:5.7.0")
     testImplementation("org.mockito.kotlin:mockito-kotlin:5.1.0")
-    testImplementation("com.squareup.okhttp3:mockwebserver:4.11.0")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("org.assertj:assertj-core:3.27.7")
 
-
     // Detekt plugins
-    detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.7")
+    detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.8")
+
+    // IntelliJ Platform dependencies (2.x plugin style)
+    intellijPlatform {
+        val platformVersion = project.findProperty("platformVersion") as String? ?: "2024.2"
+        val platformType = project.findProperty("platformType") as String? ?: "IC"
+        
+        when (platformType) {
+            "IU" -> intellijIdeaUltimate(platformVersion)
+            else -> intellijIdeaCommunity(platformVersion)
+        }
+
+        // Test framework for plugin tests
+        testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
+    }
 }
 
-// Configure IntelliJ Plugin
-intellij {
-    version.set(project.findProperty("platformVersion") as String? ?: "2024.1.6")
-    type.set(project.findProperty("platformType") as String? ?: "IC")
+// Configure Java toolchain to use Java 21 (required by IntelliJ Platform 2024.2+)
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
+}
 
-    plugins.set(listOf(/* Plugin Dependencies */))
+// Configure IntelliJ Platform Plugin (2.x)
+intellijPlatform {
+    pluginConfiguration {
+        ideaVersion {
+            sinceBuild = project.findProperty("pluginSinceBuild") as String? ?: "242"
+            untilBuild = provider { null }  // No upper bound - compatible with all future versions
+        }
+    }
+
+    pluginVerification {
+        ides {
+            recommended()
+        }
+    }
+
+    signing {
+        certificateChain = providers.environmentVariable("CERTIFICATE_CHAIN")
+        privateKey = providers.environmentVariable("PRIVATE_KEY")
+        password = providers.environmentVariable("PRIVATE_KEY_PASSWORD")
+    }
+
+    publishing {
+        token = providers.environmentVariable("PUBLISH_TOKEN")
+    }
 }
 
 // Configure Detekt
@@ -70,13 +101,6 @@ detekt {
     config.setFrom("$projectDir/config/detekt/detekt.yml")
     baseline = file("$projectDir/config/detekt/baseline.xml")
     basePath = projectDir.absolutePath
-}
-
-// Configure publishing token for publishPlugin task
-val publishPluginTask = tasks.named<PublishPluginTask>("publishPlugin")
-publishPluginTask.configure {
-    val publishToken = System.getenv("PUBLISH_TOKEN") ?: project.findProperty("publishToken") as String?
-    publishToken?.let { token.set(it) }
 }
 
 // Configure Detekt SARIF reporting task
@@ -96,7 +120,7 @@ tasks.register<io.gitlab.arturbosch.detekt.Detekt>("detektSarif") {
         xml.required.set(false)
     }
 
-    jvmTarget = "17"
+    jvmTarget = "21"
     basePath = projectDir.absolutePath
     ignoreFailures = true
 }
@@ -104,16 +128,16 @@ tasks.register<io.gitlab.arturbosch.detekt.Detekt>("detektSarif") {
 tasks {
     // Set JVM compatibility versions
     withType<JavaCompile> {
-        sourceCompatibility = "17"
-        targetCompatibility = "17"
+        sourceCompatibility = "21"
+        targetCompatibility = "21"
     }
     withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-        compilerOptions.jvmTarget.set(JvmTarget.JVM_17)
+        compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
     }
 
     // Configure Detekt tasks
     withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
-        jvmTarget = "17"
+        jvmTarget = "21"
         ignoreFailures = true  // Don't fail the build on Detekt issues during development
     }
 
@@ -131,12 +155,5 @@ tasks {
         testLogging {
             events("passed", "skipped", "failed")
         }
-    }
-
-    // Configure plugin metadata
-    patchPluginXml {
-        version.set(project.findProperty("pluginVersion") as String? ?: "0.3.0")
-        sinceBuild.set(project.findProperty("pluginSinceBuild") as String? ?: "241")
-        untilBuild.set(project.findProperty("pluginUntilBuild") as String? ?: "253.*")
     }
 }
