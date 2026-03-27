@@ -213,6 +213,13 @@
             instance="org.zhavoronkov.openrouter.settings.FavoriteModelsConfigurable"
             id="org.zhavoronkov.openrouter.settings.FavoriteModelsConfigurable"
             displayName="Favorite Models"/>
+
+        <!-- Presets sub-page -->
+        <applicationConfigurable
+            parentId="org.zhavoronkov.openrouter.settings.OpenRouterConfigurable"
+            instance="org.zhavoronkov.openrouter.settings.PresetsConfigurable"
+            id="org.zhavoronkov.openrouter.settings.PresetsConfigurable"
+            displayName="Presets"/>
         
         <!-- Status bar widget -->
         <statusBarWidgetFactory

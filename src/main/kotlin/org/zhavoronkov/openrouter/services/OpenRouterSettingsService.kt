@@ -8,6 +8,7 @@ import com.intellij.openapi.components.Storage
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
 import org.zhavoronkov.openrouter.services.settings.ApiKeySettingsManager
 import org.zhavoronkov.openrouter.services.settings.FavoriteModelsManager
+import org.zhavoronkov.openrouter.services.settings.PresetsManager
 import org.zhavoronkov.openrouter.services.settings.ProxySettingsManager
 import org.zhavoronkov.openrouter.services.settings.SetupStateManager
 import org.zhavoronkov.openrouter.services.settings.UIPreferencesManager
@@ -35,6 +36,8 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
         private set
     lateinit var favoriteModelsManager: FavoriteModelsManager
         private set
+    lateinit var presetsManager: PresetsManager
+        private set
 
     init {
         initializeManagers()
@@ -46,6 +49,7 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
         uiPreferencesManager = UIPreferencesManager(settings) { notifyStateChanged() }
         setupStateManager = SetupStateManager(settings) { notifyStateChanged() }
         favoriteModelsManager = FavoriteModelsManager(settings) { notifyStateChanged() }
+        presetsManager = PresetsManager(settings) { notifyStateChanged() }
     }
 
     companion object {

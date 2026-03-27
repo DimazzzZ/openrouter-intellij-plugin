@@ -52,13 +52,13 @@ class FavoriteModelsSettingsPanel : Disposable {
     companion object {
         private const val SEARCH_DEBOUNCE_MS = 300
         private const val MIN_DIALOG_WIDTH = 760
-        private const val MIN_DIALOG_HEIGHT = 480
-        private const val SEARCH_FIELD_HEIGHT = 28
-        private const val BUTTON_COLUMN_WIDTH = 90
+        private const val MIN_DIALOG_HEIGHT = 420
+        private const val SEARCH_FIELD_HEIGHT = 26
+        private const val BUTTON_COLUMN_WIDTH = 85
         private const val TABLE_PREFERRED_WIDTH = 300
-        private const val TABLE_PREFERRED_HEIGHT = 250
-        private const val TABLE_ROW_HEIGHT = 22
-        private const val CAPABILITIES_COLUMN_WIDTH = 100
+        private const val TABLE_PREFERRED_HEIGHT = 200
+        private const val TABLE_ROW_HEIGHT = 20
+        private const val CAPABILITIES_COLUMN_WIDTH = 130
     }
 
     private val settingsService = OpenRouterSettingsService.getInstance()
@@ -215,21 +215,16 @@ class FavoriteModelsSettingsPanel : Disposable {
 
     private fun createFiltersPanel(): JPanel {
         return panel {
+            // Compact filter row with dropdowns
             row {
-                label("Filters:")
-                    .bold()
-            }.topGap(TopGap.NONE)
-
-            row("Provider:") {
+                label("Provider:")
                 providerComboBox = comboBox(listOf("All Providers"))
                     .applyToComponent {
                         addActionListener { onFilterChanged() }
                     }
                     .component
 
-                label("Context:")
-                    .gap(RightGap.SMALL)
-
+                label("Context:").gap(RightGap.SMALL)
                 contextComboBox = comboBox(
                     ModelProviderUtils.ContextRange.entries.map { it.displayName }
                 )
@@ -237,9 +232,13 @@ class FavoriteModelsSettingsPanel : Disposable {
                         addActionListener { onFilterChanged() }
                     }
                     .component
-            }.layout(RowLayout.PARENT_GRID).topGap(TopGap.SMALL)
 
-            row("Capabilities:") {
+                button("Clear") { clearFilters() }
+                    .applyToComponent { toolTipText = "Clear all filters" }
+            }.topGap(TopGap.NONE)
+
+            // Capabilities checkboxes in one row
+            row {
                 visionCheckBox = checkBox("Vision")
                     .applyToComponent { addActionListener { onFilterChanged() } }
                     .component
@@ -252,26 +251,22 @@ class FavoriteModelsSettingsPanel : Disposable {
                 imageGenCheckBox = checkBox("Image Gen")
                     .applyToComponent { addActionListener { onFilterChanged() } }
                     .component
-            }.layout(RowLayout.PARENT_GRID).topGap(TopGap.SMALL)
+            }.topGap(TopGap.NONE)
 
-            row("Quick Add:") {
-                button("Popular") { addPresetToFavorites(ModelPresets.POPULAR_MODELS) }
-                    .applyToComponent { toolTipText = "Add popular models for coding and general tasks" }
-                button("OpenAI") { addPresetToFavorites(ModelPresets.OPENAI_MODELS) }
-                    .applyToComponent { toolTipText = "Add all OpenAI GPT models" }
-                button("Anthropic") { addPresetToFavorites(ModelPresets.ANTHROPIC_MODELS) }
-                    .applyToComponent { toolTipText = "Add all Anthropic Claude models" }
-                button("Google") { addPresetToFavorites(ModelPresets.GOOGLE_MODELS) }
-                    .applyToComponent { toolTipText = "Add all Google Gemini models" }
-                button("Cost-Effective") { addPresetToFavorites(ModelPresets.COST_EFFECTIVE_MODELS) }
-                    .applyToComponent { toolTipText = "Add cost-effective models" }
-            }.layout(RowLayout.PARENT_GRID).topGap(TopGap.SMALL)
-
+            // Quick add buttons - compact row
             row {
-                button("Clear Filters") {
-                    clearFilters()
-                }
-            }.topGap(TopGap.SMALL)
+                label("Quick:")
+                button("Popular") { addPresetToFavorites(ModelPresets.POPULAR_MODELS) }
+                    .applyToComponent { toolTipText = "Add popular models" }
+                button("OpenAI") { addPresetToFavorites(ModelPresets.OPENAI_MODELS) }
+                    .applyToComponent { toolTipText = "Add OpenAI models" }
+                button("Anthropic") { addPresetToFavorites(ModelPresets.ANTHROPIC_MODELS) }
+                    .applyToComponent { toolTipText = "Add Anthropic models" }
+                button("Google") { addPresetToFavorites(ModelPresets.GOOGLE_MODELS) }
+                    .applyToComponent { toolTipText = "Add Google models" }
+                button("Budget") { addPresetToFavorites(ModelPresets.COST_EFFECTIVE_MODELS) }
+                    .applyToComponent { toolTipText = "Add budget-friendly models" }
+            }.topGap(TopGap.NONE)
         }
     }
 
@@ -299,7 +294,7 @@ class FavoriteModelsSettingsPanel : Disposable {
                 }.applyToComponent {
                     preferredSize = Dimension(preferredSize.width, SEARCH_FIELD_HEIGHT)
                 }
-            }.topGap(TopGap.SMALL)
+            }.topGap(TopGap.NONE)
 
             row {
                 val decorator = ToolbarDecorator.createDecorator(availableTable)
@@ -311,7 +306,7 @@ class FavoriteModelsSettingsPanel : Disposable {
                 cell(decorator.createPanel())
                     .align(Align.FILL)
                     .resizableColumn()
-            }.resizableRow().topGap(TopGap.SMALL)
+            }.resizableRow().topGap(TopGap.NONE)
 
             row {
                 label(getAvailableModelsStatusText())
@@ -319,7 +314,7 @@ class FavoriteModelsSettingsPanel : Disposable {
                         name = "availableStatusLabel"
                         availableStatusLabel = this
                     }
-            }.topGap(TopGap.SMALL)
+            }.topGap(TopGap.NONE)
         }
     }
 
@@ -344,7 +339,7 @@ class FavoriteModelsSettingsPanel : Disposable {
                     toolTipText = "Add all filtered models to favorites"
                     preferredSize = Dimension(BUTTON_COLUMN_WIDTH, preferredSize.height)
                 }
-            }.topGap(TopGap.SMALL)
+            }.topGap(TopGap.NONE)
 
             row {
                 button("← Remove") {
@@ -353,7 +348,7 @@ class FavoriteModelsSettingsPanel : Disposable {
                     toolTipText = "Remove selected from favorites (Delete)"
                     preferredSize = Dimension(BUTTON_COLUMN_WIDTH, preferredSize.height)
                 }
-            }.topGap(TopGap.MEDIUM)
+            }.topGap(TopGap.SMALL)
 
             row {
                 button("Clear All") {
@@ -362,7 +357,7 @@ class FavoriteModelsSettingsPanel : Disposable {
                     toolTipText = "Remove all favorites"
                     preferredSize = Dimension(BUTTON_COLUMN_WIDTH, preferredSize.height)
                 }
-            }.topGap(TopGap.SMALL)
+            }.topGap(TopGap.NONE)
         }
     }
 
@@ -378,7 +373,7 @@ class FavoriteModelsSettingsPanel : Disposable {
 
             row {
                 comment("Drag to reorder or use Up/Down buttons")
-            }.topGap(TopGap.SMALL)
+            }.topGap(TopGap.NONE)
 
             row {
                 val decorator = ToolbarDecorator.createDecorator(favoriteTable)
@@ -391,7 +386,7 @@ class FavoriteModelsSettingsPanel : Disposable {
                 cell(decorator.createPanel())
                     .align(Align.FILL)
                     .resizableColumn()
-            }.resizableRow().topGap(TopGap.SMALL)
+            }.resizableRow().topGap(TopGap.NONE)
 
             row {
                 label(getFavoritesStatusText())
@@ -399,7 +394,7 @@ class FavoriteModelsSettingsPanel : Disposable {
                         name = "favoritesStatusLabel"
                         favoritesStatusLabel = this
                     }
-            }.topGap(TopGap.SMALL)
+            }.topGap(TopGap.NONE)
         }
     }
 

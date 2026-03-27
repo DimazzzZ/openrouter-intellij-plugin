@@ -352,19 +352,6 @@ class OpenRouterSettingsPanel {
                     }.layout(RowLayout.PARENT_GRID)
                 }
 
-                // API Keys group
-                group("API Keys") {
-                    row {
-                        comment("Keys load automatically when Provisioning Key is configured.")
-                    }
-
-                    row {
-                        cell(apiKeysPanel)
-                            .align(Align.FILL)
-                            .resizableColumn()
-                    }.resizableRow()
-                }.visibleIf(isExtendedScope())
-
                 // Proxy Server group
                 group("Proxy Server") {
                     // Auto-start configuration
@@ -407,6 +394,19 @@ class OpenRouterSettingsPanel {
                         copyUrlButton = button("Copy Proxy URL") { copyProxyUrlToClipboard() }.component
                     }.layout(RowLayout.PARENT_GRID)
                 }
+
+                // API Keys group (at the end, only visible with Extended scope)
+                group("API Keys") {
+                    row {
+                        comment("Keys load automatically when Provisioning Key is configured.")
+                    }
+
+                    row {
+                        cell(apiKeysPanel)
+                            .align(Align.FILL)
+                            .resizableColumn()
+                    }.resizableRow()
+                }.visibleIf(isExtendedScope())
             }
         } catch (e: IllegalStateException) {
             PluginLogger.Settings.error("Failed to create settings panel", e)
