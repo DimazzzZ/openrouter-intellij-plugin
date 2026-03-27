@@ -15,8 +15,8 @@ import org.zhavoronkov.openrouter.models.ApiKeysListResponse
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.CreditsData
 import org.zhavoronkov.openrouter.utils.PluginLogger
-import java.time.LocalDate
 import java.io.IOException
+import java.time.LocalDate
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -295,9 +295,10 @@ class OpenRouterStatsCache : Disposable {
         }
 
         // Also notify balance providers
+        @Suppress("TooGenericExceptionCaught") // Intentional: isolate provider failures
         try {
             BalanceProviderNotifier.getInstanceOrNull()?.notifyLoading()
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             PluginLogger.Service.debug("Failed to notify balance providers of loading: ${e.message}")
         }
     }
@@ -322,6 +323,7 @@ class OpenRouterStatsCache : Disposable {
      * The push happens on a background thread to avoid blocking the UI,
      * and exceptions from individual providers are isolated.
      */
+    @Suppress("TooGenericExceptionCaught") // Intentional: isolate provider failures from main plugin
     private fun pushToBalanceProviders(credits: CreditsData, activity: List<ActivityData>?) {
         try {
             val notifier = BalanceProviderNotifier.getInstanceOrNull() ?: return
@@ -335,7 +337,7 @@ class OpenRouterStatsCache : Disposable {
             )
 
             notifier.notifyBalanceUpdated(balanceData)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             // Don't let balance provider failures affect the main plugin
             PluginLogger.Service.debug("Failed to notify balance providers: ${e.message}")
         }
@@ -367,9 +369,10 @@ class OpenRouterStatsCache : Disposable {
         }
 
         // Also notify balance providers
+        @Suppress("TooGenericExceptionCaught") // Intentional: isolate provider failures
         try {
             BalanceProviderNotifier.getInstanceOrNull()?.notifyError(message)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             PluginLogger.Service.debug("Failed to notify balance providers of error: ${e.message}")
         }
     }

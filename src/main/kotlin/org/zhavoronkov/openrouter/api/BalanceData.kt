@@ -40,6 +40,15 @@ data class BalanceData(
     companion object {
         /** Default source identifier for OpenRouter data */
         const val SOURCE_OPENROUTER = "openrouter"
+
+        /** Percentage multiplier for converting ratios to percentages */
+        private const val PERCENTAGE_MULTIPLIER = 100.0
+
+        /** Default percentage when total credits is zero */
+        private const val DEFAULT_REMAINING_PERCENTAGE = 100.0
+
+        /** Default usage percentage when total credits is zero */
+        private const val DEFAULT_USAGE_PERCENTAGE = 0.0
     }
 
     init {
@@ -58,9 +67,9 @@ data class BalanceData(
      */
     fun remainingPercentage(): Double {
         return if (totalCredits > 0) {
-            (remainingCredits / totalCredits) * 100.0
+            (remainingCredits / totalCredits) * PERCENTAGE_MULTIPLIER
         } else {
-            100.0
+            DEFAULT_REMAINING_PERCENTAGE
         }
     }
 
@@ -71,9 +80,9 @@ data class BalanceData(
      */
     fun usagePercentage(): Double {
         return if (totalCredits > 0) {
-            (totalUsage / totalCredits) * 100.0
+            (totalUsage / totalCredits) * PERCENTAGE_MULTIPLIER
         } else {
-            0.0
+            DEFAULT_USAGE_PERCENTAGE
         }
     }
 
@@ -92,7 +101,7 @@ data class BalanceData(
      * @return Formatted string like "$12.34"
      */
     fun formattedRemaining(): String {
-        return String.format("$%.2f", remainingCredits)
+        return String.format(java.util.Locale.US, "$%.2f", remainingCredits)
     }
 
     /**
@@ -101,13 +110,13 @@ data class BalanceData(
      * @return Formatted string like "$1.23" or "N/A" if unavailable
      */
     fun formattedTodayUsage(): String {
-        return todayUsage?.let { String.format("$%.2f", it) } ?: "N/A"
+        return todayUsage?.let { String.format(java.util.Locale.US, "$%.2f", it) } ?: "N/A"
     }
 
     override fun toString(): String {
-        return "BalanceData(remaining=$${String.format("%.2f", remainingCredits)}, " +
-            "used=$${String.format("%.2f", totalUsage)}, " +
-            "total=$${String.format("%.2f", totalCredits)}, " +
+        return "BalanceData(remaining=$${String.format(java.util.Locale.US, "%.2f", remainingCredits)}, " +
+            "used=$${String.format(java.util.Locale.US, "%.2f", totalUsage)}, " +
+            "total=$${String.format(java.util.Locale.US, "%.2f", totalCredits)}, " +
             "today=${formattedTodayUsage()})"
     }
 }

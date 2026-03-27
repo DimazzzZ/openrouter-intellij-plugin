@@ -65,8 +65,8 @@ class BalanceProviderNotifier : Disposable {
             return try {
                 val app = ApplicationManager.getApplication() ?: return null
                 app.getService(BalanceProviderNotifier::class.java)
-            } catch (e: IllegalStateException) {
-                PluginLogger.Service.debug("BalanceProviderNotifier not available: ${e.message}")
+            } catch (expected: IllegalStateException) {
+                PluginLogger.Service.debug("BalanceProviderNotifier not available: ${expected.message}")
                 null
             }
         }
@@ -138,32 +138,38 @@ class BalanceProviderNotifier : Disposable {
 
     /**
      * Checks if any balance providers are registered.
+     * This method is intended for debugging and diagnostics.
      *
      * @return true if at least one provider is registered
      */
+    @Suppress("unused") // API for debugging
     fun hasProviders(): Boolean {
         return try {
             EP_NAME.hasAnyExtensions()
-        } catch (e: IllegalStateException) {
-            PluginLogger.Service.debug("Cannot check for providers: ${e.message}")
+        } catch (expected: IllegalStateException) {
+            PluginLogger.Service.debug("Cannot check for providers: ${expected.message}")
             false
         }
     }
 
     /**
      * Gets the count of registered balance providers.
+     * This method is intended for debugging and diagnostics.
      *
      * @return Number of registered providers
      */
+    @Suppress("unused") // API for debugging
     fun getProviderCount(): Int {
         return getProviders().size
     }
 
     /**
-     * Gets the list of registered provider class names (for debugging/logging).
+     * Gets the list of registered provider class names.
+     * This method is intended for debugging and diagnostics.
      *
      * @return List of provider class names
      */
+    @Suppress("unused") // API for debugging
     fun getProviderNames(): List<String> {
         return getProviders().map { it.javaClass.name }
     }
@@ -180,7 +186,7 @@ class BalanceProviderNotifier : Disposable {
         return try {
             OpenRouterSettingsService.getInstance()
                 .uiPreferencesManager.balanceProviderEnabled
-        } catch (e: IllegalStateException) {
+        } catch (_: IllegalStateException) {
             PluginLogger.Service.debug("Settings service unavailable, defaulting to enabled")
             true // Default to enabled if settings service is not available
         }
@@ -194,8 +200,9 @@ class BalanceProviderNotifier : Disposable {
     private fun getProviders(): List<BalanceProvider> {
         return try {
             EP_NAME.extensionList
-        } catch (e: IllegalStateException) {
-            PluginLogger.Service.debug("Cannot get extension list: ${e.message}")
+        } catch (_: IllegalStateException) {
+            // This is expected during plugin shutdown or when extension points are not available
+            PluginLogger.Service.debug("Cannot get extension list (expected during shutdown)")
             emptyList()
         }
     }
@@ -210,6 +217,7 @@ class BalanceProviderNotifier : Disposable {
      * @param methodName Name of the method (for logging)
      * @param block The code to execute
      */
+    @Suppress("TooGenericExceptionCaught") // Intentional: isolate provider exceptions
     private inline fun safeInvoke(
         provider: BalanceProvider,
         methodName: String,
@@ -217,7 +225,7 @@ class BalanceProviderNotifier : Disposable {
     ) {
         try {
             block()
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             PluginLogger.Service.warn(
                 "BalanceProvider ${provider.javaClass.name}.$methodName() threw exception: ${e.message}",
                 e

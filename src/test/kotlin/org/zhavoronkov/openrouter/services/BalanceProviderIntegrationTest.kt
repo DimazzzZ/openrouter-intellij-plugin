@@ -27,10 +27,6 @@ import java.time.LocalDate
 @DisplayName("Balance Provider Integration Tests")
 class BalanceProviderIntegrationTest {
 
-    companion object {
-        private const val DEFAULT_TIMESTAMP = 1711526400000L
-    }
-
     @Nested
     @DisplayName("BalanceData Creation Tests")
     inner class BalanceDataCreationTests {
@@ -212,6 +208,7 @@ class BalanceProviderIntegrationTest {
             )
         }
 
+        @Suppress("SameParameterValue") // Test helper with fixed value for specific test case
         private fun createActivityDataWithNullDate(usage: Double): ActivityData {
             return ActivityData(
                 date = null, // Null date

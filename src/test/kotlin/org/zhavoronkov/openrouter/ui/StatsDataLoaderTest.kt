@@ -66,7 +66,7 @@ class StatsDataLoaderTest {
 
             // Should complete quickly since no async work needed
             latch.await(1, TimeUnit.SECONDS)
-            
+
             assertTrue(result is StatsDataLoader.LoadResult.Error)
             assertEquals("Failed to load data", (result as StatsDataLoader.LoadResult.Error).message)
         }
@@ -84,7 +84,7 @@ class StatsDataLoaderTest {
             }
 
             latch.await(1, TimeUnit.SECONDS)
-            
+
             assertTrue(result is StatsDataLoader.LoadResult.Error)
         }
     }

@@ -210,8 +210,7 @@
         <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterService"/>
         <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterSettingsService"/>
         <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService"/>
-        <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.BalanceProviderNotifier"/>
-        <!-- OpenRouterProxyService, OpenRouterStatsCache, CreditUsageHistoryService use @Service annotation -->
+        <!-- BalanceProviderNotifier, OpenRouterProxyService, OpenRouterStatsCache, CreditUsageHistoryService use @Service annotation -->
         
         <!-- Settings -->
         <applicationConfigurable

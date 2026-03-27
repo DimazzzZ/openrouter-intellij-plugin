@@ -253,19 +253,24 @@ class BalanceProviderNotifierTest {
     }
 
     /**
+     * Custom exception for testing provider isolation.
+     */
+    private class ProviderTestException(message: String) : Exception(message)
+
+    /**
      * A provider that throws exceptions for testing isolation.
      */
     private class ThrowingProvider : BalanceProvider {
         override fun onBalanceUpdated(data: BalanceData) {
-            throw RuntimeException("Test exception from onBalanceUpdated")
+            throw ProviderTestException("Test exception from onBalanceUpdated")
         }
 
         override fun onBalanceLoading() {
-            throw RuntimeException("Test exception from onBalanceLoading")
+            throw ProviderTestException("Test exception from onBalanceLoading")
         }
 
         override fun onBalanceError(error: String) {
-            throw RuntimeException("Test exception from onBalanceError")
+            throw ProviderTestException("Test exception from onBalanceError")
         }
     }
 
@@ -274,10 +279,11 @@ class BalanceProviderNotifierTest {
     inner class ExceptionHandlingTests {
 
         @Test
-        @DisplayName("Throwing provider should not prevent interface implementation")
+        @DisplayName("Throwing provider should be assignable to BalanceProvider type")
         fun throwingProviderImplementsInterface() {
-            val provider = ThrowingProvider()
-            assertTrue(provider is BalanceProvider)
+            // Verify ThrowingProvider can be used as BalanceProvider
+            val provider: BalanceProvider = ThrowingProvider()
+            assertNotNull(provider, "ThrowingProvider should implement BalanceProvider")
         }
 
         @Test
@@ -294,11 +300,11 @@ class BalanceProviderNotifierTest {
             var exceptionThrown = false
             try {
                 provider.onBalanceUpdated(testData)
-            } catch (e: RuntimeException) {
+            } catch (e: ProviderTestException) {
                 exceptionThrown = true
                 assertTrue(e.message?.contains("Test exception") == true)
             }
-            assertTrue(exceptionThrown, "Expected RuntimeException to be thrown")
+            assertTrue(exceptionThrown, "Expected ProviderTestException to be thrown")
         }
     }
 
