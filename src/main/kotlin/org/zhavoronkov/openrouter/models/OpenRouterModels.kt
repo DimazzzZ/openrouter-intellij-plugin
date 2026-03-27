@@ -308,7 +308,9 @@ data class OpenRouterSettings(
     var proxyAutoStart: Boolean = false, // Auto-start proxy server on IDEA startup
     var proxyPort: Int = 0, // Preferred proxy server port (0 = auto-select from range)
     var proxyPortRangeStart: Int = 8880, // Start of port range for auto-selection
-    var proxyPortRangeEnd: Int = 8899 // End of port range for auto-selection
+    var proxyPortRangeEnd: Int = 8899, // End of port range for auto-selection
+    // Extension Point Settings
+    var balanceProviderEnabled: Boolean = true // Allow other plugins to receive balance data (enabled by default)
 )
 
 /**

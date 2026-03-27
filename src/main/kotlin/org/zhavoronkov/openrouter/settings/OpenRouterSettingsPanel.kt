@@ -144,6 +144,9 @@ class OpenRouterSettingsPanel {
     private var proxyPortRangeStartSpinner: JSpinner
     private var proxyPortRangeEndSpinner: JSpinner
 
+    // Balance Provider setting
+    private var balanceProviderCheckBox: JBCheckBox
+
     // UI state tracking
     private var currentUiAuthScope: AuthScope = AuthScope.EXTENDED
     private lateinit var regularRadioButton: javax.swing.JRadioButton
@@ -270,6 +273,9 @@ class OpenRouterSettingsPanel {
             )
         )
 
+        // Initialize Balance Provider checkbox
+        balanceProviderCheckBox = JBCheckBox("Share balance data with other plugins")
+
         // Configure API key table
         apiKeyTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
         apiKeyTable.autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
@@ -393,6 +399,23 @@ class OpenRouterSettingsPanel {
                         stopServerButton = button("Stop Server") { stopProxyServer() }.component
                         copyUrlButton = button("Copy Proxy URL") { copyProxyUrlToClipboard() }.component
                     }.layout(RowLayout.PARENT_GRID)
+                }
+
+                // Plugin Integration group
+                group("Plugin Integration") {
+                    row {
+                        cell(balanceProviderCheckBox)
+                    }
+                    row {
+                        comment(
+                            """
+                            When enabled, other installed plugins (like TokenPulse) can receive your 
+                            OpenRouter balance information (credits and usage) in real-time. This allows 
+                            third-party plugins to display your balance without needing separate API access.
+                            Disable this if you prefer not to share balance data with other plugins.
+                            """.trimIndent().replace("\n", " ")
+                        )
+                    }
                 }
 
                 // API Keys group (at the end, only visible with Extended scope)
@@ -795,6 +818,20 @@ class OpenRouterSettingsPanel {
         validatePortRange()
     }
 
+    // Balance Provider configuration methods
+
+    /**
+     * Returns whether balance data sharing with other plugins is enabled.
+     */
+    fun isBalanceProviderEnabled(): Boolean = balanceProviderCheckBox.isSelected
+
+    /**
+     * Sets whether balance data sharing with other plugins is enabled.
+     */
+    fun setBalanceProviderEnabled(enabled: Boolean) {
+        balanceProviderCheckBox.isSelected = enabled
+    }
+
     /**
      * Applies current proxy settings from UI to settings service.
      * This ensures immediate proxy server startup uses current UI values
@@ -891,6 +928,9 @@ class OpenRouterSettingsPanel {
 
             // Refresh Proxy Status
             updateProxyStatus()
+
+            // Refresh Balance Provider setting
+            setBalanceProviderEnabled(settingsService.uiPreferencesManager.balanceProviderEnabled)
 
             PluginLogger.Settings.info("Settings panel UI refreshed from service state")
         }

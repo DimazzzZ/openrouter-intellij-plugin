@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import org.zhavoronkov.openrouter.api.BalanceData
 import org.zhavoronkov.openrouter.listeners.OpenRouterStatsListener
 import org.zhavoronkov.openrouter.models.ActivityData
 import org.zhavoronkov.openrouter.models.ApiKeysListResponse
@@ -15,6 +16,7 @@ import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.CreditsData
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.io.IOException
+import java.time.LocalDate
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -291,6 +293,14 @@ class OpenRouterStatsCache : Disposable {
                 .syncPublisher(OpenRouterStatsListener.TOPIC)
                 .onStatsLoading()
         }
+
+        // Also notify balance providers
+        @Suppress("TooGenericExceptionCaught") // Intentional: isolate provider failures
+        try {
+            BalanceProviderNotifier.getInstanceOrNull()?.notifyLoading()
+        } catch (e: Throwable) {
+            PluginLogger.Service.debug("Failed to notify balance providers of loading: ${e.message}")
+        }
     }
 
     private fun notifySuccess(credits: CreditsData, activity: List<ActivityData>?) {
@@ -299,6 +309,56 @@ class OpenRouterStatsCache : Disposable {
                 .syncPublisher(OpenRouterStatsListener.TOPIC)
                 .onStatsUpdated(credits, activity)
         }
+
+        // Push to extension point providers (balance sharing with other plugins)
+        pushToBalanceProviders(credits, activity)
+    }
+
+    /**
+     * Pushes balance data to registered BalanceProvider implementations.
+     *
+     * This allows other plugins (like TokenPulse) to receive real-time balance updates
+     * without needing direct access to OpenRouter's internal services.
+     *
+     * The push happens on a background thread to avoid blocking the UI,
+     * and exceptions from individual providers are isolated.
+     */
+    @Suppress("TooGenericExceptionCaught") // Intentional: isolate provider failures from main plugin
+    private fun pushToBalanceProviders(credits: CreditsData, activity: List<ActivityData>?) {
+        try {
+            val notifier = BalanceProviderNotifier.getInstanceOrNull() ?: return
+
+            val balanceData = BalanceData(
+                totalCredits = credits.totalCredits,
+                totalUsage = credits.totalUsage,
+                remainingCredits = credits.totalCredits - credits.totalUsage,
+                timestamp = System.currentTimeMillis(),
+                todayUsage = calculateTodayUsage(activity)
+            )
+
+            notifier.notifyBalanceUpdated(balanceData)
+        } catch (e: Throwable) {
+            // Don't let balance provider failures affect the main plugin
+            PluginLogger.Service.debug("Failed to notify balance providers: ${e.message}")
+        }
+    }
+
+    /**
+     * Calculates today's usage from activity data.
+     *
+     * @param activity The activity data list, may be null
+     * @return Today's usage in USD, or null if not available
+     */
+    private fun calculateTodayUsage(activity: List<ActivityData>?): Double? {
+        if (activity.isNullOrEmpty()) return null
+
+        val today = LocalDate.now().toString() // Format: YYYY-MM-DD
+
+        val todayUsage = activity
+            .filter { it.date == today }
+            .sumOf { it.usage ?: 0.0 }
+
+        return if (todayUsage > 0) todayUsage else null
     }
 
     private fun notifyError(message: String) {
@@ -306,6 +366,14 @@ class OpenRouterStatsCache : Disposable {
             ApplicationManager.getApplication().messageBus
                 .syncPublisher(OpenRouterStatsListener.TOPIC)
                 .onStatsError(message)
+        }
+
+        // Also notify balance providers
+        @Suppress("TooGenericExceptionCaught") // Intentional: isolate provider failures
+        try {
+            BalanceProviderNotifier.getInstanceOrNull()?.notifyError(message)
+        } catch (e: Throwable) {
+            PluginLogger.Service.debug("Failed to notify balance providers of error: ${e.message}")
         }
     }
 

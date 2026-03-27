@@ -114,7 +114,7 @@ class SetupStateManagerTest {
             manager.setHasSeenWelcome(true)
             manager.setHasCompletedSetup(true)
             manager.setHasSeenWelcome(false)
-            
+
             assertEquals(3, stateChangedCount)
         }
 
@@ -122,7 +122,7 @@ class SetupStateManagerTest {
         fun `state is consistent after operations`() {
             manager.setHasSeenWelcome(true)
             manager.setHasCompletedSetup(true)
-            
+
             assertTrue(manager.hasSeenWelcome())
             assertTrue(manager.hasCompletedSetup())
         }

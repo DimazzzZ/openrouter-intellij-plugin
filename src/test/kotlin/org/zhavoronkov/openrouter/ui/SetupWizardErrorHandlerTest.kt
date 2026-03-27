@@ -177,7 +177,7 @@ class SetupWizardErrorHandlerTest {
         fun `creates error with friendly message`() {
             val originalError = ApiResult.Error("Missing Authentication header", 401)
             val result = SetupWizardErrorHandler.createValidationError(originalError)
-            
+
             assertEquals("Invalid key format or type", result.message)
             assertEquals(401, result.statusCode)
         }
@@ -186,7 +186,7 @@ class SetupWizardErrorHandlerTest {
         fun `preserves status code from original error`() {
             val originalError = ApiResult.Error("Network error", 503)
             val result = SetupWizardErrorHandler.createValidationError(originalError)
-            
+
             assertEquals(503, result.statusCode)
         }
 
@@ -195,7 +195,7 @@ class SetupWizardErrorHandlerTest {
             val throwable = RuntimeException("Original cause")
             val originalError = ApiResult.Error("Error", 500, throwable)
             val result = SetupWizardErrorHandler.createValidationError(originalError)
-            
+
             assertEquals(throwable, result.throwable)
         }
     }

@@ -21,15 +21,15 @@ class OpenRouterSettingsListenerTopicTest {
     @Test
     fun `listener interface can be implemented`() {
         var settingsChangedCalled = false
-        
+
         val listener = object : OpenRouterSettingsListener {
             override fun onSettingsChanged() {
                 settingsChangedCalled = true
             }
         }
-        
+
         listener.onSettingsChanged()
-        
+
         assertEquals(true, settingsChangedCalled)
     }
 }

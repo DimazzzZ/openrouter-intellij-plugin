@@ -19,13 +19,16 @@ class ResponseJsonParserTest {
         @Test
         fun `returns JsonObject when member exists and is object`() {
             val json = JsonObject().apply {
-                add("nested", JsonObject().apply {
-                    addProperty("key", "value")
-                })
+                add(
+                    "nested",
+                    JsonObject().apply {
+                        addProperty("key", "value")
+                    }
+                )
             }
-            
+
             val result = ResponseJsonParser.getAsJsonObjectOrNull(json, "nested")
-            
+
             assertNotNull(result)
             assertEquals("value", result?.get("key")?.asString)
         }
@@ -33,9 +36,9 @@ class ResponseJsonParserTest {
         @Test
         fun `returns null when member does not exist`() {
             val json = JsonObject()
-            
+
             val result = ResponseJsonParser.getAsJsonObjectOrNull(json, "missing")
-            
+
             assertNull(result)
         }
 
@@ -44,9 +47,9 @@ class ResponseJsonParserTest {
             val json = JsonObject().apply {
                 addProperty("notObject", "string value")
             }
-            
+
             val result = ResponseJsonParser.getAsJsonObjectOrNull(json, "notObject")
-            
+
             assertNull(result)
         }
 
@@ -55,9 +58,9 @@ class ResponseJsonParserTest {
             val json = JsonObject().apply {
                 add("array", JsonArray())
             }
-            
+
             val result = ResponseJsonParser.getAsJsonObjectOrNull(json, "array")
-            
+
             assertNull(result)
         }
 
@@ -66,9 +69,9 @@ class ResponseJsonParserTest {
             val json = JsonObject().apply {
                 add("nullValue", null)
             }
-            
+
             val result = ResponseJsonParser.getAsJsonObjectOrNull(json, "nullValue")
-            
+
             assertNull(result)
         }
     }
@@ -80,14 +83,17 @@ class ResponseJsonParserTest {
         @Test
         fun `returns JsonArray when member exists and is array`() {
             val json = JsonObject().apply {
-                add("items", JsonArray().apply {
-                    add("item1")
-                    add("item2")
-                })
+                add(
+                    "items",
+                    JsonArray().apply {
+                        add("item1")
+                        add("item2")
+                    }
+                )
             }
-            
+
             val result = ResponseJsonParser.getAsJsonArrayOrNull(json, "items")
-            
+
             assertNotNull(result)
             assertEquals(2, result?.size())
         }
@@ -95,9 +101,9 @@ class ResponseJsonParserTest {
         @Test
         fun `returns null when member does not exist`() {
             val json = JsonObject()
-            
+
             val result = ResponseJsonParser.getAsJsonArrayOrNull(json, "missing")
-            
+
             assertNull(result)
         }
 
@@ -106,9 +112,9 @@ class ResponseJsonParserTest {
             val json = JsonObject().apply {
                 addProperty("notArray", "string value")
             }
-            
+
             val result = ResponseJsonParser.getAsJsonArrayOrNull(json, "notArray")
-            
+
             assertNull(result)
         }
 
@@ -117,9 +123,9 @@ class ResponseJsonParserTest {
             val json = JsonObject().apply {
                 add("object", JsonObject())
             }
-            
+
             val result = ResponseJsonParser.getAsJsonArrayOrNull(json, "object")
-            
+
             assertNull(result)
         }
 
@@ -128,9 +134,9 @@ class ResponseJsonParserTest {
             val json = JsonObject().apply {
                 add("emptyArray", JsonArray())
             }
-            
+
             val result = ResponseJsonParser.getAsJsonArrayOrNull(json, "emptyArray")
-            
+
             assertNotNull(result)
             assertEquals(0, result?.size())
         }
@@ -145,18 +151,18 @@ class ResponseJsonParserTest {
             val json = JsonObject().apply {
                 addProperty("name", "test value")
             }
-            
+
             val result = ResponseJsonParser.getAsStringOrNull(json, "name")
-            
+
             assertEquals("test value", result)
         }
 
         @Test
         fun `returns null when member does not exist`() {
             val json = JsonObject()
-            
+
             val result = ResponseJsonParser.getAsStringOrNull(json, "missing")
-            
+
             assertNull(result)
         }
 
@@ -165,9 +171,9 @@ class ResponseJsonParserTest {
             val json = JsonObject().apply {
                 add("object", JsonObject())
             }
-            
+
             val result = ResponseJsonParser.getAsStringOrNull(json, "object")
-            
+
             assertNull(result)
         }
 
@@ -176,9 +182,9 @@ class ResponseJsonParserTest {
             val json = JsonObject().apply {
                 add("array", JsonArray())
             }
-            
+
             val result = ResponseJsonParser.getAsStringOrNull(json, "array")
-            
+
             assertNull(result)
         }
 
@@ -187,9 +193,9 @@ class ResponseJsonParserTest {
             val json = JsonObject().apply {
                 addProperty("number", 42)
             }
-            
+
             val result = ResponseJsonParser.getAsStringOrNull(json, "number")
-            
+
             assertEquals("42", result)
         }
 
@@ -198,9 +204,9 @@ class ResponseJsonParserTest {
             val json = JsonObject().apply {
                 addProperty("flag", true)
             }
-            
+
             val result = ResponseJsonParser.getAsStringOrNull(json, "flag")
-            
+
             assertEquals("true", result)
         }
 
@@ -209,9 +215,9 @@ class ResponseJsonParserTest {
             val json = JsonObject().apply {
                 addProperty("empty", "")
             }
-            
+
             val result = ResponseJsonParser.getAsStringOrNull(json, "empty")
-            
+
             assertEquals("", result)
         }
     }
@@ -223,19 +229,25 @@ class ResponseJsonParserTest {
         @Test
         fun `handles deeply nested structures`() {
             val json = JsonObject().apply {
-                add("level1", JsonObject().apply {
-                    add("level2", JsonObject().apply {
-                        addProperty("value", "deep")
-                    })
-                })
+                add(
+                    "level1",
+                    JsonObject().apply {
+                        add(
+                            "level2",
+                            JsonObject().apply {
+                                addProperty("value", "deep")
+                            }
+                        )
+                    }
+                )
             }
-            
+
             val level1 = ResponseJsonParser.getAsJsonObjectOrNull(json, "level1")
             assertNotNull(level1)
-            
+
             val level2 = ResponseJsonParser.getAsJsonObjectOrNull(level1!!, "level2")
             assertNotNull(level2)
-            
+
             val value = ResponseJsonParser.getAsStringOrNull(level2!!, "value")
             assertEquals("deep", value)
         }
@@ -248,7 +260,7 @@ class ResponseJsonParserTest {
                 add("object", JsonObject())
                 add("array", JsonArray())
             }
-            
+
             assertEquals("text", ResponseJsonParser.getAsStringOrNull(json, "string"))
             assertEquals("123", ResponseJsonParser.getAsStringOrNull(json, "number"))
             assertNotNull(ResponseJsonParser.getAsJsonObjectOrNull(json, "object"))

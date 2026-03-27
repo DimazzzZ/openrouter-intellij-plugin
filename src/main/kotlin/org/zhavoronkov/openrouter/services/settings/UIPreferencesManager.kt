@@ -51,4 +51,19 @@ class UIPreferencesManager(
             settings.defaultMaxTokens = value
             onStateChanged()
         }
+
+    /**
+     * Controls whether balance data is shared with other plugins via the extension point.
+     *
+     * When enabled (default), plugins that implement the BalanceProvider interface
+     * will receive real-time balance updates. Users can disable this for privacy.
+     *
+     * @see org.zhavoronkov.openrouter.api.BalanceProvider
+     */
+    var balanceProviderEnabled: Boolean
+        get() = settings.balanceProviderEnabled
+        set(value) {
+            settings.balanceProviderEnabled = value
+            onStateChanged()
+        }
 }
