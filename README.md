@@ -1,35 +1,30 @@
 # OpenRouter IntelliJ Plugin
 
 [![JetBrains Plugin](https://img.shields.io/badge/JetBrains-Plugin-orange.svg)](https://plugins.jetbrains.com/plugin/28520)
-[![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
+[![Version](https://img.shields.io/badge/version-0.5.1-blue.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
 [![CI](https://github.com/DimazzzZ/openrouter-intellij-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.ai), providing access to 400+ AI models with usage monitoring, quota tracking, and seamless JetBrains AI Assistant integration.
 
-## Features
+## What's New in v0.5.1 🎉
 
-- **💬 Chat Tool Window** - Multi-chat sessions directly in IDE sidebar with persistent history, token tracking, and model selection
-- **🤖 AI Assistant Proxy** - Configurable local proxy server (ports 8880-8899 by default) with auto-start control and flexible port selection
-- **📊 Status Bar Widget** - Real-time usage display with comprehensive popup menu
-- **🔑 Flexible Authentication** - OAuth/PKCE or Provisioning Key support with secure credential storage
-- **📈 Usage Analytics** - Track token consumption, costs, and model performance with real-time "Today" statistics
-- **🔴 Real-time Monitoring** - Live connection status with color-coded indicators
-- **📋 Statistics Popup** - Detailed usage analytics in modal dialog with days remaining estimate
-- **⚙️ Settings Panel** - Configuration with validation and testing
-- **🌐 OpenAI Compatibility** - Full OpenAI API compatibility layer for custom integrations
-- **🔒 Security** - OS-native credential storage (Keychain, Credential Manager, libsecret) with localhost-only proxy access
-- **🧪 Comprehensive Testing** - 500+ tests covering unit, integration, and E2E scenarios
-- **🛠️ Developer-Friendly** - Extensive documentation and debugging capabilities
-- **⭐ Favorite Models** - Quick access to your preferred AI models with advanced filtering:
-  - Filter by provider (OpenAI, Anthropic, Google, Meta, etc.)
-  - Filter by capabilities (Vision, Audio, Tools, Image Generation)
-  - Filter by context length (< 32K, 32K-128K, > 128K)
-  - Quick presets (Popular, Coding, Multimodal, Cost-Effective)
-  - Real-time search across 400+ models
-- **🚀 First-Run Experience** - Welcome notification and setup wizard for easy onboarding
-- **💡 Contextual Help** - GotIt tooltips guide you through key features
-- **🎨 Code Quality** - Maintained with detekt static analysis and comprehensive refactoring
+- **🎯 Custom Presets** - Use OpenRouter presets (`openrouter/auto`, `openrouter/free`) and your own custom presets directly in chat
+- **🔌 Extension API** - New BalanceProvider extension point allows other plugins (like Token Pulse) to receive balance data in real-time
+- **🚀 Future-Proof** - Compatible with all future IDE versions (no upper version limit)
+- **☕ Platform Updates** - Java 21 and Kotlin 2.0.21 for IntelliJ 2024.2+
+
+## Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **💬 Chat Tool Window** | Multi-chat sessions in IDE sidebar with persistent history and token tracking |
+| **🤖 AI Assistant Proxy** | Local OpenAI-compatible proxy connecting AI Assistant to 400+ models |
+| **🎯 Custom Presets** | Built-in and custom OpenRouter presets for quick model selection |
+| **📊 Usage Analytics** | Real-time cost tracking, quota monitoring, and spending estimates |
+| **⭐ Favorite Models** | Quick access with filtering by provider, capabilities, and context length |
+| **🔐 Secure Storage** | OS-native credential storage (Keychain, Credential Manager, libsecret) |
+| **🔌 Plugin API** | Extension point for other plugins to receive balance data |
 
 ## Installation
 
@@ -39,204 +34,99 @@ An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.
 3. Click `Install` (no restart required!)
 
 ### Manual Installation
-1. Download the latest release from [GitHub](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
+1. Download the latest release from [GitHub Releases](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
 2. `Settings` → `Plugins` → ⚙️ → `Install Plugin from Disk...`
 3. Select the downloaded ZIP file
 
-## Setup
+## Quick Start
 
-### First-Time Setup (Recommended)
+### First-Time Setup
 
-When you first install the plugin, a **welcome notification** will appear with a "Quick Setup" button. This launches a step-by-step wizard that guides you through:
+When you first install the plugin, a **welcome notification** will appear with a "Quick Setup" button. The wizard guides you through:
 
-1. **Welcome** - Introduction to OpenRouter and what you'll need
-2. **Authentication** - Choose your authentication method:
-   - **Regular API Key** - OAuth/PKCE flow (one-click browser authorization)
-   - **Provisioning Key** - Extended mode with full monitoring capabilities
-3. **Favorite Models** - Select your preferred models with embedded search and filtering
-4. **Completion** - Copy proxy server URL and configure AI Assistant
-
-The wizard makes setup quick and easy, especially for first-time users!
+1. **Authentication** - Choose OAuth/PKCE (one-click) or Provisioning Key
+2. **Favorite Models** - Select your preferred models with search and filtering
+3. **Proxy Setup** - Configure AI Assistant integration
 
 ### Manual Setup
 
 1. **Open Settings**: `Settings` → `Tools` → `OpenRouter`
-2. **Choose Authentication Method**:
-   - **Regular API Key**: Click "Connect to OpenRouter" for OAuth/PKCE browser authorization
-   - **Provisioning Key**: Get from [OpenRouter Provisioning Keys](https://openrouter.ai/settings/provisioning-keys) and paste
-3. **Select Models**: `Settings` → `Tools` → `OpenRouter` → `Favorite Models` → Choose your models
-4. **Start Using**: Click status bar widget to access features
+2. **Authenticate**: Click "Connect to OpenRouter" for OAuth/PKCE, or paste a [Provisioning Key](https://openrouter.ai/settings/provisioning-keys)
+3. **Select Models**: Go to `Favorite Models` tab and choose your models
+4. **Start Using**: Click the status bar widget to access features
 
-## 🤖 AI Assistant Integration
+### AI Assistant Integration
 
-**NEW**: Connect JetBrains AI Assistant to OpenRouter's 400+ AI models using the plugin's local proxy server!
+Connect JetBrains AI Assistant to OpenRouter's 400+ models:
 
-### Quick Start
-1. **Configure OpenRouter Plugin** (as above)
-2. **Configure Proxy Server**: Auto-start is disabled by default - manually start via Settings or enable auto-start
-3. **Configure AI Assistant**: Settings → Tools → AI Assistant → Models → Add custom model
-   - **Provider**: Custom
+1. Start the proxy server in `Settings` → `Tools` → `OpenRouter`
+2. In AI Assistant: `Settings` → `Tools` → `AI Assistant` → `Models` → Add custom model
    - **Server URL**: Copy from OpenRouter settings (e.g., `http://127.0.0.1:8880`)
-   - **API Key**: Any text (not validated by proxy)
-   - **Model**: Choose from OpenRouter's model catalog
-4. **Start Using**: Access 400+ models through AI Assistant
+   - **API Key**: Any text (not validated)
+   - **Model**: Any model from [OpenRouter's catalog](https://openrouter.ai/models)
 
-📖 **[Complete Setup Guide](docs/AI_ASSISTANT_SETUP.md)** - Step-by-step instructions with screenshot placeholders
+📖 **[Complete Setup Guide](docs/AI_ASSISTANT_SETUP.md)** with screenshots
 
-### Supported Models
-- **OpenAI**: GPT-4o, GPT-4 Turbo, o1, o3-mini
-- **Anthropic**: Claude 3.5 Sonnet, Claude 3 Opus, Claude 3 Haiku
-- **Meta**: Llama 3.3, Llama 3.1, Code Llama
-- **Google**: Gemini 2.0 Flash, Gemini 1.5 Pro
-- **Mistral**: Mistral Large, Mixtral 8x22B
-- **DeepSeek**: DeepSeek V3, DeepSeek R1
-- **And 390+ more models from 40+ providers!**
-
-### Benefits
-- ✅ **Unified Interface** - Use AI Assistant's familiar chat interface
-- ✅ **Cost Control** - Transparent pricing and real-time usage monitoring  
-- ✅ **Model Switching** - Easy switching between different AI providers
-- ✅ **Local Proxy** - Secure localhost-only communication
-- ✅ **No Limits** - Access models beyond AI Assistant's default options
-
-## Usage
-
-### Status Bar Widget
-- **Click**: Open popup menu with plugin features
-- **Status Indicators**: Color-coded connection status (Ready, Connecting, Error, Not Configured)
-- **Usage Display**: Current quota usage and cost information
-
-### Popup Menu
-- **AI Assistant Integration**: Start/stop proxy server with status display
-- **View Quota Usage**: Detailed statistics and analytics
-- **Settings**: Direct access to plugin configuration
-- **Configuration Instructions**: Setup guide for AI Assistant integration
-- **Documentation**: Links to OpenRouter API documentation
-- **Logout**: Clear stored credentials
+## Features
 
 ### Chat Tool Window
-Access via the right sidebar (`View` → `Tool Windows` → `OpenRouter`):
 
-- **Chat Tab** - Multi-chat interface for conversations with AI models
-- **Status Tab** - Account info, quota display, and usage statistics
-- **Create New Chat** - Click "+ New Chat" to start a conversation
-- **Model Selection** - Choose from your favorite models per chat session
-- **Persistent History** - Chats saved locally and restored on IDE restart
-- **Token Tracking** - Real-time token estimation for input and cumulative counts
+Access via `View` → `Tool Windows` → `OpenRouter`:
+
+- **Multi-Chat** - Create and manage multiple conversation sessions
+- **Model Selection** - Choose from favorites or use presets
+- **Persistent History** - Chats saved locally and restored on restart
+- **Token Tracking** - Real-time estimation for input and cumulative counts
 - **Keyboard Shortcuts** - `Enter` to send, `Cmd/Ctrl+Enter` for newline
-- **Context Menu** - Right-click on chats for quick actions (Open, Delete)
 
-### Proxy Server Configuration
-Access via `Settings` → `Tools` → `OpenRouter` → `Proxy Server` section:
+### Custom Presets
 
-- **Auto-start**: Control whether proxy starts automatically on IDEA launch (disabled by default)
-- **Port Selection**: Choose specific port or auto-select from configurable range
-- **Port Range**: Configure port range for auto-selection (default: 8880-8899)
-- **Immediate Application**: Start Proxy button applies current settings without requiring Apply/OK
-- **Conflict Avoidance**: Default range avoids common development ports (8080, 8000, etc.)
-- **Manual Control**: Start/stop proxy server on demand from settings panel
+Manage presets in `Settings` → `Tools` → `OpenRouter` → `Presets`:
 
-#### Configuration Options
-```kotlin
-proxyAutoStart = false           // Auto-start on IDEA launch
-proxyPort = 0                   // Specific port (0 = auto-select)  
-proxyPortRangeStart = 8880      // Range start for auto-selection
-proxyPortRangeEnd = 8899        // Range end for auto-selection
+- **Built-in Presets** - `openrouter/auto` (best model for task) and `openrouter/free` (free models only)
+- **Custom Presets** - Add your own presets created at [OpenRouter Presets](https://openrouter.ai/settings/presets)
+- **Chat Integration** - Presets appear at the top of model selector with `@preset/` prefix
+
+### Usage Monitoring
+
+- **Status Bar Widget** - Real-time usage display with color-coded connection status
+- **Statistics Popup** - Detailed analytics with days remaining estimate
+- **Cost Tracking** - Accurate "Today" statistics with local tracking
+
+### Extension API (for Plugin Developers)
+
+Other plugins can receive balance updates via the `balanceProvider` extension point:
+
+```xml
+<extensions defaultExtensionNs="org.zhavoronkov.openrouter">
+    <balanceProvider implementation="com.example.MyBalanceProvider"/>
+</extensions>
 ```
 
-## Architecture
-
-### Core Components
-- **Jetty Proxy Server** - Configurable embedded HTTP server (default ports 8880-8899) with flexible port selection and auto-start control
-- **OpenRouter API Client** - Handles authentication, quota tracking, and model access
-- **Settings Management** - Encrypted credential storage with validation
-- **Status Bar Integration** - Real-time monitoring with minimal UI footprint
-
-### Authentication Methods
-The plugin supports two authentication methods:
-- **Regular API Key** (OAuth/PKCE) - One-click browser authorization, minimal permissions, no usage monitoring
-- **Provisioning Key** (Extended) - Full functionality with quota tracking, usage monitoring, and API key management
-- **Security** - All keys encrypted using IntelliJ's credential store
-- **Validation** - Real-time key testing and status verification
+See the [CHANGELOG](CHANGELOG.md#051---2026-03-27) for API details and the `BalanceProvider` interface in the source code.
 
 ## Compatibility
 
-**Supported IDEs**: IntelliJ IDEA, WebStorm, PyCharm, PhpStorm, RubyMine, CLion, Android Studio, GoLand, Rider
-**IDE Versions**: 2024.1+ to 2025.3+
-**Requirements**: OpenRouter.ai account (free or paid)
+| | |
+|---|---|
+| **Supported IDEs** | IntelliJ IDEA, WebStorm, PyCharm, PhpStorm, RubyMine, CLion, Android Studio, GoLand, Rider |
+| **IDE Versions** | 2024.2+ and all future versions |
+| **Requirements** | Java 21+, [OpenRouter.ai](https://openrouter.ai) account (free or paid) |
 
 ## Development
 
-See [DEVELOPMENT.md](DEVELOPMENT.md) for development setup and contribution guidelines.
-
-### Building
-```bash
-git clone https://github.com/DimazzzZ/openrouter-intellij-plugin.git
-cd openrouter-intellij-plugin
-./gradlew build
-```
-
-### Testing
-```bash
-# Run all tests (500+ tests)
-./gradlew test
-
-# Run core functionality tests only
-./gradlew test --tests "*ChatCompletionServletTest*" --tests "*FavoriteModelsServiceTest*"
-
-# Run with development IDE for manual testing
-./gradlew runIde --no-daemon
-```
-
-### Testing Dynamic Plugin Support
-
-The plugin supports installation, updates, and uninstallation **without IDE restart** (dynamic plugin).
-
-**Quick Test** (Enable/Disable):
-```bash
-# Start development IDE and test enable/disable
-./scripts/test-enable-disable.sh
-
-# In the IDE: Settings → Plugins → Toggle OpenRouter OFF/ON
-# Should work without restart ✅
-```
-
-**Full Test** (Multiple Versions):
-```bash
-# Build 3 test versions for upgrade testing
-./scripts/build-test-versions.sh
-
-# Install first version (may require restart on first install)
-# Update to next version (should NOT require restart)
-# Update again (should NOT require restart)
-```
-
-**Test Coverage**: 500+ tests with 100% pass rate
-- Unit tests for data models, settings, and business logic
-- Integration tests for API key handling and proxy server functionality
-- Authentication tests with MockWebServer for realistic HTTP testing
-- Security tests for API key handling and encryption
-
-For detailed testing information, see [TESTING.md](TESTING.md).
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Commit changes: `git commit -m 'Add amazing feature'`
-4. Push to branch: `git push origin feature/amazing-feature`
-5. Open a Pull Request
+See [DEVELOPMENT.md](DEVELOPMENT.md) for build instructions, testing, and contribution guidelines.
 
 ## Support
 
-- **Documentation**: [OpenRouter API Docs](https://openrouter.ai/docs)
 - **Issues**: [GitHub Issues](https://github.com/DimazzzZ/openrouter-intellij-plugin/issues)
-- **OpenRouter Community**: [OpenRouter Discord](https://discord.gg/openrouter)
+- **OpenRouter Docs**: [openrouter.ai/docs](https://openrouter.ai/docs)
+- **Community**: [OpenRouter Discord](https://discord.gg/openrouter)
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
-*This is an unofficial plugin and is not affiliated with OpenRouter.ai.*
+*This is an unofficial plugin and is not affiliated with OpenRouter.ai or JetBrains.*

@@ -26,7 +26,7 @@ import java.io.IOException
 class WhatsNewNotificationActivity : ProjectActivity {
 
     companion object {
-        private const val CURRENT_VERSION = "0.5.0"
+        private const val CURRENT_VERSION = "0.5.1"
         private const val CHANGELOG_URL =
             "https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/CHANGELOG.md"
     }
@@ -68,18 +68,18 @@ class WhatsNewNotificationActivity : ProjectActivity {
             .createNotification(
                 "OpenRouter Plugin Updated to v$CURRENT_VERSION",
                 """
-                <b>💬 New Chat Tool Window:</b><br/>
-                • <b>Multi-Chat Support</b> - Create and manage multiple chat sessions in IDE sidebar<br/>
-                • <b>Persistent Storage</b> - Chat history saved locally with model preferences<br/>
-                • <b>Token Tracking</b> - Real-time token estimation per session<br/>
+                <b>🎯 Custom Presets Support:</b><br/>
+                • <b>New Settings Page</b> - Tools → OpenRouter → Presets<br/>
+                • <b>Built-in Presets</b> - openrouter/auto and openrouter/free<br/>
+                • <b>Custom Presets</b> - Add your own presets with @preset/ prefix<br/>
                 <br/>
-                <b>🔐 Security & Storage:</b><br/>
-                • <b>OS-Native Key Storage</b> - Keychain, Credential Manager, libsecret<br/>
-                • <b>CVE Fixes</b> - Patched Okio and JUnit vulnerabilities<br/>
+                <b>🔌 BalanceProvider Extension API:</b><br/>
+                • <b>New Extension Point</b> - Other plugins can receive balance updates<br/>
+                • <b>Plugin Integration</b> - Enables Token Pulse and similar plugins<br/>
                 <br/>
-                <b>📊 Improved Statistics:</b><br/>
-                • <b>Real-Time Cost Tracking</b> - Accurate "Today" stats with local tracking<br/>
-                • <b>Days Remaining</b> - Estimate based on spending rate
+                <b>🚀 Platform Compatibility:</b><br/>
+                • <b>Future-Proof</b> - Compatible with all future IDE versions<br/>
+                • <b>Java 21 & Kotlin 2.0.21</b> - Updated for IntelliJ 2024.2+
                 """.trimIndent(),
                 NotificationType.INFORMATION
             )

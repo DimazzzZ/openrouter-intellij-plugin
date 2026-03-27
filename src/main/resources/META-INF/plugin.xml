@@ -4,7 +4,7 @@
     <id>org.zhavoronkov.openrouter</id>
 
     <!-- Enable dynamic plugin support - allows install/update/uninstall without IDE restart -->
-    <idea-version since-build="232" until-build="252.*"/>
+    <idea-version since-build="242"/>
 
     <!-- Public plugin name should be written in Title Case.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-name -->
@@ -64,7 +64,36 @@
 
     <!-- Change notes for this version -->
     <change-notes><![CDATA[
-        <h3>🎉 Version 0.5.0 - Chat Tool Window & Enhanced Security (2026-03-19)</h3>
+        <h3>🎉 Version 0.5.1 - Custom Presets & Extension API (2026-03-27)</h3>
+        
+        <p><strong>🎯 Custom Presets Support:</strong></p>
+        <ul>
+            <li><strong>New Settings Page</strong> - Tools → OpenRouter → Presets for managing custom presets</li>
+            <li><strong>Built-in Presets</strong> - <code>openrouter/auto</code> and <code>openrouter/free</code> always available</li>
+            <li><strong>Custom Presets</strong> - Add presets by entering the slug from your OpenRouter presets page</li>
+            <li><strong>Chat Integration</strong> - Presets appear at top of model selector with <code>@preset/</code> prefix</li>
+        </ul>
+
+        <p><strong>🔌 BalanceProvider Extension Point API:</strong></p>
+        <ul>
+            <li><strong>New Extension Point</strong> - Other plugins can receive balance data updates in real-time</li>
+            <li><strong>BalanceData Class</strong> - Immutable data with formatting helpers and calculations</li>
+            <li><strong>User Control</strong> - Toggle in Settings to enable/disable balance sharing</li>
+            <li><strong>Plugin Integration</strong> - Enables dependent plugins (like Token Pulse) to display balance</li>
+        </ul>
+
+        <p><strong>🚀 Platform Compatibility:</strong></p>
+        <ul>
+            <li><strong>IntelliJ Platform Gradle Plugin 2.3.0</strong> - Migrated from deprecated 1.x</li>
+            <li><strong>No Upper Version Bound</strong> - Compatible with all future IDE versions</li>
+            <li><strong>Java 21 & Kotlin 2.0.21</strong> - Updated for IntelliJ Platform 2024.2+</li>
+        </ul>
+
+        <p><a href="https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/CHANGELOG.md">Full Changelog</a></p>
+
+        <hr/>
+
+        <h3>Version 0.5.0 - Chat Tool Window & Enhanced Security (2026-03-19)</h3>
         
         <p><strong>💬 New Chat Tool Window:</strong></p>
         <ul>

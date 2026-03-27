@@ -5,6 +5,60 @@ All notable changes to the OpenRouter IntelliJ Plugin will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-03-27
+
+### New Features
+
+#### 🎯 Custom Presets Support
+- **New Settings Page** - `Tools → OpenRouter → Presets` for managing custom presets
+- **Built-in Presets** - `openrouter/auto` and `openrouter/free` always available with descriptions
+- **Custom Presets** - Add presets by entering the slug from your OpenRouter presets page
+- **Slug Validation** - Automatic normalization (lowercase, alphanumeric + hyphens only)
+- **Chat Integration** - Presets appear at the top of the model selector in chat panel
+- **Prefix Display** - Custom presets shown with `@preset/` prefix (e.g., `@preset/email-copywriter`)
+
+#### 🔌 BalanceProvider Extension Point API
+- **New Extension Point** - Allows other plugins to receive OpenRouter balance data updates in real-time
+- **BalanceProvider Interface** - Simple contract with `onBalanceUpdated()`, `onBalanceLoading()`, and `onBalanceError()` methods
+- **BalanceData Class** - Immutable data transfer object with validation, formatting helpers, and derived calculations:
+  - Core data: `totalCredits`, `totalUsage`, `remainingCredits`, `timestamp`, `todayUsage`
+  - Helper methods: `formattedTotalCredits()`, `usagePercentage()`, `isLowBalance()`, `isCriticalBalance()`
+- **User Control** - Toggle in Settings → Tools → OpenRouter to enable/disable balance sharing
+- **Exception Isolation** - Misbehaving providers cannot crash the notification system
+- **Plugin Integration** - Enables dependent plugins (like Token Pulse) to display balance without duplicate API calls
+
+### Improvements
+
+#### 🚀 Platform Compatibility
+- **IntelliJ Platform Gradle Plugin 2.3.0** - Migrated from deprecated `org.jetbrains.intellij` 1.17.4
+- **Removed Upper Version Bound** - No `untilBuild` limit, compatible with all future IDE versions
+- **Extended IDE Support** - Now supports IntelliJ IDEA 2024.2+ through 2026.1+ and beyond
+- **Java 21** - Updated from Java 17 (required by IntelliJ Platform 2024.2+)
+- **Kotlin 2.0.21** - Updated for compatibility with IDE's Kotlin runtime
+
+#### UI Improvements
+- **Moved API Keys Group** - Now at bottom of main settings (only visible with Extended scope)
+- **Compact Layout** - Adjustments in FavoriteModelsSettingsPanel
+- **Improved Spacing** - Better filter panel spacing
+
+### Testing
+
+- **260+ New Tests** - Comprehensive test coverage across multiple areas:
+  - `PresetsManagerTest` - 19 tests for add/remove/normalize/validate operations
+  - `BalanceDataTest` - Validation, calculations, formatting tests
+  - `BalanceProviderNotifierTest` - Provider notification tests
+  - `BalanceProviderIntegrationTest` - Integration scenarios
+  - Additional tests for actions, constants, models, utils, and UI components
+
+### Compatibility Matrix
+
+| IDE Version | Build Range | Status |
+|-------------|-------------|--------|
+| 2024.2+ | 242.* | ✅ Supported |
+| 2025.1+ | 251.* | ✅ Supported |
+| 2026.1+ | 261.* | ✅ Supported |
+| Future | 270.*, 280.*, ... | ✅ Supported (no upper bound) |
+
 ## [0.5.0] - 2026-03-19
 
 ### New Features

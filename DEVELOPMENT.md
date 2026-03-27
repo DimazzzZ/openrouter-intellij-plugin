@@ -5,7 +5,7 @@ This guide covers development setup, building, testing, and contributing to the 
 ## 📋 Prerequisites
 
 ### Required Tools
-- **JDK 17 or higher** - Required for IntelliJ Platform development
+- **JDK 21 or higher** - Required for IntelliJ Platform 2024.2+ development
 - **IntelliJ IDEA** - Ultimate or Community Edition with Plugin Development support
 - **Git** - For version control and collaboration
 
@@ -67,7 +67,7 @@ java -version  # Should be JDK 17+
 # 📁 Distribution will be in: build/distributions/openrouter-intellij-plugin-*.zip
 ```
 
-**Note**: The project includes 77 disabled tests (integration, E2E, UI) that are valuable but not run by default. See [TESTING.md](TESTING.md#disabled-tests-77-tests) for details on when and how to enable them.
+**Note**: The project includes 77 disabled tests (integration, E2E, UI) that are valuable but not run by default. See [TESTING.md](TESTING.md) for details on when and how to enable them.
 
 **Note**: Use `./gradlew clean runIde` to test the first-run experience (welcome notification and setup wizard) with a fresh state.
 
