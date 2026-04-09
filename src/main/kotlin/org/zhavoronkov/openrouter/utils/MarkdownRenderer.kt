@@ -18,15 +18,12 @@ import com.vladsch.flexmark.util.data.MutableDataSet
 object MarkdownRenderer {
     private val options: MutableDataSet by lazy {
         MutableDataSet().apply {
-            set(
-                Parser.EXTENSIONS,
-                listOf(
-                    TablesExtension.create(),
-                    StrikethroughExtension.create(),
-                    AutolinkExtension.create(),
-                    TaskListExtension.create(),
-                )
-            )
+            set(Parser.EXTENSIONS, listOf(
+                TablesExtension.create(),
+                StrikethroughExtension.create(),
+                AutolinkExtension.create(),
+                TaskListExtension.create()
+            ))
             set(HtmlRenderer.SOFT_BREAK, "<br/>\n")
         }
     }
@@ -86,7 +83,6 @@ object MarkdownRenderer {
      * @param contentColorHex Color for the message content
      * @return Complete HTML document string
      */
-    @Suppress("LongParameterList")
     fun wrapInHtmlDocumentWithRolePrefix(
         bodyHtml: String,
         rolePrefix: String,
@@ -129,9 +125,10 @@ object MarkdownRenderer {
         fontFamily?.let { styleBuilder.append("font-family: $it; ") }
         fontSizePx?.let { styleBuilder.append("font-size: ${it}px; ") }
         colorHex?.let { styleBuilder.append("color: $it; ") }
+        
         val styleAttr = styleBuilder.toString().trim()
         val bodyStyle = if (styleAttr.isNotEmpty()) " style='$styleAttr'" else ""
-
+        
         return buildString {
             append("<html><body$bodyStyle>")
             append(bodyHtml)
