@@ -7,7 +7,6 @@ import com.google.gson.reflect.TypeToken
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.ui.ComboBox
 import com.intellij.ui.ColorUtil
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
@@ -733,50 +732,22 @@ class ChatPanel(
         roleLabel.border = JBUI.Borders.emptyRight(FLOW_LAYOUT_GAP)
         roleLabel.verticalAlignment = JBLabel.TOP
 
-        // Use same UI font for both message types to avoid font mismatch
-        val uiFont = inputArea.font ?: JBLabel().font
-        val uiForeground = JBUI.CurrentTheme.Label.foreground()
-        val uiBackground = JBUI.CurrentTheme.ToolWindow.background()
+        // Selectable text area for the message body
+        val textArea = JBTextArea(message)
+        textArea.isEditable = false
+        textArea.lineWrap = true
+        textArea.wrapStyleWord = true
+        textArea.border = null
+        textArea.background = JBUI.CurrentTheme.ToolWindow.background()
+        textArea.foreground = JBUI.CurrentTheme.Label.foreground()
+        textArea.caret = javax.swing.text.DefaultCaret()
+        textArea.putClientProperty("caretWidth", 2)
 
-        if (!isUser) {
-            // Assistant: render Markdown to HTML using JEditorPane
-            // Use role prefix inside HTML to ensure inline rendering with colored label
-            val htmlContent = MarkdownRenderer.wrapInHtmlDocumentWithRolePrefix(
-                bodyHtml = MarkdownRenderer.renderToHtml(message),
-                rolePrefix = rolePrefix,
-                roleColorHex = roleColor,
-                fontFamily = uiFont.family,
-                fontSizePx = uiFont.size,
-                contentColorHex = ColorUtil.toHex(uiForeground)
-            )
-            val textPane = JEditorPane("text/html", htmlContent)
-            textPane.isEditable = false
-            textPane.border = null
-            textPane.margin = JBUI.emptyInsets()
-            textPane.background = uiBackground
-            textPane.font = uiFont
-            textPane.foreground = uiForeground
-            // Force JEditorPane to honor display properties for HTML content
-            textPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, true)
-            textPane.putClientProperty(JEditorPane.W3C_LENGTH_UNITS, true)
-            messagePanel.add(textPane, BorderLayout.CENTER)
-        } else {
-            // User: plain text in JBTextArea
-            val textArea = JBTextArea(message)
-            textArea.isEditable = false
-            textArea.lineWrap = true
-            textArea.wrapStyleWord = true
-            textArea.border = null
-            textArea.background = uiBackground
-            textArea.foreground = uiForeground
-            textArea.font = uiFont
-            textArea.caret = javax.swing.text.DefaultCaret()
-            textArea.putClientProperty("caretWidth", 2)
-            // Set minimum height to at least fit one line
-            textArea.minimumSize = Dimension(MIN_TEXT_AREA_WIDTH, textArea.preferredSize.height)
-            messagePanel.add(roleLabel, BorderLayout.WEST)
-            messagePanel.add(textArea, BorderLayout.CENTER)
-        }
+        // Set minimum height to at least fit one line
+        textArea.minimumSize = Dimension(100, textArea.preferredSize.height)
+
+        messagePanel.add(roleLabel, BorderLayout.WEST)
+        messagePanel.add(textArea, BorderLayout.CENTER)
 
         messagesPanel.add(messagePanel)
         messagesPanel.revalidate()
