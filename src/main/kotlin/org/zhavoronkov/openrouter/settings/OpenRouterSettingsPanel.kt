@@ -131,8 +131,7 @@ class OpenRouterSettingsPanel {
     private val apiKeyManager: ApiKeyManager
 
     // Proxy server status components
-    @Suppress("RedundantLateinitModifier") // Uses ::statusLabel.isInitialized check
-    private lateinit var statusLabel: JLabel
+    private val statusLabel: JLabel = JLabel("Status: Stopped")
     private lateinit var startServerButton: JButton
     private lateinit var stopServerButton: JButton
     private lateinit var copyUrlButton: JButton
@@ -273,8 +272,8 @@ class OpenRouterSettingsPanel {
             )
         )
 
-        // Initialize Balance Provider checkbox
-        balanceProviderCheckBox = JBCheckBox("Share balance data with other plugins")
+        // Initialize Balance Provider checkbox (opt-in for privacy compliance)
+        balanceProviderCheckBox = JBCheckBox("Share balance data with other plugins (opt-in)")
 
         // Configure API key table
         apiKeyTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
@@ -291,9 +290,6 @@ class OpenRouterSettingsPanel {
             apiKeyTable,
             apiKeyTableModel
         )
-
-        // Initialize proxy status components
-        statusLabel = JLabel("Status: Stopped")
 
         // Create the main panel using UI DSL v2
         panel = try {
@@ -711,8 +707,7 @@ class OpenRouterSettingsPanel {
     }
 
     private fun areLateinitPropertiesInitialized(): Boolean {
-        return ::statusLabel.isInitialized &&
-            ::startServerButton.isInitialized &&
+        return ::startServerButton.isInitialized &&
             ::stopServerButton.isInitialized &&
             ::copyUrlButton.isInitialized
     }
