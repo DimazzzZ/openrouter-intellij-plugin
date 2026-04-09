@@ -29,6 +29,14 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.google.code.gson:gson:2.11.0")
 
+    // Markdown rendering (flexmark-java)
+    implementation("com.vladsch.flexmark:flexmark:0.64.8")
+    implementation("com.vladsch.flexmark:flexmark-util:0.64.8")
+    implementation("com.vladsch.flexmark:flexmark-ext-tables:0.64.8")
+    implementation("com.vladsch.flexmark:flexmark-ext-gfm-strikethrough:0.64.8")
+    implementation("com.vladsch.flexmark:flexmark-ext-autolink:0.64.8")
+    implementation("com.vladsch.flexmark:flexmark-ext-gfm-tasklist:0.64.8")
+
     // Embedded HTTP server for AI Assistant integration (Jetty 12)
     implementation("org.eclipse.jetty:jetty-server:12.1.6")
     implementation("org.eclipse.jetty.ee10:jetty-ee10-servlet:12.1.6")

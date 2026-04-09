@@ -24,6 +24,7 @@ import org.zhavoronkov.openrouter.models.ChatMessage
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.settings.PresetsManager
+import org.zhavoronkov.openrouter.utils.MarkdownRenderer
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.CardLayout
@@ -42,10 +43,11 @@ import java.util.Date
 import java.util.UUID
 import javax.swing.BoxLayout
 import javax.swing.DefaultComboBoxModel
+import javax.swing.JEditorPane
 import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
 import javax.swing.JButton
-import javax.swing.JComboBox
+import com.intellij.openapi.ui.ComboBox
 import javax.swing.JList
 import javax.swing.JMenuItem
 import javax.swing.JOptionPane
@@ -101,7 +103,7 @@ class ChatPanel(
     private lateinit var messagesScrollPane: JBScrollPane
     private val inputArea: JBTextArea
     private val sendButton: JButton
-    private val modelComboBox: JComboBox<String>
+    private val modelComboBox: ComboBox<String>
     private val statusLabel: JBLabel
     private val inputTokensLabel: JBLabel
 
@@ -120,7 +122,7 @@ class ChatPanel(
         inputTokensLabel = JBLabel("~0 tokens")
         inputArea = JBTextArea(INPUT_ROWS, INPUT_COLUMNS)
         sendButton = JButton("Send")
-        modelComboBox = JComboBox()
+        modelComboBox = ComboBox<String>()
         chatList = JBList(chatListModel)
 
         // Create main panel with CardLayout
@@ -730,22 +732,50 @@ class ChatPanel(
         roleLabel.border = JBUI.Borders.emptyRight(FLOW_LAYOUT_GAP)
         roleLabel.verticalAlignment = JBLabel.TOP
 
-        // Selectable text area for the message body
-        val textArea = JBTextArea(message)
-        textArea.isEditable = false
-        textArea.lineWrap = true
-        textArea.wrapStyleWord = true
-        textArea.border = null
-        textArea.background = JBUI.CurrentTheme.ToolWindow.background()
-        textArea.foreground = JBUI.CurrentTheme.Label.foreground()
-        textArea.caret = javax.swing.text.DefaultCaret()
-        textArea.putClientProperty("caretWidth", 2)
+        // Use same UI font for both message types to avoid font mismatch
+        val uiFont = inputArea.font ?: JBLabel().font
+        val uiForeground = JBUI.CurrentTheme.Label.foreground()
+        val uiBackground = JBUI.CurrentTheme.ToolWindow.background()
 
-        // Set minimum height to at least fit one line
-        textArea.minimumSize = Dimension(100, textArea.preferredSize.height)
-
-        messagePanel.add(roleLabel, BorderLayout.WEST)
-        messagePanel.add(textArea, BorderLayout.CENTER)
+        if (!isUser) {
+            // Assistant: render Markdown to HTML using JEditorPane
+            // Use role prefix inside HTML to ensure inline rendering with colored label
+            val htmlContent = MarkdownRenderer.wrapInHtmlDocumentWithRolePrefix(
+                bodyHtml = MarkdownRenderer.renderToHtml(message),
+                rolePrefix = rolePrefix,
+                roleColorHex = roleColor,
+                fontFamily = uiFont.family,
+                fontSizePx = uiFont.size,
+                contentColorHex = ColorUtil.toHex(uiForeground)
+            )
+            val textPane = JEditorPane("text/html", htmlContent)
+            textPane.isEditable = false
+            textPane.border = null
+            textPane.margin = JBUI.emptyInsets()
+            textPane.background = uiBackground
+            textPane.font = uiFont
+            textPane.foreground = uiForeground
+            // Force JEditorPane to honor display properties for HTML content
+            textPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, true)
+            textPane.putClientProperty(JEditorPane.W3C_LENGTH_UNITS, true)
+            messagePanel.add(textPane, BorderLayout.CENTER)
+        } else {
+            // User: plain text in JBTextArea
+            val textArea = JBTextArea(message)
+            textArea.isEditable = false
+            textArea.lineWrap = true
+            textArea.wrapStyleWord = true
+            textArea.border = null
+            textArea.background = uiBackground
+            textArea.foreground = uiForeground
+            textArea.font = uiFont
+            textArea.caret = javax.swing.text.DefaultCaret()
+            textArea.putClientProperty("caretWidth", 2)
+            // Set minimum height to at least fit one line
+            textArea.minimumSize = Dimension(100, textArea.preferredSize.height)
+            messagePanel.add(roleLabel, BorderLayout.WEST)
+            messagePanel.add(textArea, BorderLayout.CENTER)
+        }
 
         messagesPanel.add(messagePanel)
         messagesPanel.revalidate()
