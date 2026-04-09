@@ -117,6 +117,12 @@ See the [CHANGELOG](CHANGELOG.md#051---2026-03-27) for API details and the `Bala
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) for build instructions, testing, and contribution guidelines.
 
+## Legal & Privacy
+
+- **Privacy Policy**: [docs/PRIVACY_POLICY.md](docs/PRIVACY_POLICY.md)
+- **End User License Agreement**: [docs/EULA.md](docs/EULA.md)
+- **Marketplace Submission Checklist**: [docs/MARKETPLACE_SUBMISSION_CHECKLIST.md](docs/MARKETPLACE_SUBMISSION_CHECKLIST.md)
+
 ## Support
 
 - **Issues**: [GitHub Issues](https://github.com/DimazzzZ/openrouter-intellij-plugin/issues)

@@ -22,11 +22,11 @@ jobs:
     outputs:
       version: ${{ steps.extract-version.outputs.version }}
       is_prerelease: ${{ steps.extract-version.outputs.is_prerelease }}
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Extract version
       id: extract-version
       run: |
@@ -36,27 +36,27 @@ jobs:
           VERSION="${{ github.ref_name }}"
           VERSION=${VERSION#v}  # Remove 'v' prefix if present
         fi
-        
+
         echo "version=$VERSION" >> $GITHUB_OUTPUT
-        
+
         # Check if this is a prerelease (contains alpha, beta, rc)
         if [[ $VERSION =~ (alpha|beta|rc) ]]; then
           echo "is_prerelease=true" >> $GITHUB_OUTPUT
         else
           echo "is_prerelease=false" >> $GITHUB_OUTPUT
         fi
-        
+
         echo "Release version: $VERSION"
         echo "Is prerelease: $(echo $VERSION | grep -E '(alpha|beta|rc)' && echo 'true' || echo 'false')"
 
   build-and-test:
     needs: validate-version
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Setup Java JDK
       uses: actions/setup-java@v4
       with:
@@ -77,14 +77,26 @@ jobs:
 
     - name: Build, test, and analyze
       run: ./gradlew buildPlugin test detekt detektSarif --build-cache
-      # Note: Plugin Verifier is skipped - JetBrains Marketplace will verify compatibility during publishing
-    
+
+    - name: Run Plugin Verifier
+      run: ./gradlew verifyPlugin --build-cache
+      # Plugin Verifier checks API compatibility with target IDE versions
+      # This is required by JetBrains Marketplace approval guidelines (v1.3, section 2.1.c)
+
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
         name: plugin-artifact
         path: build/distributions/*.zip
         retention-days: 30
+
+    - name: Upload verifier reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: verifier-reports
+        path: build/reports/pluginVerifier/
+        retention-days: 30
+        if-no-files-found: ignore
 
   create-release:
     needs: [validate-version, build-and-test]
@@ -97,7 +109,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0  # Fetch full history for changelog generation
-    
+
     - name: Setup Java JDK
       uses: actions/setup-java@v4
       with:
@@ -109,13 +121,13 @@ jobs:
       uses: gradle/actions/setup-gradle@v4
       with:
         cache-read-only: true  # Read-only for release job
-    
+
     - name: Download build artifacts
       uses: actions/download-artifact@v4
       with:
         name: plugin-artifact
         path: build/distributions/
-    
+
     - name: Generate changelog
       id: changelog
       run: |
@@ -126,7 +138,7 @@ jobs:
         else
           CHANGELOG=$(git log --pretty=format:"- %s" $LAST_TAG..HEAD | head -20)
         fi
-        
+
         # Save changelog to file for GitHub release
         echo "## What's Changed" > changelog.md
         echo "" >> changelog.md
@@ -137,12 +149,12 @@ jobs:
         fi
         echo "" >> changelog.md
         echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${LAST_TAG}...v${{ needs.validate-version.outputs.version }}" >> changelog.md
-        
+
         # Set output for use in release creation
         echo "changelog<<EOF" >> $GITHUB_OUTPUT
         cat changelog.md >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
-    
+
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       with:
@@ -167,7 +179,7 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Setup Java JDK
       uses: actions/setup-java@v4
       with:
@@ -193,7 +205,7 @@ jobs:
         PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
         PRIVATE_KEY_PASSWORD: ${{ secrets.PRIVATE_KEY_PASSWORD }}
         PUBLISH_TOKEN: ${{ secrets.PUBLISH_TOKEN }}
-    
+
     - name: Update release with marketplace link
       uses: actions/github-script@v6
       with:
