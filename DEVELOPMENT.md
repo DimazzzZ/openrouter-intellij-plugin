@@ -5,7 +5,7 @@ This guide covers development setup, building, testing, and contributing to the 
 ## 📋 Prerequisites
 
 ### Required Tools
-- **JDK 21 or higher** - Required for IntelliJ Platform 2024.2+ development
+- **JDK 21** - Required for IntelliJ Platform 2024.2+ development (JDK 26+ is not yet supported by the Kotlin compiler used in Gradle builds)
 - **IntelliJ IDEA** - Ultimate or Community Edition with Plugin Development support
 - **Git** - For version control and collaboration
 
@@ -31,8 +31,8 @@ cd openrouter-intellij-plugin
 # Make gradlew executable (Unix/macOS)
 chmod +x gradlew
 
-# Verify Java version
-java -version  # Should be JDK 17+
+# Verify Java version (must be JDK 21, not 26+)
+java -version  # Should be JDK 21
 ```
 
 ### 2. Build and Verify
@@ -148,6 +148,14 @@ pluginUntilBuild = 252.*      # IntelliJ 2025.2+
 
 #### Common Build Issues
 ```bash
+# JDK version mismatch (error: "What went wrong: 26")
+# The Kotlin compiler in Gradle may fail on JDK 26+. Use JDK 21:
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+./gradlew build --no-daemon
+
+# Or set in gradle.properties (uncomment and adjust path):
+# org.gradle.java.home=/path/to/zulu-21.jdk/Contents/Home
+
 # Configuration cache issues
 ./gradlew build --no-configuration-cache
 
@@ -467,7 +475,7 @@ curl -X POST http://localhost:8880/v1/chat/completions \
 - **Persistent Settings** - Tracks last seen version to prevent duplicate notifications
 
 ### Update Process
-```kotlin
+```text
 // Update version for new releases
 companion object {
     private const val CURRENT_VERSION = "0.3.0"  // ← Update for each release
@@ -725,7 +733,7 @@ Use this checklist when preparing a new version release:
 
 **File:** `src/main/kotlin/org/zhavoronkov/openrouter/startup/WhatsNewNotificationActivity.kt`
 
-```kotlin
+```text
 companion object {
     private const val CURRENT_VERSION = "0.3.0"  // ← Update this to new version
     private const val CHANGELOG_URL = "https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/CHANGELOG.md"
@@ -742,7 +750,7 @@ companion object {
 
 Edit the `showWhatsNewNotification()` method to highlight the most important new features:
 
-```kotlin
+```text
 .createNotification(
     "OpenRouter Plugin Updated to v$CURRENT_VERSION",
     """
@@ -900,7 +908,7 @@ Before releasing, test that the notification works correctly:
 1. **Simulate upgrade from previous version:**
 
    Edit `src/main/kotlin/org/zhavoronkov/openrouter/models/OpenRouterModels.kt`:
-   ```kotlin
+   ```text
    var lastSeenVersion: String = "0.2.0"  // Simulate user on previous version
    ```
 
@@ -920,14 +928,14 @@ Before releasing, test that the notification works correctly:
    - [ ] Console shows: `"Showing What's New notification for version 0.3.0 (last seen: 0.2.0)"`
 
 5. **Revert the test change:**
-   ```kotlin
+   ```text
    var lastSeenVersion: String = ""  // Back to default
    ```
 
 ##### **Test Fresh Install (Should NOT Show Notification)**
 
 1. **Ensure default is empty:**
-   ```kotlin
+   ```text
    var lastSeenVersion: String = ""  // Default for fresh installs
    ```
 
@@ -1012,7 +1020,7 @@ Before publishing the new version:
 Here's a complete example of updating from 0.2.0 to 0.3.0:
 
 **1. WhatsNewNotificationActivity.kt:**
-```kotlin
+```text
 companion object {
     private const val CURRENT_VERSION = "0.3.0"  // Changed from "0.2.0"
     // ...

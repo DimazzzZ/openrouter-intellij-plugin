@@ -7,6 +7,8 @@ import com.google.gson.reflect.TypeToken
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.ComboBox
+import com.intellij.ui.ColorUtil
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
@@ -23,6 +25,7 @@ import org.zhavoronkov.openrouter.models.ChatMessage
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.settings.PresetsManager
+import org.zhavoronkov.openrouter.utils.MarkdownRenderer
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.CardLayout
@@ -44,7 +47,7 @@ import javax.swing.DefaultComboBoxModel
 import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
 import javax.swing.JButton
-import javax.swing.JComboBox
+import javax.swing.JEditorPane
 import javax.swing.JList
 import javax.swing.JMenuItem
 import javax.swing.JOptionPane
@@ -77,6 +80,7 @@ class ChatPanel(
         private const val CHARS_PER_TOKEN = 4.0
         private const val CARD_LIST = "list"
         private const val CARD_CHAT = "chat"
+        private const val MIN_TEXT_AREA_WIDTH = 100
         private const val HEADER_FONT_SIZE_INCREASE = 2f
         private const val FLOW_LAYOUT_GAP = 4
         private const val COMBO_BOX_WIDTH = 180
@@ -100,7 +104,7 @@ class ChatPanel(
     private lateinit var messagesScrollPane: JBScrollPane
     private val inputArea: JBTextArea
     private val sendButton: JButton
-    private val modelComboBox: JComboBox<String>
+    private val modelComboBox: ComboBox<String>
     private val statusLabel: JBLabel
     private val inputTokensLabel: JBLabel
 
@@ -119,7 +123,7 @@ class ChatPanel(
         inputTokensLabel = JBLabel("~0 tokens")
         inputArea = JBTextArea(INPUT_ROWS, INPUT_COLUMNS)
         sendButton = JButton("Send")
-        modelComboBox = JComboBox()
+        modelComboBox = ComboBox<String>()
         chatList = JBList(chatListModel)
 
         // Create main panel with CardLayout
@@ -714,22 +718,67 @@ class ChatPanel(
     }
 
     private fun addCompactMessage(message: String, isUser: Boolean) {
-        val rolePrefix = if (isUser) "You" else "Assistant"
-        val roleColor = if (isUser) "#6B9BD2" else "#9B9B9B"
+        val rolePrefix = if (isUser) "You:" else "Assistant:"
+        val roleColor = if (isUser) "#6B9BD2" else "#9B9BD2"
 
-        val escapedMessage = message
-            .replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace("\n", "<br>")
+        // Use a JPanel with role label and selectable text area
+        val messagePanel = JPanel(BorderLayout())
+        messagePanel.border = JBUI.Borders.empty(MESSAGE_BORDER_V, MESSAGE_BORDER_H)
+        messagePanel.alignmentX = JPanel.LEFT_ALIGNMENT
+        messagePanel.background = JBUI.CurrentTheme.ToolWindow.background()
 
-        val htmlContent = "<html><b style='color: $roleColor;'>$rolePrefix:</b> $escapedMessage</html>"
-        val contentLabel = JBLabel(htmlContent)
-        contentLabel.border = JBUI.Borders.empty(MESSAGE_BORDER_V, MESSAGE_BORDER_H)
-        contentLabel.verticalAlignment = JBLabel.TOP
-        contentLabel.alignmentX = JBLabel.LEFT_ALIGNMENT
+        // Role label (non-selectable prefix)
+        val roleLabel = JBLabel(rolePrefix)
+        roleLabel.foreground = ColorUtil.fromHex(roleColor)
+        roleLabel.border = JBUI.Borders.emptyRight(FLOW_LAYOUT_GAP)
+        roleLabel.verticalAlignment = JBLabel.TOP
 
-        messagesPanel.add(contentLabel)
+        // Use same UI font for both message types to avoid font mismatch
+        val uiFont = inputArea.font ?: JBLabel().font
+        val uiForeground = JBUI.CurrentTheme.Label.foreground()
+        val uiBackground = JBUI.CurrentTheme.ToolWindow.background()
+
+        if (!isUser) {
+            // Assistant: render Markdown to HTML using JEditorPane
+            // Use role prefix inside HTML to ensure inline rendering with colored label
+            val htmlContent = MarkdownRenderer.wrapInHtmlDocumentWithRolePrefix(
+                bodyHtml = MarkdownRenderer.renderToHtml(message),
+                rolePrefix = rolePrefix,
+                roleColorHex = roleColor,
+                fontFamily = uiFont.family,
+                fontSizePx = uiFont.size,
+                contentColorHex = ColorUtil.toHex(uiForeground)
+            )
+            val textPane = JEditorPane("text/html", htmlContent)
+            textPane.isEditable = false
+            textPane.border = null
+            textPane.margin = JBUI.emptyInsets()
+            textPane.background = uiBackground
+            textPane.font = uiFont
+            textPane.foreground = uiForeground
+            // Force JEditorPane to honor display properties for HTML content
+            textPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, true)
+            textPane.putClientProperty(JEditorPane.W3C_LENGTH_UNITS, true)
+            messagePanel.add(textPane, BorderLayout.CENTER)
+        } else {
+            // User: plain text in JBTextArea
+            val textArea = JBTextArea(message)
+            textArea.isEditable = false
+            textArea.lineWrap = true
+            textArea.wrapStyleWord = true
+            textArea.border = null
+            textArea.background = uiBackground
+            textArea.foreground = uiForeground
+            textArea.font = uiFont
+            textArea.caret = javax.swing.text.DefaultCaret()
+            textArea.putClientProperty("caretWidth", 2)
+            // Set minimum height to at least fit one line
+            textArea.minimumSize = Dimension(MIN_TEXT_AREA_WIDTH, textArea.preferredSize.height)
+            messagePanel.add(roleLabel, BorderLayout.WEST)
+            messagePanel.add(textArea, BorderLayout.CENTER)
+        }
+
+        messagesPanel.add(messagePanel)
         messagesPanel.revalidate()
         messagesPanel.repaint()
         scrollToBottom()
