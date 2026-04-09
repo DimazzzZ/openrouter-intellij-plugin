@@ -7,6 +7,7 @@ import com.google.gson.reflect.TypeToken
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.ComboBox
 import com.intellij.ui.ColorUtil
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
@@ -43,11 +44,10 @@ import java.util.Date
 import java.util.UUID
 import javax.swing.BoxLayout
 import javax.swing.DefaultComboBoxModel
-import javax.swing.JEditorPane
 import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
 import javax.swing.JButton
-import com.intellij.openapi.ui.ComboBox
+import javax.swing.JEditorPane
 import javax.swing.JList
 import javax.swing.JMenuItem
 import javax.swing.JOptionPane
@@ -80,6 +80,7 @@ class ChatPanel(
         private const val CHARS_PER_TOKEN = 4.0
         private const val CARD_LIST = "list"
         private const val CARD_CHAT = "chat"
+        private const val MIN_TEXT_AREA_WIDTH = 100
         private const val HEADER_FONT_SIZE_INCREASE = 2f
         private const val FLOW_LAYOUT_GAP = 4
         private const val COMBO_BOX_WIDTH = 180
@@ -772,7 +773,7 @@ class ChatPanel(
             textArea.caret = javax.swing.text.DefaultCaret()
             textArea.putClientProperty("caretWidth", 2)
             // Set minimum height to at least fit one line
-            textArea.minimumSize = Dimension(100, textArea.preferredSize.height)
+            textArea.minimumSize = Dimension(MIN_TEXT_AREA_WIDTH, textArea.preferredSize.height)
             messagePanel.add(roleLabel, BorderLayout.WEST)
             messagePanel.add(textArea, BorderLayout.CENTER)
         }

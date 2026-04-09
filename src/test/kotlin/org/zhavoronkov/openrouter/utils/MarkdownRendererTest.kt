@@ -21,7 +21,10 @@ class MarkdownRendererTest {
         @DisplayName("Should render bold text")
         fun `Should render bold text`() {
             val html = MarkdownRenderer.renderToHtml("This is **bold** text")
-            assertTrue(html.contains("<strong>bold</strong>") || html.contains("<b>bold</b>"), "Should contain bold tags")
+            assertTrue(
+                html.contains("<strong>bold</strong>") || html.contains("<b>bold</b>"),
+                "Should contain bold tags"
+            )
         }
 
         @Test
@@ -65,7 +68,10 @@ class MarkdownRendererTest {
         @DisplayName("Should render strikethrough")
         fun `Should render strikethrough`() {
             val html = MarkdownRenderer.renderToHtml("This is ~~deleted~~ text")
-            assertTrue(html.contains("<del>") || html.contains("<s>") || html.contains("<strike>"), "Should contain strikethrough tags")
+            assertTrue(
+                html.contains("<del>") || html.contains("<s>") || html.contains("<strike>"),
+                "Should contain strikethrough tags"
+            )
         }
 
         @Test
@@ -229,7 +235,7 @@ class MarkdownRendererTest {
                 roleColorHex = "#9B9BD2",
                 fontFamily = "JetBrains Mono",
                 fontSizePx = 13,
-                contentColorHex = "#000000"
+                contentColorHex = "#000000",
             )
             assertTrue(document.contains("Assistant:"), "Should contain role prefix")
             assertTrue(document.contains("color: #9B9BD2"), "Should contain role color")
