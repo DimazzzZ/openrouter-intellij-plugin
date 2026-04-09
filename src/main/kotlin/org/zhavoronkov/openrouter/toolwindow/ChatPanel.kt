@@ -7,6 +7,7 @@ import com.google.gson.reflect.TypeToken
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.project.Project
+import com.intellij.ui.ColorUtil
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
@@ -714,22 +715,39 @@ class ChatPanel(
     }
 
     private fun addCompactMessage(message: String, isUser: Boolean) {
-        val rolePrefix = if (isUser) "You" else "Assistant"
-        val roleColor = if (isUser) "#6B9BD2" else "#9B9B9B"
+        val rolePrefix = if (isUser) "You:" else "Assistant:"
+        val roleColor = if (isUser) "#6B9BD2" else "#9B9BD2"
 
-        val escapedMessage = message
-            .replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace("\n", "<br>")
+        // Use a JPanel with role label and selectable text area
+        val messagePanel = JPanel(BorderLayout())
+        messagePanel.border = JBUI.Borders.empty(MESSAGE_BORDER_V, MESSAGE_BORDER_H)
+        messagePanel.alignmentX = JPanel.LEFT_ALIGNMENT
+        messagePanel.background = JBUI.CurrentTheme.ToolWindow.background()
 
-        val htmlContent = "<html><b style='color: $roleColor;'>$rolePrefix:</b> $escapedMessage</html>"
-        val contentLabel = JBLabel(htmlContent)
-        contentLabel.border = JBUI.Borders.empty(MESSAGE_BORDER_V, MESSAGE_BORDER_H)
-        contentLabel.verticalAlignment = JBLabel.TOP
-        contentLabel.alignmentX = JBLabel.LEFT_ALIGNMENT
+        // Role label (non-selectable prefix)
+        val roleLabel = JBLabel(rolePrefix)
+        roleLabel.foreground = ColorUtil.fromHex(roleColor)
+        roleLabel.border = JBUI.Borders.emptyRight(FLOW_LAYOUT_GAP)
+        roleLabel.verticalAlignment = JBLabel.TOP
 
-        messagesPanel.add(contentLabel)
+        // Selectable text area for the message body
+        val textArea = JBTextArea(message)
+        textArea.isEditable = false
+        textArea.lineWrap = true
+        textArea.wrapStyleWord = true
+        textArea.border = null
+        textArea.background = JBUI.CurrentTheme.ToolWindow.background()
+        textArea.foreground = JBUI.CurrentTheme.Label.foreground()
+        textArea.caret = javax.swing.text.DefaultCaret()
+        textArea.putClientProperty("caretWidth", 2)
+
+        // Set minimum height to at least fit one line
+        textArea.minimumSize = Dimension(100, textArea.preferredSize.height)
+
+        messagePanel.add(roleLabel, BorderLayout.WEST)
+        messagePanel.add(textArea, BorderLayout.CENTER)
+
+        messagesPanel.add(messagePanel)
         messagesPanel.revalidate()
         messagesPanel.repaint()
         scrollToBottom()
