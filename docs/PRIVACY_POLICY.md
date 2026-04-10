@@ -33,7 +33,7 @@ When you use the Plugin, your prompts may be forwarded to third-party AI provide
 If you explicitly enable the **"Share balance data with other plugins"** setting:
 - Your OpenRouter credit balance and usage data may be shared with other installed JetBrains plugins that implement the `BalanceProvider` extension point
 - This data includes: remaining credits, total usage, and recent activity summaries
-- **This feature is disabled by default** and requires explicit user consent to enable
+- **This feature is enabled by default** and requires explicit user consent to disable
 - You can disable it at any time in Plugin Settings → Plugin Integration
 
 ## Data Not Collected
