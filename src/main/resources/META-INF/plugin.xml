@@ -64,6 +64,39 @@
 
     <!-- Change notes for this version -->
     <change-notes><![CDATA[
+        <h3>🎉 Version 0.5.2 - Pricing Display, Models Count & Chat Improvements (2026-04-10)</h3>
+        
+        <p><strong>💰 Model Pricing Display:</strong></p>
+        <ul>
+            <li><strong>Pricing Columns</strong> - Input Price and Output Price columns in model selection tables</li>
+            <li><strong>Per-Model Spend</strong> - Stats popup shows spend breakdown by model</li>
+            <li><strong>ModelPricingFormatter</strong> - New utility for consistent pricing display</li>
+        </ul>
+
+        <p><strong>📊 Total Models Count:</strong></p>
+        <ul>
+            <li><strong>Model Catalog Visibility</strong> - Shows "X shown (Y total)" in Favorite Models settings</li>
+            <li><strong>All Modalities</strong> - Count includes text, image, audio, and video models</li>
+        </ul>
+
+        <p><strong>💬 Chat Improvements:</strong></p>
+        <ul>
+            <li><strong>Fixed Copy/Select</strong> - Assistant output in chat is now selectable and copyable</li>
+            <li><strong>Markdown Rendering</strong> - Migrated to JEditorPane with flexmark for proper display</li>
+            <li><strong>Improved Alignment</strong> - Better message alignment and font consistency</li>
+        </ul>
+
+        <p><strong>🔒 Privacy & Compliance:</strong></p>
+        <ul>
+            <li><strong>Balance Sharing Opt-In</strong> - Now disabled by default</li>
+            <li><strong>Plugin Verifier</strong> - Added to release workflow</li>
+            <li><strong>New Documentation</strong> - Privacy Policy, EULA, Marketplace Checklist</li>
+        </ul>
+
+        <p><a href="https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/CHANGELOG.md">Full Changelog</a></p>
+
+        <hr/>
+
         <h3>🎉 Version 0.5.1 - Custom Presets & Extension API (2026-03-27)</h3>
         
         <p><strong>🎯 Custom Presets Support:</strong></p>

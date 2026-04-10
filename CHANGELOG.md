@@ -5,6 +5,43 @@ All notable changes to the OpenRouter IntelliJ Plugin will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] - 2026-04-10
+
+### New Features
+
+#### 💰 Model Pricing Display
+- **Pricing Columns** - Input Price and Output Price columns added to model selection tables
+- **Per-Model Spend** - Stats popup now shows spend breakdown by model (e.g., "• model/name — $0.1234")
+- **Setup Wizard Updates** - Model selection table expanded to show pricing columns
+- **ModelPricingFormatter** - New utility for consistent pricing display (USD per 1M tokens)
+
+#### 📊 Total Models Count
+- **Model Catalog Visibility** - Favorite Models settings now shows "X shown (Y total)"
+- **All Modalities Support** - Count includes text, image, audio, and video models via `output_modalities=all`
+- **Async Loading** - Model count fetched asynchronously when settings panel opens
+
+### Bug Fixes
+
+#### 💬 Chat Text Selection & Markdown Rendering
+- **Fixed Chat Copy/Select** - Assistant output in chat is now selectable and copyable
+- **Markdown Rendering** - Migrated assistant messages to JEditorPane with flexmark for proper Markdown display
+- **Improved Alignment** - Better message alignment and font consistency
+- **Markdown Features** - Support for tables, autolinks, strikethrough, task lists, and more
+
+### Improvements
+
+#### 🔒 Privacy & Marketplace Compliance
+- **Plugin Verifier Gate** - Release workflow now enforces Plugin Verifier checks before publish
+- **New Documentation** - Added Privacy Policy, EULA, and Marketplace Submission Checklist
+- **Explicit Consent** - Settings UI label updated to make balance sharing consent clear
+
+### Testing
+- **MarkdownRendererTest** - Comprehensive test coverage for markdown rendering and wrappers
+- **ModelPricingFormatterTest** - Pricing format validation tests
+- **StatsPopupModelSpendTest** - Per-model spend breakdown tests
+- **SetupWizardDialogTableModelTest** - Model table with pricing tests
+- **FavoriteModelsTableModelsTest** - Updated for new pricing columns
+
 ## [0.5.1] - 2026-03-27
 
 ### New Features

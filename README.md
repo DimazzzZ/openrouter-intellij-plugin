@@ -1,18 +1,18 @@
 # OpenRouter IntelliJ Plugin
 
 [![JetBrains Plugin](https://img.shields.io/badge/JetBrains-Plugin-orange.svg)](https://plugins.jetbrains.com/plugin/28520)
-[![Version](https://img.shields.io/badge/version-0.5.1-blue.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
+[![Version](https://img.shields.io/badge/version-0.5.2-blue.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
 [![CI](https://github.com/DimazzzZ/openrouter-intellij-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.ai), providing access to 400+ AI models with usage monitoring, quota tracking, and seamless JetBrains AI Assistant integration.
 
-## What's New in v0.5.1 🎉
+## What's New in v0.5.2 🎉
 
-- **🎯 Custom Presets** - Use OpenRouter presets (`openrouter/auto`, `openrouter/free`) and your own custom presets directly in chat
-- **🔌 Extension API** - New BalanceProvider extension point allows other plugins (like Token Pulse) to receive balance data in real-time
-- **🚀 Future-Proof** - Compatible with all future IDE versions (no upper version limit)
-- **☕ Platform Updates** - Java 21 and Kotlin 2.0.21 for IntelliJ 2024.2+
+- **💰 Model Pricing** - Input/Output price columns in model tables, per-model spend in stats
+- **📊 Total Models Count** - Shows "X shown (Y total)" in Favorite Models settings
+- **💬 Chat Improvements** - Fixed text copy/select, Markdown rendering with tables & links
+- **🔒 Privacy** - Balance sharing now opt-in, Plugin Verifier added to release workflow
 
 ## Key Features
 
