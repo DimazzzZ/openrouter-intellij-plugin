@@ -25,7 +25,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
@@ -613,18 +612,12 @@ class FavoriteModelsSettingsPanel : Disposable {
      */
     private fun loadTotalModelsCount() {
         coroutineScope.launch {
-            val result = withContext(Dispatchers.IO) {
-                favoriteModelsService.getOpenRouterService().getModelsCount()
-            }
-            when (result) {
-                is org.zhavoronkov.openrouter.models.ApiResult.Success -> {
-                    totalModelsCount = result.data.data.count
-                    PluginLogger.Settings.debug("Total models count: $totalModelsCount")
-                    updateStatusLabels()
-                }
-                is org.zhavoronkov.openrouter.models.ApiResult.Error -> {
-                    PluginLogger.Settings.debug("Failed to fetch total models count: ${result.message}")
-                }
+            totalModelsCount = favoriteModelsService.getModelsCount() ?: 0
+            if (totalModelsCount > 0) {
+                PluginLogger.Settings.debug("Total models count: $totalModelsCount")
+                updateStatusLabels()
+            } else {
+                PluginLogger.Settings.debug("Failed to fetch total models count")
             }
         }
     }

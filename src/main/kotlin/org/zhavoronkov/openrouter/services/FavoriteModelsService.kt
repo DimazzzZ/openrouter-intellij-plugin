@@ -202,10 +202,34 @@ class FavoriteModelsService(
     }
 
     /**
-     * Get the OpenRouter service instance for direct API calls
+     * Get total count of available models from OpenRouter
+     * Uses output_modalities=all to include all model types (not just text)
      */
-    fun getOpenRouterService(): OpenRouterService {
-        return routerService
+    @Suppress("TooGenericExceptionCaught")
+    suspend fun getModelsCount(): Int? {
+        return try {
+            PluginLogger.Settings.debug("Fetching models count from /models/count?output_modalities=all")
+            val result = routerService.getModelsCount()
+            when (result) {
+                is ApiResult.Success -> {
+                    val count = result.data.data.count
+                    PluginLogger.Settings.debug("Successfully fetched models count: $count")
+                    count
+                }
+                is ApiResult.Error -> {
+                    PluginLogger.Settings.warn(
+                        "Failed to fetch models count: ${result.message} (statusCode=${result.statusCode})"
+                    )
+                    null
+                }
+            }
+        } catch (e: java.io.IOException) {
+            PluginLogger.Settings.warn("Network error fetching models count: ${e.message}")
+            null
+        } catch (e: Throwable) {
+            PluginLogger.Settings.warn("Unexpected error fetching models count: ${e.message}")
+            null
+        }
     }
 
     /**
