@@ -199,20 +199,24 @@ class FavoriteModelsTableModelsTest {
         fun `should create available models table model`() {
             val tableModel = AvailableModelsColumns.createTableModel()
 
-            assertEquals(4, tableModel.columnCount, "Should have 4 columns")
+            assertEquals(6, tableModel.columnCount, "Should have 6 columns")
             assertEquals("Model ID", tableModel.getColumnName(0), "First column should be Model ID")
             assertEquals("Provider", tableModel.getColumnName(1), "Second column should be Provider")
             assertEquals("Context", tableModel.getColumnName(2), "Third column should be Context")
             assertEquals("Capabilities", tableModel.getColumnName(3), "Fourth column should be Capabilities")
+            assertEquals("Input Price", tableModel.getColumnName(4), "Fifth column should be Input Price")
+            assertEquals("Output Price", tableModel.getColumnName(5), "Sixth column should be Output Price")
         }
 
         @Test
         fun `should create favorite models table model`() {
             val tableModel = FavoriteModelsColumns.createTableModel()
 
-            assertEquals(2, tableModel.columnCount, "Should have 2 columns")
+            assertEquals(4, tableModel.columnCount, "Should have 4 columns")
             assertEquals("Model ID", tableModel.getColumnName(0), "First column should be Model ID")
             assertEquals("Status", tableModel.getColumnName(1), "Second column should be Status")
+            assertEquals("Input Price", tableModel.getColumnName(2), "Third column should be Input Price")
+            assertEquals("Output Price", tableModel.getColumnName(3), "Fourth column should be Output Price")
         }
 
         @Test

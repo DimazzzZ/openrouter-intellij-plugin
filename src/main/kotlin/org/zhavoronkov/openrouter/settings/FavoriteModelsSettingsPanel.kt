@@ -27,6 +27,7 @@ import kotlinx.coroutines.SupervisorJob
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.utils.ModelPricingFormatter
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
@@ -58,7 +59,7 @@ class FavoriteModelsSettingsPanel : Disposable {
         private const val TABLE_PREFERRED_WIDTH = 300
         private const val TABLE_PREFERRED_HEIGHT = 200
         private const val TABLE_ROW_HEIGHT = 20
-        private const val CAPABILITIES_COLUMN_WIDTH = 130
+        private const val PRICE_COLUMN_WIDTH = 100
     }
 
     private val settingsService = OpenRouterSettingsService.getInstance()
@@ -399,37 +400,49 @@ class FavoriteModelsSettingsPanel : Disposable {
     }
 
     /**
-     * Create table model for available models with capabilities column
+     * Create table model for available models with price columns
      */
     private fun createAvailableTableModel(): ListTableModel<OpenRouterModelInfo> {
         val modelColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Model ID") {
             override fun valueOf(item: OpenRouterModelInfo): String = item.id
             override fun getPreferredStringValue(): String = "anthropic/claude-3.5-sonnet-20241022"
         }
-        val capabilitiesColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Capabilities") {
+        val inputPriceColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Input Price") {
             override fun valueOf(item: OpenRouterModelInfo): String =
-                ModelProviderUtils.getCapabilitiesString(item)
-            override fun getPreferredStringValue(): String = "Vision, Audio"
-            override fun getWidth(table: javax.swing.JTable?): Int = JBUI.scale(CAPABILITIES_COLUMN_WIDTH)
+                ModelPricingFormatter.formatInputPrice(item.pricing)
+            override fun getPreferredStringValue(): String = "$0.0000"
+            override fun getWidth(table: javax.swing.JTable?): Int = JBUI.scale(PRICE_COLUMN_WIDTH)
         }
-        return ListTableModel(arrayOf(modelColumn, capabilitiesColumn), mutableListOf())
+        val outputPriceColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Output Price") {
+            override fun valueOf(item: OpenRouterModelInfo): String =
+                ModelPricingFormatter.formatOutputPrice(item.pricing)
+            override fun getPreferredStringValue(): String = "$0.0000"
+            override fun getWidth(table: javax.swing.JTable?): Int = JBUI.scale(PRICE_COLUMN_WIDTH)
+        }
+        return ListTableModel(arrayOf(modelColumn, inputPriceColumn, outputPriceColumn), mutableListOf())
     }
 
     /**
-     * Create table model for favorite models with capabilities column
+     * Create table model for favorite models with price columns
      */
     private fun createFavoriteTableModel(): ListTableModel<OpenRouterModelInfo> {
         val modelColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Model ID") {
             override fun valueOf(item: OpenRouterModelInfo): String = item.id
             override fun getPreferredStringValue(): String = "anthropic/claude-3.5-sonnet-20241022"
         }
-        val capabilitiesColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Capabilities") {
+        val inputPriceColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Input Price") {
             override fun valueOf(item: OpenRouterModelInfo): String =
-                ModelProviderUtils.getCapabilitiesString(item)
-            override fun getPreferredStringValue(): String = "Vision, Audio"
-            override fun getWidth(table: javax.swing.JTable?): Int = JBUI.scale(CAPABILITIES_COLUMN_WIDTH)
+                ModelPricingFormatter.formatInputPrice(item.pricing)
+            override fun getPreferredStringValue(): String = "$0.0000"
+            override fun getWidth(table: javax.swing.JTable?): Int = JBUI.scale(PRICE_COLUMN_WIDTH)
         }
-        return ListTableModel(arrayOf(modelColumn, capabilitiesColumn), mutableListOf())
+        val outputPriceColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Output Price") {
+            override fun valueOf(item: OpenRouterModelInfo): String =
+                ModelPricingFormatter.formatOutputPrice(item.pricing)
+            override fun getPreferredStringValue(): String = "$0.0000"
+            override fun getWidth(table: javax.swing.JTable?): Int = JBUI.scale(PRICE_COLUMN_WIDTH)
+        }
+        return ListTableModel(arrayOf(modelColumn, inputPriceColumn, outputPriceColumn), mutableListOf())
     }
 
     /**

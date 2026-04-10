@@ -20,6 +20,7 @@ import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.Font
 import java.time.LocalDate
+import java.util.Locale
 import javax.swing.Action
 import javax.swing.Box
 import javax.swing.BoxLayout
@@ -505,8 +506,8 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         activity24hLabel.text = "Last 24 hours: ${formatActivityText(requests24h, usage24h)}"
         activityWeekLabel.text = "Last week: ${formatActivityText(requestsWeek, usageWeek)}"
 
-        val recentModelNames = extractRecentModelNames(lastWeek)
-        activityModelsLabel.text = buildModelsHtmlList(recentModelNames)
+        val recentModelsWithSpend = extractRecentModelsWithSpend(lastWeek)
+        activityModelsLabel.text = buildModelsWithSpendHtmlList(recentModelsWithSpend)
     }
 
     private fun showErrorState(state: LabelState, message: String) {
@@ -538,21 +539,24 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
     }
 
     private fun formatCurrency(value: Double, decimals: Int = 3): String {
-        return String.format(java.util.Locale.US, "%." + decimals + "f", value)
+        return String.format(Locale.US, "%." + decimals + "f", value)
     }
 
     private fun formatActivityText(requests: Long, usage: Double): String {
         return "$requests requests, $${formatCurrency(usage, CURRENCY_DECIMAL_PLACES)} spent"
     }
 
-    private fun buildModelsHtmlList(models: List<String>): String {
+    private fun buildModelsWithSpendHtmlList(modelsWithSpend: List<ModelWithSpend>): String {
         return when {
-            models.isEmpty() -> NO_RECENT_MODELS_HTML
+            modelsWithSpend.isEmpty() -> NO_RECENT_MODELS_HTML
             else -> {
-                val displayModels = models.take(ACTIVITY_DISPLAY_LIMIT)
-                val bullets = displayModels.joinToString("<br/>") { "• $it" }
-                val moreText = if (models.size > ACTIVITY_DISPLAY_LIMIT) {
-                    "<br/>• +${models.size - ACTIVITY_DISPLAY_LIMIT} more"
+                val displayModels = modelsWithSpend.take(ACTIVITY_DISPLAY_LIMIT)
+                val bullets = displayModels.joinToString("<br/>") { model ->
+                    val spendFormatted = String.format(Locale.US, "%.4f", model.totalSpend)
+                    "• ${model.modelId} — $$spendFormatted"
+                }
+                val moreText = if (modelsWithSpend.size > ACTIVITY_DISPLAY_LIMIT) {
+                    "<br/>• +${modelsWithSpend.size - ACTIVITY_DISPLAY_LIMIT} more"
                 } else {
                     ""
                 }
@@ -601,14 +605,23 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         }
     }
 
-    private fun extractRecentModelNames(activities: List<ActivityData>): List<String> {
+    private data class ModelWithSpend(val modelId: String, val totalSpend: Double, val lastDate: String)
+
+    private fun extractRecentModelsWithSpend(activities: List<ActivityData>): List<ModelWithSpend> {
         return activities
             .filter { it.model != null && it.date != null }
             .groupBy { it.model!! }
-            .mapValues { (_, activities) -> activities.maxOf { it.date!! } }
-            .toList()
-            .sortedByDescending { it.second }
-            .map { it.first }
+            .mapValues { (_, modelActivities) ->
+                val totalSpend = modelActivities.sumOf { it.usage ?: 0.0 }
+                val lastDate = modelActivities.maxOf { it.date!! }
+                ModelWithSpend(
+                    modelId = modelActivities.first().model!!,
+                    totalSpend = totalSpend,
+                    lastDate = lastDate
+                )
+            }
+            .values
+            .sortedWith(compareByDescending<ModelWithSpend> { it.lastDate }.thenByDescending { it.totalSpend })
     }
 
     private fun parseActivityDate(dateString: String): LocalDate? {

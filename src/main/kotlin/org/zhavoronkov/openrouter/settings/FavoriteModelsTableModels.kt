@@ -3,6 +3,7 @@ package org.zhavoronkov.openrouter.settings
 import com.intellij.util.ui.ColumnInfo
 import com.intellij.util.ui.ListTableModel
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
+import org.zhavoronkov.openrouter.utils.ModelPricingFormatter
 import javax.swing.table.TableCellRenderer
 
 /**
@@ -115,9 +116,21 @@ object AvailableModelsColumns {
         override fun getPreferredStringValue(): String = "Vision, Tools"
     }
 
+    val INPUT_PRICE = object : ColumnInfo<AvailableModelDisplay, String>("Input Price") {
+        override fun valueOf(item: AvailableModelDisplay): String =
+            ModelPricingFormatter.formatInputPrice(item.model.pricing)
+        override fun getPreferredStringValue(): String = "$0.0000"
+    }
+
+    val OUTPUT_PRICE = object : ColumnInfo<AvailableModelDisplay, String>("Output Price") {
+        override fun valueOf(item: AvailableModelDisplay): String =
+            ModelPricingFormatter.formatOutputPrice(item.model.pricing)
+        override fun getPreferredStringValue(): String = "$0.0000"
+    }
+
     fun createTableModel(): ListTableModel<AvailableModelDisplay> {
         return ListTableModel(
-            arrayOf(MODEL_ID, PROVIDER, CONTEXT, CAPABILITIES),
+            arrayOf(MODEL_ID, PROVIDER, CONTEXT, CAPABILITIES, INPUT_PRICE, OUTPUT_PRICE),
             mutableListOf()
         )
     }
@@ -144,9 +157,21 @@ object FavoriteModelsColumns {
         override fun getPreferredStringValue(): String = "Available"
     }
 
+    val INPUT_PRICE = object : ColumnInfo<FavoriteModelDisplay, String>("Input Price") {
+        override fun valueOf(item: FavoriteModelDisplay): String =
+            ModelPricingFormatter.formatInputPrice(item.model.pricing)
+        override fun getPreferredStringValue(): String = "$0.0000"
+    }
+
+    val OUTPUT_PRICE = object : ColumnInfo<FavoriteModelDisplay, String>("Output Price") {
+        override fun valueOf(item: FavoriteModelDisplay): String =
+            ModelPricingFormatter.formatOutputPrice(item.model.pricing)
+        override fun getPreferredStringValue(): String = "$0.0000"
+    }
+
     fun createTableModel(): ListTableModel<FavoriteModelDisplay> {
         return ListTableModel(
-            arrayOf(MODEL_ID, STATUS),
+            arrayOf(MODEL_ID, STATUS, INPUT_PRICE, OUTPUT_PRICE),
             mutableListOf()
         )
     }
@@ -162,16 +187,6 @@ class FavoriteModelsTableHelper private constructor() {
          */
         fun toAvailableDisplayItems(models: List<OpenRouterModelInfo>): List<AvailableModelDisplay> {
             return models.map { AvailableModelDisplay.from(it) }
-        }
-
-        /**
-         * Convert models to favorite display items
-         */
-        fun toFavoriteDisplayItems(
-            favoriteModels: List<OpenRouterModelInfo>,
-            availableModels: List<OpenRouterModelInfo>
-        ): List<FavoriteModelDisplay> {
-            return favoriteModels.map { FavoriteModelDisplay.from(it, availableModels) }
         }
 
         /**
