@@ -17,7 +17,7 @@ class ShowUsageAction : AnAction(
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
 
-        val toolWindowManager = ToolWindowManager.getInstance(project)
+        val toolWindowManager = project.service<ToolWindowManager>()
         val toolWindow = toolWindowManager.getToolWindow("OpenRouter")
 
         toolWindow?.let {

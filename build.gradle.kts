@@ -87,7 +87,10 @@ intellijPlatform {
 
     pluginVerification {
         ides {
-            recommended()
+            // Use specific stable IDE versions for verification to avoid resolution failures
+            // Build 261.x (2026.1) may not be available yet, so we verify against known stable versions
+            ide("IC-2024.2")
+            ide("IC-2025.1")
         }
     }
 
