@@ -310,7 +310,8 @@ data class OpenRouterSettings(
     var proxyPortRangeStart: Int = 8880, // Start of port range for auto-selection
     var proxyPortRangeEnd: Int = 8899, // End of port range for auto-selection
     // Extension Point Settings
-    var balanceProviderEnabled: Boolean = true // Allow other plugins to receive balance data (enabled by default)
+    // Allow other plugins to receive balance data (enabled by default)
+    var balanceProviderEnabled: Boolean = true
 )
 
 /**
