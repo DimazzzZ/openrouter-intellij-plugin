@@ -8,6 +8,7 @@ import org.zhavoronkov.openrouter.constants.OpenRouterConstants
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Service for managing favorite models with caching and API interaction
@@ -53,7 +54,7 @@ class FavoriteModelsService(
 
         PluginLogger.Service.debug("[OpenRouter] Fetching models from API (forceRefresh: $forceRefresh)")
         return try {
-            withTimeout(OpenRouterConstants.API_TIMEOUT_MS) {
+            withTimeout(OpenRouterConstants.API_TIMEOUT_MS.milliseconds) {
                 val result = routerService.getModels()
                 when (result) {
                     is ApiResult.Success -> {
@@ -198,6 +199,13 @@ class FavoriteModelsService(
         cachedModels = null
         cacheTimestamp = 0L
         PluginLogger.Service.debug("Models cache cleared")
+    }
+
+    /**
+     * Get the OpenRouter service instance for direct API calls
+     */
+    fun getOpenRouterService(): OpenRouterService {
+        return routerService
     }
 
     /**

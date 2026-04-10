@@ -123,6 +123,15 @@ data class OpenRouterModelsResponse(
     val data: List<OpenRouterModelInfo>
 )
 
+// OpenRouter Models Count API Response
+data class ModelsCountResponse(
+    val data: ModelsCountData
+)
+
+data class ModelsCountData(
+    val count: Int
+)
+
 data class OpenRouterModelInfo(
     val id: String,
     val name: String,

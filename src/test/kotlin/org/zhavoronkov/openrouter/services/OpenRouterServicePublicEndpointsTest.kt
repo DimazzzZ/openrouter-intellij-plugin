@@ -94,4 +94,45 @@ class OpenRouterServicePublicEndpointsTest {
         assertEquals(1, success.data.data.size)
         assertEquals("openai", success.data.data.first().slug)
     }
+
+    @Test
+    fun `getModelsCount should parse response with output_modalities=all`() = runBlocking {
+        val response = """
+            {
+              "data": {
+                "count": 1234
+              }
+            }
+        """.trimIndent()
+
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody(response)
+        )
+
+        val result = service.getModelsCount()
+
+        assertTrue(result is ApiResult.Success)
+        val success = result as ApiResult.Success
+        assertEquals(1234, success.data.data.count)
+    }
+
+    @Test
+    fun `getModelsCount should request correct endpoint with query parameter`() = runBlocking {
+        val response = """{"data":{"count":1}}"""
+
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody(response)
+        )
+
+        service.getModelsCount()
+
+        val request = mockWebServer.takeRequest()
+        assertEquals("/api/v1/models/count?output_modalities=all", request.path)
+    }
 }

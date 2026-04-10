@@ -24,6 +24,8 @@ import com.intellij.util.ui.ListTableModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
@@ -97,6 +99,7 @@ class FavoriteModelsSettingsPanel : Disposable {
     private var loadError: String? = null
     private var allAvailableModels: List<OpenRouterModelInfo> = emptyList()
     private var filteredAvailableModels: List<OpenRouterModelInfo> = emptyList()
+    private var totalModelsCount: Int = 0
     private var initialFavorites: List<String> = emptyList()
     private var availableStatusLabel: javax.swing.JLabel? = null
     private var favoritesStatusLabel: javax.swing.JLabel? = null
@@ -192,6 +195,9 @@ class FavoriteModelsSettingsPanel : Disposable {
             onModelsLoaded = ::handleModelsLoaded,
             onLoadError = ::handleLoadError
         )
+
+        // Fetch total models count from /models/count endpoint
+        loadTotalModelsCount()
 
         val filterComponents = FilterComponents(
             searchField = searchField,
@@ -603,6 +609,27 @@ class FavoriteModelsSettingsPanel : Disposable {
     }
 
     /**
+     * Load total models count from /models/count?output_modalities=all
+     */
+    private fun loadTotalModelsCount() {
+        coroutineScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                favoriteModelsService.getOpenRouterService().getModelsCount()
+            }
+            when (result) {
+                is org.zhavoronkov.openrouter.models.ApiResult.Success -> {
+                    totalModelsCount = result.data.data.count
+                    PluginLogger.Settings.debug("Total models count: $totalModelsCount")
+                    updateStatusLabels()
+                }
+                is org.zhavoronkov.openrouter.models.ApiResult.Error -> {
+                    PluginLogger.Settings.debug("Failed to fetch total models count: ${result.message}")
+                }
+            }
+        }
+    }
+
+    /**
      * Refresh available models from API (bypass cache)
      */
     private fun refreshAvailableModels() {
@@ -762,6 +789,7 @@ class FavoriteModelsSettingsPanel : Disposable {
             loadError != null -> "Error: $loadError"
             filteredAvailableModels.isEmpty() && searchField.text.isNotBlank() -> "No models match search"
             filteredAvailableModels.isEmpty() -> "No models available"
+            totalModelsCount > 0 -> "${filteredAvailableModels.size} shown ($totalModelsCount total)"
             else -> "${filteredAvailableModels.size} models available"
         }
     }
