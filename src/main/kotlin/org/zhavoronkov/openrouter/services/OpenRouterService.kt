@@ -23,6 +23,7 @@ import org.zhavoronkov.openrouter.models.ExchangeAuthCodeResponse
 import org.zhavoronkov.openrouter.models.GenerationResponse
 import org.zhavoronkov.openrouter.models.KeyData
 import org.zhavoronkov.openrouter.models.KeyInfoResponse
+import org.zhavoronkov.openrouter.models.ModelsCountResponse
 import org.zhavoronkov.openrouter.models.OpenRouterModelsResponse
 import org.zhavoronkov.openrouter.models.OpenRouterResponse
 import org.zhavoronkov.openrouter.models.ProvidersResponse
@@ -88,6 +89,7 @@ open class OpenRouterService(
     private fun getAuthKeysEndpoint() = "${getBaseUrl()}/auth/keys"
     private fun getProvidersEndpoint() = "${getBaseUrl()}/providers"
     private fun getModelsEndpoint() = "${getBaseUrl()}/models"
+    private fun getModelsCountEndpoint() = "${getBaseUrl()}/models/count"
 
     /**
      * Handle network errors gracefully without alarming users
@@ -583,6 +585,21 @@ open class OpenRouterService(
             "Error fetching models"
         ) { responseBody ->
             gson.fromJson(responseBody, OpenRouterModelsResponse::class.java)
+        }
+
+    /**
+     * Get total count of available models from OpenRouter
+     * Uses output_modalities=all to include all model types (not just text)
+     * NOTE: This is a public endpoint that requires no authentication
+     */
+    suspend fun getModelsCount(): ApiResult<ModelsCountResponse> =
+        fetchPublicEndpoint(
+            "${getModelsCountEndpoint()}?output_modalities=all",
+            "models count",
+            OpenRouterConstants.RESPONSE_PREVIEW_LENGTH_SMALL,
+            "Error fetching models count"
+        ) { responseBody ->
+            gson.fromJson(responseBody, ModelsCountResponse::class.java)
         }
 
     /**
