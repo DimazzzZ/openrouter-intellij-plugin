@@ -35,6 +35,7 @@ import org.zhavoronkov.openrouter.proxy.OpenRouterProxyServer
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.utils.ModelPricingFormatter
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.CardLayout
@@ -48,6 +49,7 @@ import javax.swing.JRadioButton
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.table.AbstractTableModel
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Multi-step setup wizard for first-time users with validation and embedded model selection
@@ -870,7 +872,7 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
 
         coroutineScope.launch(Dispatchers.IO) {
             try {
-                val models = withTimeout(SetupWizardConfig.MODEL_LOADING_TIMEOUT_MS) {
+                val models = withTimeout(SetupWizardConfig.MODEL_LOADING_TIMEOUT_MS.milliseconds) {
                     favoriteModelsService.getAvailableModels(forceRefresh = true)
                 }
 
@@ -976,7 +978,9 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
         val columnModel = modelsTable.columnModel
         columnModel.getColumn(0).preferredWidth = CHECKBOX_COLUMN_WIDTH // Checkbox
         columnModel.getColumn(0).maxWidth = CHECKBOX_COLUMN_WIDTH
-        columnModel.getColumn(1).preferredWidth = NAME_COLUMN_WIDTH // Model name (wider, no provider column)
+        columnModel.getColumn(1).preferredWidth = NAME_COLUMN_WIDTH // Model name
+        columnModel.getColumn(2).preferredWidth = PRICE_COLUMN_WIDTH // Input Price
+        columnModel.getColumn(3).preferredWidth = PRICE_COLUMN_WIDTH // Output Price
 
         // Disable sorting on checkbox column
         val sorter = modelsTable.rowSorter as? javax.swing.table.TableRowSorter<*>
@@ -1012,11 +1016,13 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
     private inner class ModelsTableModel : AbstractTableModel() {
         override fun getRowCount(): Int = filteredModels.size
 
-        override fun getColumnCount(): Int = 2 // Checkbox + Model name only
+        override fun getColumnCount(): Int = 4 // Checkbox + Model name + Input Price + Output Price
 
         override fun getColumnName(column: Int): String = when (column) {
             0 -> ""
             1 -> "Model"
+            2 -> "Input Price"
+            3 -> "Output Price"
             else -> ""
         }
 
@@ -1036,6 +1042,8 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
             return when (columnIndex) {
                 0 -> selectedModels.contains(model.id)
                 1 -> model.name
+                2 -> ModelPricingFormatter.formatInputPrice(model.pricing)
+                3 -> ModelPricingFormatter.formatOutputPrice(model.pricing)
                 else -> null
             }
         }
@@ -1080,6 +1088,7 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
         private val URL_LABEL_FONT_SIZE = SetupWizardConfig.URL_LABEL_FONT_SIZE
         private val API_KEY_TRUNCATE_LENGTH = SetupWizardConfig.API_KEY_TRUNCATE_LENGTH
         private val DEFAULT_PROXY_PORT = SetupWizardConfig.DEFAULT_PROXY_PORT
+        private const val PRICE_COLUMN_WIDTH = 100
 
         // Wizard step identifiers
         private val STEP_WELCOME = SetupWizardConfig.STEP_WELCOME
