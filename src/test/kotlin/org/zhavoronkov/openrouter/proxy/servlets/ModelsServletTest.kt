@@ -18,7 +18,8 @@ class ModelsServletTest {
     fun `doGet returns curated favorites`() {
         val openRouterService = mock(OpenRouterService::class.java)
         val favoritesProvider = { listOf("openai/gpt-4") }
-        val servlet = ModelsServlet(openRouterService, favoritesProvider)
+        val presetsProvider = { listOf<String>() }
+        val servlet = ModelsServlet(openRouterService, favoritesProvider, presetsProvider)
 
         val req = mock(HttpServletRequest::class.java)
         val resp = mock(HttpServletResponse::class.java)
