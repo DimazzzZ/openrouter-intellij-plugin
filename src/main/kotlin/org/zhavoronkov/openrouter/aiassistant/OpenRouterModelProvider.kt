@@ -2,6 +2,7 @@ package org.zhavoronkov.openrouter.aiassistant
 
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlin.time.Duration.Companion.milliseconds
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
@@ -120,7 +121,7 @@ class OpenRouterModelProvider internal constructor(
 
             // Use the existing OpenRouterService test connection method
             runBlocking {
-                withTimeout(CONNECTION_TEST_TIMEOUT_MS) {
+                withTimeout(CONNECTION_TEST_TIMEOUT_MS.milliseconds) {
                     val result = openRouterService.testConnection()
                     when (result) {
                         is ApiResult.Success -> result.data

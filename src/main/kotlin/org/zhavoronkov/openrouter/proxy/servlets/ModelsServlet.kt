@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlin.time.Duration.Companion.milliseconds
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.proxy.models.OpenAIModel
 import org.zhavoronkov.openrouter.proxy.models.OpenAIModelsResponse
@@ -13,6 +14,7 @@ import org.zhavoronkov.openrouter.proxy.models.OpenAIPermission
 import org.zhavoronkov.openrouter.proxy.translation.ResponseTranslator
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.services.settings.PresetsManager
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
@@ -25,6 +27,11 @@ class ModelsServlet(
     private val openRouterService: OpenRouterService,
     private val favoriteModelsProvider: () -> List<String> = {
         OpenRouterSettingsService.getInstance().favoriteModelsManager.getFavoriteModels()
+    },
+    private val presetsProvider: () -> List<String> = {
+        val settings = OpenRouterSettingsService.getInstance()
+        PresetsManager.BUILT_IN_PRESETS.map { it.id } +
+            settings.presetsManager.getCustomPresets().map { settings.presetsManager.getPresetModelId(it) }
     }
 ) : HttpServlet() {
 
@@ -128,8 +135,9 @@ class ModelsServlet(
     }
 
     private fun createCoreModelsResponse(): OpenAIModelsResponse {
-        // Return user's favorite models with FULL OpenRouter format (provider/model)
+        // Return presets first, then favorite models, with FULL OpenRouter format (provider/model)
         // This is critical - OpenRouter API requires full model names with provider prefix
+        val presetModelIds = presetsProvider()
         var favoriteModelIds = favoriteModelsProvider()
 
         // If no favorites are set, ensure we have defaults
@@ -146,7 +154,9 @@ class ModelsServlet(
             )
         }
 
-        val coreModels = favoriteModelIds.map { modelId ->
+        val allModelIds = presetModelIds + favoriteModelIds
+
+        val coreModels = allModelIds.map { modelId ->
             OpenAIModel(
                 id = modelId,
                 created = System.currentTimeMillis() / 1000, // Use current timestamp
@@ -178,7 +188,7 @@ class ModelsServlet(
         // Fetch from OpenRouter API
         return try {
             val result = runBlocking {
-                withTimeout(REQUEST_TIMEOUT_MS) {
+                withTimeout(REQUEST_TIMEOUT_MS.milliseconds) {
                     openRouterService.getModels()
                 }
             }

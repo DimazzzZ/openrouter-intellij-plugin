@@ -90,7 +90,8 @@ class OpenRouterProxyServerTest {
         val modelsServlet = ServletHolder(
             ModelsServlet(
                 mockOpenRouterService,
-                favoriteModelsProvider = { listOf("openai/gpt-4o", "anthropic/claude-3.5-sonnet") }
+                favoriteModelsProvider = { listOf("openai/gpt-4o", "anthropic/claude-3.5-sonnet") },
+                presetsProvider = { listOf<String>() }
             )
         )
         val organizationServlet = ServletHolder(OrganizationServlet())
