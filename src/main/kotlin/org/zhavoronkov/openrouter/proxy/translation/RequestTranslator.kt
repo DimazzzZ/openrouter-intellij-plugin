@@ -3,8 +3,10 @@ package org.zhavoronkov.openrouter.proxy.translation
 import com.intellij.openapi.application.ApplicationManager
 import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatMessage
+import org.zhavoronkov.openrouter.models.ReasoningConfig
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatMessage
+import org.zhavoronkov.openrouter.proxy.models.OpenAIReasoningConfig
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.PluginLogger
 
@@ -61,7 +63,9 @@ object RequestTranslator {
             frequencyPenalty = openAIRequest.frequencyPenalty,
             presencePenalty = openAIRequest.presencePenalty,
             stop = openAIRequest.stop,
-            stream = openAIRequest.stream ?: false // Pass through streaming flag as-is
+            stream = openAIRequest.stream ?: false, // Pass through streaming flag as-is
+            reasoning = openAIRequest.reasoning?.let { translateReasoning(it) },
+            verbosity = openAIRequest.verbosity
         )
     }
 
@@ -73,6 +77,18 @@ object RequestTranslator {
             role = openAIMessage.role,
             content = openAIMessage.content,
             name = openAIMessage.name
+        )
+    }
+
+    /**
+     * Converts OpenAI reasoning config to OpenRouter format
+     */
+    private fun translateReasoning(openAIReasoning: OpenAIReasoningConfig): ReasoningConfig {
+        return ReasoningConfig(
+            effort = openAIReasoning.effort,
+            maxTokens = openAIReasoning.maxTokens,
+            exclude = openAIReasoning.exclude,
+            enabled = openAIReasoning.enabled
         )
     }
 

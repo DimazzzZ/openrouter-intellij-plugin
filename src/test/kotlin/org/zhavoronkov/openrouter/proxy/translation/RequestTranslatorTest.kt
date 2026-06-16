@@ -6,12 +6,14 @@ import com.google.gson.JsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatMessage
+import org.zhavoronkov.openrouter.proxy.models.OpenAIReasoningConfig
 
 @DisplayName("RequestTranslator Tests")
 class RequestTranslatorTest {
@@ -469,6 +471,119 @@ class RequestTranslatorTest {
             assertEquals("openai/gpt-3.5-turbo", mappings["gpt-3.5-turbo"])
             assertEquals("anthropic/claude-3.5-sonnet", mappings["claude-3.5-sonnet"])
             assertEquals("google/gemini-pro", mappings["gemini-pro"])
+        }
+    }
+
+    @Nested
+    @DisplayName("Reasoning and Verbosity Translation Tests")
+    inner class ReasoningVerbosityTests {
+
+        @Test
+        @DisplayName("should pass reasoning config through translation")
+        fun testReasoningPassthrough() {
+            val openAIRequest = OpenAIChatCompletionRequest(
+                model = "openai/o3-mini",
+                messages = listOf(OpenAIChatMessage(role = "user", content = JsonPrimitive("Think hard"))),
+                reasoning = OpenAIReasoningConfig(effort = "high")
+            )
+
+            val translated = RequestTranslator.translateChatCompletionRequest(openAIRequest)
+
+            assertNotNull(translated.reasoning, "Reasoning should be present")
+            assertEquals("high", translated.reasoning?.effort)
+        }
+
+        @Test
+        @DisplayName("should pass verbosity through translation")
+        fun testVerbosityPassthrough() {
+            val openAIRequest = OpenAIChatCompletionRequest(
+                model = "anthropic/claude-4.6-sonnet",
+                messages = listOf(OpenAIChatMessage(role = "user", content = JsonPrimitive("Be brief"))),
+                verbosity = "low"
+            )
+
+            val translated = RequestTranslator.translateChatCompletionRequest(openAIRequest)
+
+            assertEquals("low", translated.verbosity)
+        }
+
+        @Test
+        @DisplayName("should return null reasoning when not provided")
+        fun testNullReasoning() {
+            val openAIRequest = OpenAIChatCompletionRequest(
+                model = "openai/gpt-4o",
+                messages = listOf(OpenAIChatMessage(role = "user", content = JsonPrimitive("Hi"))),
+                reasoning = null
+            )
+
+            val translated = RequestTranslator.translateChatCompletionRequest(openAIRequest)
+
+            assertNull(translated.reasoning, "Reasoning should be null when not provided")
+        }
+
+        @Test
+        @DisplayName("should return null verbosity when not provided")
+        fun testNullVerbosity() {
+            val openAIRequest = OpenAIChatCompletionRequest(
+                model = "openai/gpt-4o",
+                messages = listOf(OpenAIChatMessage(role = "user", content = JsonPrimitive("Hi"))),
+                verbosity = null
+            )
+
+            val translated = RequestTranslator.translateChatCompletionRequest(openAIRequest)
+
+            assertNull(translated.verbosity, "Verbosity should be null when not provided")
+        }
+
+        @Test
+        @DisplayName("should translate all reasoning config fields")
+        fun testAllReasoningFields() {
+            val openAIRequest = OpenAIChatCompletionRequest(
+                model = "anthropic/claude-3.7-sonnet",
+                messages = listOf(OpenAIChatMessage(role = "user", content = JsonPrimitive("Think"))),
+                reasoning = OpenAIReasoningConfig(
+                    effort = "medium",
+                    maxTokens = 4000,
+                    exclude = true,
+                    enabled = true
+                )
+            )
+
+            val translated = RequestTranslator.translateChatCompletionRequest(openAIRequest)
+
+            assertNotNull(translated.reasoning)
+            assertEquals("medium", translated.reasoning?.effort)
+            assertEquals(4000, translated.reasoning?.maxTokens)
+            assertEquals(true, translated.reasoning?.exclude)
+            assertEquals(true, translated.reasoning?.enabled)
+        }
+
+        @Test
+        @DisplayName("should accept valid request with reasoning")
+        fun testValidateWithReasoning() {
+            val openAIRequest = OpenAIChatCompletionRequest(
+                model = "openai/o3-mini",
+                messages = listOf(OpenAIChatMessage(role = "user", content = JsonPrimitive("Hi"))),
+                reasoning = OpenAIReasoningConfig(effort = "low")
+            )
+
+            val translated = RequestTranslator.translateChatCompletionRequest(openAIRequest)
+
+            assertTrue(RequestTranslator.validateTranslatedRequest(translated))
+        }
+
+        @Test
+        @DisplayName("should accept valid request with verbosity")
+        fun testValidateWithVerbosity() {
+            val openAIRequest = OpenAIChatCompletionRequest(
+                model = "anthropic/claude-4.6-sonnet",
+                messages = listOf(OpenAIChatMessage(role = "user", content = JsonPrimitive("Hi"))),
+                verbosity = "high"
+            )
+
+            val translated = RequestTranslator.translateChatCompletionRequest(openAIRequest)
+
+            assertTrue(RequestTranslator.validateTranslatedRequest(translated))
         }
     }
 }

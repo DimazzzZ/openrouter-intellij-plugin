@@ -92,6 +92,14 @@ object ModelProviderUtils {
                 val outputModalities = model.architecture?.outputModalities ?: emptyList()
                 outputModalities.any { it.equals("image", ignoreCase = true) }
             }
+            Capability.REASONING -> {
+                val supportedParams = model.supportedParameters ?: emptyList()
+                supportedParams.any { it.equals("reasoning", ignoreCase = true) }
+            }
+            Capability.VERBOSITY -> {
+                val supportedParams = model.supportedParameters ?: emptyList()
+                supportedParams.any { it.equals("verbosity", ignoreCase = true) }
+            }
         }
 
     /**
@@ -101,7 +109,9 @@ object ModelProviderUtils {
         VISION,
         AUDIO,
         TOOLS,
-        IMAGE_GENERATION
+        IMAGE_GENERATION,
+        REASONING,
+        VERBOSITY
     }
 
     /**
@@ -114,17 +124,12 @@ object ModelProviderUtils {
         if (hasCapability(model, Capability.AUDIO)) capabilities.add("Audio")
         if (hasCapability(model, Capability.TOOLS)) capabilities.add("Tools")
         if (hasCapability(model, Capability.IMAGE_GENERATION)) capabilities.add("Image Gen")
+        if (hasCapability(model, Capability.REASONING)) capabilities.add("Reasoning")
+        if (hasCapability(model, Capability.VERBOSITY)) capabilities.add("Verbosity")
 
         return capabilities
     }
 
-    /**
-     * Get capabilities as a formatted string
-     */
-    fun getCapabilitiesString(model: OpenRouterModelInfo): String {
-        val capabilities = getCapabilities(model)
-        return capabilities.joinToString(", ").ifEmpty { "—" }
-    }
 
     /**
      * Context length range for filtering

@@ -63,7 +63,7 @@ class OpenRouterToolWindowContent(
     private val activityLabel = JBLabel("Recent Activity: N/A")
 
     private val coroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-    private lateinit var chatPanel: ChatPanel
+    private val chatPanel = ChatPanel(project, settingsService, openRouterService)
 
     init {
         // Register for settings changes
@@ -75,6 +75,7 @@ class OpenRouterToolWindowContent(
                     SwingUtilities.invokeLater {
                         updateConfigurationPanelVisibility()
                         refreshData()
+                        chatPanel.refreshModels()
                     }
                 }
             }
@@ -92,7 +93,6 @@ class OpenRouterToolWindowContent(
         tabbedPane.addTab("Status", statusPanel)
 
         // Create chat panel
-        chatPanel = ChatPanel(project, settingsService, openRouterService)
         tabbedPane.addTab("Chat", chatPanel.getPanel())
 
         // Select Chat tab by default
@@ -177,7 +177,7 @@ class OpenRouterToolWindowContent(
         gbc.insets = JBUI.insets(LABEL_SPACING_LARGE, CONTENT_SPACING, CONTENT_SPACING, CONTENT_SPACING)
 
         configurationPanel = createConfigurationPanel()
-        panel.add(configurationPanel, gbc)
+        panel.add(configurationPanel!!, gbc)
 
         // Update visibility based on current state
         updateConfigurationPanelVisibility()

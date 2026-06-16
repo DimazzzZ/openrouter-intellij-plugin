@@ -239,7 +239,16 @@ data class ChatCompletionRequest(
     @SerializedName("frequency_penalty") val frequencyPenalty: Double? = null,
     @SerializedName("presence_penalty") val presencePenalty: Double? = null,
     val stop: List<String>? = null,
-    val stream: Boolean? = false
+    val stream: Boolean? = false,
+    val reasoning: ReasoningConfig? = null,
+    val verbosity: String? = null
+)
+
+data class ReasoningConfig(
+    val effort: String? = null,
+    @SerializedName("max_tokens") val maxTokens: Int? = null,
+    val exclude: Boolean? = null,
+    val enabled: Boolean? = null
 )
 
 /**
