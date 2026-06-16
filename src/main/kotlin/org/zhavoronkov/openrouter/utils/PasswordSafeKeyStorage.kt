@@ -59,30 +59,26 @@ object PasswordSafeKeyStorage {
     }
 
     /**
-     * Preloads keys from PasswordSafe into cache on a background thread.
-     * Should be called during plugin startup.
+     * Preloads keys from PasswordSafe into cache.
+     * Called synchronously during plugin startup to ensure keys are available
+     * before any startup activity reads them.
      */
     @Suppress("TooGenericExceptionCaught")
     fun preloadKeys() {
         if (!preloadTriggered.compareAndSet(false, true)) {
-            // Already triggered
             return
         }
 
         try {
             val application = ApplicationManager.getApplication()
             if (application != null) {
-                application.executeOnPooledThread {
-                    loadApiKeyFromPasswordSafe()
-                    loadProvisioningKeyFromPasswordSafe()
-                }
+                loadApiKeyFromPasswordSafe()
+                loadProvisioningKeyFromPasswordSafe()
             } else {
-                // Test environment - load synchronously from in-memory storage
                 apiKeyCacheInitialized.set(true)
                 provisioningKeyCacheInitialized.set(true)
             }
         } catch (_: Exception) {
-            // Test environment - load synchronously from in-memory storage
             apiKeyCacheInitialized.set(true)
             provisioningKeyCacheInitialized.set(true)
         }
@@ -125,49 +121,39 @@ object PasswordSafeKeyStorage {
     /**
      * Gets the API key from cache (safe for EDT).
      *
-     * If cache is not initialized, returns null and triggers async load.
+     * If cache is not initialized, reads directly from PasswordSafe (blocking).
      * For most use cases, preloadKeys() should be called on startup to ensure
      * the cache is populated before first access.
      *
-     * @return The API key, or null if not stored or not yet loaded
+     * @return The API key, or null if not stored
      */
     fun getApiKey(): String? {
-        // Return cached value immediately (safe for EDT)
         if (apiKeyCacheInitialized.get()) {
             return cachedApiKey
         }
 
-        // Cache not initialized - trigger async load and return in-memory fallback
-        triggerAsyncPreload()
-        return inMemoryStorage[API_KEY]
+        // Cache not initialized - read synchronously from PasswordSafe
+        loadApiKeyFromPasswordSafe()
+        return cachedApiKey
     }
 
     /**
-     * Stores the API key in PasswordSafe (async) and updates cache immediately.
+     * Stores the API key in PasswordSafe synchronously and updates cache.
      * @param apiKey The API key to store. If blank, removes the stored key.
      */
     @Suppress("TooGenericExceptionCaught")
     fun setApiKey(apiKey: String) {
-        // Update cache immediately (safe for EDT)
         cachedApiKey = apiKey.ifBlank { null }
         apiKeyCacheInitialized.set(true)
 
-        // Also update in-memory storage for consistency
         if (apiKey.isBlank()) {
             inMemoryStorage.remove(API_KEY)
         } else {
             inMemoryStorage[API_KEY] = apiKey
         }
 
-        // Write to PasswordSafe asynchronously (skip in test environments)
-        try {
-            val application = ApplicationManager.getApplication()
-            application?.executeOnPooledThread {
-                writeApiKeyToPasswordSafe(apiKey)
-            }
-        } catch (_: Exception) {
-            // Test environment - skip PasswordSafe write
-        }
+        // Write to PasswordSafe synchronously to ensure persistence
+        writeApiKeyToPasswordSafe(apiKey)
     }
 
     /**
@@ -191,49 +177,39 @@ object PasswordSafeKeyStorage {
     /**
      * Gets the provisioning key from cache (safe for EDT).
      *
-     * If cache is not initialized, returns null and triggers async load.
+     * If cache is not initialized, reads directly from PasswordSafe (blocking).
      * For most use cases, preloadKeys() should be called on startup to ensure
      * the cache is populated before first access.
      *
-     * @return The provisioning key, or null if not stored or not yet loaded
+     * @return The provisioning key, or null if not stored
      */
     fun getProvisioningKey(): String? {
-        // Return cached value immediately (safe for EDT)
         if (provisioningKeyCacheInitialized.get()) {
             return cachedProvisioningKey
         }
 
-        // Cache not initialized - trigger async load and return in-memory fallback
-        triggerAsyncPreload()
-        return inMemoryStorage[PROVISIONING_KEY]
+        // Cache not initialized - read synchronously from PasswordSafe
+        loadProvisioningKeyFromPasswordSafe()
+        return cachedProvisioningKey
     }
 
     /**
-     * Stores the provisioning key in PasswordSafe (async) and updates cache immediately.
+     * Stores the provisioning key in PasswordSafe synchronously and updates cache.
      * @param provisioningKey The provisioning key to store. If blank, removes the stored key.
      */
     @Suppress("TooGenericExceptionCaught")
     fun setProvisioningKey(provisioningKey: String) {
-        // Update cache immediately (safe for EDT)
         cachedProvisioningKey = provisioningKey.ifBlank { null }
         provisioningKeyCacheInitialized.set(true)
 
-        // Also update in-memory storage for consistency
         if (provisioningKey.isBlank()) {
             inMemoryStorage.remove(PROVISIONING_KEY)
         } else {
             inMemoryStorage[PROVISIONING_KEY] = provisioningKey
         }
 
-        // Write to PasswordSafe asynchronously (skip in test environments)
-        try {
-            val application = ApplicationManager.getApplication()
-            application?.executeOnPooledThread {
-                writeProvisioningKeyToPasswordSafe(provisioningKey)
-            }
-        } catch (_: Exception) {
-            // Test environment - skip PasswordSafe write
-        }
+        // Write to PasswordSafe synchronously to ensure persistence
+        writeProvisioningKeyToPasswordSafe(provisioningKey)
     }
 
     /**
@@ -252,13 +228,6 @@ object PasswordSafeKeyStorage {
         } catch (_: Exception) {
             // Silently fail - cache and in-memory storage are already updated
         }
-    }
-
-    /**
-     * Triggers async preload if not already triggered.
-     */
-    private fun triggerAsyncPreload() {
-        preloadKeys()
     }
 
     /**
