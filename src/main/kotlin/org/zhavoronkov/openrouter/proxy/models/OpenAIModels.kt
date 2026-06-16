@@ -19,7 +19,16 @@ data class OpenAIChatCompletionRequest(
     @SerializedName("presence_penalty") val presencePenalty: Double? = null,
     val stop: List<String>? = null,
     val stream: Boolean? = false,
-    val user: String? = null
+    val user: String? = null,
+    val reasoning: OpenAIReasoningConfig? = null,
+    val verbosity: String? = null
+)
+
+data class OpenAIReasoningConfig(
+    val effort: String? = null,
+    @SerializedName("max_tokens") val maxTokens: Int? = null,
+    val exclude: Boolean? = null,
+    val enabled: Boolean? = null
 )
 
 /**

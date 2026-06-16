@@ -22,10 +22,12 @@ import kotlinx.coroutines.launch
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatMessage
+import org.zhavoronkov.openrouter.models.ReasoningConfig
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.settings.PresetsManager
 import org.zhavoronkov.openrouter.utils.MarkdownRenderer
+import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.CardLayout
@@ -33,6 +35,8 @@ import java.awt.Component
 import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.event.ItemEvent
+import javax.swing.BoxLayout
+import javax.swing.Box
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
@@ -42,7 +46,6 @@ import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.UUID
-import javax.swing.BoxLayout
 import javax.swing.DefaultComboBoxModel
 import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
@@ -84,6 +87,7 @@ class ChatPanel(
         private const val HEADER_FONT_SIZE_INCREASE = 2f
         private const val FLOW_LAYOUT_GAP = 4
         private const val COMBO_BOX_WIDTH = 180
+        private const val SETTINGS_COMBO_BOX_WIDTH = 90
         private const val TITLE_MAX_LENGTH = 50
         private const val MESSAGE_BORDER_V = 1
         private const val MESSAGE_BORDER_H = 2
@@ -102,9 +106,12 @@ class ChatPanel(
     // Chat view
     private lateinit var messagesPanel: JPanel
     private lateinit var messagesScrollPane: JBScrollPane
+    private lateinit var reasoningVerbosityPanel: JPanel
     private val inputArea: JBTextArea
     private val sendButton: JButton
     private val modelComboBox: ComboBox<String>
+    private val reasoningComboBox: ComboBox<String>
+    private val verbosityComboBox: ComboBox<String>
     private val statusLabel: JBLabel
     private val inputTokensLabel: JBLabel
 
@@ -124,6 +131,8 @@ class ChatPanel(
         inputArea = JBTextArea(INPUT_ROWS, INPUT_COLUMNS)
         sendButton = JButton("Send")
         modelComboBox = ComboBox<String>()
+        reasoningComboBox = ComboBox<String>()
+        verbosityComboBox = ComboBox<String>()
         chatList = JBList(chatListModel)
 
         // Create main panel with CardLayout
@@ -157,10 +166,22 @@ class ChatPanel(
         loadFavoriteModels()
         restoreSelectedModel()
 
-        // Save model selection when changed
+        // Save model selection when changed and update reasoning/verbosity visibility
         modelComboBox.addItemListener { e ->
             if (e.stateChange == ItemEvent.SELECTED) {
                 saveSelectedModel()
+                updateReasoningVerbosityState()
+            }
+        }
+
+        // Set initial reasoning/verbosity state after model is restored
+        coroutineScope.launch {
+            try {
+                org.zhavoronkov.openrouter.services.FavoriteModelsService.getInstance()
+                    .getAvailableModels(forceRefresh = false)
+            } catch (_: Exception) { }
+            SwingUtilities.invokeLater {
+                updateReasoningVerbosityState()
             }
         }
 
@@ -203,22 +224,44 @@ class ChatPanel(
     private fun createChatView(): JPanel {
         val panel = JPanel(BorderLayout())
 
-        // Top panel with back button and model selector
-        val topPanel = JPanel(BorderLayout())
+        // Top panel with two rows
+        val topPanel = JPanel()
+        topPanel.layout = BoxLayout(topPanel, BoxLayout.Y_AXIS)
         topPanel.border = JBUI.Borders.emptyBottom(FLOW_LAYOUT_GAP)
 
-        // Left: Back button only
+        // Row 1: Back button (left) + Model selector (right)
+        val row1 = JPanel(BorderLayout())
         val backButton = JButton("← Back")
         backButton.addActionListener { showChatList() }
-        topPanel.add(backButton, BorderLayout.WEST)
+        row1.add(backButton, BorderLayout.WEST)
 
-        // Right: Model selector
         val modelPanel = JPanel(FlowLayout(FlowLayout.RIGHT, FLOW_LAYOUT_GAP, 0))
         modelPanel.add(JBLabel("Model:"))
         modelComboBox.preferredSize = Dimension(COMBO_BOX_WIDTH, modelComboBox.preferredSize.height)
         modelPanel.add(modelComboBox)
-        topPanel.add(modelPanel, BorderLayout.EAST)
+        row1.add(modelPanel, BorderLayout.EAST)
+        topPanel.add(row1)
 
+        // Row 2: Reasoning + Verbosity (right-aligned, initially hidden)
+        val reasoningOptions = arrayOf("Default", "None", "Minimal", "Low", "Medium", "High", "XHigh")
+        reasoningComboBox.model = DefaultComboBoxModel(reasoningOptions)
+        reasoningComboBox.preferredSize = Dimension(SETTINGS_COMBO_BOX_WIDTH, reasoningComboBox.preferredSize.height)
+        reasoningComboBox.toolTipText = "Reasoning effort (for supported models)"
+
+        val verbosityOptions = arrayOf("Default", "Low", "Medium", "High", "XHigh", "Max")
+        verbosityComboBox.model = DefaultComboBoxModel(verbosityOptions)
+        verbosityComboBox.preferredSize = Dimension(SETTINGS_COMBO_BOX_WIDTH, verbosityComboBox.preferredSize.height)
+        verbosityComboBox.toolTipText = "Response verbosity (for supported models)"
+
+        reasoningVerbosityPanel = JPanel(FlowLayout(FlowLayout.RIGHT, FLOW_LAYOUT_GAP, 0))
+        reasoningVerbosityPanel.add(JBLabel("Reasoning:"))
+        reasoningVerbosityPanel.add(reasoningComboBox)
+        reasoningVerbosityPanel.add(JBLabel("Verbosity:"))
+        reasoningVerbosityPanel.add(verbosityComboBox)
+        reasoningVerbosityPanel.isVisible = false
+        topPanel.add(reasoningVerbosityPanel)
+
+        topPanel.add(Box.createVerticalStrut(0)) // spacer
         panel.add(topPanel, BorderLayout.NORTH)
 
         // Messages area
@@ -493,6 +536,19 @@ class ChatPanel(
         statusLabel.text = if (tokens > 0) "Total: $tokens" else ""
     }
 
+    fun refreshModels() {
+        loadFavoriteModels()
+        coroutineScope.launch {
+            try {
+                org.zhavoronkov.openrouter.services.FavoriteModelsService.getInstance()
+                    .getAvailableModels(forceRefresh = false)
+            } catch (_: Exception) { }
+            SwingUtilities.invokeLater {
+                updateReasoningVerbosityState()
+            }
+        }
+    }
+
     private fun loadFavoriteModels() {
         val favorites = settingsService.favoriteModelsManager.getFavoriteModels()
         val customPresets = settingsService.presetsManager.getCustomPresets()
@@ -572,6 +628,40 @@ class ChatPanel(
         }
     }
 
+    private fun updateReasoningVerbosityState() {
+        val selectedModel = modelComboBox.selectedItem as? String ?: return
+
+        val favoriteModelsService = org.zhavoronkov.openrouter.services.FavoriteModelsService.getInstance()
+        val modelInfo = favoriteModelsService.getModelById(selectedModel)
+
+        val supportsReasoning = modelInfo?.let {
+            ModelProviderUtils.hasCapability(it, ModelProviderUtils.Capability.REASONING)
+        } ?: false
+
+        val supportsVerbosity = modelInfo?.let {
+            ModelProviderUtils.hasCapability(it, ModelProviderUtils.Capability.VERBOSITY)
+        } ?: false
+
+        reasoningVerbosityPanel.isVisible = true
+
+        reasoningComboBox.isEnabled = supportsReasoning
+        reasoningComboBox.toolTipText = if (supportsReasoning) {
+            "Reasoning effort"
+        } else {
+            "$selectedModel does not support reasoning"
+        }
+
+        verbosityComboBox.isEnabled = supportsVerbosity
+        verbosityComboBox.toolTipText = if (supportsVerbosity) {
+            "Response verbosity"
+        } else {
+            "$selectedModel does not support verbosity"
+        }
+
+        if (!supportsReasoning) reasoningComboBox.selectedIndex = 0
+        if (!supportsVerbosity) verbosityComboBox.selectedIndex = 0
+    }
+
     private fun showWelcomeMessage() {
         addSystemMessage("Welcome! Press Enter to send, Cmd+Enter for new line.")
     }
@@ -629,12 +719,30 @@ class ChatPanel(
                 ChatMessage(role = msg.role, content = JsonPrimitive(msg.content))
             } ?: emptyList()
 
+            val reasoningConfig = when (reasoningComboBox.selectedItem as? String) {
+                null, "Default" -> null
+                "None" -> ReasoningConfig(effort = "none")
+                "Minimal" -> ReasoningConfig(effort = "minimal")
+                "Low" -> ReasoningConfig(effort = "low")
+                "Medium" -> ReasoningConfig(effort = "medium")
+                "High" -> ReasoningConfig(effort = "high")
+                "XHigh" -> ReasoningConfig(effort = "xhigh")
+                else -> null
+            }
+
+            val verbosityValue = when (val v = verbosityComboBox.selectedItem as? String) {
+                null, "Default" -> null
+                else -> v.lowercase()
+            }
+
             val request = ChatCompletionRequest(
                 model = model,
                 messages = messages,
                 maxTokens = MAX_TOKENS,
                 temperature = TEMPERATURE,
-                stream = false
+                stream = false,
+                reasoning = reasoningConfig,
+                verbosity = verbosityValue
             )
 
             val result = openRouterService.createChatCompletion(request)

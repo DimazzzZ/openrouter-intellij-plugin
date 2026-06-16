@@ -311,4 +311,94 @@ class ModelProviderUtilsTest {
             contextLength = contextLength
         )
     }
+
+    // --- Reasoning capability tests ---
+
+    @Test
+    fun `hasCapability REASONING returns true when supportedParameters contains reasoning`() {
+        val model = createModel("openai/o3-mini", supportedParameters = listOf("reasoning", "tools"))
+        assertTrue(ModelProviderUtils.hasCapability(model, ModelProviderUtils.Capability.REASONING))
+    }
+
+    @Test
+    fun `hasCapability REASONING returns false when supportedParameters is null`() {
+        val model = createModel("openai/gpt-4o", supportedParameters = null)
+        assertFalse(ModelProviderUtils.hasCapability(model, ModelProviderUtils.Capability.REASONING))
+    }
+
+    @Test
+    fun `hasCapability REASONING returns false when supportedParameters is empty`() {
+        val model = createModel("openai/gpt-4o", supportedParameters = emptyList())
+        assertFalse(ModelProviderUtils.hasCapability(model, ModelProviderUtils.Capability.REASONING))
+    }
+
+    @Test
+    fun `hasCapability REASONING returns false when not in list`() {
+        val model = createModel("openai/gpt-4o", supportedParameters = listOf("tools", "temperature"))
+        assertFalse(ModelProviderUtils.hasCapability(model, ModelProviderUtils.Capability.REASONING))
+    }
+
+    @Test
+    fun `hasCapability REASONING is case-insensitive`() {
+        val model = createModel("test/model", supportedParameters = listOf("Reasoning"))
+        assertTrue(ModelProviderUtils.hasCapability(model, ModelProviderUtils.Capability.REASONING))
+    }
+
+    // --- Verbosity capability tests ---
+
+    @Test
+    fun `hasCapability VERBOSITY returns true when supportedParameters contains verbosity`() {
+        val model = createModel("anthropic/claude-4.6-sonnet", supportedParameters = listOf("verbosity", "reasoning"))
+        assertTrue(ModelProviderUtils.hasCapability(model, ModelProviderUtils.Capability.VERBOSITY))
+    }
+
+    @Test
+    fun `hasCapability VERBOSITY returns false when not in list`() {
+        val model = createModel("openai/gpt-4o", supportedParameters = listOf("tools"))
+        assertFalse(ModelProviderUtils.hasCapability(model, ModelProviderUtils.Capability.VERBOSITY))
+    }
+
+    @Test
+    fun `hasCapability VERBOSITY returns false when supportedParameters is null`() {
+        val model = createModel("openai/gpt-4o")
+        assertFalse(ModelProviderUtils.hasCapability(model, ModelProviderUtils.Capability.VERBOSITY))
+    }
+
+    // --- getCapabilities includes/excludes reasoning and verbosity ---
+
+    @Test
+    fun `getCapabilities includes Reasoning when supported`() {
+        val model = createModel("openai/o3", supportedParameters = listOf("reasoning"))
+        val caps = ModelProviderUtils.getCapabilities(model)
+        assertTrue(caps.contains("Reasoning"), "Capabilities should include Reasoning")
+    }
+
+    @Test
+    fun `getCapabilities excludes Reasoning when not supported`() {
+        val model = createModel("openai/gpt-4o", supportedParameters = listOf("tools"))
+        val caps = ModelProviderUtils.getCapabilities(model)
+        assertFalse(caps.contains("Reasoning"), "Capabilities should not include Reasoning")
+    }
+
+    @Test
+    fun `getCapabilities includes Verbosity when supported`() {
+        val model = createModel("anthropic/claude-4.6", supportedParameters = listOf("verbosity"))
+        val caps = ModelProviderUtils.getCapabilities(model)
+        assertTrue(caps.contains("Verbosity"), "Capabilities should include Verbosity")
+    }
+
+    @Test
+    fun `getCapabilities excludes Verbosity when not supported`() {
+        val model = createModel("openai/gpt-4o", supportedParameters = listOf("tools"))
+        val caps = ModelProviderUtils.getCapabilities(model)
+        assertFalse(caps.contains("Verbosity"), "Capabilities should not include Verbosity")
+    }
+
+    @Test
+    fun `getCapabilities includes both Reasoning and Verbosity when both supported`() {
+        val model = createModel("anthropic/claude-4.6", supportedParameters = listOf("reasoning", "verbosity", "tools"))
+        val caps = ModelProviderUtils.getCapabilities(model)
+        assertTrue(caps.contains("Reasoning"))
+        assertTrue(caps.contains("Verbosity"))
+    }
 }
