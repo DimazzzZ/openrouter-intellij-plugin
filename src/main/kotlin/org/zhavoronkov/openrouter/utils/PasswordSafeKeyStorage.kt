@@ -55,7 +55,11 @@ object PasswordSafeKeyStorage {
      * @throws IllegalStateException if IntelliJ environment is not available (e.g., in tests)
      */
     private fun createCredentialAttributes(key: String): CredentialAttributes {
-        return CredentialAttributes(generateServiceName(SERVICE_NAME, key))
+        return CredentialAttributes(
+            serviceName = generateServiceName(SERVICE_NAME, key),
+            userName = "",
+            requestor = PasswordSafeKeyStorage::class.java
+        )
     }
 
     /**

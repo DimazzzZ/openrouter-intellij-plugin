@@ -17,35 +17,39 @@
          Simple HTML elements (text formatting, paragraphs, and lists) can be added inside this element.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-description -->
     <description><![CDATA[
-    <p><strong>OpenRouter IntelliJ Plugin</strong> - Comprehensive integration with <a href="https://openrouter.ai">OpenRouter.ai</a> for accessing 400+ AI models with advanced usage monitoring, quota tracking, OAuth/PKCE authentication, and AI Assistant proxy support.</p>
+    <p><strong>OpenRouter IntelliJ Plugin</strong> — a lightweight OpenRouter integration layer for JetBrains IDEs.</p>
+
+    <h3>When this plugin is useful</h3>
+    <ul>
+        <li>📊 <strong>Usage monitoring</strong> — view OpenRouter credits, spending, and activity stats directly in the IDE</li>
+        <li>💰 <strong>Quota &amp; balance visibility</strong> — real-time status bar widget with credit balance, cost tracking, and "days remaining" estimates</li>
+        <li>⭐ <strong>Model selection</strong> — manage favorite models and custom presets, switch between models easily</li>
+        <li>🔌 <strong>Local proxy</strong> — run an OpenAI-compatible proxy server that other tools and agents can reuse</li>
+        <li>🔑 <strong>API key management</strong> — secure OAuth/PKCE authentication and provisioning key support</li>
+    </ul>
+
+    <h3>When you may not need this plugin</h3>
+    <p>If your only goal is to connect Android Studio's or IntelliJ's native AI Agent directly to OpenRouter, using a regular OpenRouter API key in the native AI Agent settings may be the simpler option. This plugin is not intended to replace the native JetBrains AI or Android Studio AI Agent workflow.</p>
 
     <h3>Key Features</h3>
     <ul>
-        <li><strong>🔐 OAuth/PKCE Authentication</strong> - Secure authentication flow with automatic API key generation</li>
-        <li><strong>🚀 AI Assistant Proxy</strong> - Local OpenAI-compatible proxy to connect JetBrains AI Assistant with OpenRouter's 400+ models</li>
-        <li><strong>📊 Interactive Status Bar Widget</strong> - Real-time usage display with comprehensive popup menu</li>
-        <li><strong>🔑 Advanced API Key Management</strong> - Secure provisioning key support with scope-aware validation</li>
-        <li><strong>📈 Detailed Usage Analytics</strong> - Track token consumption, costs, and model performance</li>
-        <li><strong>⭐ Favorite Models</strong> - Quick access to your preferred AI models</li>
-        <li><strong>🔄 Dynamic Plugin Support</strong> - Install, update, and uninstall without IDE restart</li>
-        <li><strong>🎯 Real-time Monitoring</strong> - Live connection status with color-coded indicators</li>
+        <li><strong>🔐 OAuth/PKCE Authentication</strong> — secure authentication flow with automatic API key generation</li>
+        <li><strong>🚀 AI Assistant Proxy</strong> — local OpenAI-compatible proxy that can be reused by other tools and agents</li>
+        <li><strong>📊 Interactive Status Bar Widget</strong> — real-time usage display with comprehensive popup menu</li>
+        <li><strong>🔑 API Key Management</strong> — secure provisioning key support with scope-aware validation</li>
+        <li><strong>📈 Usage Analytics</strong> — track token consumption, costs, and model performance</li>
+        <li><strong>⭐ Favorite Models</strong> — quick access to your preferred AI models with reasoning and verbosity controls</li>
+        <li><strong>🔄 Dynamic Plugin Support</strong> — install, update, and uninstall without IDE restart</li>
     </ul>
 
     <h3>Quick Start</h3>
     <ol>
-        <li>Install the plugin (no restart required!)</li>
-        <li>Use OAuth/PKCE flow or manually add your Provisioning Key from <a href="https://openrouter.ai/settings/provisioning-keys">OpenRouter</a></li>
+        <li>Install the plugin (no restart required)</li>
+        <li>Use OAuth/PKCE flow or add your Provisioning Key from <a href="https://openrouter.ai/settings/provisioning-keys">OpenRouter</a></li>
         <li>Configure in <strong>Settings → Tools → OpenRouter</strong></li>
         <li>Click the status bar widget to access all features</li>
-        <li>(Optional) Configure AI Assistant to use OpenRouter via custom server - <a href="https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/docs/AI_ASSISTANT_SETUP.md">Setup Guide</a></li>
+        <li>(Optional) Set up the local proxy for external tools — <a href="https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/docs/AI_ASSISTANT_SETUP.md">Setup Guide</a></li>
     </ol>
-
-    <h3>Perfect For</h3>
-    <ul>
-        <li>Developers using AI models for code assistance via AI Assistant</li>
-        <li>Teams monitoring AI usage and costs across multiple models</li>
-        <li>Anyone wanting secure access to 400+ AI models from 40+ providers</li>
-    </ul>
 
     <p><em>This is an unofficial plugin and is not affiliated with OpenRouter.ai or JetBrains.</em></p>
   ]]></description>
