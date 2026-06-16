@@ -87,6 +87,7 @@ class ChatPanel(
         private const val HEADER_FONT_SIZE_INCREASE = 2f
         private const val FLOW_LAYOUT_GAP = 4
         private const val COMBO_BOX_WIDTH = 180
+        private const val SETTINGS_COMBO_BOX_WIDTH = 90
         private const val TITLE_MAX_LENGTH = 50
         private const val MESSAGE_BORDER_V = 1
         private const val MESSAGE_BORDER_H = 2
@@ -244,12 +245,12 @@ class ChatPanel(
         // Row 2: Reasoning + Verbosity (right-aligned, initially hidden)
         val reasoningOptions = arrayOf("Default", "None", "Minimal", "Low", "Medium", "High", "XHigh")
         reasoningComboBox.model = DefaultComboBoxModel(reasoningOptions)
-        reasoningComboBox.preferredSize = Dimension(90, reasoningComboBox.preferredSize.height)
+        reasoningComboBox.preferredSize = Dimension(SETTINGS_COMBO_BOX_WIDTH, reasoningComboBox.preferredSize.height)
         reasoningComboBox.toolTipText = "Reasoning effort (for supported models)"
 
         val verbosityOptions = arrayOf("Default", "Low", "Medium", "High", "XHigh", "Max")
         verbosityComboBox.model = DefaultComboBoxModel(verbosityOptions)
-        verbosityComboBox.preferredSize = Dimension(90, verbosityComboBox.preferredSize.height)
+        verbosityComboBox.preferredSize = Dimension(SETTINGS_COMBO_BOX_WIDTH, verbosityComboBox.preferredSize.height)
         verbosityComboBox.toolTipText = "Response verbosity (for supported models)"
 
         reasoningVerbosityPanel = JPanel(FlowLayout(FlowLayout.RIGHT, FLOW_LAYOUT_GAP, 0))
