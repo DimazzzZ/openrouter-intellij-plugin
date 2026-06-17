@@ -12,6 +12,8 @@ import org.junit.jupiter.api.Test
 import org.zhavoronkov.openrouter.models.ChatChoice
 import org.zhavoronkov.openrouter.models.ChatCompletionResponse
 import org.zhavoronkov.openrouter.models.ChatMessage
+import org.zhavoronkov.openrouter.models.ChatToolCall
+import org.zhavoronkov.openrouter.models.ChatToolCallFunction
 import org.zhavoronkov.openrouter.models.ChatUsage
 import org.zhavoronkov.openrouter.models.ProvidersResponse
 
@@ -260,6 +262,39 @@ class ResponseTranslatorTest {
             assertEquals(0, translated.usage?.promptTokens)
             assertEquals(0, translated.usage?.completionTokens)
             assertEquals(0, translated.usage?.totalTokens)
+        }
+
+        @Test
+        @DisplayName("should preserve assistant tool calls in translated response")
+        fun testToolCallsInResponse() {
+            val response = ChatCompletionResponse(
+                model = "openai/gpt-4o",
+                choices = listOf(
+                    ChatChoice(
+                        index = 0,
+                        message = ChatMessage(
+                            role = "assistant",
+                            content = JsonPrimitive(""),
+                            toolCalls = listOf(
+                                ChatToolCall(
+                                    id = "call_123",
+                                    function = ChatToolCallFunction(
+                                        name = "read_file",
+                                        arguments = "{\"path\":\"README.md\"}"
+                                    )
+                                )
+                            )
+                        ),
+                        finishReason = "tool_calls"
+                    )
+                )
+            )
+
+            val translated = ResponseTranslator.translateChatCompletionResponse(response, "openai/gpt-4o")
+
+            assertEquals("tool_calls", translated.choices.first().finishReason)
+            assertEquals("call_123", translated.choices.first().message.toolCalls?.first()?.id)
+            assertEquals("read_file", translated.choices.first().message.toolCalls?.first()?.function?.name)
         }
 
         @Test

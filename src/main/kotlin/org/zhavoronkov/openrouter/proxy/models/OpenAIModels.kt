@@ -21,7 +21,9 @@ data class OpenAIChatCompletionRequest(
     val stream: Boolean? = false,
     val user: String? = null,
     val reasoning: OpenAIReasoningConfig? = null,
-    val verbosity: String? = null
+    val verbosity: String? = null,
+    val tools: List<OpenAIChatTool>? = null,
+    @SerializedName("tool_choice") val toolChoice: OpenAIToolChoice? = null
 )
 
 data class OpenAIReasoningConfig(
@@ -40,7 +42,40 @@ data class OpenAIReasoningConfig(
 data class OpenAIChatMessage(
     val role: String, // "system", "user", "assistant"
     val content: JsonElement, // Can be String or Array of ContentPart
-    val name: String? = null
+    val name: String? = null,
+    @SerializedName("tool_call_id") val toolCallId: String? = null,
+    @SerializedName("tool_calls") val toolCalls: List<OpenAIChatToolCall>? = null
+)
+
+data class OpenAIChatTool(
+    val type: String = "function",
+    val function: OpenAIChatToolFunction
+)
+
+data class OpenAIChatToolFunction(
+    val name: String,
+    val description: String? = null,
+    val parameters: JsonElement? = null
+)
+
+data class OpenAIToolChoice(
+    val type: String? = null,
+    val function: OpenAIToolChoiceFunction? = null
+)
+
+data class OpenAIToolChoiceFunction(
+    val name: String
+)
+
+data class OpenAIChatToolCall(
+    val id: String? = null,
+    val type: String = "function",
+    val function: OpenAIChatToolCallFunction
+)
+
+data class OpenAIChatToolCallFunction(
+    val name: String,
+    val arguments: String
 )
 
 /**

@@ -241,7 +241,9 @@ data class ChatCompletionRequest(
     val stop: List<String>? = null,
     val stream: Boolean? = false,
     val reasoning: ReasoningConfig? = null,
-    val verbosity: String? = null
+    val verbosity: String? = null,
+    val tools: List<ChatTool>? = null,
+    @SerializedName("tool_choice") val toolChoice: ToolChoice? = null
 )
 
 data class ReasoningConfig(
@@ -260,7 +262,40 @@ data class ReasoningConfig(
 data class ChatMessage(
     val role: String, // "system", "user", "assistant"
     val content: com.google.gson.JsonElement, // Can be String or Array of content parts
-    val name: String? = null
+    val name: String? = null,
+    @SerializedName("tool_call_id") val toolCallId: String? = null,
+    @SerializedName("tool_calls") val toolCalls: List<ChatToolCall>? = null
+)
+
+data class ChatTool(
+    val type: String = "function",
+    val function: ChatToolFunction
+)
+
+data class ChatToolFunction(
+    val name: String,
+    val description: String? = null,
+    val parameters: com.google.gson.JsonElement? = null
+)
+
+data class ToolChoice(
+    val type: String? = null,
+    val function: ToolChoiceFunction? = null
+)
+
+data class ToolChoiceFunction(
+    val name: String
+)
+
+data class ChatToolCall(
+    val id: String? = null,
+    val type: String = "function",
+    val function: ChatToolCallFunction
+)
+
+data class ChatToolCallFunction(
+    val name: String,
+    val arguments: String
 )
 
 data class ChatCompletionResponse(

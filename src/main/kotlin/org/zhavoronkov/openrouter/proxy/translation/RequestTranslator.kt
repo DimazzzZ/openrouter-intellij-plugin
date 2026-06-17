@@ -3,10 +3,19 @@ package org.zhavoronkov.openrouter.proxy.translation
 import com.intellij.openapi.application.ApplicationManager
 import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatMessage
+import org.zhavoronkov.openrouter.models.ChatTool
+import org.zhavoronkov.openrouter.models.ChatToolCall
+import org.zhavoronkov.openrouter.models.ChatToolCallFunction
+import org.zhavoronkov.openrouter.models.ChatToolFunction
 import org.zhavoronkov.openrouter.models.ReasoningConfig
+import org.zhavoronkov.openrouter.models.ToolChoice
+import org.zhavoronkov.openrouter.models.ToolChoiceFunction
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatMessage
+import org.zhavoronkov.openrouter.proxy.models.OpenAIChatTool
+import org.zhavoronkov.openrouter.proxy.models.OpenAIChatToolCall
 import org.zhavoronkov.openrouter.proxy.models.OpenAIReasoningConfig
+import org.zhavoronkov.openrouter.proxy.models.OpenAIToolChoice
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.PluginLogger
 
@@ -65,7 +74,9 @@ object RequestTranslator {
             stop = openAIRequest.stop,
             stream = openAIRequest.stream ?: false, // Pass through streaming flag as-is
             reasoning = openAIRequest.reasoning?.let { translateReasoning(it) },
-            verbosity = openAIRequest.verbosity
+            verbosity = openAIRequest.verbosity,
+            tools = openAIRequest.tools?.map { translateTool(it) },
+            toolChoice = openAIRequest.toolChoice?.let { translateToolChoice(it) }
         )
     }
 
@@ -76,7 +87,40 @@ object RequestTranslator {
         return ChatMessage(
             role = openAIMessage.role,
             content = openAIMessage.content,
-            name = openAIMessage.name
+            name = openAIMessage.name,
+            toolCallId = openAIMessage.toolCallId,
+            toolCalls = openAIMessage.toolCalls?.map { translateToolCall(it) }
+        )
+    }
+
+    private fun translateTool(openAITool: OpenAIChatTool): ChatTool {
+        return ChatTool(
+            type = openAITool.type,
+            function = ChatToolFunction(
+                name = openAITool.function.name,
+                description = openAITool.function.description,
+                parameters = openAITool.function.parameters
+            )
+        )
+    }
+
+    private fun translateToolChoice(openAIToolChoice: OpenAIToolChoice): ToolChoice {
+        return ToolChoice(
+            type = openAIToolChoice.type,
+            function = openAIToolChoice.function?.let {
+                ToolChoiceFunction(name = it.name)
+            }
+        )
+    }
+
+    private fun translateToolCall(openAIToolCall: OpenAIChatToolCall): ChatToolCall {
+        return ChatToolCall(
+            id = openAIToolCall.id,
+            type = openAIToolCall.type,
+            function = ChatToolCallFunction(
+                name = openAIToolCall.function.name,
+                arguments = openAIToolCall.function.arguments
+            )
         )
     }
 

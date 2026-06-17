@@ -130,7 +130,6 @@ object ModelProviderUtils {
         return capabilities
     }
 
-
     /**
      * Context length range for filtering
      */

@@ -13,7 +13,13 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatMessage
+import org.zhavoronkov.openrouter.proxy.models.OpenAIChatTool
+import org.zhavoronkov.openrouter.proxy.models.OpenAIChatToolCall
+import org.zhavoronkov.openrouter.proxy.models.OpenAIChatToolCallFunction
+import org.zhavoronkov.openrouter.proxy.models.OpenAIChatToolFunction
 import org.zhavoronkov.openrouter.proxy.models.OpenAIReasoningConfig
+import org.zhavoronkov.openrouter.proxy.models.OpenAIToolChoice
+import org.zhavoronkov.openrouter.proxy.models.OpenAIToolChoiceFunction
 
 @DisplayName("RequestTranslator Tests")
 class RequestTranslatorTest {
@@ -128,6 +134,57 @@ class RequestTranslatorTest {
             val translated = RequestTranslator.translateChatCompletionRequest(openAIRequest)
 
             assertEquals("John", translated.messages.first().name)
+        }
+
+        @Test
+        @DisplayName("should preserve tools toolChoice and tool messages")
+        fun testToolCallingPassthrough() {
+            val openAIRequest = OpenAIChatCompletionRequest(
+                model = "openai/gpt-4o",
+                messages = listOf(
+                    OpenAIChatMessage(
+                        role = "assistant",
+                        content = JsonPrimitive(""),
+                        toolCalls = listOf(
+                            OpenAIChatToolCall(
+                                id = "call_123",
+                                function = OpenAIChatToolCallFunction(
+                                    name = "read_file",
+                                    arguments = "{\"path\":\"README.md\"}"
+                                )
+                            )
+                        )
+                    ),
+                    OpenAIChatMessage(
+                        role = "tool",
+                        content = JsonPrimitive("file content"),
+                        toolCallId = "call_123"
+                    )
+                ),
+                tools = listOf(
+                    OpenAIChatTool(
+                        function = OpenAIChatToolFunction(
+                            name = "read_file",
+                            description = "Read a file",
+                            parameters = JsonObject().apply { addProperty("type", "object") }
+                        )
+                    )
+                ),
+                toolChoice = OpenAIToolChoice(
+                    type = "function",
+                    function = OpenAIToolChoiceFunction(name = "read_file")
+                )
+            )
+
+            val translated = RequestTranslator.translateChatCompletionRequest(openAIRequest)
+
+            assertEquals(1, translated.tools?.size)
+            assertEquals("read_file", translated.tools?.first()?.function?.name)
+            assertEquals("function", translated.toolChoice?.type)
+            assertEquals("read_file", translated.toolChoice?.function?.name)
+            assertEquals("call_123", translated.messages[0].toolCalls?.first()?.id)
+            assertEquals("read_file", translated.messages[0].toolCalls?.first()?.function?.name)
+            assertEquals("call_123", translated.messages[1].toolCallId)
         }
 
         @Test
