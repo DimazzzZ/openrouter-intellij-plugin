@@ -40,16 +40,33 @@ The proxy server should start automatically when you configure your Provisioning
 
 Now configure AI Assistant to use the OpenRouter proxy:
 
-1. Open **Settings** → **Tools** → **AI Assistant** → **Models**
+1. Open **Settings** → **Tools** → **AI Assistant** → **Providers & API keys**
 2. Configure the custom third-party AI provider:
-   - **Provider**: Select **OpenAI API**
+   - **Provider**: Select **OpenAI-compatible** / **OpenAI API**
    - **Server URL**: Paste the proxy URL from Step 2 (e.g., `http://127.0.0.1:8080`)
+   - **API Key**: Use any non-empty placeholder value if AI Assistant requires one for the test dialog; the plugin proxy uses your OpenRouter credentials from the OpenRouter plugin settings
+   - **Tool calling**: **Enable this** if you want AI Assistant Agents to invoke MCP tools through tool-calling capable OpenRouter models
 
 ![AI Assistant Custom Model](images/ai-assistant-custom-model.png)
 <p style="text-align:center;font-style: italic">AI Assistant custom model configuration dialog</p>
 
-4. Click **Test Connection** to verify the setup
-5. Click **OK** to save
+3. Click **Test Connection** to verify the setup
+4. Click **Apply** / **OK** to save
+
+### Step 3.1: Connect MCP tools for agent workflows
+
+If you want **agentic coding** instead of plain chat:
+
+1. Open **Settings** → **Tools** → **AI Assistant** → **Model Context Protocol (MCP)**
+2. Add one or more MCP servers that provide the tools you want the agent to use
+3. Apply the configuration and verify the server shows a connected status
+
+AI Assistant can then combine:
+
+- this plugin's **OpenRouter-backed OpenAI-compatible proxy** for model inference,
+- **MCP servers** for tool execution.
+
+> **Important:** for agent workflows, you need both a **tool-capable model** and **Tool calling enabled** in AI Assistant's provider settings.
 
 ### Step 4: Select OpenRouter Model
 
@@ -93,6 +110,16 @@ The proxy server provides access to OpenRouter's entire model catalog. Here are 
 > **Tip**: See the full list of available models at [OpenRouter Models](https://openrouter.ai/models) or in the plugin's Favorite Models panel.
 
 ## 🔧 Advanced Configuration
+
+### Agent-ready model recommendations
+
+For the best results in AI Assistant Agent mode, prefer models that support:
+
+- **tools / functions**,
+- **reasoning**,
+- **long context windows**.
+
+Use the Favorite Models panel to prioritize tool-capable coding models.
 
 ### Using Favorite Models
 
@@ -191,6 +218,15 @@ You can manually control the proxy server:
 - **Direct Connection**: All API calls go directly from your machine to OpenRouter's servers
 
 ## ❓ FAQ
+
+**Q: Can I use AI Assistant Agents with OpenRouter only?**  
+A: Yes, that is the intended setup for this plugin. Configure AI Assistant to use the plugin proxy as an OpenAI-compatible provider, enable **Tool calling**, and connect MCP servers for tools.
+
+**Q: Does this require a JetBrains AI subscription?**  
+A: Not for the OpenRouter-backed provider path itself. However, some JetBrains proprietary AI features are not fully available in strict BYOK/custom-provider mode.
+
+**Q: What features may still be limited in strict BYOK mode?**  
+A: JetBrains documents that certain proprietary features, including **Next edit suggestions** and some **code completion** paths, may remain unavailable when using only custom providers.
 
 **Q: Do I need a paid OpenRouter account?**  
 A: No, OpenRouter offers free credits to get started. You can use the plugin with a free account.

@@ -70,6 +70,34 @@ class OpenAIModelsTest {
             assertNull(request.stop)
             assertEquals(false, request.stream) // Default is false
             assertNull(request.user)
+            assertNull(request.tools)
+            assertNull(request.toolChoice)
+        }
+
+        @Test
+        @DisplayName("should create request with tool calling fields")
+        fun testToolCallingFields() {
+            val request = OpenAIChatCompletionRequest(
+                model = "gpt-4o",
+                messages = listOf(OpenAIChatMessage(role = "user", content = JsonPrimitive("Hello"))),
+                tools = listOf(
+                    OpenAIChatTool(
+                        function = OpenAIChatToolFunction(
+                            name = "read_file",
+                            description = "Read a file",
+                            parameters = JsonObject().apply { addProperty("type", "object") }
+                        )
+                    )
+                ),
+                toolChoice = OpenAIToolChoice(
+                    type = "function",
+                    function = OpenAIToolChoiceFunction(name = "read_file")
+                )
+            )
+
+            assertEquals(1, request.tools?.size)
+            assertEquals("read_file", request.tools?.first()?.function?.name)
+            assertEquals("function", request.toolChoice?.type)
         }
 
         @Test
@@ -170,6 +198,28 @@ class OpenAIModelsTest {
             )
 
             assertEquals("John", message.name)
+        }
+
+        @Test
+        @DisplayName("should create message with tool metadata")
+        fun testMessageWithToolMetadata() {
+            val message = OpenAIChatMessage(
+                role = "tool",
+                content = JsonPrimitive("result"),
+                toolCallId = "call_123",
+                toolCalls = listOf(
+                    OpenAIChatToolCall(
+                        id = "call_123",
+                        function = OpenAIChatToolCallFunction(
+                            name = "read_file",
+                            arguments = "{}"
+                        )
+                    )
+                )
+            )
+
+            assertEquals("call_123", message.toolCallId)
+            assertEquals("read_file", message.toolCalls?.first()?.function?.name)
         }
 
         @Test

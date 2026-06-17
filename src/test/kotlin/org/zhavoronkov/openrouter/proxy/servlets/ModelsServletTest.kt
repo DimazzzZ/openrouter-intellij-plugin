@@ -91,7 +91,10 @@ class ModelsServletTest {
         fun `doGet returns default favorites when no favorites and no presets`() {
             val result = executeServlet(presets = listOf(), favorites = listOf())
             assertTrue(result.contains("openai/gpt-4o"), "Response should contain default favorite gpt-4o")
-            assertTrue(result.contains("anthropic/claude-3.5-sonnet"), "Response should contain default favorite claude")
+            assertTrue(
+                result.contains("anthropic/claude-3.5-sonnet"),
+                "Response should contain default favorite claude"
+            )
         }
 
         @Test

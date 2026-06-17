@@ -2,10 +2,13 @@ package org.zhavoronkov.openrouter.proxy.translation
 
 import com.google.gson.JsonPrimitive
 import org.zhavoronkov.openrouter.models.ChatCompletionResponse
+import org.zhavoronkov.openrouter.models.ChatToolCall
 import org.zhavoronkov.openrouter.models.ProvidersResponse
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatChoice
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionResponse
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatMessage
+import org.zhavoronkov.openrouter.proxy.models.OpenAIChatToolCall
+import org.zhavoronkov.openrouter.proxy.models.OpenAIChatToolCallFunction
 import org.zhavoronkov.openrouter.proxy.models.OpenAIError
 import org.zhavoronkov.openrouter.proxy.models.OpenAIErrorResponse
 import org.zhavoronkov.openrouter.proxy.models.OpenAIModel
@@ -44,7 +47,10 @@ object ResponseTranslator {
                     index = index,
                     message = OpenAIChatMessage(
                         role = choice.message?.role ?: "assistant",
-                        content = choice.message?.content ?: JsonPrimitive("")
+                        content = choice.message?.content ?: JsonPrimitive(""),
+                        name = choice.message?.name,
+                        toolCallId = choice.message?.toolCallId,
+                        toolCalls = choice.message?.toolCalls?.map { translateToolCall(it) }
                     ),
                     finishReason = choice.finishReason
                 )
@@ -56,6 +62,17 @@ object ResponseTranslator {
                     totalTokens = usage.totalTokens ?: 0
                 )
             }
+        )
+    }
+
+    private fun translateToolCall(toolCall: ChatToolCall): OpenAIChatToolCall {
+        return OpenAIChatToolCall(
+            id = toolCall.id,
+            type = toolCall.type,
+            function = OpenAIChatToolCallFunction(
+                name = toolCall.function.name,
+                arguments = toolCall.function.arguments
+            )
         )
     }
 
