@@ -213,11 +213,10 @@ object ResponseTranslator {
                 response.model.isNotBlank() &&
                 response.choices.isNotEmpty() &&
                 response.choices.all { choice ->
-                    choice.message.role.isNotBlank() &&
-                        (
-                            choice.message.content.isJsonPrimitive &&
-                                choice.message.content.asString.isNotBlank()
-                            )
+                    val hasContent = choice.message.content.isJsonPrimitive &&
+                        choice.message.content.asString.isNotBlank()
+                    val hasToolCalls = !choice.message.toolCalls.isNullOrEmpty()
+                    choice.message.role.isNotBlank() && (hasContent || hasToolCalls)
                 }
         } catch (e: IllegalStateException) {
             PluginLogger.Service.error("Response validation failed: invalid state", e)

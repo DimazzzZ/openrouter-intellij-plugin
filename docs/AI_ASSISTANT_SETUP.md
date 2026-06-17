@@ -68,6 +68,26 @@ AI Assistant can then combine:
 
 > **Important:** for agent workflows, you need both a **tool-capable model** and **Tool calling enabled** in AI Assistant's provider settings.
 
+### Step 3.2: Agentic coding with OpenRouter
+
+The plugin supports agentic coding workflows through AI Assistant's agent mode. This uses:
+
+- **Host UI / orchestration:** JetBrains AI Assistant
+- **Inference backend:** OpenRouter via the plugin's local proxy
+- **Tool execution:** MCP servers configured in AI Assistant
+- **Protocol:** OpenAI-compatible `/v1/chat/completions` with tool calling
+
+**Requirements:**
+- A tool-capable model (e.g., `openai/gpt-4o`, `anthropic/claude-3.5-sonnet`)
+- **Tool calling** enabled in AI Assistant provider settings
+- At least one MCP server configured for tool execution
+
+**Known BYOK limitations:**
+- **Next edit suggestions** may not work in strict BYOK mode
+- **JetBrains proprietary code completion** paths may remain unavailable or limited
+- Agent behavior depends on model capability and AI Assistant version
+- Some JetBrains AI features require a JetBrains AI subscription
+
 ### Step 4: Select OpenRouter Model
 
 1. In the AI Assistant chat window, click the **model selector** dropdown

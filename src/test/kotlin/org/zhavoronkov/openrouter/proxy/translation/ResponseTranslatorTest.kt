@@ -344,8 +344,39 @@ class ResponseTranslatorTest {
         }
 
         @Test
-        @DisplayName("should reject blank content")
-        fun testRejectBlankContent() {
+        @DisplayName("should accept response with tool calls and empty content")
+        fun testAcceptToolCallsWithEmptyContent() {
+            val response = ChatCompletionResponse(
+                model = "openai/gpt-4o",
+                choices = listOf(
+                    ChatChoice(
+                        index = 0,
+                        message = ChatMessage(
+                            role = "assistant",
+                            content = JsonPrimitive(""),
+                            toolCalls = listOf(
+                                ChatToolCall(
+                                    id = "call_789",
+                                    function = ChatToolCallFunction(
+                                        name = "search",
+                                        arguments = "{\"query\":\"test\"}"
+                                    )
+                                )
+                            )
+                        ),
+                        finishReason = "tool_calls"
+                    )
+                )
+            )
+
+            val translated = ResponseTranslator.translateChatCompletionResponse(response, "openai/gpt-4o")
+
+            assertTrue(ResponseTranslator.validateTranslatedResponse(translated))
+        }
+
+        @Test
+        @DisplayName("should reject blank content without tool calls")
+        fun testRejectBlankContentWithoutToolCalls() {
             val response = ChatCompletionResponse(
                 model = "openai/gpt-4",
                 choices = listOf(
