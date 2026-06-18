@@ -19,13 +19,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatMessage
 import org.zhavoronkov.openrouter.models.ReasoningConfig
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.settings.PresetsManager
+import org.zhavoronkov.openrouter.toolwindow.agent.FilePickerPopup
+import org.zhavoronkov.openrouter.toolwindow.agent.ToolCallHandler
 import org.zhavoronkov.openrouter.utils.MarkdownRenderer
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 import org.zhavoronkov.openrouter.utils.PluginLogger
@@ -93,6 +94,8 @@ class ChatPanel(
         private const val MESSAGE_BORDER_H = 2
         private const val CELL_BORDER_V = 4
         private const val CELL_BORDER_H = 8
+        private const val TOOL_RESULT_MAX_LENGTH = 500
+        private const val MAX_ATTACHED_FILE_SIZE = 100_000L
     }
 
     private val mainPanel: JPanel
@@ -123,6 +126,10 @@ class ChatPanel(
     private var isLoading = false
     private val gson = Gson()
     private val dateFormat = SimpleDateFormat("dd.MM.yyyy, HH:mm")
+    private val toolCallHandler = ToolCallHandler(openRouterService)
+    private val filePickerPopup = FilePickerPopup(project) { selectedPath ->
+        insertFileReference(selectedPath)
+    }
 
     init {
         // Initialize components
@@ -383,10 +390,42 @@ class ChatPanel(
         })
 
         inputArea.document.addDocumentListener(object : DocumentListener {
-            override fun insertUpdate(e: DocumentEvent) = updateInputTokenEstimate()
-            override fun removeUpdate(e: DocumentEvent) = updateInputTokenEstimate()
-            override fun changedUpdate(e: DocumentEvent) = updateInputTokenEstimate()
+            override fun insertUpdate(e: DocumentEvent) {
+                updateInputTokenEstimate()
+                checkForAtSymbol()
+            }
+            override fun removeUpdate(e: DocumentEvent) {
+                updateInputTokenEstimate()
+            }
+            override fun changedUpdate(e: DocumentEvent) {
+                updateInputTokenEstimate()
+            }
         })
+    }
+
+    private fun checkForAtSymbol() {
+        val text = inputArea.text
+        val caretPos = inputArea.caretPosition
+        if (caretPos <= 0 || caretPos > text.length) return
+
+        val charBefore = text[caretPos - 1]
+        if (charBefore != '@') return
+
+        filePickerPopup.show(inputArea, "")
+    }
+
+    private fun insertFileReference(relativePath: String) {
+        val text = inputArea.text
+        val caretPos = inputArea.caretPosition
+        val before = text.substring(0, caretPos)
+        val after = text.substring(caretPos)
+
+        val atIdx = before.lastIndexOf('@')
+        if (atIdx >= 0) {
+            val newText = before.substring(0, atIdx) + "@$relativePath " + after
+            inputArea.text = newText
+            inputArea.caretPosition = atIdx + relativePath.length + 2
+        }
     }
 
     private fun showChatList() {
@@ -670,8 +709,8 @@ class ChatPanel(
     private fun sendMessage() {
         if (isLoading) return
 
-        val userMessage = inputArea.text.trim()
-        if (userMessage.isEmpty()) return
+        val rawMessage = inputArea.text.trim()
+        if (rawMessage.isEmpty()) return
 
         val selectedModel = modelComboBox.selectedItem as? String
         if (selectedModel.isNullOrEmpty()) {
@@ -687,14 +726,14 @@ class ChatPanel(
         inputArea.text = ""
         inputArea.requestFocusInWindow()
 
-        addUserMessage(userMessage)
+        val resolvedMessage = resolveFileReferences(rawMessage)
+        addUserMessage(rawMessage)
 
         val currentChat = chatSessions.find { it.id == activeChatId }
-        currentChat?.messages?.add(ChatMessageData("user", userMessage))
+        currentChat?.messages?.add(ChatMessageData("user", resolvedMessage))
 
-        // Update chat title if first message
         if (currentChat != null && currentChat.messages.size == 1) {
-            currentChat.title = generateChatTitle(userMessage)
+            currentChat.title = generateChatTitle(rawMessage)
             updateChatList()
         }
 
@@ -703,6 +742,36 @@ class ChatPanel(
         coroutineScope.launch {
             sendChatRequest(selectedModel, currentChat)
         }
+    }
+
+    private fun resolveFileReferences(message: String): String {
+        val basePath = project.basePath ?: return message
+        val pattern = Regex("""@([\w\-./]+\.\w+)""")
+        val result = StringBuilder()
+        var lastEnd = 0
+
+        for (match in pattern.findAll(message)) {
+            result.append(message, lastEnd, match.range.first)
+            val relativePath = match.groupValues[1]
+            val file = File(basePath, relativePath)
+
+            if (file.exists() && file.isFile && file.length() <= MAX_ATTACHED_FILE_SIZE) {
+                try {
+                    val content = file.readText()
+                    val ext = file.extension
+                    result.append("[Attached file: $relativePath]\n```$ext\n$content\n```")
+                } catch (e: IOException) {
+                    PluginLogger.warn("Failed to read file for @ reference: $relativePath", e)
+                    result.append(match.value)
+                }
+            } else {
+                result.append(match.value)
+            }
+            lastEnd = match.range.last + 1
+        }
+
+        result.append(message, lastEnd, message.length)
+        return result.toString()
     }
 
     private fun generateChatTitle(message: String): String {
@@ -745,10 +814,35 @@ class ChatPanel(
                 verbosity = verbosityValue
             )
 
-            val result = openRouterService.createChatCompletion(request)
+            val projectBasePath = project.basePath ?: System.getProperty("user.home")
+
+            val toolResult = toolCallHandler.runWithTools(
+                request = request,
+                projectBasePath = projectBasePath,
+                onToolStart = { toolName, args ->
+                    SwingUtilities.invokeLater {
+                        addToolCallMessage(toolName, args)
+                    }
+                },
+                onToolEnd = { toolName, result ->
+                    SwingUtilities.invokeLater {
+                        addToolResultMessage(toolName, result)
+                    }
+                }
+            )
 
             SwingUtilities.invokeLater {
-                handleChatResponse(result, currentChat)
+                if (toolResult.error != null) {
+                    showError(toolResult.error)
+                    setLoading(false)
+                } else {
+                    val text = toolResult.finalText ?: "(no response)"
+                    addAssistantMessage(text)
+                    currentChat?.messages?.add(ChatMessageData("assistant", text))
+                    saveChats()
+                    setLoading(false)
+                }
+                inputArea.requestFocusInWindow()
             }
         } catch (e: IOException) {
             SwingUtilities.invokeLater {
@@ -758,60 +852,11 @@ class ChatPanel(
         }
     }
 
-    private fun handleChatResponse(
-        result: ApiResult<org.zhavoronkov.openrouter.models.ChatCompletionResponse>,
-        currentChat: ChatSession?
-    ) {
-        setLoading(false)
-        inputArea.requestFocusInWindow()
+    fun getPanel(): JPanel = mainPanel
 
-        when (result) {
-            is ApiResult.Success -> handleSuccessResponse(result.data, currentChat)
-            is ApiResult.Error -> showError("Error: ${result.message}")
-        }
-    }
-
-    private fun handleSuccessResponse(
-        response: org.zhavoronkov.openrouter.models.ChatCompletionResponse,
-        currentChat: ChatSession?
-    ) {
-        val assistantMessage = response.choices?.firstOrNull()?.message?.content
-        if (assistantMessage == null) {
-            showError("No response from model")
-            return
-        }
-
-        val messageText = extractMessageText(assistantMessage)
-        addAssistantMessage(messageText)
-        currentChat?.messages?.add(ChatMessageData("assistant", messageText))
-
-        val usage = response.usage
-        if (usage != null) {
-            val tokens = usage.totalTokens ?: 0
-            currentChat?.let { it.totalTokens += tokens }
-            updateTokenDisplay(currentChat?.totalTokens ?: 0)
-        }
-
+    fun dispose() {
         saveChats()
-    }
-
-    private fun extractMessageText(content: com.google.gson.JsonElement): String {
-        return when {
-            content.isJsonPrimitive -> content.asString
-            content.isJsonArray -> {
-                content.asJsonArray.mapNotNull { element ->
-                    when {
-                        element.isJsonObject -> {
-                            val obj = element.asJsonObject
-                            if (obj.has("text")) obj.get("text").asString else null
-                        }
-                        element.isJsonPrimitive -> element.asString
-                        else -> null
-                    }
-                }.joinToString("")
-            }
-            else -> content.toString()
-        }
+        coroutineScope.cancel()
     }
 
     private fun addUserMessage(message: String) = addCompactMessage(message, isUser = true)
@@ -825,30 +870,56 @@ class ChatPanel(
         scrollToBottom()
     }
 
+    private fun addToolCallMessage(toolName: String, args: String) {
+        val label = JBLabel("<html><span style='color: #E5C07B;'>🔧 Calling tool: $toolName($args)</span></html>")
+        label.border = JBUI.Borders.empty(MESSAGE_BORDER_V, MESSAGE_BORDER_H)
+        label.alignmentX = JBLabel.LEFT_ALIGNMENT
+        label.name = "toolCall_${System.nanoTime()}"
+        messagesPanel.add(label)
+        messagesPanel.revalidate()
+        scrollToBottom()
+    }
+
+    private fun addToolResultMessage(toolName: String, result: String) {
+        val truncated = if (result.length > TOOL_RESULT_MAX_LENGTH) {
+            result.take(TOOL_RESULT_MAX_LENGTH) + "..."
+        } else {
+            result
+        }
+        val escaped = truncated
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+        val label = JBLabel(
+            "<html><span style='color: #98C379;'>✓ $toolName result:</span>" +
+                "<br><pre style='font-size: 10px;'>$escaped</pre></html>"
+        )
+        label.border = JBUI.Borders.empty(MESSAGE_BORDER_V, MESSAGE_BORDER_H)
+        label.alignmentX = JBLabel.LEFT_ALIGNMENT
+        messagesPanel.add(label)
+        messagesPanel.revalidate()
+        scrollToBottom()
+    }
+
     private fun addCompactMessage(message: String, isUser: Boolean) {
         val rolePrefix = if (isUser) "You:" else "Assistant:"
         val roleColor = if (isUser) "#6B9BD2" else "#9B9BD2"
 
-        // Use a JPanel with role label and selectable text area
         val messagePanel = JPanel(BorderLayout())
         messagePanel.border = JBUI.Borders.empty(MESSAGE_BORDER_V, MESSAGE_BORDER_H)
         messagePanel.alignmentX = JPanel.LEFT_ALIGNMENT
         messagePanel.background = JBUI.CurrentTheme.ToolWindow.background()
 
-        // Role label (non-selectable prefix)
         val roleLabel = JBLabel(rolePrefix)
         roleLabel.foreground = ColorUtil.fromHex(roleColor)
         roleLabel.border = JBUI.Borders.emptyRight(FLOW_LAYOUT_GAP)
         roleLabel.verticalAlignment = JBLabel.TOP
 
-        // Use same UI font for both message types to avoid font mismatch
         val uiFont = inputArea.font ?: JBLabel().font
         val uiForeground = JBUI.CurrentTheme.Label.foreground()
         val uiBackground = JBUI.CurrentTheme.ToolWindow.background()
 
         if (!isUser) {
-            // Assistant: render Markdown to HTML using JEditorPane
-            // Use role prefix inside HTML to ensure inline rendering with colored label
             val htmlContent = MarkdownRenderer.wrapInHtmlDocumentWithRolePrefix(
                 bodyHtml = MarkdownRenderer.renderToHtml(message),
                 rolePrefix = rolePrefix,
@@ -864,12 +935,10 @@ class ChatPanel(
             textPane.background = uiBackground
             textPane.font = uiFont
             textPane.foreground = uiForeground
-            // Force JEditorPane to honor display properties for HTML content
             textPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, true)
             textPane.putClientProperty(JEditorPane.W3C_LENGTH_UNITS, true)
             messagePanel.add(textPane, BorderLayout.CENTER)
         } else {
-            // User: plain text in JBTextArea
             val textArea = JBTextArea(message)
             textArea.isEditable = false
             textArea.lineWrap = true
@@ -880,7 +949,6 @@ class ChatPanel(
             textArea.font = uiFont
             textArea.caret = javax.swing.text.DefaultCaret()
             textArea.putClientProperty("caretWidth", 2)
-            // Set minimum height to at least fit one line
             textArea.minimumSize = Dimension(MIN_TEXT_AREA_WIDTH, textArea.preferredSize.height)
             messagePanel.add(roleLabel, BorderLayout.WEST)
             messagePanel.add(textArea, BorderLayout.CENTER)
@@ -918,7 +986,6 @@ class ChatPanel(
     }
 
     private fun showError(message: String) {
-        // Remove loading indicator
         messagesPanel.components.filterIsInstance<JBLabel>()
             .find { it.name == "loadingLabel" }
             ?.let { messagesPanel.remove(it) }
@@ -929,13 +996,6 @@ class ChatPanel(
         messagesPanel.add(label)
         messagesPanel.revalidate()
         scrollToBottom()
-    }
-
-    fun getPanel(): JPanel = mainPanel
-
-    fun dispose() {
-        saveChats()
-        coroutineScope.cancel()
     }
 
     data class ChatMessageData(val role: String, val content: String)
