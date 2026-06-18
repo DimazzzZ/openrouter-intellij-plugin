@@ -5,6 +5,44 @@ All notable changes to the OpenRouter IntelliJ Plugin will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3] - 2026-06-18
+
+### New Features
+
+#### 💬 Reasoning & Verbosity Controls
+- **Reasoning Dropdown** - New "Reasoning" dropdown in chat panel (Default/None/Minimal/Low/Medium/High/XHigh)
+- **Verbosity Dropdown** - New "Verbosity" dropdown in chat panel (Default/Low/Medium/High/XHigh/Max)
+- **Model-Capability Driven** - Dropdowns auto-detect support from OpenRouter's `supported_parameters` API, no hardcoded model IDs
+
+#### 🔧 Tool Calling Support
+- **Proxy Translation Layer** - New data models (`ChatTool`, `ChatToolCall`, `ChatToolCallFunction`, etc.) and translation methods in `RequestTranslator`/`ResponseTranslator`
+- **Tool Call Infrastructure** - Foundation for AI Assistant agent workflows with MCP servers
+
+### Bug Fixes
+
+#### 🔒 Settings Reliability
+- **PasswordSafe Race Condition** - Fixed API keys and proxy config being lost after closing/reopening IDE (#52)
+- **Synchronous Operations** - `preloadKeys()` and set/get operations now synchronous to prevent data loss
+
+#### ⚠️ Deprecated API Fixes
+- **CredentialAttributes** - Replaced deprecated constructor with 3-arg version (#53)
+- **Marketplace Compliance** - Fixed incorrect "View on Marketplace" link
+
+#### 🎯 AI Assistant Integration
+- **Presets in Model Selection** - Custom presets (`openrouter/auto`, `openrouter/free`) now appear in AI Assistant dropdown (#50)
+- **Coroutine Modernization** - Updated `withTimeout` calls to use `Duration.milliseconds`
+
+#### 🎨 Icon Improvements
+- **Vector Status-Bar Icons** - Replaced PNG success/error bitmaps with crisp SVG assets that scale correctly on HiDPI displays
+- **Layered Badge System** - Status-bar icon is now a composed `LayeredIcon`: the OpenRouter logo base (16×16) with a semantic 8×8 badge pinned to the bottom-right corner
+- **Green ✓ Badge** - `READY` state shows a green circle + white checkmark (GitHub-style)
+- **Red × Badge** - `ERROR`, `NOT_CONFIGURED`, and `OFFLINE` states show a red circle + white ×
+- **Theme-Aware Base** - Dedicated `openrouter-statusbar.svg` / `openrouter-statusbar_dark.svg` pair ensures correct contrast on both light and dark status bars
+
+#### 🧹 Code Quality
+- **Detekt Auto-Correct** - Import ordering and formatting fixes (#54)
+- **Zero Detekt Issues** - All code quality warnings resolved
+
 ## [0.5.2] - 2026-04-10
 
 ### New Features

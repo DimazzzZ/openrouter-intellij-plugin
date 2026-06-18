@@ -68,6 +68,43 @@
 
     <!-- Change notes for this version -->
     <change-notes><![CDATA[
+        <h3>🎉 Version 0.5.3 - Reasoning Controls, Tool Calling & Settings Fixes (2026-06-18)</h3>
+        
+        <p><strong>💬 Reasoning & Verbosity Controls:</strong></p>
+        <ul>
+            <li><strong>Reasoning Dropdown</strong> - New reasoning effort control in chat panel (None/Minimal/Low/Medium/High/XHigh)</li>
+            <li><strong>Verbosity Dropdown</strong> - New response verbosity control (Low/Medium/High/XHigh/Max)</li>
+            <li><strong>Auto-Detection</strong> - Model capabilities detected from OpenRouter API, no hardcoded model IDs</li>
+        </ul>
+
+        <p><strong>🔧 Tool Calling Support:</strong></p>
+        <ul>
+            <li><strong>Proxy Translation</strong> - New data models and translation methods for tool calls</li>
+            <li><strong>Agent Foundation</strong> - Infrastructure for AI Assistant agent workflows with MCP servers</li>
+        </ul>
+
+        <p><strong>🔒 Settings Reliability:</strong></p>
+        <ul>
+            <li><strong>Fixed Settings Loss</strong> - PasswordSafe race condition causing lost API keys on IDE restart</li>
+            <li><strong>Deprecated API Fix</strong> - Replaced deprecated CredentialAttributes constructor</li>
+        </ul>
+
+        <p><strong>🎯 AI Assistant Improvements:</strong></p>
+        <ul>
+            <li><strong>Presets in Dropdown</strong> - Custom presets now appear in AI Assistant model selection</li>
+            <li><strong>Code Quality</strong> - Detekt auto-correct, zero code quality warnings</li>
+        </ul>
+
+        <p><strong>🎨 Icon Improvements:</strong></p>
+        <ul>
+            <li><strong>Vector Status-Bar Icons</strong> - PNG success/error bitmaps replaced with crisp SVG assets (HiDPI-ready)</li>
+            <li><strong>Layered Badge System</strong> - Status icon is now a composed base logo + semantic 8×8 badge (bottom-right corner)</li>
+            <li><strong>Green ✓ / Red × Badges</strong> - Ready state shows green checkmark; error/offline states show red ×</li>
+            <li><strong>Theme-Aware</strong> - Dedicated light/dark SVG variants for correct contrast on all status-bar themes</li>
+        </ul>
+
+        <hr/>
+
         <h3>🎉 Version 0.5.2 - Pricing Display, Models Count & Chat Improvements (2026-04-10)</h3>
         
         <p><strong>💰 Model Pricing Display:</strong></p>
@@ -315,7 +352,6 @@
         <!-- Tool window for status display -->
         <toolWindow
             id="OpenRouter"
-            secondary="true"
             icon="org.zhavoronkov.openrouter.icons.OpenRouterIcons.TOOL_WINDOW"
             anchor="right"
             factoryClass="org.zhavoronkov.openrouter.toolwindow.OpenRouterToolWindowFactory"/>

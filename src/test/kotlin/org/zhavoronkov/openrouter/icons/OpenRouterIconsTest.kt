@@ -37,17 +37,38 @@ class OpenRouterIconsTest {
         }
 
         @Test
-        @DisplayName("Should have success icon resource")
-        fun testSuccessIconExists() {
-            val resource = this::class.java.getResource("/icons/openrouter-plugin-success-16.png")
-            assertNotNull(resource, "Success icon should exist at /icons/openrouter-plugin-success-16.png")
+        @DisplayName("Should have status-bar base SVG resource (light theme)")
+        fun testStatusBarSvgExists() {
+            val resource = this::class.java.getResource("/icons/openrouter-statusbar.svg")
+            assertNotNull(resource, "Status-bar SVG should exist at /icons/openrouter-statusbar.svg")
         }
 
         @Test
-        @DisplayName("Should have error icon resource")
-        fun testErrorIconExists() {
-            val resource = this::class.java.getResource("/icons/openrouter-plugin-error-16.png")
-            assertNotNull(resource, "Error icon should exist at /icons/openrouter-plugin-error-16.png")
+        @DisplayName("Should have status-bar base SVG resource (dark theme)")
+        fun testStatusBarDarkSvgExists() {
+            val resource = this::class.java.getResource("/icons/openrouter-statusbar_dark.svg")
+            assertNotNull(resource, "Dark status-bar SVG should exist at /icons/openrouter-statusbar_dark.svg")
+        }
+
+        @Test
+        @DisplayName("Should have success badge SVG resource")
+        fun testSuccessBadgeSvgExists() {
+            val resource = this::class.java.getResource("/icons/openrouter-badge-ok.svg")
+            assertNotNull(resource, "Success badge SVG should exist at /icons/openrouter-badge-ok.svg")
+        }
+
+        @Test
+        @DisplayName("Should have error badge SVG resource")
+        fun testErrorBadgeSvgExists() {
+            val resource = this::class.java.getResource("/icons/openrouter-badge-error.svg")
+            assertNotNull(resource, "Error badge SVG should exist at /icons/openrouter-badge-error.svg")
+        }
+
+        @Test
+        @DisplayName("Should have tool window SVG resource")
+        fun testToolWindowSvgExists() {
+            val resource = this::class.java.getResource("/icons/openrouter-toolwindow.svg")
+            assertNotNull(resource, "Tool window SVG should exist at /icons/openrouter-toolwindow.svg")
         }
 
         @Test
@@ -56,8 +77,11 @@ class OpenRouterIconsTest {
             val iconPaths = listOf(
                 "/icons/openrouter-logo.svg",
                 "/icons/openrouter-logo_dark.svg",
-                "/icons/openrouter-plugin-success-16.png",
-                "/icons/openrouter-plugin-error-16.png"
+                "/icons/openrouter-statusbar.svg",
+                "/icons/openrouter-statusbar_dark.svg",
+                "/icons/openrouter-badge-ok.svg",
+                "/icons/openrouter-badge-error.svg",
+                "/icons/openrouter-toolwindow.svg"
             )
 
             iconPaths.forEach { path ->
@@ -77,16 +101,16 @@ class OpenRouterIconsTest {
             val paths = listOf(
                 "/icons/openrouter-logo.svg",
                 "/icons/openrouter-logo_dark.svg",
-                "/icons/openrouter-plugin-success-16.png",
-                "/icons/openrouter-plugin-error-16.png"
+                "/icons/openrouter-statusbar.svg",
+                "/icons/openrouter-statusbar_dark.svg",
+                "/icons/openrouter-badge-ok.svg",
+                "/icons/openrouter-badge-error.svg",
+                "/icons/openrouter-toolwindow.svg"
             )
 
             paths.forEach { path ->
                 assertTrue(path.startsWith("/icons/"), "Icon path should start with /icons/: $path")
-                assertTrue(
-                    path.endsWith(".svg") || path.endsWith(".png"),
-                    "Icon path should end with .svg or .png: $path"
-                )
+                assertTrue(path.endsWith(".svg"), "Icon path should end with .svg: $path")
                 assertTrue(path.contains("openrouter"), "Icon path should contain 'openrouter': $path")
             }
         }
@@ -97,8 +121,11 @@ class OpenRouterIconsTest {
             val paths = listOf(
                 "/icons/openrouter-logo.svg",
                 "/icons/openrouter-logo_dark.svg",
-                "/icons/openrouter-plugin-success-16.png",
-                "/icons/openrouter-plugin-error-16.png"
+                "/icons/openrouter-statusbar.svg",
+                "/icons/openrouter-statusbar_dark.svg",
+                "/icons/openrouter-badge-ok.svg",
+                "/icons/openrouter-badge-error.svg",
+                "/icons/openrouter-toolwindow.svg"
             )
 
             paths.forEach { path ->
@@ -118,8 +145,11 @@ class OpenRouterIconsTest {
             val iconPaths = listOf(
                 "/icons/openrouter-logo.svg",
                 "/icons/openrouter-logo_dark.svg",
-                "/icons/openrouter-plugin-success-16.png",
-                "/icons/openrouter-plugin-error-16.png"
+                "/icons/openrouter-statusbar.svg",
+                "/icons/openrouter-statusbar_dark.svg",
+                "/icons/openrouter-badge-ok.svg",
+                "/icons/openrouter-badge-error.svg",
+                "/icons/openrouter-toolwindow.svg"
             )
 
             iconPaths.forEach { path ->
@@ -133,8 +163,11 @@ class OpenRouterIconsTest {
             val iconPaths = listOf(
                 "/icons/openrouter-logo.svg",
                 "/icons/openrouter-logo_dark.svg",
-                "/icons/openrouter-plugin-success-16.png",
-                "/icons/openrouter-plugin-error-16.png"
+                "/icons/openrouter-statusbar.svg",
+                "/icons/openrouter-statusbar_dark.svg",
+                "/icons/openrouter-badge-ok.svg",
+                "/icons/openrouter-badge-error.svg",
+                "/icons/openrouter-toolwindow.svg"
             )
 
             iconPaths.forEach { path ->

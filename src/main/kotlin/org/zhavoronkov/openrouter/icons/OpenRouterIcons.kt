@@ -12,6 +12,10 @@ import javax.swing.Icon
  */
 object OpenRouterIcons {
 
+    /** X/Y pixel offset that pins the 8×8 badge to the bottom-right of the 16×16 base icon. */
+    private const val BADGE_OFFSET_X = 8
+    private const val BADGE_OFFSET_Y = 8
+
     /**
      * Icon for the tool window button.
      * Base size: 16x16 (light=#6C707E / dark=#CED0D6 per JetBrains New UI guidelines).
@@ -48,7 +52,7 @@ object OpenRouterIcons {
     @JvmField
     val SUCCESS: Icon = LayeredIcon(2).also { layered ->
         layered.setIcon(STATUS_BAR, 0)
-        layered.setIcon(BADGE_OK, 1, 8, 8)
+        layered.setIcon(BADGE_OK, 1, BADGE_OFFSET_X, BADGE_OFFSET_Y)
     }
 
     /**
@@ -58,7 +62,7 @@ object OpenRouterIcons {
     @JvmField
     val ERROR: Icon = LayeredIcon(2).also { layered ->
         layered.setIcon(STATUS_BAR, 0)
-        layered.setIcon(BADGE_ERROR, 1, 8, 8)
+        layered.setIcon(BADGE_ERROR, 1, BADGE_OFFSET_X, BADGE_OFFSET_Y)
     }
 
     /** Icon for refresh actions (SVG, scales to 16x16) */

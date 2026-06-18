@@ -26,7 +26,7 @@ import java.io.IOException
 class WhatsNewNotificationActivity : ProjectActivity {
 
     companion object {
-        private const val CURRENT_VERSION = "0.5.2"
+        private const val CURRENT_VERSION = "0.5.3"
         private const val CHANGELOG_URL =
             "https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/CHANGELOG.md"
     }
@@ -68,20 +68,21 @@ class WhatsNewNotificationActivity : ProjectActivity {
             .createNotification(
                 "OpenRouter Plugin Updated to v$CURRENT_VERSION",
                 """
-                <b>💰 Model Pricing Display:</b><br/>
-                • <b>Pricing Columns</b> - Input/Output Price in model tables<br/>
-                • <b>Per-Model Spend</b> - Stats popup shows spend by model<br/>
+                <b>💬 Reasoning & Verbosity Controls:</b><br/>
+                • <b>Reasoning Dropdown</b> - Control reasoning effort for supported models<br/>
+                • <b>Verbosity Dropdown</b> - Control response verbosity level<br/>
+                • <b>Auto-Detection</b> - Model capabilities from OpenRouter API<br/>
                 <br/>
-                <b>📊 Total Models Count:</b><br/>
-                • <b>Model Catalog Visibility</b> - Shows "X shown (Y total)"<br/>
-                • <b>All Modalities</b> - Includes text, image, audio, video models<br/>
+                <b>🔧 Tool Calling Support:</b><br/>
+                • <b>Proxy Translation</b> - Tool call handling in proxy layer<br/>
+                • <b>Agent Foundation</b> - Infrastructure for AI Assistant workflows<br/>
                 <br/>
-                <b>💬 Chat Improvements:</b><br/>
-                • <b>Fixed Copy/Select</b> - Assistant output now selectable<br/>
-                • <b>Markdown Rendering</b> - Tables, links, strikethrough support<br/>
+                <b>🔒 Settings Reliability:</b><br/>
+                • <b>Fixed Settings Loss</b> - API keys no longer lost on IDE restart<br/>
+                • <b>Deprecated API Fix</b> - Updated CredentialAttributes usage<br/>
                 <br/>
-                <b>🔒 Privacy & Compliance:</b><br/>
-                • <b>Plugin Verifier</b> - Added to release workflow
+                <b>🎯 AI Assistant Improvements:</b><br/>
+                • <b>Presets in Dropdown</b> - Custom presets now in model selection
                 """.trimIndent(),
                 NotificationType.INFORMATION
             )
