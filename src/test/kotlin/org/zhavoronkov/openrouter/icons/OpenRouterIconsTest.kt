@@ -23,17 +23,17 @@ class OpenRouterIconsTest {
     inner class IconResourcesTest {
 
         @Test
-        @DisplayName("Should have status bar icon resource")
-        fun testStatusBarIconExists() {
-            val resource = this::class.java.getResource("/icons/openrouter-13.png")
-            assertNotNull(resource, "Status bar icon (13x13) should exist at /icons/openrouter-13.png")
+        @DisplayName("Should have main logo SVG resource (light theme)")
+        fun testLogoSvgExists() {
+            val resource = this::class.java.getResource("/icons/openrouter-logo.svg")
+            assertNotNull(resource, "Main logo SVG should exist at /icons/openrouter-logo.svg")
         }
 
         @Test
-        @DisplayName("Should have tool window icon resource")
-        fun testToolWindowIconExists() {
-            val resource = this::class.java.getResource("/icons/openrouter-16.png")
-            assertNotNull(resource, "Tool window icon (16x16) should exist at /icons/openrouter-16.png")
+        @DisplayName("Should have main logo SVG resource (dark theme)")
+        fun testLogoDarkSvgExists() {
+            val resource = this::class.java.getResource("/icons/openrouter-logo_dark.svg")
+            assertNotNull(resource, "Dark theme logo SVG should exist at /icons/openrouter-logo_dark.svg")
         }
 
         @Test
@@ -54,8 +54,8 @@ class OpenRouterIconsTest {
         @DisplayName("Should have all required icon resources")
         fun testAllIconResourcesExist() {
             val iconPaths = listOf(
-                "/icons/openrouter-13.png",
-                "/icons/openrouter-16.png",
+                "/icons/openrouter-logo.svg",
+                "/icons/openrouter-logo_dark.svg",
                 "/icons/openrouter-plugin-success-16.png",
                 "/icons/openrouter-plugin-error-16.png"
             )
@@ -75,15 +75,18 @@ class OpenRouterIconsTest {
         @DisplayName("Should use correct icon path format")
         fun testIconPathFormat() {
             val paths = listOf(
-                "/icons/openrouter-13.png",
-                "/icons/openrouter-16.png",
+                "/icons/openrouter-logo.svg",
+                "/icons/openrouter-logo_dark.svg",
                 "/icons/openrouter-plugin-success-16.png",
                 "/icons/openrouter-plugin-error-16.png"
             )
 
             paths.forEach { path ->
                 assertTrue(path.startsWith("/icons/"), "Icon path should start with /icons/: $path")
-                assertTrue(path.endsWith(".png"), "Icon path should end with .png: $path")
+                assertTrue(
+                    path.endsWith(".svg") || path.endsWith(".png"),
+                    "Icon path should end with .svg or .png: $path"
+                )
                 assertTrue(path.contains("openrouter"), "Icon path should contain 'openrouter': $path")
             }
         }
@@ -92,8 +95,8 @@ class OpenRouterIconsTest {
         @DisplayName("Should use descriptive icon names")
         fun testIconNamesDescriptive() {
             val paths = listOf(
-                "/icons/openrouter-13.png",
-                "/icons/openrouter-16.png",
+                "/icons/openrouter-logo.svg",
+                "/icons/openrouter-logo_dark.svg",
                 "/icons/openrouter-plugin-success-16.png",
                 "/icons/openrouter-plugin-error-16.png"
             )
@@ -101,22 +104,6 @@ class OpenRouterIconsTest {
             paths.forEach { path ->
                 val filename = path.substringAfterLast("/")
                 assertTrue(filename.length > 5, "Icon filename should be descriptive: $filename")
-            }
-        }
-
-        @Test
-        @DisplayName("Should include size in icon names where appropriate")
-        fun testIconSizeInNames() {
-            val sizedIcons = listOf(
-                "/icons/openrouter-13.png",
-                "/icons/openrouter-16.png",
-                "/icons/openrouter-plugin-success-16.png",
-                "/icons/openrouter-plugin-error-16.png"
-            )
-
-            sizedIcons.forEach { path ->
-                val hasSizeIndicator = path.contains("-13") || path.contains("-16")
-                assertTrue(hasSizeIndicator, "Icon path should indicate size: $path")
             }
         }
     }
@@ -129,8 +116,8 @@ class OpenRouterIconsTest {
         @DisplayName("Should organize icons in icons directory")
         fun testIconsInCorrectDirectory() {
             val iconPaths = listOf(
-                "/icons/openrouter-13.png",
-                "/icons/openrouter-16.png",
+                "/icons/openrouter-logo.svg",
+                "/icons/openrouter-logo_dark.svg",
                 "/icons/openrouter-plugin-success-16.png",
                 "/icons/openrouter-plugin-error-16.png"
             )
@@ -144,8 +131,8 @@ class OpenRouterIconsTest {
         @DisplayName("Should use consistent naming convention")
         fun testConsistentNaming() {
             val iconPaths = listOf(
-                "/icons/openrouter-13.png",
-                "/icons/openrouter-16.png",
+                "/icons/openrouter-logo.svg",
+                "/icons/openrouter-logo_dark.svg",
                 "/icons/openrouter-plugin-success-16.png",
                 "/icons/openrouter-plugin-error-16.png"
             )
