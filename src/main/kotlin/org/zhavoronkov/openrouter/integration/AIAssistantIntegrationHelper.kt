@@ -28,12 +28,9 @@ object AIAssistantIntegrationHelper {
     fun getAIAssistantInfo(): AIAssistantInfo {
         return try {
             val pluginId = PluginId.getId(AI_ASSISTANT_PLUGIN_ID)
-            val plugin = PluginManagerCore.getPlugin(pluginId) ?: return AIAssistantInfo(false, null)
-
-            // Use recommended JetBrains API for checking if plugin is enabled
-            // isDisabled() returns true if disabled, so we negate it to get isEnabled
-            val isAvailable = !PluginManagerCore.isDisabled(pluginId)
-            AIAssistantInfo(isAvailable, plugin.version)
+            val isInstalled = PluginManagerCore.isPluginInstalled(pluginId)
+            val isAvailable = isInstalled && !PluginManagerCore.isDisabled(pluginId)
+            AIAssistantInfo(isAvailable, null)
         } catch (e: IllegalArgumentException) {
             PluginLogger.Service.debug("Invalid plugin ID format: $AI_ASSISTANT_PLUGIN_ID", e)
             AIAssistantInfo(false, null)
@@ -165,18 +162,19 @@ object AIAssistantIntegrationHelper {
                 try {
                     val actionManager = com.intellij.openapi.actionSystem.ActionManager.getInstance()
                     val action = actionManager.getAction("WelcomeScreen.Plugins")
-                        ?: actionManager.getAction("ShowPluginManager")
+                        ?: actionManager.getAction("Plugins")
 
                     if (action != null) {
                         actionManager.tryToExecute(
                             action,
-                            com.intellij.openapi.ui.playback.commands.ActionCommand.getInputEvent("ShowPluginManager"),
+                            com.intellij.openapi.ui.playback.commands.ActionCommand.getInputEvent("Plugins"),
                             null,
                             null,
                             true
                         )
                     } else {
-                        error("Plugin manager action not found")
+                        com.intellij.openapi.options.ShowSettingsUtil.getInstance()
+                            .showSettingsDialog(project, "Plugins")
                     }
                 } catch (e: IllegalStateException) {
                     PluginLogger.Service.error("Plugin marketplace action not available", e)
@@ -197,7 +195,7 @@ object AIAssistantIntegrationHelper {
                     ApplicationManager.getApplication().invokeLater {
                         if (success) {
                             val serverStatus = proxyService.getServerStatus()
-                            showInfoDialog(
+                            Messages.showInfoMessage(
                                 project,
                                 "Proxy server started successfully!\n\nURL: ${serverStatus.url}\n\n" +
                                     "Now configure AI Assistant to use this URL.",
@@ -223,45 +221,6 @@ object AIAssistantIntegrationHelper {
 
     private fun showErrorDialog(project: Project?, message: String, title: String = "Error") {
         Messages.showErrorDialog(project, message, title)
-    }
-
-    private fun showInfoDialog(project: Project?, message: String, title: String) {
-        Messages.showInfoMessage(project, message, title)
-    }
-
-    /**
-     * Quick integration check with notification
-     */
-    fun checkAndNotifyIntegrationStatus(project: Project?) {
-        val status = getIntegrationStatus()
-        if (status != IntegrationStatus.READY) {
-            ApplicationManager.getApplication().invokeLater {
-                val message = when (status) {
-                    IntegrationStatus.AI_ASSISTANT_NOT_AVAILABLE ->
-                        "AI Assistant plugin not found. Install it to use OpenRouter models in AI Assistant."
-                    IntegrationStatus.OPENROUTER_NOT_CONFIGURED ->
-                        "OpenRouter not configured. Configure it to enable AI Assistant integration."
-                    IntegrationStatus.PROXY_SERVER_NOT_RUNNING ->
-                        "Proxy server not running. Start it to enable AI Assistant integration."
-                    else -> ""
-                }
-
-                if (message.isNotEmpty()) {
-                    val result = Messages.showYesNoDialog(
-                        project,
-                        "$message\n\nWould you like to run the setup wizard?",
-                        "OpenRouter AI Assistant Integration",
-                        "Setup",
-                        "Later",
-                        Messages.getInformationIcon()
-                    )
-
-                    if (result == Messages.YES) {
-                        showSetupWizard(project)
-                    }
-                }
-            }
-        }
     }
 
     /**

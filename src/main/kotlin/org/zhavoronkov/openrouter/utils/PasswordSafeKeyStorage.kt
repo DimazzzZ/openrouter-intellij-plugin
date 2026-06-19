@@ -56,9 +56,7 @@ object PasswordSafeKeyStorage {
      */
     private fun createCredentialAttributes(key: String): CredentialAttributes {
         return CredentialAttributes(
-            serviceName = generateServiceName(SERVICE_NAME, key),
-            userName = "",
-            requestor = PasswordSafeKeyStorage::class.java
+            generateServiceName(SERVICE_NAME, key)
         )
     }
 
