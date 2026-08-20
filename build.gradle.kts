@@ -1,9 +1,11 @@
+import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel
+
 plugins {
     id("java")
-    kotlin("jvm") version "2.0.21"
+    kotlin("jvm") version "2.1.20"
     id("io.gitlab.arturbosch.detekt") version "1.23.8"
     id("org.jetbrains.kotlinx.kover") version "0.9.1"
-    id("org.jetbrains.intellij.platform") version "2.3.0"
+    id("org.jetbrains.intellij.platform") version "2.18.1"
 }
 
 group = project.findProperty("pluginGroup") ?: "org.zhavoronkov"
@@ -87,11 +89,61 @@ intellijPlatform {
     }
 
     pluginVerification {
+        // Fail the build on the whole non-public-API surface — not just
+        // COMPATIBILITY_PROBLEMS (the default). JetBrains penalizes plugins
+        // that reach into internal or experimental platform API.
+        //
+        // MISSING_DEPENDENCIES and NOT_DYNAMIC are deliberately NOT included:
+        // the report lists unavailable *optional* dependencies we do not
+        // control, so they would fail spuriously.
+        failureLevel = listOf(
+            FailureLevel.COMPATIBILITY_PROBLEMS,
+            FailureLevel.DEPRECATED_API_USAGES,
+            FailureLevel.SCHEDULED_FOR_REMOVAL_API_USAGES,
+            FailureLevel.INTERNAL_API_USAGES,
+            FailureLevel.EXPERIMENTAL_API_USAGES,
+            FailureLevel.OVERRIDE_ONLY_API_USAGES,
+            FailureLevel.NON_EXTENDABLE_API_USAGES,
+        )
+
         ides {
-            // Use specific stable IDE versions for verification to avoid resolution failures
-            // Build 261.x (2026.1) may not be available yet, so we verify against known stable versions
-            ide("IC-2024.2")
-            ide("IC-2025.1")
+            // Three ways to pick what to verify against, fastest first:
+            //  -PverifierLocalIde=/path/to/IDE.app  an already-installed IDE
+            //                                       (local loop; no download)
+            //  -PverifierIdes=IC-2024.2[,IC-2025.1] an explicit, pinned set
+            //                                       (PR CI; one IDE is enough
+            //                                       to catch API breakage)
+            //  neither                              recommended(), i.e. every
+            //                                       supported line — thorough
+            //                                       but several GB, so it is
+            //                                       reserved for releases.
+            val localIde = project.findProperty("verifierLocalIde") as String?
+            val verifierIdesProperty = project.findProperty("verifierIdes") as String?
+            val pinnedIdes = verifierIdesProperty
+                ?.split(',')
+                ?.map(String::trim)
+                ?.filter(String::isNotEmpty)
+                .orEmpty()
+
+            // Fail loudly rather than quietly widening scope: if the property
+            // was supplied but yields nothing (empty, blank, or a stray comma),
+            // silently falling through to recommended() would turn a typo into
+            // a multi-GB sweep of every supported line.
+            if (verifierIdesProperty != null && pinnedIdes.isEmpty()) {
+                throw GradleException(
+                    "-PverifierIdes was supplied but resolved to no IDE notations " +
+                        "(got \"$verifierIdesProperty\"). Pass e.g. -PverifierIdes=IC-2025.1, " +
+                        "or omit it entirely to verify against recommended()."
+                )
+            }
+
+            when {
+                localIde != null -> local(localIde)
+                // IPGP 2.18.1 removed the `ide(String)` overload. Explicit,
+                // pinned notations now go through `create(Provider<List<String>>)`.
+                pinnedIdes.isNotEmpty() -> create(providers.provider { pinnedIdes })
+                else -> recommended()
+            }
         }
     }
 

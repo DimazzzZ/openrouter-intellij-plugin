@@ -311,6 +311,14 @@ class OpenRouterProxyServerTest {
             .readTimeout(5, TimeUnit.SECONDS)
             .build()
 
+        @AfterEach
+        fun cleanupHttpClient() {
+            // Shut down OkHttp's TaskRunner thread to avoid thread-leak detection failures
+            // (the thread pool stays alive unless explicitly shut down).
+            httpClient.dispatcher.executorService.shutdown()
+            httpClient.connectionPool.evictAll()
+        }
+
         @Test
         @DisplayName("health endpoint should respond with OK")
         @Timeout(10, unit = TimeUnit.SECONDS)
