@@ -31,7 +31,7 @@ jobs:
         cache-read-only: false  # Allow writing to cache on main/dev branches
 
     - name: Build and analyze
-      run: ./gradlew build detekt detektSarif --build-cache
+      run: ./gradlew build detekt --build-cache
 
     - name: Upload test results
       uses: actions/upload-artifact@v4
