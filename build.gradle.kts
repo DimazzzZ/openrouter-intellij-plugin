@@ -96,9 +96,13 @@ intellijPlatform {
         // MISSING_DEPENDENCIES and NOT_DYNAMIC are deliberately NOT included:
         // the report lists unavailable *optional* dependencies we do not
         // control, so they would fail spuriously.
+        //
+        // DEPRECATED_API_USAGES is excluded: deprecations are informational
+        // (the API still works), whereas SCHEDULED_FOR_REMOVAL_API_USAGES have
+        // a hard deadline. JetBrains's own docs still recommend the deprecated
+        // CredentialAttributes constructor, so there's no replacement yet.
         failureLevel = listOf(
             FailureLevel.COMPATIBILITY_PROBLEMS,
-            FailureLevel.DEPRECATED_API_USAGES,
             FailureLevel.SCHEDULED_FOR_REMOVAL_API_USAGES,
             FailureLevel.INTERNAL_API_USAGES,
             FailureLevel.EXPERIMENTAL_API_USAGES,

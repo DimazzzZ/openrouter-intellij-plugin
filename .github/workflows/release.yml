@@ -16,6 +16,10 @@ on:
         type: boolean
         default: true
 
+env:
+  # Opt into Node.js 24 for GitHub Actions (Node.js 20 deprecated June 2026)
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   validate-version:
     runs-on: ubuntu-latest
@@ -61,8 +65,8 @@ jobs:
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
-        java-version: '17'
-        cache: 'gradle'  # Cache Gradle dependencies
+        java-version: '21'
+        # setup-gradle owns caching; do not also enable setup-java's gradle cache.
 
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4
@@ -75,19 +79,31 @@ jobs:
         sed -i "s/^pluginVersion = .*/pluginVersion = ${{ needs.validate-version.outputs.version }}/" gradle.properties
         echo "Updated plugin version to ${{ needs.validate-version.outputs.version }}"
 
+    # verifyPlugin here runs the unpinned recommended() sweep over every
+    # supported line (the PR CI pins one IDE; releases verify all of them).
+    # failureLevel in build.gradle.kts makes findings fail the build.
     - name: Build, test, and analyze
-      run: ./gradlew buildPlugin test detekt detektSarif --build-cache
+      run: ./gradlew buildPlugin test detekt verifyPlugin --build-cache
 
-    - name: Run Plugin Verifier
-      run: ./gradlew verifyPlugin --build-cache
-      # Plugin Verifier checks API compatibility with target IDE versions
-      # This is required by JetBrains Marketplace approval guidelines (v1.3, section 2.1.c)
+    - name: Validate plugin archive integrity
+      run: |
+        PLUGIN_ZIP=$(ls build/distributions/openrouter-intellij-plugin-*.zip 2>/dev/null | head -1)
+        if [ -z "$PLUGIN_ZIP" ]; then
+          echo "ERROR: No plugin ZIP found in build/distributions/"
+          exit 1
+        fi
+        echo "Validating: $PLUGIN_ZIP"
+        unzip -t "$PLUGIN_ZIP"
+        unzip -l "$PLUGIN_ZIP" | grep -E "openrouter-intellij-plugin/lib/openrouter-intellij-plugin.*\.jar$" || (echo "ERROR: Missing main plugin JAR" && exit 1)
+        sha256sum "$PLUGIN_ZIP" | tee "${PLUGIN_ZIP}.sha256"
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
         name: plugin-artifact
-        path: build/distributions/*.zip
+        path: |
+          build/distributions/openrouter-intellij-plugin-*.zip
+          build/distributions/openrouter-intellij-plugin-*.zip.sha256
         retention-days: 30
 
     - name: Upload verifier reports
@@ -109,18 +125,6 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0  # Fetch full history for changelog generation
-
-    - name: Setup Java JDK
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '17'
-        cache: 'gradle'
-
-    - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v4
-      with:
-        cache-read-only: true  # Read-only for release job
 
     - name: Download build artifacts
       uses: actions/download-artifact@v4
@@ -177,6 +181,45 @@ jobs:
       (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_to_marketplace == 'true')
 
     steps:
+    - name: Validate required secrets
+      env:
+        PUBLISH_TOKEN: ${{ secrets.PUBLISH_TOKEN }}
+        CERTIFICATE_CHAIN: ${{ secrets.CERTIFICATE_CHAIN }}
+        PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+        PRIVATE_KEY_PASSWORD: ${{ secrets.PRIVATE_KEY_PASSWORD }}
+      run: |
+        missing_secrets=""
+        if [ -z "$PUBLISH_TOKEN" ]; then
+          missing_secrets="${missing_secrets}PUBLISH_TOKEN "
+        fi
+        if [ -z "$CERTIFICATE_CHAIN" ]; then
+          missing_secrets="${missing_secrets}CERTIFICATE_CHAIN "
+        fi
+        if [ -z "$PRIVATE_KEY" ]; then
+          missing_secrets="${missing_secrets}PRIVATE_KEY "
+        fi
+        if [ -z "$PRIVATE_KEY_PASSWORD" ]; then
+          missing_secrets="${missing_secrets}PRIVATE_KEY_PASSWORD "
+        fi
+
+        if [ -n "$missing_secrets" ]; then
+          echo "::error::Missing required secrets for marketplace publishing: ${missing_secrets}"
+          echo ""
+          echo "Please configure the following secrets in your repository settings:"
+          echo "  Settings -> Secrets and variables -> Actions -> New repository secret"
+          echo ""
+          echo "Required secrets:"
+          echo "  - PUBLISH_TOKEN: Your JetBrains Marketplace plugin upload token"
+          echo "    Get it from: https://plugins.jetbrains.com/author/me/tokens"
+          echo ""
+          echo "  - CERTIFICATE_CHAIN: Your plugin signing certificate chain (PEM format)"
+          echo "  - PRIVATE_KEY: Your plugin signing private key (PEM format)"
+          echo "  - PRIVATE_KEY_PASSWORD: Password for the private key"
+          echo "    Generate signing keys: https://plugins.jetbrains.com/docs/intellij/plugin-signing.html"
+          exit 1
+        fi
+        echo "All required secrets are configured."
+
     - name: Checkout code
       uses: actions/checkout@v4
 
@@ -184,8 +227,8 @@ jobs:
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
-        java-version: '17'
-        cache: 'gradle'
+        java-version: '21'
+        # setup-gradle owns caching; do not also enable setup-java's gradle cache.
 
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4
@@ -197,6 +240,24 @@ jobs:
         # Update version directly without Gradle to avoid cache invalidation
         sed -i "s/^pluginVersion = .*/pluginVersion = ${{ needs.validate-version.outputs.version }}/" gradle.properties
         echo "Updated plugin version to ${{ needs.validate-version.outputs.version }}"
+
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: plugin-artifact
+        path: build/distributions/
+
+    - name: Final archive validation before publish
+      run: |
+        PLUGIN_ZIP=$(ls build/distributions/openrouter-intellij-plugin-*.zip 2>/dev/null | head -1)
+        if [ -z "$PLUGIN_ZIP" ]; then
+          echo "ERROR: No plugin ZIP found in build/distributions/"
+          exit 1
+        fi
+        echo "Final validation before publish: $PLUGIN_ZIP"
+        unzip -t "$PLUGIN_ZIP"
+        unzip -l "$PLUGIN_ZIP" | grep -E "openrouter-intellij-plugin/lib/openrouter-intellij-plugin.*\.jar$" || (echo "ERROR: Missing main plugin JAR" && exit 1)
+        echo "SHA256: $(sha256sum "$PLUGIN_ZIP" | cut -d' ' -f1)"
 
     - name: Sign and publish plugin to JetBrains Marketplace
       run: ./gradlew signPlugin publishPlugin --build-cache

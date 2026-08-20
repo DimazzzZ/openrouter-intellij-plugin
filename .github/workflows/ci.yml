@@ -6,95 +6,169 @@ on:
   pull_request:
     branches: [ main, dev ]
 
+# Cancel superseded PR runs so a new push doesn't wait behind a stale one.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Opt into Node.js 24 for GitHub Actions (Node.js 20 deprecated June 2026)
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
-  build:
+  # Test and lint share a job: both need the same warmed Gradle cache and the
+  # same extracted IntelliJ SDK, so running them separately paid that setup
+  # cost twice for no parallelism benefit (detekt takes seconds).
+  test:
+    name: Test & Lint
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write  # Required for uploading SARIF files
+      security-events: write
       actions: read
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Setup Java JDK
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '17'
-        cache: 'gradle'  # Cache Gradle dependencies
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v4
-      with:
-        cache-read-only: false  # Allow writing to cache on main/dev branches
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          # No `cache: gradle` here — gradle/actions/setup-gradle owns caching
+          # and the two conflict if both are enabled.
 
-    - name: Build and analyze
-      run: ./gradlew build detekt --build-cache
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          # Only pushes to main write the cache; every pull request reads it.
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
 
-    - name: Upload test results
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: test-results
-        path: build/reports/tests/test/
+      - name: Test
+        run: ./gradlew test koverVerify --build-cache
 
-    - name: Detekt SARIF diagnostics
-      if: always()
-      shell: bash
-      continue-on-error: true
-      run: |
-        SARIF_PATH="build/reports/detekt/detekt.sarif"
-        if [[ ! -f "$SARIF_PATH" ]]; then
-          echo "Detekt SARIF diagnostics: file not found at $SARIF_PATH"
-          exit 0
-        fi
+      # Detekt gates the build (ignoreFailures was removed), so this failing
+      # fails the job. `detekt` emits the SARIF report itself now.
+      #
+      # `if: always()` so a test failure above does not swallow lint feedback.
+      - name: Detekt
+        if: always()
+        run: ./gradlew detekt --build-cache
 
-        FILE_SIZE=$(wc -c < "$SARIF_PATH" | tr -d ' ')
-        RUNS=$(jq '.runs | length' "$SARIF_PATH" 2>/dev/null || echo 0)
-        RULES=$(jq '[.runs[].tool.driver.rules | length] | add // 0' "$SARIF_PATH" 2>/dev/null || echo 0)
-        RESULTS=$(jq '[.runs[].results | length] | add // 0' "$SARIF_PATH" 2>/dev/null || echo 0)
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: build/reports/tests/
 
-        echo "Detekt SARIF diagnostics"
-        echo "- file size: ${FILE_SIZE} bytes"
-        echo "- runs: ${RUNS}"
-        echo "- rules: ${RULES}"
-        echo "- total results: ${RESULTS}"
-        echo "Top 20 ruleIds by count:"
-        jq -r '.runs[].results[]?.ruleId? // empty' "$SARIF_PATH" 2>/dev/null \
-          | sort | uniq -c | sort -nr | head -20 || true
+      - name: Upload Detekt SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: build/reports/detekt/detekt.sarif
+          category: detekt
 
-    - name: Upload Detekt SARIF
-      uses: github/codeql-action/upload-sarif@v4
-      if: always()
-      with:
-        sarif_file: build/reports/detekt/detekt.sarif
-        category: detekt
+      - name: Upload Detekt reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: detekt-reports
+          path: build/reports/detekt/
 
-    - name: Upload Detekt reports
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: detekt-reports
-        path: build/reports/detekt/
-    
-    - name: Comment PR with Detekt results
-      uses: actions/github-script@v6
-      if: github.event_name == 'pull_request' && always()
-      with:
-        script: |
-          const fs = require('fs');
-          try {
-            const detektReport = fs.readFileSync('build/reports/detekt/detekt.txt', 'utf8');
-            if (detektReport.includes('Build failed with 1 exception')) {
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: 'ℹ️ **Detekt found code quality suggestions**\n\nThese are recommendations, not blockers. Check the Detekt reports in the CI artifacts for details.'
-              });
+  verify:
+    name: Plugin Verifier
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+
+      # The Plugin Verifier CLI downloads the plugin's Marketplace dependencies
+      # into ~/.pluginVerifier/loaded-plugins. That is outside the Gradle user
+      # home, so setup-gradle does not cover it — hence this explicit cache.
+      - name: Cache Plugin Verifier downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.pluginVerifier
+          key: pluginVerifier-${{ runner.os }}-${{ hashFiles('gradle.properties') }}
+          restore-keys: |
+            pluginVerifier-${{ runner.os }}-
+
+      # PRs verify the NEWEST supported build so deprecation annotations are
+      # visible. Resolved from printProductsReleases, which honours sinceBuild
+      # and cannot drift from gradle.properties.
+      - name: Resolve newest supported IDE
+        id: ide
+        shell: bash
+        run: |
+          set -euo pipefail
+          IDE=$(./gradlew printProductsReleases -q | grep -E '^[A-Z]+-[0-9]{4}\.[0-9]+' | sort -V | tail -1)
+          [[ -n "$IDE" ]] || { echo "::error::could not resolve an IDE to verify against"; exit 1; }
+          echo "Newest supported IDE: $IDE"
+          echo "ide=$IDE" >> "$GITHUB_OUTPUT"
+
+      - name: Verify plugin
+        run: ./gradlew verifyPlugin -PverifierIdes="${{ steps.ide.outputs.ide }}" --build-cache
+
+      - name: Upload verifier report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-verifier-report
+          path: build/reports/pluginVerifier/
+
+  results:
+    name: PR results
+    needs: [ test ]
+    if: github.event_name == 'pull_request' && always()
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Download Detekt reports
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: detekt-reports
+          path: detekt-reports
+
+      - name: Comment PR with Detekt results
+        uses: actions/github-script@v6
+        continue-on-error: true
+        with:
+          script: |
+            const fs = require('fs');
+            try {
+              // detekt.txt lists one finding per line and is empty when clean.
+              const findings = fs.readFileSync('detekt-reports/detekt.txt', 'utf8')
+                .split('\n')
+                .filter(line => line.trim().length > 0);
+              if (findings.length > 0) {
+                const preview = findings.slice(0, 10).join('\n');
+                await github.rest.issues.createComment({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body: `❌ **Detekt found ${findings.length} issue(s)** — these block the build.\n\n`
+                    + '```\n' + preview + '\n```\n'
+                    + (findings.length > 10 ? `\n…and ${findings.length - 10} more. ` : '\n')
+                    + 'Full reports are in the CI artifacts, and findings are annotated inline via code scanning.'
+                });
+              }
+            } catch (error) {
+              console.log('No Detekt report found or error reading it:', error.message);
             }
-          } catch (error) {
-            console.log('No Detekt report found or error reading it:', error.message);
-          }
