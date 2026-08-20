@@ -163,30 +163,7 @@ detekt {
     buildUponDefaultConfig = true
     allRules = false
     config.setFrom("$projectDir/config/detekt/detekt.yml")
-    baseline = file("$projectDir/config/detekt/baseline.xml")
     basePath = projectDir.absolutePath
-}
-
-// Configure Detekt SARIF reporting task
-tasks.register<io.gitlab.arturbosch.detekt.Detekt>("detektSarif") {
-    description = "Runs detekt and generates SARIF report for GitHub Code Scanning"
-    group = "verification"
-
-    setSource(files("src/main/kotlin"))
-    include("**/*.kt")
-    exclude("**/test/**", "**/*Test.kt")
-
-    reports {
-        sarif.required.set(true)
-        sarif.outputLocation.set(file("build/reports/detekt/detekt.sarif"))
-        html.required.set(false)
-        txt.required.set(true)
-        xml.required.set(false)
-    }
-
-    jvmTarget = "21"
-    basePath = projectDir.absolutePath
-    ignoreFailures = true
 }
 
 tasks {
@@ -202,7 +179,13 @@ tasks {
     // Configure Detekt tasks
     withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
         jvmTarget = "21"
-        ignoreFailures = true  // Don't fail the build on Detekt issues during development
+        // ignoreFailures is deliberately NOT set: lint gates the build.
+        reports {
+            sarif.required.set(true)
+            txt.required.set(true)
+            html.required.set(true)
+            xml.required.set(false)
+        }
     }
 
     // Configure tests
