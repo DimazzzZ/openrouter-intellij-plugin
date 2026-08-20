@@ -6,7 +6,7 @@ This guide explains how to configure JetBrains AI Assistant to use OpenRouter's 
 
 Before you begin, ensure you have:
 
-1. **IntelliJ IDEA** (or any JetBrains IDE) version 2023.2 or later
+1. **IntelliJ IDEA** (or any JetBrains IDE) version 2024.2 or later
 2. **OpenRouter Plugin** installed and configured
 3. **JetBrains AI Assistant Plugin** installed ([Get it here](https://plugins.jetbrains.com/plugin/22282-jetbrains-ai-assistant))
 4. **OpenRouter Account** with a Provisioning Key ([Sign up here](https://openrouter.ai))
@@ -28,7 +28,7 @@ The proxy server should start automatically when you configure your Provisioning
 
 1. Open **Settings** → **Tools** → **OpenRouter**
 2. Look for the **Proxy Server** section
-3. Status should show: **Running on http://127.0.0.1:8080** (or another port 8080-8090)
+3. Status should show: **Running on http://127.0.0.1:8880** (or another port 8880-8899)
 4. **Copy** the proxy server URL - you'll need it in the next step
 
 ![Proxy Server Status](images/proxy-server-status.png)
@@ -43,7 +43,7 @@ Now configure AI Assistant to use the OpenRouter proxy:
 1. Open **Settings** → **Tools** → **AI Assistant** → **Providers & API keys**
 2. Configure the custom third-party AI provider:
    - **Provider**: Select **OpenAI-compatible** / **OpenAI API**
-   - **Server URL**: Paste the proxy URL from Step 2 (e.g., `http://127.0.0.1:8080`)
+   - **Server URL**: Paste the proxy URL from Step 2 (e.g., `http://127.0.0.1:8880`)
    - **API Key**: Use any non-empty placeholder value if AI Assistant requires one for the test dialog; the plugin proxy uses your OpenRouter credentials from the OpenRouter plugin settings
    - **Tool calling**: **Enable this** if you want AI Assistant Agents to invoke MCP tools through tool-calling capable OpenRouter models
 
@@ -139,7 +139,7 @@ You can configure your favorite models for quick access:
 
 ### Changing Proxy Port
 
-If port 8080 is already in use, the plugin will automatically try ports 8081-8090. You can check which port is being used:
+If port 8880 is already in use, the plugin will automatically try ports 8881-8899. You can check which port is being used:
 
 1. Open **Settings** → **Tools** → **OpenRouter**
 2. Look at the **Proxy Server** section
@@ -162,7 +162,7 @@ You can manually control the proxy server:
 
 **Solutions**:
 1. Verify your Provisioning Key is valid in OpenRouter settings
-2. Check if ports 8080-8090 are available (close other applications using these ports)
+2. Check if ports 8880-8899 are available (close other applications using these ports)
 3. Check IDE logs: **Help** → **Show Log in Finder/Explorer**
 4. Look for errors containing "OpenRouter" or "proxy"
 
@@ -235,7 +235,7 @@ A: No, OpenRouter offers free credits to get started. You can use the plugin wit
 A: Yes! You can configure multiple custom models in AI Assistant, each pointing to the same proxy but using different model IDs.
 
 **Q: Does this work with other JetBrains IDEs?**  
-A: Yes! The plugin works with all JetBrains IDEs (WebStorm, PyCharm, PhpStorm, etc.) version 2023.2+.
+A: Yes! The plugin works with all JetBrains IDEs (WebStorm, PyCharm, PhpStorm, etc.) version 2024.2+.
 
 **Q: Will this affect my existing AI Assistant configuration?**  
 A: No, this adds a custom model alongside your existing AI Assistant models. You can switch between them freely.

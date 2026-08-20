@@ -99,7 +99,7 @@ pluginVendorEmail = openrouter-plugin@zhavoronkov.org
 pluginDescription = OpenRouter plugin for IntelliJ IDEA...
 
 # Compatibility
-pluginSinceBuild = 232        # IntelliJ 2023.2+
+pluginSinceBuild = 242        # IntelliJ 2024.2+
 pluginUntilBuild = 252.*      # IntelliJ 2025.2+
 ```
 
@@ -266,9 +266,9 @@ openrouter-intellij-plugin/
 │   ├── 📍 statusbar/                # Status bar integration
 │   │   ├── OpenRouterStatusBarWidget.kt # Main status bar widget
 │   │   └── OpenRouterStatusBarWidgetFactory.kt # Widget factory
-│   ├── 🛠️ toolwindow/               # Tool window components (disabled in v1.0)
-│   │   ├── OpenRouterToolWindowContent.kt # Tool window content (future feature)
-│   │   └── OpenRouterToolWindowFactory.kt # Tool window factory (future feature)
+│   ├── 🛠️ toolwindow/               # Chat Tool Window (added in v0.5.0)
+│   │   ├── OpenRouterToolWindowContent.kt # Tool window content panel
+│   │   └── OpenRouterToolWindowFactory.kt # Tool window factory
 │   ├── 🎭 ui/                       # UI components & dialogs
 │   │   ├── OpenRouterStatsPopup.kt  # Statistics popup dialog
 │   │   └── SetupWizardDialog.kt     # First-run setup wizard (Phase 3)
@@ -318,7 +318,7 @@ openrouter-intellij-plugin/
 - **OpenRouterProxyService** - AI Assistant integration proxy
   - Manages local HTTP proxy server (Jetty-based)
   - Handles server lifecycle (start/stop/status)
-  - Automatic port allocation (8080-8090 range)
+  - Automatic port allocation (8880-8899 range)
   - OpenAI-compatible API endpoint exposure
 
 - **OpenRouterGenerationTrackingService** - Usage analytics
@@ -346,14 +346,13 @@ openrouter-intellij-plugin/
   - Cost analysis and budget tracking
   - Activity summaries and model usage patterns
 
-- **OpenRouterToolWindowContent** - Extended monitoring (Future Feature)
-  - Currently disabled in plugin.xml
-  - Planned for future release with persistent analytics
-  - Will provide historical usage data and trends
-  - Performance metrics and diagnostics capabilities
+- **OpenRouterToolWindowContent** - Chat Tool Window (multi-session chat, token tracking)
+  - Registered in plugin.xml since v0.5.0
+  - Multi-chat sessions with persistent history
+  - Token tracking and reasoning/verbosity controls
 
 ### 🎯 Actions & Integration
-- **ShowUsageAction** - Opens usage statistics popup (tool window disabled in v1.0)
+- **ShowUsageAction** - Opens usage statistics popup
 - **RefreshQuotaAction** - Manually refreshes quota and usage data
 - **OpenSettingsAction** - Direct access to plugin configuration
 - **Tools Menu Integration** - Native IntelliJ menu integration
@@ -364,7 +363,7 @@ openrouter-intellij-plugin/
 ### Proxy Server Architecture
 The plugin includes a configurable local HTTP proxy server that enables JetBrains AI Assistant to access OpenRouter's 400+ models:
 
-- **Technology**: Eclipse Jetty 11 embedded HTTP server
+- **Technology**: Eclipse Jetty 12 embedded HTTP server
 - **Port Configuration**: Configurable ports (default 8880-8899, avoids common conflicts)
 - **Auto-start Control**: Configurable auto-start behavior (disabled by default)
 - **Port Selection**: Specific port or auto-selection within configurable range

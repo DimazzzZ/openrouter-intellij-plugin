@@ -1,5 +1,20 @@
 # AI Assistant Integration - Technical Guide
 
+> **⚠️ OBSOLETE — Historical Design Notes Only**
+>
+> This document describes an earlier, speculative approach to AI Assistant
+> integration using `com.intellij.ml.llm` extension points and a separate
+> `ai-assistant-integration.xml` configuration file. **That approach was never
+> shipped.** The current plugin (v0.5.0+) integrates with AI Assistant entirely
+> via the localhost OpenAI-compatible HTTP proxy — no `ml.llm.*` dependency, no
+> extension-point registration.
+>
+> For the current setup flow, see [`AI_ASSISTANT_SETUP.md`](AI_ASSISTANT_SETUP.md).
+> For the proxy architecture, see the "Proxy Server" section of
+> [`../DEVELOPMENT.md`](../DEVELOPMENT.md).
+>
+> This file is retained for historical context only.
+
 ## Overview
 
 This document provides technical details for developers who need to maintain, extend, or understand the AI Assistant integration implementation in the OpenRouter IntelliJ Plugin.
