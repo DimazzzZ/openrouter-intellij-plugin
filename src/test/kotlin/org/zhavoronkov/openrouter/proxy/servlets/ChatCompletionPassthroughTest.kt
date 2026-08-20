@@ -158,8 +158,14 @@ class ChatCompletionPassthroughTest {
             val out = buildOutboundBody(body)
 
             listOf(
-                "provider", "models", "route", "transforms",
-                "response_format", "plugins", "preset", "usage"
+                "provider",
+                "models",
+                "route",
+                "transforms",
+                "response_format",
+                "plugins",
+                "preset",
+                "usage"
             ).forEach { field ->
                 assertTrue(out.has(field), "$field must survive the round-trip")
             }

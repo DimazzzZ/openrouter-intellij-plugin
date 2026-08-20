@@ -407,8 +407,11 @@ class ChatCompletionServlet : HttpServlet() {
             if (defaultMaxTokens > 0 && !rawJson.has("max_tokens")) {
                 rawJson.addProperty("max_tokens", defaultMaxTokens)
             }
-        } catch (e: Exception) {
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             // Settings service may not be available in test environment
+            // (getService can raise IllegalStateException or a class-loading
+            // Error); a broad catch is intentional so defaults are simply
+            // skipped rather than failing the request.
             PluginLogger.Service.debug("Could not apply configured defaults: ${e.message}")
         }
     }
@@ -419,7 +422,7 @@ class ChatCompletionServlet : HttpServlet() {
      */
     private fun logOpenRouterMetadata(response: Response, requestId: String) {
         val metadataHeaders = response.headers.names()
-            .filter { it.startsWith("x-openrouter", ignoreCase = true) || it.equals("openrouter-id", ignoreCase = true) }
+            .filter(::isOpenRouterMetadataHeader)
 
         if (metadataHeaders.isNotEmpty()) {
             val headerSummary = metadataHeaders.joinToString(", ") { name ->
@@ -782,6 +785,8 @@ class ChatCompletionServlet : HttpServlet() {
     /**
      * Parse request body from string instead of reading from request again
      */
+    @Suppress("ReturnCount") // Early-return guard clauses (invalid JSON, empty messages) read
+    // more clearly than nested conditionals; each return maps to a distinct 400 response.
     private fun parseRequestBody(
         requestBody: String,
         resp: HttpServletResponse,

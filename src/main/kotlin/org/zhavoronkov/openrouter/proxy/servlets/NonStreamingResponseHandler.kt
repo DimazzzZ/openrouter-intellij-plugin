@@ -168,7 +168,7 @@ class NonStreamingResponseHandler(
      */
     private fun logOpenRouterMetadata(response: okhttp3.Response, requestId: String) {
         val metadataHeaders = response.headers.names()
-            .filter { it.startsWith("x-openrouter", ignoreCase = true) || it.equals("openrouter-id", ignoreCase = true) }
+            .filter(::isOpenRouterMetadataHeader)
 
         if (metadataHeaders.isNotEmpty()) {
             val headerSummary = metadataHeaders.joinToString(", ") { name ->
