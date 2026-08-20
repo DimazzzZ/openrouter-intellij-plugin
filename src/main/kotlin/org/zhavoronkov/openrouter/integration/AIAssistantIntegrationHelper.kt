@@ -155,7 +155,7 @@ object AIAssistantIntegrationHelper {
         }
     }
 
-    @Suppress("TooGenericExceptionCaught")
+    @Suppress("TooGenericExceptionCaught", "LongMethod")
     private fun handleWizardAction(project: Project?, status: IntegrationStatus) {
         when (status) {
             IntegrationStatus.AI_ASSISTANT_NOT_AVAILABLE -> {

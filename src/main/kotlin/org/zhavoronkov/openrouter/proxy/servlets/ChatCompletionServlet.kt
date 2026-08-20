@@ -40,6 +40,17 @@ data class StreamingErrorContext(
     val request: Request
 )
 
+/**
+ * Holds both the typed OpenAI request (for validation/logging) and the raw JSON
+ * (for field-preserving passthrough to OpenRouter). This ensures unknown fields
+ * in the incoming request are forwarded verbatim to OpenRouter without being
+ * silently dropped by Gson serialization of the typed model.
+ */
+data class ParsedChatRequest(
+    val typedRequest: OpenAIChatCompletionRequest,
+    val rawJson: JsonObject
+)
+
 @Suppress("TooManyFunctions")
 class ChatCompletionServlet : HttpServlet() {
 
@@ -226,8 +237,9 @@ class ChatCompletionServlet : HttpServlet() {
 
         val apiKey = validateAndGetApiKey(resp, requestId)
         if (apiKey != null) {
-            val openAIRequest = parseRequestBody(requestBody, resp, requestId)
-            if (openAIRequest != null) {
+            val parsed = parseRequestBody(requestBody, resp, requestId)
+            if (parsed != null) {
+                val openAIRequest = parsed.typedRequest
                 PluginLogger.Service.info("[Chat-$requestId] 📝 Model: '${openAIRequest.model}'")
 
                 // Pre-validate multimodal content against model capabilities
@@ -239,7 +251,7 @@ class ChatCompletionServlet : HttpServlet() {
                     )
                     sendMultimodalValidationError(resp, validationResult, requestId)
                 } else {
-                    routeRequest(resp, openAIRequest, apiKey, requestId, startNs)
+                    routeRequest(resp, parsed, apiKey, requestId, startNs)
                 }
             }
         }
@@ -264,17 +276,18 @@ class ChatCompletionServlet : HttpServlet() {
      */
     private fun routeRequest(
         resp: HttpServletResponse,
-        openAIRequest: OpenAIChatCompletionRequest,
+        parsed: ParsedChatRequest,
         apiKey: String,
         requestId: String,
         startNs: Long
     ) {
+        val openAIRequest = parsed.typedRequest
         if (openAIRequest.stream == true) {
             PluginLogger.Service.info("[Chat-$requestId] 🌊 STREAMING requested - handling SSE response")
-            handleStreamingRequest(resp, openAIRequest, apiKey, requestId)
+            handleStreamingRequest(resp, parsed, apiKey, requestId)
         } else {
             PluginLogger.Service.info("[Chat-$requestId] 📦 NON-STREAMING request - handling standard response")
-            handleNonStreamingRequest(resp, openAIRequest, apiKey, requestId, startNs)
+            handleNonStreamingRequest(resp, parsed, apiKey, requestId, startNs)
         }
     }
 
@@ -329,7 +342,7 @@ class ChatCompletionServlet : HttpServlet() {
      */
     private fun handleStreamingRequest(
         resp: HttpServletResponse,
-        openAIRequest: OpenAIChatCompletionRequest,
+        parsed: ParsedChatRequest,
         apiKey: String,
         requestId: String
     ) {
@@ -347,7 +360,7 @@ class ChatCompletionServlet : HttpServlet() {
         writer.flush() // Flush headers immediately
 
         try {
-            val jsonBody = prepareRequest(openAIRequest, requestId, isStreaming = true)
+            val jsonBody = prepareRequest(parsed.rawJson, requestId, isStreaming = true)
             val request = buildOpenRouterRequest(jsonBody, apiKey)
             executeStreamingRequest(request, writer, requestId, apiKey, jsonBody)
         } catch (e: IOException) {
@@ -362,18 +375,61 @@ class ChatCompletionServlet : HttpServlet() {
     }
 
     /**
-     * Prepare the request for pure passthrough
+     * Prepare the request body for OpenRouter by serializing the raw JSON.
+     * This preserves all fields from the original request — including OpenRouter-specific
+     * parameters (provider, models[], route, transforms, response_format, plugins, preset,
+     * usage, etc.) that the typed model doesn't declare. Only applies configured defaults
+     * for temperature/max_tokens when not already present in the request.
      */
     private fun prepareRequest(
-        openAIRequest: OpenAIChatCompletionRequest,
+        rawJson: JsonObject,
         requestId: String,
         isStreaming: Boolean
     ): String {
-        val jsonBody = gson.toJson(openAIRequest)
+        // Apply configured defaults only when not already present in the request
+        applyConfiguredDefaults(rawJson)
+
+        val jsonBody = gson.toJson(rawJson)
         val bodyPreview = jsonBody.take(STREAMING_TIMEOUT_MS.toInt())
         val mode = if (isStreaming) "Streaming" else "Non-streaming"
         PluginLogger.Service.debug("[Chat-$requestId] $mode request body (passthrough): $bodyPreview...")
         return jsonBody
+    }
+
+    /**
+     * Apply plugin-configured defaults (temperature, max_tokens) to the raw JSON
+     * only when the request doesn't already include them and the plugin has them configured.
+     */
+    private fun applyConfiguredDefaults(rawJson: JsonObject) {
+        try {
+            val settingsService = OpenRouterSettingsService.getInstance()
+            val defaultMaxTokens = settingsService.uiPreferencesManager.defaultMaxTokens
+            if (defaultMaxTokens > 0 && !rawJson.has("max_tokens")) {
+                rawJson.addProperty("max_tokens", defaultMaxTokens)
+            }
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            // Settings service may not be available in test environment
+            // (getService can raise IllegalStateException or a class-loading
+            // Error); a broad catch is intentional so defaults are simply
+            // skipped rather than failing the request.
+            PluginLogger.Service.debug("Could not apply configured defaults: ${e.message}")
+        }
+    }
+
+    /**
+     * Log OpenRouter-specific response metadata headers at debug level.
+     * These include routing decisions, model used, generation ID, etc.
+     */
+    private fun logOpenRouterMetadata(response: Response, requestId: String) {
+        val metadataHeaders = response.headers.names()
+            .filter(::isOpenRouterMetadataHeader)
+
+        if (metadataHeaders.isNotEmpty()) {
+            val headerSummary = metadataHeaders.joinToString(", ") { name ->
+                "$name=${response.header(name)}"
+            }
+            PluginLogger.Service.debug("[Chat-$requestId] OpenRouter metadata: $headerSummary")
+        }
     }
 
     /**
@@ -405,6 +461,7 @@ class ChatCompletionServlet : HttpServlet() {
                 return
             }
 
+            logOpenRouterMetadata(response, requestId)
             PluginLogger.Service.info("[Chat-$requestId] Streaming response from OpenRouter...")
             streamResponseToClient(response, writer, requestId)
         }
@@ -645,17 +702,17 @@ class ChatCompletionServlet : HttpServlet() {
      */
     private fun handleNonStreamingRequest(
         resp: HttpServletResponse,
-        openAIRequest: OpenAIChatCompletionRequest,
+        parsed: ParsedChatRequest,
         apiKey: String,
         requestId: String,
         startNs: Long
     ) {
-        val requestBody = prepareRequest(openAIRequest, requestId, isStreaming = false)
+        val requestBody = prepareRequest(parsed.rawJson, requestId, isStreaming = false)
         nonStreamingHandler.handleNonStreamingRequest(
             resp = resp,
             requestBody = requestBody,
             apiKey = apiKey,
-            originalModel = openAIRequest.model,
+            originalModel = parsed.typedRequest.model,
             requestId = requestId,
             startNs = startNs
         )
@@ -728,13 +785,24 @@ class ChatCompletionServlet : HttpServlet() {
     /**
      * Parse request body from string instead of reading from request again
      */
+    @Suppress("ReturnCount") // Early-return guard clauses (invalid JSON, empty messages) read
+    // more clearly than nested conditionals; each return maps to a distinct 400 response.
     private fun parseRequestBody(
         requestBody: String,
         resp: HttpServletResponse,
         requestId: String
-    ): OpenAIChatCompletionRequest? {
+    ): ParsedChatRequest? {
         return try {
-            val openAIRequest = gson.fromJson(requestBody, OpenAIChatCompletionRequest::class.java)
+            // Parse into JsonObject first so we can preserve all fields verbatim for
+            // outbound passthrough. Then deserialize the same JsonObject into the typed
+            // model for validation/logging/multimodal checks.
+            val rawJson = gson.fromJson(requestBody, JsonObject::class.java)
+                ?: run {
+                    PluginLogger.Service.error("[Chat-$requestId] Request body is not a JSON object")
+                    sendErrorResponse(resp, "Invalid JSON format", HttpServletResponse.SC_BAD_REQUEST)
+                    return null
+                }
+            val openAIRequest = gson.fromJson(rawJson, OpenAIChatCompletionRequest::class.java)
 
             if (openAIRequest.messages.isEmpty()) {
                 PluginLogger.Service.error(
@@ -750,7 +818,7 @@ class ChatCompletionServlet : HttpServlet() {
             PluginLogger.Service.info(
                 "[Chat-$requestId] Processing request for model: $model with $msgCount messages, stream=$streamStr"
             )
-            openAIRequest
+            ParsedChatRequest(typedRequest = openAIRequest, rawJson = rawJson)
         } catch (e: JsonSyntaxException) {
             PluginLogger.Service.error("[Chat-$requestId] Failed to parse request JSON: ${e.message}", e)
             sendErrorResponse(resp, "Invalid JSON format", HttpServletResponse.SC_BAD_REQUEST)

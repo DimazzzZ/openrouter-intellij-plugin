@@ -81,6 +81,9 @@ class NonStreamingResponseHandler(
         resp: HttpServletResponse,
         requestId: String
     ): ChatCompletionResponse? {
+        // Log OpenRouter-specific metadata headers at debug level
+        logOpenRouterMetadata(response, requestId)
+
         return when {
             !response.isSuccessful -> {
                 val errorBody = response.body?.string() ?: "Unknown error"
@@ -157,5 +160,21 @@ class NonStreamingResponseHandler(
         resp.contentType = "application/json"
         resp.status = statusCode
         resp.writer.write("""{"error": {"message": "$message", "type": "api_error", "code": "$statusCode"}}""")
+    }
+
+    /**
+     * Log OpenRouter-specific response metadata headers at debug level.
+     * These include routing decisions, model used, generation ID, etc.
+     */
+    private fun logOpenRouterMetadata(response: okhttp3.Response, requestId: String) {
+        val metadataHeaders = response.headers.names()
+            .filter(::isOpenRouterMetadataHeader)
+
+        if (metadataHeaders.isNotEmpty()) {
+            val headerSummary = metadataHeaders.joinToString(", ") { name ->
+                "$name=${response.header(name)}"
+            }
+            PluginLogger.Service.debug("[Chat-$requestId] OpenRouter metadata: $headerSummary")
+        }
     }
 }
