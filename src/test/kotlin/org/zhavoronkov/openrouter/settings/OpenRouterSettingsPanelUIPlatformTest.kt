@@ -15,7 +15,7 @@ import javax.swing.JSpinner
  * Comprehensive UI tests for OpenRouterSettingsPanel
  * Tests verify that all UI components are present and functional
  */
-class OpenRouterSettingsPanelUITest : BasePlatformTestCase() {
+class OpenRouterSettingsPanelUIPlatformTest : BasePlatformTestCase() {
 
     private lateinit var settingsPanel: OpenRouterSettingsPanel
 

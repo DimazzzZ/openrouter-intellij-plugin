@@ -10,7 +10,7 @@ import javax.swing.JRadioButton
  * Integration test that actually instantiates OpenRouterSettingsPanel and OpenRouterConfigurable
  * to catch runtime errors like UiDslException
  */
-class OpenRouterConfigurableIntegrationTest : BasePlatformTestCase() {
+class OpenRouterConfigurableIntegrationPlatformTest : BasePlatformTestCase() {
 
     fun testConfigurableCreatesComponentWithoutErrors() {
         val configurable = OpenRouterConfigurable()
