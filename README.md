@@ -51,7 +51,9 @@ When you first install the plugin, a **welcome notification** will appear with a
 ### Manual Setup
 
 1. **Open Settings**: `Settings` → `Tools` → `OpenRouter`
-2. **Authenticate**: Click "Connect to OpenRouter" for OAuth/PKCE, or paste a [Provisioning Key](https://openrouter.ai/settings/provisioning-keys)
+2. **Authenticate**: Click **Run Setup Wizard** and choose:
+   - **Regular**: One-click OAuth/PKCE authentication
+   - **Extended**: Paste your [Provisioning Key](https://openrouter.ai/settings/provisioning-keys)
 3. **Select Models**: Go to `Favorite Models` tab and choose your models
 4. **Start Using**: Click the status bar widget to access features
 

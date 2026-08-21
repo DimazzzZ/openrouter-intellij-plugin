@@ -16,15 +16,19 @@ Before you begin, ensure you have:
 ### Step 1: Configure OpenRouter Plugin
 
 1. Open **Settings** → **Tools** → **OpenRouter**
-2. Enter your **Provisioning Key** from [OpenRouter Provisioning Keys](https://openrouter.ai/settings/provisioning-keys)
-3. Click **Apply** and **OK**
+2. Click **Run Setup Wizard** button
+3. In the wizard:
+   - **Step 1 (Authentication Setup)**: Choose **Regular** (OAuth/PKCE one-click) or **Extended** (Provisioning Key)
+   - If Extended: Paste your [Provisioning Key](https://openrouter.ai/settings/provisioning-keys)
+   - **Step 2 (Models)**: Select your favorite models
+   - **Step 3 (Completion)**: Review settings and click **Finish**
 
 ![OpenRouter Settings](images/openrouter-settings.png)
-<p style="text-align:center;font-style: italic">OpenRouter settings panel with provisioning key field</p>
+<p style="text-align:center;font-style: italic">OpenRouter settings panel with Setup Wizard button</p>
 
 ### Step 2: Start the Proxy Server
 
-The proxy server should start automatically when you configure your Provisioning Key. You can verify it's running:
+The proxy server can be configured to start automatically (default in Standard Setup). You can verify it's running:
 
 1. Open **Settings** → **Tools** → **OpenRouter**
 2. Look for the **Proxy Server** section
@@ -151,7 +155,7 @@ You can manually control the proxy server:
 
 - **Start Server**: Click **Start Server** button in settings
 - **Stop Server**: Click **Stop Server** button in settings
-- **Auto-start**: The server starts automatically when you configure a Provisioning Key
+- **Auto-start**: Enable the **Auto-start proxy server** checkbox in the Proxy Server section (enabled by default when using the Setup Wizard's Standard Setup)
 - **Status**: Check the status indicator in the OpenRouter status bar widget
 
 ## 🐛 Troubleshooting
@@ -192,8 +196,7 @@ You can manually control the proxy server:
 **Solutions**:
 1. Verify your Provisioning Key is valid at [OpenRouter Settings](https://openrouter.ai/settings/provisioning-keys)
 2. Check that the key has sufficient credits
-3. Re-enter the Provisioning Key in OpenRouter plugin settings
-4. Click **Test Connection** to verify
+3. Re-run the **Setup Wizard** (`Settings` → `Tools` → `OpenRouter` → **Run Setup Wizard**) to re-enter your key — the wizard validates the key automatically during setup
 
 ## 📚 Additional Resources
 
@@ -246,4 +249,3 @@ A: The proxy automatically fetches the latest model list from OpenRouter. Just r
 ---
 
 **Need help?** Open an issue on [GitHub](https://github.com/DimazzzZ/openrouter-intellij-plugin/issues) or check the [troubleshooting guide](../DEBUGGING.md).
-
