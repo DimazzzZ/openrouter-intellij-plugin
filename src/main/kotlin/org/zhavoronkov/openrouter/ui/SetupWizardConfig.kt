@@ -21,8 +21,10 @@ object SetupWizardConfig {
     const val KEY_VALIDATION_DEBOUNCE_MS = 500L
     const val MODEL_LOADING_TIMEOUT_MS = 30000L
 
-    // Default proxy port
-    const val DEFAULT_PROXY_PORT = 8000
+    // Default proxy port. Matches the runtime auto-select range start
+    // (OpenRouterSettings.proxyPortRangeStart = 8880) so a wizard-configured
+    // install lands on the same port the plugin would pick automatically.
+    const val DEFAULT_PROXY_PORT = 8880
 
     // String truncation length
     const val API_KEY_TRUNCATE_LENGTH = 10
