@@ -10,11 +10,12 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeAll
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.zhavoronkov.openrouter.testing.OkHttpLeakSafeExtension
 import org.junit.jupiter.api.TestInstance
 import java.io.File
 import java.util.concurrent.CompletableFuture
@@ -32,10 +33,10 @@ import java.util.concurrent.atomic.AtomicInteger
  *
  * Uses .env file for real API keys to test complete flow.
  */
+@ExtendWith(OkHttpLeakSafeExtension::class)
 @DisplayName("Direct OpenRouter API Duplicate Test")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@Tag("integration")
-@Disabled("Disabled by default to avoid consuming API credits. Enable manually for duplicate testing.")
+@Tag("functional")
 class ProxyServerDuplicateTest {
 
     private lateinit var httpClient: OkHttpClient
@@ -66,6 +67,8 @@ class ProxyServerDuplicateTest {
 
     @AfterAll
     fun tearDownAll() {
+        httpClient.dispatcher.executorService.shutdown()
+        httpClient.connectionPool.evictAll()
         println("✅ Direct API tests completed")
     }
 
