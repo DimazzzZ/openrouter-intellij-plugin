@@ -49,8 +49,11 @@ class StreamingResponseHandler {
     }
 
     private val gson = Gson()
+    private val toolCallAccumulator = ToolCallAccumulator()
 
     fun streamResponseToClient(response: Response, writer: PrintWriter, requestId: String) {
+        // Reset accumulator state for this stream
+        toolCallAccumulator.reset()
         response.body?.use { responseBody ->
             val reader = BufferedReader(responseBody.charStream())
             processStreamLines(reader, writer, requestId)
@@ -166,6 +169,11 @@ class StreamingResponseHandler {
                 // Don't reject - OpenRouter might use slightly different format
             }
 
+            // Process tool_call deltas (if present) for observability and accumulation.
+            // The chunk is still forwarded as-is to preserve streaming latency; the accumulator
+            // is used to track state and can be inspected for verification/logging.
+            processToolCallDeltas(json, requestId)
+
             // Write the valid chunk
             writer.println("$DATA_PREFIX$data")
             writer.println()
@@ -175,6 +183,42 @@ class StreamingResponseHandler {
         } catch (e: JsonSyntaxException) {
             PluginLogger.Service.warn("[Chat-$requestId] Invalid JSON in chunk: ${e.message}")
             ChunkValidationResult.Invalid("Invalid JSON: ${e.message}")
+        }
+    }
+
+    /**
+     * Inspect a streaming chunk for delta.tool_calls and feed them to the accumulator.
+     *
+     * This provides observability for tool-calling agent workflows and ensures the accumulator
+     * assembles complete tool_calls when finish_reason == "tool_calls". The chunk is still
+     * forwarded verbatim to preserve OpenAI-compatible streaming behavior.
+     */
+    private fun processToolCallDeltas(json: JsonObject, requestId: String) {
+        try {
+            val choices = json.getAsJsonArray("choices") ?: return
+            if (choices.size() == 0) return
+
+            val choice = choices[0].asJsonObject
+            val delta = choice.getAsJsonObject("delta")
+            val toolCallsArray = delta?.getAsJsonArray("tool_calls")
+            val finishReasonElement = choice.get("finish_reason")
+            val finishReason = if (finishReasonElement != null && !finishReasonElement.isJsonNull) {
+                finishReasonElement.asString
+            } else {
+                null
+            }
+
+            if (toolCallsArray != null || finishReason == "tool_calls") {
+                val completed = toolCallAccumulator.processDeltaToolCalls(toolCallsArray, finishReason)
+                if (completed.isNotEmpty()) {
+                    PluginLogger.Service.debug(
+                        "[Chat-$requestId] Assembled ${completed.size} complete tool_call(s) from stream"
+                    )
+                }
+            }
+        } catch (e: IllegalStateException) {
+            // Unexpected JSON shape - log but don't fail the stream
+            PluginLogger.Service.debug("[Chat-$requestId] Could not parse tool_calls from chunk: ${e.message}")
         }
     }
 
@@ -282,6 +326,7 @@ class StreamingResponseHandler {
      */
     fun handleStreamingError(e: Exception, writer: PrintWriter, requestId: String) {
         PluginLogger.Service.error("[Chat-$requestId] Error during streaming", e)
+        toolCallAccumulator.reset()
         val errorMessage = "Streaming error: ${e.message ?: "Unknown error"}"
         sendErrorChunk(writer, enhanceErrorMessage(errorMessage))
         sendDoneMarker(writer)
