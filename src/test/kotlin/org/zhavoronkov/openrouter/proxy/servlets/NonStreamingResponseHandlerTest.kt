@@ -11,8 +11,8 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
-import org.zhavoronkov.openrouter.testing.OkHttpLeakSafeExtension
 import org.mockito.Mockito.mock
+import org.zhavoronkov.openrouter.testing.OkHttpLeakSafeExtension
 import java.io.PrintWriter
 import java.io.StringWriter
 

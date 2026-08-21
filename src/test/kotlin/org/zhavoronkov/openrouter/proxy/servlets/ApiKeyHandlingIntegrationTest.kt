@@ -25,7 +25,6 @@ import java.io.StringWriter
  */
 @DisplayName("API Key Handling Integration Tests")
 @Tag("functional")
-
 class ApiKeyHandlingIntegrationTest {
 
     private lateinit var integrationHelper: IntegrationTestHelper

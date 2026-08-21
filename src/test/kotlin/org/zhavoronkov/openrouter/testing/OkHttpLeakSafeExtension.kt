@@ -36,9 +36,9 @@ class OkHttpLeakSafeExtension : BeforeAllCallback {
                 offenders.addAll(
                     listOf(
                         "OkHttp TaskRunner",
-                        "OkHttp ",           // covers "OkHttp openrouter.ai" etc.
+                        "OkHttp ", // covers "OkHttp openrouter.ai" etc.
                         "MockWebServer",
-                        "qtp",               // Jetty thread pool threads
+                        "qtp", // Jetty thread pool threads
                     )
                 )
             } catch (_: Exception) {

@@ -12,12 +12,12 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
-import org.zhavoronkov.openrouter.testing.OkHttpLeakSafeExtension
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatMessage
+import org.zhavoronkov.openrouter.testing.OkHttpLeakSafeExtension
 
 @ExtendWith(OkHttpLeakSafeExtension::class)
 @DisplayName("OpenRouter Service Chat Completion Tests")

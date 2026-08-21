@@ -16,9 +16,9 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.extension.ExtendWith
 import org.zhavoronkov.openrouter.testing.OkHttpLeakSafeExtension
-import org.junit.jupiter.api.TestInstance
 import org.zhavoronkov.openrouter.utils.TestMediaGenerator
 import java.io.File
 import java.util.concurrent.TimeUnit
