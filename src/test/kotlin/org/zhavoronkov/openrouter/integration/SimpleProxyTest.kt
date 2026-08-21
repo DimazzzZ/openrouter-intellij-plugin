@@ -11,11 +11,12 @@ import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeAll
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
+import org.junit.jupiter.api.extension.ExtendWith
+import org.zhavoronkov.openrouter.testing.OkHttpLeakSafeExtension
 import java.io.File
 import java.util.concurrent.TimeUnit
 
@@ -27,10 +28,10 @@ import java.util.concurrent.TimeUnit
  * 2. Request processing is consistent
  * 3. No artificial duplication is introduced by our code
  */
+@ExtendWith(OkHttpLeakSafeExtension::class)
 @DisplayName("Simple Proxy Request Behavior Test")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@Tag("integration")
-@Disabled("Disabled by default to avoid consuming API credits. Enable manually for testing.")
+@Tag("functional")
 class SimpleProxyTest {
 
     private lateinit var httpClient: OkHttpClient
@@ -60,6 +61,8 @@ class SimpleProxyTest {
 
     @AfterAll
     fun tearDownAll() {
+        httpClient.dispatcher.executorService.shutdown()
+        httpClient.connectionPool.evictAll()
         println("✅ Simple proxy tests completed")
     }
 

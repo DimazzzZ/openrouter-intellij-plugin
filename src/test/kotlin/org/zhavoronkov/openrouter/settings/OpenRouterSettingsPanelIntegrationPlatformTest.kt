@@ -6,7 +6,7 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
  * Integration test that actually instantiates OpenRouterSettingsPanel
  * to catch runtime errors like UiDslException
  */
-class OpenRouterSettingsPanelIntegrationTest : BasePlatformTestCase() {
+class OpenRouterSettingsPanelIntegrationPlatformTest : BasePlatformTestCase() {
 
     fun testPanelInstantiation() {
         // This test will fail if there are any runtime errors during panel creation

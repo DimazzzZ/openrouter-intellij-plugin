@@ -12,15 +12,18 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.zhavoronkov.openrouter.testing.OkHttpLeakSafeExtension
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
+@ExtendWith(OkHttpLeakSafeExtension::class)
 @DisplayName("OpenRouter API Integration Tests")
-@Disabled("Disabled by default to avoid memory issues. Enable manually for integration testing.")
+@Tag("functional")
 class ApiIntegrationTest {
 
     private lateinit var mockWebServer: MockWebServer
@@ -41,6 +44,8 @@ class ApiIntegrationTest {
 
     @AfterEach
     fun tearDown() {
+        httpClient.dispatcher.executorService.shutdown()
+        httpClient.connectionPool.evictAll()
         mockWebServer.shutdown()
     }
 

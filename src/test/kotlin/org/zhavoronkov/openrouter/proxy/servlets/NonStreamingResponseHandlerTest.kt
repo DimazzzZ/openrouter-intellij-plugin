@@ -10,21 +10,25 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.Mockito.mock
+import org.zhavoronkov.openrouter.testing.OkHttpLeakSafeExtension
 import java.io.PrintWriter
 import java.io.StringWriter
 
+@ExtendWith(OkHttpLeakSafeExtension::class)
 @DisplayName("NonStreamingResponseHandler Tests")
 class NonStreamingResponseHandlerTest {
 
     private lateinit var server: MockWebServer
     private lateinit var handler: NonStreamingResponseHandler
+    private lateinit var client: OkHttpClient
 
     @BeforeEach
     fun setUp() {
         server = MockWebServer()
         server.start()
-        val client = OkHttpClient.Builder()
+        client = OkHttpClient.Builder()
             .addInterceptor { chain ->
                 val newRequest = chain.request().newBuilder()
                     .url(server.url("/api/v1/chat/completions"))
@@ -37,6 +41,8 @@ class NonStreamingResponseHandlerTest {
 
     @AfterEach
     fun tearDown() {
+        client.dispatcher.executorService.shutdown()
+        client.connectionPool.evictAll()
         server.shutdown()
     }
 

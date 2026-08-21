@@ -12,12 +12,14 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeAll
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
+import org.junit.jupiter.api.extension.ExtendWith
 import org.zhavoronkov.openrouter.proxy.servlets.HealthCheckServlet
+import org.zhavoronkov.openrouter.testing.OkHttpLeakSafeExtension
 import java.util.concurrent.TimeUnit
 
 /**
@@ -32,9 +34,10 @@ import java.util.concurrent.TimeUnit
  * Note: Full end-to-end tests with OpenRouter API are in separate test files
  * because they require IntelliJ services which aren't available in unit tests.
  */
+@ExtendWith(OkHttpLeakSafeExtension::class)
 @DisplayName("OpenRouter Proxy Server Integration Tests")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@Disabled("Disabled by default to avoid memory issues. Enable manually for integration testing.")
+@Tag("functional")
 class ProxyServerIntegrationTest {
 
     private lateinit var jettyServer: Server
@@ -68,6 +71,8 @@ class ProxyServerIntegrationTest {
 
     @AfterAll
     fun tearDownAll() {
+        httpClient.dispatcher.executorService.shutdown()
+        httpClient.connectionPool.evictAll()
         jettyServer.stop()
         jettyServer.join()
         println("✅ Test server stopped")

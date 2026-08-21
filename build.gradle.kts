@@ -11,6 +11,24 @@ plugins {
 group = project.findProperty("pluginGroup") ?: "org.zhavoronkov"
 version = project.findProperty("pluginVersion") ?: "0.5.0"
 
+// Capture version to a local before using in processResources. Referencing
+// `version` directly inside the task action would capture the Project itself,
+// which the configuration cache cannot serialize. This is the only thing that
+// was blocking CC for this build.
+val pluginVersionValue = version.toString()
+
+tasks.processResources {
+    // Re-bind to a local inside the task configuration block: a top-level
+    // `val` in a .kts script is a field on the script object, so referencing
+    // it directly from the action lambda captures the script itself
+    // ("cannot serialize Gradle script object references"). Capturing a plain
+    // local does not.
+    val version = pluginVersionValue
+    filesMatching("openrouter.properties") {
+        expand("pluginVersion" to version)
+    }
+}
+
 repositories {
     mavenCentral()
     // IntelliJ Platform Gradle Plugin 2.x repositories
@@ -45,13 +63,27 @@ dependencies {
     implementation("org.eclipse.jetty.ee10:jetty-ee10-servlet:12.1.6")
     implementation("jakarta.servlet:jakarta.servlet-api:6.0.0")
 
-    // Test dependencies
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    // Bridges JUnit 3/4-style tests (e.g. IntelliJ's BasePlatformTestCase,
+    // which extends junit.framework.TestCase) onto the JUnit Platform so
+    // `platformTest` actually discovers and runs integration tests.
+    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.11.4")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0") {
+        // Exclude the transitive kotlinx-coroutines-core-jvm — IntelliJ's
+        // bundled lib/util-8.jar ships a patched version (1.10.1-intellij-5)
+        // that includes `runBlockingWithParallelismCompensation`. If the plain
+        // 1.9.0 core JAR lands on the classpath, the PathClassLoader resolves
+        // `kotlinx.coroutines.BuildersKt` from it (missing the method) before
+        // reaching util-8.jar, causing NoSuchMethodError during tearDown.
+        exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-core")
+        exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-core-jvm")
+        exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-bom")
+    }
     testImplementation("org.mockito:mockito-core:5.7.0")
     testImplementation("org.mockito:mockito-junit-jupiter:5.7.0")
     testImplementation("org.mockito.kotlin:mockito-kotlin:5.1.0")
-    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("org.assertj:assertj-core:3.27.7")
 
     // Detekt plugins
@@ -180,7 +212,6 @@ tasks {
         compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
     }
 
-    // Configure Detekt tasks
     withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
         jvmTarget = "21"
         // ignoreFailures is deliberately NOT set: lint gates the build.
@@ -192,19 +223,103 @@ tasks {
         }
     }
 
-    // Configure tests
     test {
-        useJUnitPlatform()
-        systemProperty("java.awt.headless", "true")
+        useJUnitPlatform {
+            if (!project.hasProperty("functional")) {
+                excludeTags("functional")
+            }
+        }
+        filter {
+            // Platform tests (BasePlatformTestCase subclasses) need IntelliJ's
+            // shared TestApplication, which only the `platformTest` task sets
+            // up. Exclude them here so the fast unit task doesn't try (and fail)
+            // to run them.
+            excludeTestsMatching("*PlatformTest")
+            excludeTestsMatching("*SmokeTest")
+        }
         systemProperty("openrouter.testMode", "true")
-        jvmArgs = listOf(
-            "-Dnet.bytebuddy.experimental=true",  // For Mockito Java 21+ compatibility
+        systemProperty("java.awt.headless", "true")
+
+        maxParallelForks = Runtime.getRuntime().availableProcessors().coerceAtMost(4)
+        forkEvery = 100
+        maxHeapSize = "1g"
+
+        // Mockito needs these on JDK 21; ByteBuddy experimental unblocks
+        // inline mock making, and the --add-opens calls let Mockito reach into
+        // java.base internals it reflects on.
+        jvmArgs(
+            "-Dnet.bytebuddy.experimental=true",
             "--add-opens=java.base/java.lang=ALL-UNNAMED",
-            "--add-opens=java.base/java.util=ALL-UNNAMED",
-            "-Djava.util.logging.config.file=${project.projectDir}/src/test/resources/test-log.properties"
+            "--add-opens=java.base/java.util=ALL-UNNAMED"
         )
-        testLogging {
-            events("passed", "skipped", "failed")
+
+        reports {
+            junitXml.required.set(true)
+            html.required.set(true)
+        }
+    }
+
+    register<Test>("functionalTest") {
+        description = "Runs functional/integration tests that require external dependencies"
+        group = "verification"
+
+        useJUnitPlatform {
+            includeTags("functional")
+        }
+        systemProperty("openrouter.testMode", "true")
+        maxParallelForks = 1
+
+        reports {
+            junitXml.required.set(true)
+            html.required.set(true)
+        }
+    }
+
+    named("check") {
+        dependsOn("platformTest")
+    }
+}
+
+intellijPlatformTesting {
+    testIde {
+        register("platformTest") {
+            task {
+                description = "Runs IntelliJ Platform tests that need the shared TestApplication."
+                group = "verification"
+
+                useJUnitPlatform()
+                filter {
+                    includeTestsMatching("*PlatformTest")
+                    includeTestsMatching("*SmokeTest")
+                }
+                systemProperty("openrouter.testMode", "true")
+                maxParallelForks = 1
+
+                reports {
+                    junitXml.required.set(true)
+                    html.required.set(true)
+                }
+            }
+        }
+    }
+}
+
+// Configure Kover code coverage exclusions
+kover {
+    reports {
+        filters {
+            excludes {
+                classes(
+                    "org.zhavoronkov.openrouter.ui.*",
+                    "org.zhavoronkov.openrouter.ui.*\$*",
+                    "org.zhavoronkov.openrouter.service.*Service",
+                    "org.zhavoronkov.openrouter.service.*Service\$*",
+                    "org.zhavoronkov.openrouter.settings.*",
+                    "org.zhavoronkov.openrouter.settings.*\$*",
+                    "org.zhavoronkov.openrouter.startup.*",
+                    "org.zhavoronkov.openrouter.actions.*"
+                )
+            }
         }
     }
 }

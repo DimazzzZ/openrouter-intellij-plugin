@@ -72,6 +72,16 @@ fabric.properties
 .env.local
 .env.*.local
 
+# Agent scratchpads and research
+.research/
+.scratch/
+
+# Secrets and certificates
+*.har
+*.pem
+chain.crt
+*.crt
+
 # Node modules (if any frontend components)
 node_modules/
 npm-debug.log*

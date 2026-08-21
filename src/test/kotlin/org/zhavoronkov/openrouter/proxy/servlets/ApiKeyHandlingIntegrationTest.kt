@@ -24,8 +24,7 @@ import java.io.StringWriter
  * These tests verify the complete API key handling flow and integration points
  */
 @DisplayName("API Key Handling Integration Tests")
-@Tag("integration")
-@org.junit.jupiter.api.Disabled("Disabled by default to avoid memory issues. Enable manually for integration testing.")
+@Tag("functional")
 class ApiKeyHandlingIntegrationTest {
 
     private lateinit var integrationHelper: IntegrationTestHelper

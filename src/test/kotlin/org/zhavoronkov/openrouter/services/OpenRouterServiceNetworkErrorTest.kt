@@ -16,6 +16,8 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.zhavoronkov.openrouter.testing.OkHttpLeakSafeExtension
 import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
@@ -27,20 +29,25 @@ import java.net.UnknownHostException
  * These tests verify that network errors (offline, DNS issues, timeouts, etc.)
  * are handled gracefully without throwing exceptions or alarming users.
  */
+@ExtendWith(OkHttpLeakSafeExtension::class)
 @DisplayName("OpenRouter Service Network Error Handling Tests")
 class OpenRouterServiceNetworkErrorTest {
 
     private lateinit var mockServer: MockWebServer
     private val gson = Gson()
+    private lateinit var httpClient: OkHttpClient
 
     @BeforeEach
     fun setUp() {
         mockServer = MockWebServer()
         mockServer.start()
+        httpClient = OkHttpClient.Builder().build()
     }
 
     @AfterEach
     fun tearDown() {
+        httpClient.dispatcher.executorService.shutdown()
+        httpClient.connectionPool.evictAll()
         mockServer.shutdown()
     }
 
@@ -96,14 +103,14 @@ class OpenRouterServiceNetworkErrorTest {
                     .setBody("{\"error\": \"Internal server error\"}")
             )
 
-            val client = OkHttpClient.Builder().build()
+            // Reuse shared httpClient from setUp
 
             assertDoesNotThrow {
                 val request = okhttp3.Request.Builder()
                     .url(mockServer.url("/api/v1/credits"))
                     .build()
 
-                val response = client.newCall(request).execute()
+                val response = httpClient.newCall(request).execute()
 
                 // Verify error response is handled
                 assertFalse(response.isSuccessful)
@@ -120,14 +127,14 @@ class OpenRouterServiceNetworkErrorTest {
                     .setBody("This is not valid JSON")
             )
 
-            val client = OkHttpClient.Builder().build()
+            // Reuse shared httpClient from setUp
 
             assertDoesNotThrow {
                 val request = okhttp3.Request.Builder()
                     .url(mockServer.url("/api/v1/credits"))
                     .build()
 
-                val response = client.newCall(request).execute()
+                val response = httpClient.newCall(request).execute()
                 val body = response.body?.string()
 
                 // Verify that attempting to parse malformed JSON throws expected exception
@@ -212,17 +219,17 @@ class OpenRouterServiceNetworkErrorTest {
                     .setBody("{\"data\": {\"usage\": 5.0, \"limit\": 10.0}}")
             )
 
-            val client = OkHttpClient.Builder().build()
+            // Reuse shared httpClient from setUp
             val url = mockServer.url("/api/v1/credits")
 
             // First attempt fails
             val request1 = okhttp3.Request.Builder().url(url).build()
-            val response1 = client.newCall(request1).execute()
+            val response1 = httpClient.newCall(request1).execute()
             assertFalse(response1.isSuccessful)
 
             // Second attempt succeeds
             val request2 = okhttp3.Request.Builder().url(url).build()
-            val response2 = client.newCall(request2).execute()
+            val response2 = httpClient.newCall(request2).execute()
             assertTrue(response2.isSuccessful)
         }
     }

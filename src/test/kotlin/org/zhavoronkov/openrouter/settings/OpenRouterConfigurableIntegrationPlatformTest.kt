@@ -3,14 +3,13 @@ package org.zhavoronkov.openrouter.settings
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import org.zhavoronkov.openrouter.models.AuthScope
 import javax.swing.JButton
-import javax.swing.JPasswordField
-import javax.swing.JRadioButton
+import javax.swing.JLabel
 
 /**
  * Integration test that actually instantiates OpenRouterSettingsPanel and OpenRouterConfigurable
  * to catch runtime errors like UiDslException
  */
-class OpenRouterConfigurableIntegrationTest : BasePlatformTestCase() {
+class OpenRouterConfigurableIntegrationPlatformTest : BasePlatformTestCase() {
 
     fun testConfigurableCreatesComponentWithoutErrors() {
         val configurable = OpenRouterConfigurable()
@@ -49,28 +48,29 @@ class OpenRouterConfigurableIntegrationTest : BasePlatformTestCase() {
         val panel = OpenRouterSettingsPanel()
         val component = panel.getPanel()
 
-        val radioButtons = findAllRadioButtons(component)
+        // Auth scope selection moved to the Setup Wizard; the panel now shows the
+        // current scope as a read-only status label instead of radio buttons.
+        val labels = findAllLabels(component)
+        val authStatusLabel = labels.find {
+            val t = it.text ?: return@find false
+            t.contains("API Key", ignoreCase = true) ||
+                t.contains("Extended", ignoreCase = true) ||
+                t.contains("Not Configured", ignoreCase = true)
+        }
 
-        val regularButton = radioButtons.find { it.text?.contains("Regular API Key", ignoreCase = true) == true }
-        val extendedButton = radioButtons.find { it.text?.contains("Extended", ignoreCase = true) == true }
-
-        assertNotNull("Regular API Key radio button should exist", regularButton)
-        assertNotNull("Extended radio button should exist", extendedButton)
-
-        // Verify one is selected
-        assertTrue("One radio button should be selected", regularButton!!.isSelected || extendedButton!!.isSelected)
+        assertNotNull("Authentication status label should exist", authStatusLabel)
     }
 
     fun testPanelHasPasswordFieldsForKeys() {
         val panel = OpenRouterSettingsPanel()
         val component = panel.getPanel()
 
-        val passwordFields = findAllPasswordFields(component)
+        // API-key and provisioning-key entry moved to the Setup Wizard, so the panel
+        // no longer embeds password fields. Verify the Setup Wizard entry point exists.
+        val buttons = findAllButtons(component)
+        val setupWizardButton = buttons.find { it.text?.contains("Setup Wizard", ignoreCase = true) == true }
 
-        assertTrue(
-            "At least two password fields should exist (API key and Provisioning key)",
-            passwordFields.size >= 2
-        )
+        assertNotNull("Setup Wizard button should exist for key management", setupWizardButton)
     }
 
     fun testPanelHasPasteButtons() {
@@ -78,9 +78,16 @@ class OpenRouterConfigurableIntegrationTest : BasePlatformTestCase() {
         val component = panel.getPanel()
 
         val buttons = findAllButtons(component)
-        val pasteButtons = buttons.filter { it.text?.equals("Paste", ignoreCase = true) == true }
+        // Paste buttons were part of the old inline key fields, now removed.
+        // The panel's action buttons are the proxy-server controls.
+        val proxyButtons = buttons.filter {
+            val t = it.text ?: return@filter false
+            t.contains("Start", ignoreCase = true) ||
+                t.contains("Stop", ignoreCase = true) ||
+                t.contains("Copy", ignoreCase = true)
+        }
 
-        assertTrue("At least two Paste buttons should exist", pasteButtons.size >= 2)
+        assertTrue("Proxy server control buttons should exist", proxyButtons.size >= 2)
     }
 
     fun testPanelHasProxyServerControls() {
@@ -133,16 +140,10 @@ class OpenRouterConfigurableIntegrationTest : BasePlatformTestCase() {
         return buttons
     }
 
-    private fun findAllRadioButtons(container: java.awt.Container): List<JRadioButton> {
-        val radioButtons = mutableListOf<JRadioButton>()
-        findComponentsRecursive(container, JRadioButton::class.java, radioButtons)
-        return radioButtons
-    }
-
-    private fun findAllPasswordFields(container: java.awt.Container): List<JPasswordField> {
-        val passwordFields = mutableListOf<JPasswordField>()
-        findComponentsRecursive(container, JPasswordField::class.java, passwordFields)
-        return passwordFields
+    private fun findAllLabels(container: java.awt.Container): List<JLabel> {
+        val labels = mutableListOf<JLabel>()
+        findComponentsRecursive(container, JLabel::class.java, labels)
+        return labels
     }
 
     private fun <T : java.awt.Component> findComponentsRecursive(
