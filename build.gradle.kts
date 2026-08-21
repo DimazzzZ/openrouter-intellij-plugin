@@ -91,20 +91,17 @@ dependencies {
 
     // IntelliJ Platform dependencies (2.x plugin style)
     intellijPlatform {
-        val platformVersion = project.findProperty("platformVersion") as String? ?: "2024.2"
-        val platformType = project.findProperty("platformType") as String? ?: "IC"
-        
-        when (platformType) {
-            "IU" -> intellijIdeaUltimate(platformVersion)
-            else -> intellijIdeaCommunity(platformVersion)
-        }
+        val platformVersion = project.findProperty("platformVersion") as String? ?: "2025.3.6"
+        // Since 2025.3, JetBrains unified the distribution — use intellijIdea()
+        // instead of the removed intellijIdeaCommunity()/intellijIdeaUltimate() split.
+        intellijIdea(platformVersion)
 
         // Test framework for plugin tests
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
     }
 }
 
-// Configure Java toolchain to use Java 21 (required by IntelliJ Platform 2024.2+)
+// Configure Java toolchain to use Java 21 (required by IntelliJ Platform 2024.2+; still current for 2025.3)
 java {
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(21))
@@ -115,7 +112,7 @@ java {
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            sinceBuild = project.findProperty("pluginSinceBuild") as String? ?: "242"
+            sinceBuild = project.findProperty("pluginSinceBuild") as String? ?: "253"
             untilBuild = provider { null }  // No upper bound - compatible with all future versions
         }
     }
