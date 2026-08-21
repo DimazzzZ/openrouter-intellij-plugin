@@ -7,7 +7,6 @@ import java.awt.Container
 import javax.swing.JButton
 import javax.swing.JCheckBox
 import javax.swing.JLabel
-import javax.swing.JPasswordField
 import javax.swing.JRadioButton
 import javax.swing.JSpinner
 
@@ -38,38 +37,51 @@ class OpenRouterSettingsPanelUIPlatformTest : BasePlatformTestCase() {
     fun testAuthenticationScopeRadioButtonsExist() {
         val panel = settingsPanel.getPanel()
 
-        val regularButton = findComponentByText(panel, JRadioButton::class.java, "Regular API Key (No monitoring)")
-        assertNotNull("Regular API Key radio button should exist", regularButton)
-
-        val extendedButton = findComponentByText(panel, JRadioButton::class.java, "Extended (Provisioning Key)")
-        assertNotNull("Extended (Provisioning Key) radio button should exist", extendedButton)
+        // Auth scope selection moved to the Setup Wizard; the panel now shows the
+        // current scope as a read-only status label instead of radio buttons.
+        val labels = findAllComponents(panel, JLabel::class.java)
+        val authStatusLabel = labels.find {
+            it.text.contains("API Key", ignoreCase = true) ||
+                it.text.contains("Extended", ignoreCase = true) ||
+                it.text.contains("Not Configured", ignoreCase = true)
+        }
+        assertNotNull("Authentication status label should exist", authStatusLabel)
     }
 
     fun testApiKeyFieldExists() {
         val panel = settingsPanel.getPanel()
-        val passwordFields = findAllComponents(panel, JPasswordField::class.java)
 
-        assertTrue(
-            "At least one password field should exist for API key",
-            passwordFields.isNotEmpty()
+        // API key input moved to the Setup Wizard; verify the wizard entry point exists.
+        val setupButton = findComponentByText(panel, JButton::class.java, "Setup Wizard")
+        assertNotNull(
+            "Setup Wizard button should exist for API key management",
+            setupButton
         )
     }
 
     fun testProvisioningKeyFieldExists() {
         val panel = settingsPanel.getPanel()
-        val passwordFields = findAllComponents(panel, JPasswordField::class.java)
 
-        assertTrue(
-            "At least two password fields should exist (API key and Provisioning key)",
-            passwordFields.size >= 2
+        // Provisioning key input moved to the Setup Wizard; verify the wizard entry point.
+        val setupButton = findComponentByText(panel, JButton::class.java, "Setup Wizard")
+        assertNotNull(
+            "Setup Wizard button should exist for provisioning key management",
+            setupButton
         )
     }
 
     fun testPasteButtonsExist() {
         val panel = settingsPanel.getPanel()
-        val pasteButtons = findAllComponentsByText(panel, JButton::class.java, "Paste")
 
-        assertTrue("At least two Paste buttons should exist", pasteButtons.size >= 2)
+        // Paste buttons were part of the old inline key fields, now removed.
+        // The panel's action buttons are the proxy-server controls.
+        val buttons = findAllComponents(panel, JButton::class.java)
+        val proxyButtons = buttons.filter {
+            it.text.contains("Start", ignoreCase = true) ||
+                it.text.contains("Stop", ignoreCase = true) ||
+                it.text.contains("Copy", ignoreCase = true)
+        }
+        assertTrue("Proxy server control buttons should exist", proxyButtons.size >= 2)
     }
 
     fun testGeneralSettingsComponentsExist() {
