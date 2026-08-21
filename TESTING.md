@@ -2,6 +2,56 @@
 
 This document describes the testing infrastructure and procedures for the OpenRouter IntelliJ Plugin.
 
+> **Update (2026-08)**: The test suite migrated from `@Disabled` to a tag-based
+> taxonomy. See [ADR-0003](docs/adr/0003-disabled-tests-to-tagged-taxonomy.md).
+> The sections below marked "Legacy" describe the old model and are kept for
+> historical context; the authoritative model is the taxonomy in the next
+> section.
+
+## 🏷️ Test Taxonomy (Current)
+
+Every test belongs to exactly one of three categories, distinguished by JUnit
+tags and Gradle task assignment:
+
+| Category | Tag | Gradle Task | When it runs | Purpose |
+|----------|-----|-------------|--------------|---------|
+| **Unit** | (none) | `test` | Every build, every PR | Pure logic; no I/O, no platform. |
+| **Functional** | `@Tag("functional")` | `functionalTest -Pfunctional` | Opt-in; local dev, pre-release | Integration with real HTTP/API. May consume credits. |
+| **Platform** | class name matches `*SmokeTest` or `*PlatformTest`, or file lives under `toolwindow/` | `platformTest` | Every PR (part of `check`) | Requires IntelliJ's shared `TestApplication`. |
+
+### Running tests
+
+```bash
+# Fast unit-test loop (default; excludes functional and platform tests)
+./gradlew test
+
+# Functional tests (opt-in; require -Pfunctional flag to enable @Tag("functional"))
+./gradlew functionalTest -Pfunctional
+
+# Platform tests (uses IntelliJ's TestApplication; wired via intellijPlatformTesting)
+./gradlew platformTest
+
+# All three (unit + platform; functional stays opt-in)
+./gradlew check
+```
+
+### Choosing a category for a new test
+
+- **Pure logic, no IntelliJ APIs, no network?** → Unit test. No tag needed.
+- **Calls a real HTTP endpoint (OpenRouter, mock server on a real port)?** → `@Tag("functional")`.
+- **Uses `BasePlatformTestCase`, `ProjectFixture`, or any `com.intellij.testFramework.*`?** → Name it `*SmokeTest` or `*PlatformTest` and place it under `integration/` or `toolwindow/` to be picked up by `platformTest`.
+
+### Why not @Disabled?
+
+`@Disabled` tests bit-rot silently: they compile but never run, so a refactor
+that breaks them goes unnoticed. Tag-based tasks keep every test discoverable
+and runnable; only the Gradle task assignment decides which ones fire on any
+given CI run.
+
+---
+
+## 📊 Test Overview (Legacy — pre-taxonomy)
+
 ## 📑 Table of Contents
 - [Test Overview](#-test-overview)
 - [Running Tests](#-running-tests)

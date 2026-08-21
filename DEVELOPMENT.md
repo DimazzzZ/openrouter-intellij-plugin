@@ -38,38 +38,60 @@ java -version  # Should be JDK 21
 ### 2. Build and Verify
 ```bash
 # 🏗️ Build the plugin
-./gradlew build --no-daemon
+./gradlew build
 
 # 🧪 Run tests to verify setup
-./gradlew test --no-daemon
+./gradlew test
 
 # 🔍 Verify plugin structure
-./gradlew verifyPlugin --no-daemon
+./gradlew verifyPlugin
 ```
 
 ### 3. Development Testing
 ```bash
 # 🚀 Run in development IDE (recommended for testing)
-./gradlew runIde --no-daemon
+./gradlew runIde
 
-# 🧪 Run active tests (388 tests, excludes disabled integration/E2E tests)
-./gradlew test --no-daemon
+# 🧪 Run unit tests (fast; excludes functional/platform tests by default)
+./gradlew test
 
 # 🧹 Run with clean state (tests first-run experience)
-./gradlew clean runIde --no-daemon
+./gradlew clean runIde
 
-# 🔧 Run integration tests (requires enabling @Disabled annotations)
-# See TESTING.md for details on enabling 77 disabled tests
+# 🔧 Run functional/integration tests (opt-in; require API keys or network)
+./gradlew functionalTest -Pfunctional
+
+# 🏛️ Run IntelliJ platform tests (shared TestApplication)
+./gradlew platformTest
 
 # 📦 Build distribution for manual installation
-./gradlew buildPlugin --no-daemon
+./gradlew buildPlugin
 
 # 📁 Distribution will be in: build/distributions/openrouter-intellij-plugin-*.zip
 ```
 
-**Note**: The project includes 77 disabled tests (integration, E2E, UI) that are valuable but not run by default. See [TESTING.md](TESTING.md) for details on when and how to enable them.
+**Note**: Tests are split by tag rather than disabled. `./gradlew test` runs
+fast unit tests; functional tests are opt-in via `-Pfunctional`; platform tests
+run via `./gradlew platformTest`. See [TESTING.md](TESTING.md) for the full
+taxonomy and ADR-0003 for the rationale.
 
 **Note**: Use `./gradlew clean runIde` to test the first-run experience (welcome notification and setup wizard) with a fresh state.
+
+### Fast development loop
+
+For the day-to-day edit/test cycle, use the `fast-build.sh` wrapper instead of
+raw `./gradlew`. It keeps the daemon warm and skips slow verification tasks:
+
+```bash
+./scripts/fast-build.sh compile   # compileKotlin only (syntax check)
+./scripts/fast-build.sh test      # unit tests, skip detekt + kover (default)
+./scripts/fast-build.sh check     # tests + detekt, skip kover (pre-commit)
+./scripts/fast-build.sh full      # full build incl. kover (release)
+```
+
+Do **not** pass `--no-daemon` — it re-forks the JVM on every command and adds
+~30s of cold start. The Gradle daemon (enabled in `gradle.properties`) plus
+configuration cache is what makes warm builds sub-second.
 
 ### 4. Local Installation
 ```bash
@@ -77,7 +99,7 @@ java -version  # Should be JDK 21
 # Settings > Plugins > ⚙️ > Install Plugin from Disk > select ZIP file
 
 # Option 2: Use development IDE (safer for testing)
-./gradlew runIde --no-daemon
+./gradlew runIde
 ```
 
 ## 📝 Version Management
@@ -115,7 +137,7 @@ pluginUntilBuild = 252.*      # IntelliJ 2025.2+
 ./gradlew properties | grep pluginVersion
 
 # 🏗️ Build with new version
-./gradlew clean build --no-daemon
+./gradlew clean build
 ```
 
 ## Building and Testing
@@ -123,25 +145,25 @@ pluginUntilBuild = 252.*      # IntelliJ 2025.2+
 ### Build Commands
 ```bash
 # Full build with verification
-./gradlew clean build --no-daemon
+./gradlew clean build
 
 # Build distribution only
-./gradlew buildPlugin --no-daemon
+./gradlew buildPlugin
 
 # Verify plugin compatibility
-./gradlew verifyPlugin --no-daemon
+./gradlew verifyPlugin
 ```
 
 ### Development IDE
 ```bash
 # Run plugin in development IDE
-./gradlew runIde --no-daemon
+./gradlew runIde
 
 # Run with specific IntelliJ version
-./gradlew runIde --no-daemon -PplatformVersion=2024.1
+./gradlew runIde -PplatformVersion=2024.1
 
 # Run tests
-./gradlew test --no-daemon
+./gradlew test
 ```
 
 ### Troubleshooting
@@ -151,7 +173,7 @@ pluginUntilBuild = 252.*      # IntelliJ 2025.2+
 # JDK version mismatch (error: "What went wrong: 26")
 # The Kotlin compiler in Gradle may fail on JDK 26+. Use JDK 21:
 export JAVA_HOME=$(/usr/libexec/java_home -v 21)
-./gradlew build --no-daemon
+./gradlew build
 
 # Or set in gradle.properties (uncomment and adjust path):
 # org.gradle.java.home=/path/to/zulu-21.jdk/Contents/Home
@@ -160,10 +182,10 @@ export JAVA_HOME=$(/usr/libexec/java_home -v 21)
 ./gradlew build --no-configuration-cache
 
 # Clean build
-./gradlew clean build --no-daemon
+./gradlew clean build
 
 # Check compatibility
-./gradlew verifyPlugin --no-daemon
+./gradlew verifyPlugin
 
 # Test compilation issues
 ./gradlew compileTestKotlin --info
@@ -188,7 +210,7 @@ curl http://localhost:8080/v1/models
 
 #### Test Failures
 ```bash
-# Run active tests only (default - excludes 77 disabled tests)
+# Run unit tests only (default - excludes functional/platform tests)
 ./gradlew test
 
 # Run specific test categories
@@ -198,20 +220,23 @@ curl http://localhost:8080/v1/models
 # Check for real API keys in tests
 grep -r "sk-or-v1-" src/test/ --exclude-dir=mocks
 
-# If you see "77 skipped" - those are disabled integration/E2E tests
-# See TESTING.md for how to enable them when needed
+# Run functional tests (opt-in; requires API keys or network)
+./gradlew functionalTest -Pfunctional
+
+# Run platform tests (requires IntelliJ TestApplication)
+./gradlew platformTest
 ```
 
-#### Disabled Tests (77 Tests)
+#### Test Taxonomy
 ```bash
-# Check why tests are disabled
-grep -r "@Disabled" src/test/ --include="*.kt"
+# Check test tags
+grep -r "@Tag" src/test/ --include="*.kt"
 
-# Count disabled tests
-find src/test -name "*.kt" -exec grep -l "@Disabled\|@DisabledIf" {} \; | wc -l
+# Count tests by tag
+grep -r "@Tag(\"functional\")" src/test/ --include="*.kt" | wc -l
+grep -r "@Tag(\"platformTest\")" src/test/ --include="*.kt" | wc -l
 
-# Enable integration tests for deep testing (edit files to remove @Disabled)
-# ⚠️ Enable E2E tests only with real API keys in .env (costs money)
+# See TESTING.md and ADR-0003 for the test taxonomy rationale
 ```
 
 ## 🏗️ Project Architecture
@@ -398,7 +423,7 @@ The proxy server translates between OpenAI and OpenRouter formats:
 ### Development Testing
 ```bash
 # Start development IDE with proxy server
-./gradlew runIde --no-daemon
+./gradlew runIde
 
 # Note: Default port range is now 8880-8899 (configurable in settings)
 # Check actual port in OpenRouter Settings > Proxy Server section
