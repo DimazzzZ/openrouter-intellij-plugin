@@ -436,7 +436,7 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
                 buttonsGroup {
                     row {
                         cell(standardRadioButton)
-                            .comment("Uses an available port (default 8080) and starts automatically with IDE.")
+                            .comment("Uses an available port (default 8880) and starts automatically with IDE.")
                     }
                     row {
                         cell(advancedRadioButton)

@@ -85,8 +85,8 @@ class SetupWizardConfigTest {
     inner class PortConfigurationTests {
 
         @Test
-        fun `DEFAULT_PROXY_PORT is 8000`() {
-            assertEquals(8000, SetupWizardConfig.DEFAULT_PROXY_PORT)
+        fun `DEFAULT_PROXY_PORT is 8880`() {
+            assertEquals(8880, SetupWizardConfig.DEFAULT_PROXY_PORT)
         }
 
         @Test
