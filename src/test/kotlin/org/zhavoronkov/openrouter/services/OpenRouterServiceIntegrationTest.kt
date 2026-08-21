@@ -9,15 +9,18 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Disabled
+import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.zhavoronkov.openrouter.testing.OkHttpLeakSafeExtension
 import org.mockito.Mockito.mock
 import java.io.IOException
 
+@ExtendWith(OkHttpLeakSafeExtension::class)
 @DisplayName("OpenRouter Service Integration Tests")
-@Disabled("Disabled by default to avoid memory issues. Enable manually for integration testing.")
+@Tag("functional")
 class OpenRouterServiceIntegrationTest {
 
     private lateinit var mockWebServer: MockWebServer

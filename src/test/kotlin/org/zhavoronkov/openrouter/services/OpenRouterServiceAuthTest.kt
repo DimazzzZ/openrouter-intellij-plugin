@@ -11,10 +11,13 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.zhavoronkov.openrouter.testing.OkHttpLeakSafeExtension
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
 import org.zhavoronkov.openrouter.models.ApiResult
 
+@ExtendWith(OkHttpLeakSafeExtension::class)
 @DisplayName("OpenRouter Service Authentication Tests")
 class OpenRouterServiceAuthTest {
 
