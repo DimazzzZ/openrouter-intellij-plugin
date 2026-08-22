@@ -41,7 +41,28 @@ class ToolCallAccumulator {
         toolCallDeltasJson: com.google.gson.JsonArray?,
         finishReason: String?
     ): List<OpenAIChatToolCall> {
+        // If there are no deltas to process but finish_reason indicates completion,
+        // we still need to emit any accumulated tool_calls.
         if (toolCallDeltasJson == null || toolCallDeltasJson.size() == 0) {
+            if (finishReason == "tool_calls" && accumulatedCalls.isNotEmpty()) {
+                val completed = accumulatedCalls.entries
+                    .sortedBy { it.key }
+                    .map { (_, partial) ->
+                        OpenAIChatToolCall(
+                            id = partial.id,
+                            type = partial.type,
+                            function = OpenAIChatToolCallFunction(
+                                name = partial.functionName,
+                                arguments = partial.functionArguments
+                            )
+                        )
+                    }
+                PluginLogger.Service.debug(
+                    "Tool call accumulation complete (on finish): emitting ${completed.size} tool_calls"
+                )
+                accumulatedCalls.clear()
+                return completed
+            }
             return emptyList()
         }
 
@@ -71,9 +92,9 @@ class ToolCallAccumulator {
 
         // If finish_reason indicates completion, emit all accumulated tool_calls
         if (finishReason == "tool_calls") {
-            val completed = accumulatedCalls.values
-                .sortedBy { it.id } // Stable ordering
-                .map { partial ->
+            val completed = accumulatedCalls.entries
+                .sortedBy { it.key } // Preserve index order (not lexical id order)
+                .map { (_, partial) ->
                     OpenAIChatToolCall(
                         id = partial.id,
                         type = partial.type,

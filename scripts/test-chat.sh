@@ -3,14 +3,17 @@
 # Test script to verify chat completions endpoint works correctly
 # Tests both /v1/chat/completions and /chat/completions aliases
 
+# Proxy port (override with OPENROUTER_PROXY_PORT; default matches runtime 8880)
+PORT="${OPENROUTER_PROXY_PORT:-8880}"
+
 echo "=== OpenRouter Proxy Chat Completions Test ==="
 echo "Testing chat completions with gpt-4o-mini model"
 echo ""
 
 # Check if proxy server is running
-echo "🔍 Checking if proxy server is running on port 8080..."
-if ! curl -s http://127.0.0.1:8080/health > /dev/null 2>&1; then
-    echo "❌ Proxy server is not running on port 8080"
+echo "🔍 Checking if proxy server is running on port ${PORT}..."
+if ! curl -s http://127.0.0.1:${PORT}/health > /dev/null 2>&1; then
+    echo "❌ Proxy server is not running on port ${PORT}"
     echo ""
     echo "Please start the proxy server first:"
     echo "  ./gradlew runIde --args=\"--proxy-server\" -Dopenrouter.force.proxy=true"
@@ -25,7 +28,7 @@ echo ""
 # Test 1: Check models endpoint first
 echo "🧪 Test 1: Verify models endpoint"
 echo "GET /v1/models"
-MODELS_RESPONSE=$(curl -s http://127.0.0.1:8080/v1/models)
+MODELS_RESPONSE=$(curl -s http://127.0.0.1:${PORT}/v1/models)
 MODEL_COUNT=$(echo "$MODELS_RESPONSE" | jq '.data | length' 2>/dev/null)
 
 if [ "$MODEL_COUNT" -gt 0 ]; then
@@ -64,7 +67,7 @@ CHAT_RESPONSE=$(curl -s -X POST \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer test-key" \
   -d "$CHAT_REQUEST" \
-  http://127.0.0.1:8080/v1/chat/completions)
+  http://127.0.0.1:${PORT}/v1/chat/completions)
 
 echo "Response:"
 echo "$CHAT_RESPONSE" | jq . 2>/dev/null
@@ -91,7 +94,7 @@ CHAT_RESPONSE_ALIAS=$(curl -s -X POST \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer test-key" \
   -d "$CHAT_REQUEST" \
-  http://127.0.0.1:8080/chat/completions)
+  http://127.0.0.1:${PORT}/chat/completions)
 
 echo "Response:"
 echo "$CHAT_RESPONSE_ALIAS" | jq . 2>/dev/null
@@ -126,6 +129,6 @@ fi
 echo ""
 echo "🎯 Ready for AI Assistant integration!"
 echo "Configure AI Assistant with:"
-echo "  - Base URL: http://127.0.0.1:8080"
+echo "  - Base URL: http://127.0.0.1:${PORT}"
 echo "  - API Key: test-key (any value)"
 echo "  - Model: gpt-4o-mini or gpt-4"

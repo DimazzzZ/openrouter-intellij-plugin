@@ -2,13 +2,16 @@
 
 # Test script for enhanced models endpoint with full OpenRouter catalog support
 
+# Proxy port (override with OPENROUTER_PROXY_PORT; default matches runtime 8880)
+PORT="${OPENROUTER_PROXY_PORT:-8880}"
+
 echo "=== Enhanced Models Endpoint Test ==="
 echo "Testing the new models endpoint with full OpenRouter catalog support"
 echo ""
 
 # Check if proxy server is running
-if ! curl -s http://127.0.0.1:8080/health > /dev/null 2>&1; then
-    echo "❌ Proxy server is not running on port 8080"
+if ! curl -s http://127.0.0.1:${PORT}/health > /dev/null 2>&1; then
+    echo "❌ Proxy server is not running on port ${PORT}"
     echo "Please restart the proxy server to pick up the enhanced models functionality:"
     echo "  1. Stop the current development IDE"
     echo "  2. Restart with: ./gradlew runIde --args=\"--proxy-server\" -Dopenrouter.force.proxy=true"
@@ -21,7 +24,7 @@ echo ""
 # Test 1: Default curated models (fast loading)
 echo "🧪 Test 1: Default curated models (mode=curated)"
 echo "GET /v1/models"
-CURATED_RESPONSE=$(curl -s "http://127.0.0.1:8080/v1/models")
+CURATED_RESPONSE=$(curl -s "http://127.0.0.1:${PORT}/v1/models")
 CURATED_COUNT=$(echo "$CURATED_RESPONSE" | jq '.data | length' 2>/dev/null)
 
 echo "Curated models count: $CURATED_COUNT"
@@ -37,7 +40,7 @@ echo "🧪 Test 2: All models from OpenRouter (mode=all)"
 echo "GET /v1/models?mode=all"
 echo "This may take a few seconds to fetch from OpenRouter API..."
 
-ALL_RESPONSE=$(curl -s "http://127.0.0.1:8080/v1/models?mode=all")
+ALL_RESPONSE=$(curl -s "http://127.0.0.1:${PORT}/v1/models?mode=all")
 ALL_COUNT=$(echo "$ALL_RESPONSE" | jq '.data | length' 2>/dev/null)
 
 echo "All models count: $ALL_COUNT"
@@ -56,7 +59,7 @@ echo ""
 echo "🧪 Test 3: Search functionality"
 echo "GET /v1/models?mode=search&search=gpt"
 
-SEARCH_RESPONSE=$(curl -s "http://127.0.0.1:8080/v1/models?mode=search&search=gpt")
+SEARCH_RESPONSE=$(curl -s "http://127.0.0.1:${PORT}/v1/models?mode=search&search=gpt")
 SEARCH_COUNT=$(echo "$SEARCH_RESPONSE" | jq '.data | length' 2>/dev/null)
 
 echo "GPT models found: $SEARCH_COUNT"
@@ -73,7 +76,7 @@ echo ""
 echo "🧪 Test 4: Provider filtering"
 echo "GET /v1/models?mode=all&provider=openai"
 
-PROVIDER_RESPONSE=$(curl -s "http://127.0.0.1:8080/v1/models?mode=all&provider=openai")
+PROVIDER_RESPONSE=$(curl -s "http://127.0.0.1:${PORT}/v1/models?mode=all&provider=openai")
 PROVIDER_COUNT=$(echo "$PROVIDER_RESPONSE" | jq '.data | length' 2>/dev/null)
 
 echo "OpenAI models found: $PROVIDER_COUNT"
@@ -90,7 +93,7 @@ echo ""
 echo "🧪 Test 5: Limit parameter"
 echo "GET /v1/models?mode=all&limit=10"
 
-LIMIT_RESPONSE=$(curl -s "http://127.0.0.1:8080/v1/models?mode=all&limit=10")
+LIMIT_RESPONSE=$(curl -s "http://127.0.0.1:${PORT}/v1/models?mode=all&limit=10")
 LIMIT_COUNT=$(echo "$LIMIT_RESPONSE" | jq '.data | length' 2>/dev/null)
 
 echo "Limited models count: $LIMIT_COUNT"
@@ -108,10 +111,10 @@ echo "🧪 Test 6: Performance test (caching)"
 echo "Testing response time for cached vs uncached requests"
 
 echo "First request (cache miss):"
-time curl -s "http://127.0.0.1:8080/v1/models?mode=all" > /dev/null
+time curl -s "http://127.0.0.1:${PORT}/v1/models?mode=all" > /dev/null
 
 echo "Second request (cache hit):"
-time curl -s "http://127.0.0.1:8080/v1/models?mode=all" > /dev/null
+time curl -s "http://127.0.0.1:${PORT}/v1/models?mode=all" > /dev/null
 
 echo ""
 
@@ -119,7 +122,7 @@ echo ""
 echo "🧪 Test 7: AI Assistant compatibility"
 echo "Testing OpenAI-compatible response format"
 
-COMPAT_RESPONSE=$(curl -s "http://127.0.0.1:8080/v1/models")
+COMPAT_RESPONSE=$(curl -s "http://127.0.0.1:${PORT}/v1/models")
 OBJECT_TYPE=$(echo "$COMPAT_RESPONSE" | jq -r '.object' 2>/dev/null)
 HAS_DATA=$(echo "$COMPAT_RESPONSE" | jq -e '.data' > /dev/null 2>&1 && echo "true" || echo "false")
 FIRST_MODEL_ID=$(echo "$COMPAT_RESPONSE" | jq -r '.data[0].id' 2>/dev/null)
@@ -158,8 +161,8 @@ fi
 echo "✅ OpenAI compatibility: Maintained"
 echo ""
 echo "🎯 Usage Examples for AI Assistant:"
-echo "  - Default (fast): http://127.0.0.1:8080/v1/models"
-echo "  - All models: http://127.0.0.1:8080/v1/models?mode=all"
-echo "  - Search GPT: http://127.0.0.1:8080/v1/models?mode=search&search=gpt"
-echo "  - OpenAI only: http://127.0.0.1:8080/v1/models?mode=all&provider=openai"
-echo "  - Limited: http://127.0.0.1:8080/v1/models?mode=all&limit=20"
+echo "  - Default (fast): http://127.0.0.1:${PORT}/v1/models"
+echo "  - All models: http://127.0.0.1:${PORT}/v1/models?mode=all"
+echo "  - Search GPT: http://127.0.0.1:${PORT}/v1/models?mode=search&search=gpt"
+echo "  - OpenAI only: http://127.0.0.1:${PORT}/v1/models?mode=all&provider=openai"
+echo "  - Limited: http://127.0.0.1:${PORT}/v1/models?mode=all&limit=20"

@@ -1,10 +1,12 @@
 package org.zhavoronkov.openrouter.constants
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.zhavoronkov.openrouter.ui.SetupWizardConfig
 
 @DisplayName("OpenRouterConstants Tests")
 class OpenRouterConstantsTest {
@@ -242,6 +244,24 @@ class OpenRouterConstantsTest {
         @Test
         fun `PERCENTAGE_MULTIPLIER is 100`() {
             assertEquals(100, OpenRouterConstants.PERCENTAGE_MULTIPLIER)
+        }
+    }
+
+    @Nested
+    @DisplayName("Port Invariants")
+    inner class PortInvariantsTests {
+
+        @Test
+        @DisplayName("T13: DEFAULT_PROXY_PORT differs from SetupWizardConfig DEFAULT_PROXY_PORT (intentional split)")
+        fun testPortDivergenceIntentional() {
+            // This documents the intentional divergence: OpenRouterConstants.DEFAULT_PROXY_PORT (8080)
+            // is the doc/test constant, while SetupWizardConfig.DEFAULT_PROXY_PORT (8880) is the
+            // actual runtime default. The kdoc in OpenRouterConstants clarifies this.
+            assertNotEquals(
+                OpenRouterConstants.DEFAULT_PROXY_PORT,
+                SetupWizardConfig.DEFAULT_PROXY_PORT,
+                "Intentional split: 8080 is doc/test, 8880 is runtime default"
+            )
         }
     }
 }

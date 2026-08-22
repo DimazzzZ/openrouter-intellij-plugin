@@ -51,6 +51,10 @@ class StreamingResponseHandler {
     private val gson = Gson()
     private val toolCallAccumulator = ToolCallAccumulator()
 
+    /** Exposed for testing only — allows assertions on accumulator state after streaming. */
+    @Suppress("unused")
+    internal fun getAccumulatorForTesting(): ToolCallAccumulator = toolCallAccumulator
+
     fun streamResponseToClient(response: Response, writer: PrintWriter, requestId: String) {
         // Reset accumulator state for this stream
         toolCallAccumulator.reset()
@@ -218,6 +222,9 @@ class StreamingResponseHandler {
             }
         } catch (e: IllegalStateException) {
             // Unexpected JSON shape - log but don't fail the stream
+            PluginLogger.Service.debug("[Chat-$requestId] Could not parse tool_calls from chunk: ${e.message}")
+        } catch (e: Exception) {
+            // Unexpected JSON shape (ClassCastException, etc.) - log but don't fail the stream
             PluginLogger.Service.debug("[Chat-$requestId] Could not parse tool_calls from chunk: ${e.message}")
         }
     }
