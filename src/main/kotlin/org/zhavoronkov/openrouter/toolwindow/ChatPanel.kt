@@ -28,6 +28,7 @@ import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.settings.PresetsManager
 import org.zhavoronkov.openrouter.utils.MarkdownRenderer
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
+import org.zhavoronkov.openrouter.ui.ModelVariantChipRenderer
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.CardLayout
@@ -131,6 +132,20 @@ class ChatPanel(
         inputArea = JBTextArea(INPUT_ROWS, INPUT_COLUMNS)
         sendButton = JButton("Send")
         modelComboBox = ComboBox<String>()
+        modelComboBox.renderer = object : com.intellij.ui.SimpleListCellRenderer<String>() {
+            override fun customize(
+                list: javax.swing.JList<out String>,
+                value: String?,
+                index: Int,
+                selected: Boolean,
+                hasFocus: Boolean
+            ) {
+                if (value != null) {
+                    text = ModelVariantChipRenderer.renderRow(value)
+                    toolTipText = ModelVariantChipRenderer.tooltipFor(value)
+                }
+            }
+        }
         reasoningComboBox = ComboBox<String>()
         verbosityComboBox = ComboBox<String>()
         chatList = JBList(chatListModel)

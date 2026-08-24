@@ -174,7 +174,7 @@ class ProviderRoutingSettingsPanel : Disposable {
             null
         )
 
-        if (selected != null && selected >= 0 && selected < available.size) {
+        if (selected in 0 until available.size) {
             providerOrderModel.addElement(available[selected])
         }
     }
