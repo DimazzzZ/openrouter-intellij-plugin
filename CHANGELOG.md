@@ -7,16 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2025-07-19
+
 ### New Features
 
+#### 🏷️ Model Variants
+- **Variant Parsing** - Model IDs with suffixes (`:free`, `:nitro`, `:thinking`, `:online`, `:exacto`, `:floor`, `:extended`) are parsed into structured `ModelId` triples
+- **Chip Rendering** - Colored variant badges in model selector, favorites tables, and available-models tables
+- **Variant-Aware Favorites Picker** - New "Variants…" dialog with split-pane: base models on the left, variant checkboxes on the right
+- **Grouped Storage** - Favorites stored as `FavoriteModelGroupData` (base + variants list); flat wire format preserved for backwards compatibility
+- **Free Tier Hint** - Zero-price models display "Free" instead of "$0.0000"
+
+#### 🎛️ Provider Routing
+- **Settings Page** - New "Provider Routing" sub-page for configuring global defaults (order, fallbacks, sort, data collection, quantizations, only/ignore)
+- **Proxy Injection** - `ProviderRoutingInjector` adds configured `provider` and `models[]` blocks to outbound requests when absent
+- **Client Passthrough** - Invariant: client-supplied `provider` or `models[]` is never overwritten
+- **Persistence** - Routing preferences stored in `OpenRouterSettings` XML state
+
 #### 🔧 Streaming Tool-Call Support
-- **Tool-Call Accumulator** - New `ToolCallAccumulator` reassembles streaming `delta.tool_calls` fragments across SSE chunks by index
-- **AI Assistant Agent Mode** - Streaming tool calls now flow correctly through the proxy, unblocking AI Assistant Agent Mode workflows
-- **Observability** - Streaming handler logs when complete tool_calls are assembled, aiding debugging of agent workflows
+- **Tool-Call Accumulator** - `ToolCallAccumulator` reassembles streaming `delta.tool_calls` fragments across SSE chunks by index
+- **AI Assistant Agent Mode** - Streaming tool calls flow correctly through the proxy, unblocking Agent Mode workflows
 
 ### Testing
-- **Tool-Call Accumulator Tests** - 6 unit tests covering single-chunk, multi-chunk, multiple tool_calls, null/empty deltas, and reset behavior
-- **Streaming Integration Test** - End-to-end test verifying tool_call chunks are forwarded verbatim while accumulator tracks state
+- 10 unit tests for `ProviderRoutingInjector` (inject-only-when-absent invariant)
+- 6 tests for `ToolCallAccumulator` (single-chunk, multi-chunk, multiple tool_calls, null/empty deltas, reset)
+- Variant picker logic tests (grouping, selection, deduplication)
+- Streaming integration test (tool_call chunks forwarded verbatim)
+
+### Documentation
+- [`docs/MODEL_VARIANTS_AND_ROUTING.md`](docs/MODEL_VARIANTS_AND_ROUTING.md) — full reference for variant parsing, chip rendering, provider routing injection, and the settings UI
 
 ## [0.5.3] - 2026-06-18
 
