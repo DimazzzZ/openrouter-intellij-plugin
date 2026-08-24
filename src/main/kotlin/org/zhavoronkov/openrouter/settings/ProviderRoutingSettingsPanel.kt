@@ -56,6 +56,12 @@ class ProviderRoutingSettingsPanel : Disposable {
     private val fallbackModelsModel = DefaultListModel<String>()
     private val fallbackModelsList = JBList(fallbackModelsModel)
 
+    // Only/Ignore provider filter lists
+    private val onlyProvidersModel = DefaultListModel<String>()
+    private val onlyProvidersList = JBList(onlyProvidersModel)
+    private val ignoreProvidersModel = DefaultListModel<String>()
+    private val ignoreProvidersList = JBList(ignoreProvidersModel)
+
     // Track initial state for isModified check
     private var initialEnabled: Boolean = false
     private var initialOrder: List<String> = emptyList()
@@ -65,6 +71,8 @@ class ProviderRoutingSettingsPanel : Disposable {
     private var initialDataCollection: String = ""
     private var initialQuantizations: Set<String> = emptySet()
     private var initialFallbackModels: List<String> = emptyList()
+    private var initialOnlyProviders: List<String> = emptyList()
+    private var initialIgnoreProviders: List<String> = emptyList()
 
     init {
         setupLists()
@@ -146,6 +154,33 @@ class ProviderRoutingSettingsPanel : Disposable {
                         .setMoveUpAction { moveFallbackModelUp() }
                         .setMoveDownAction { moveFallbackModelDown() }
                     cell(decorator.createPanel()).align(Align.FILL)
+                }.resizableRow()
+            }
+
+            group("Provider Filters (Advanced)") {
+                row {
+                    comment("Restrict routing to specific providers (only) or exclude providers (ignore). " +
+                        "Leave both empty for no filtering.")
+                }
+
+                row {
+                    label("Only these providers:")
+                }
+                row {
+                    val onlyDecorator = ToolbarDecorator.createDecorator(onlyProvidersList)
+                        .setAddAction { addOnlyProvider() }
+                        .setRemoveAction { removeOnlyProvider() }
+                    cell(onlyDecorator.createPanel()).align(Align.FILL)
+                }.resizableRow()
+
+                row {
+                    label("Ignore these providers:")
+                }
+                row {
+                    val ignoreDecorator = ToolbarDecorator.createDecorator(ignoreProvidersList)
+                        .setAddAction { addIgnoreProvider() }
+                        .setRemoveAction { removeIgnoreProvider() }
+                    cell(ignoreDecorator.createPanel()).align(Align.FILL)
                 }.resizableRow()
             }
 
@@ -238,6 +273,52 @@ class ProviderRoutingSettingsPanel : Disposable {
         }
     }
 
+    private fun addOnlyProvider() {
+        val allProviders = ModelProviderUtils.KNOWN_PROVIDERS.values.toList()
+        val used = onlyProvidersModel.elements().toList().toSet()
+        val available = allProviders.filter { it !in used }
+        if (available.isEmpty()) return
+
+        val selected = Messages.showChooseDialog(
+            "Select a provider to restrict to:",
+            "Add 'Only' Provider",
+            available.toTypedArray(),
+            available[0],
+            null
+        )
+        if (selected in 0 until available.size) {
+            onlyProvidersModel.addElement(available[selected])
+        }
+    }
+
+    private fun removeOnlyProvider() {
+        val index = onlyProvidersList.selectedIndex
+        if (index >= 0) onlyProvidersModel.removeElementAt(index)
+    }
+
+    private fun addIgnoreProvider() {
+        val allProviders = ModelProviderUtils.KNOWN_PROVIDERS.values.toList()
+        val used = ignoreProvidersModel.elements().toList().toSet()
+        val available = allProviders.filter { it !in used }
+        if (available.isEmpty()) return
+
+        val selected = Messages.showChooseDialog(
+            "Select a provider to exclude:",
+            "Add 'Ignore' Provider",
+            available.toTypedArray(),
+            available[0],
+            null
+        )
+        if (selected in 0 until available.size) {
+            ignoreProvidersModel.addElement(available[selected])
+        }
+    }
+
+    private fun removeIgnoreProvider() {
+        val index = ignoreProvidersList.selectedIndex
+        if (index >= 0) ignoreProvidersModel.removeElementAt(index)
+    }
+
     private fun loadSettings() {
         val routing = settingsService.providerRoutingManager
 
@@ -268,6 +349,14 @@ class ProviderRoutingSettingsPanel : Disposable {
         fallbackModelsModel.clear()
         routing.fallbackModels.forEach { fallbackModelsModel.addElement(it) }
         initialFallbackModels = routing.fallbackModels.toList()
+
+        onlyProvidersModel.clear()
+        routing.only.forEach { onlyProvidersModel.addElement(it) }
+        initialOnlyProviders = routing.only.toList()
+
+        ignoreProvidersModel.clear()
+        routing.ignore.forEach { ignoreProvidersModel.addElement(it) }
+        initialIgnoreProviders = routing.ignore.toList()
     }
 
     fun isModified(): Boolean {
@@ -278,7 +367,9 @@ class ProviderRoutingSettingsPanel : Disposable {
             requireParametersCheckbox.isSelected != initialRequireParameters ||
             dataCollectionCombo.selectedItem != initialDataCollection ||
             quantizationCheckboxes.filter { (_, cb) -> cb.isSelected }.keys != initialQuantizations ||
-            fallbackModelsModel.elements().toList() != initialFallbackModels
+            fallbackModelsModel.elements().toList() != initialFallbackModels ||
+            onlyProvidersModel.elements().toList() != initialOnlyProviders ||
+            ignoreProvidersModel.elements().toList() != initialIgnoreProviders
     }
 
     fun apply() {
@@ -294,6 +385,8 @@ class ProviderRoutingSettingsPanel : Disposable {
             .filter { (_, cb) -> cb.isSelected }
             .keys.toMutableList()
         routing.fallbackModels = fallbackModelsModel.elements().toList().toMutableList()
+        routing.only = onlyProvidersModel.elements().toList().toMutableList()
+        routing.ignore = ignoreProvidersModel.elements().toList().toMutableList()
     }
 
     fun reset() {
