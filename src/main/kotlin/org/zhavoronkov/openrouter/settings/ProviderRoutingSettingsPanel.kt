@@ -1,6 +1,7 @@
 package org.zhavoronkov.openrouter.settings
 
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.ui.ToolbarDecorator
@@ -11,7 +12,6 @@ import com.intellij.ui.dsl.builder.TopGap
 import com.intellij.ui.dsl.builder.panel
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
-import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.Dimension
 import javax.swing.DefaultComboBoxModel
 import javax.swing.DefaultListModel
@@ -242,8 +242,25 @@ class ProviderRoutingSettingsPanel : Disposable {
     }
 
     private fun addFallbackModel() {
-        // Placeholder: in a full implementation, this would open a model picker
-        PluginLogger.Settings.debug("Add fallback model (not yet implemented)")
+        val modelId = Messages.showInputDialog(
+            "Enter model ID (e.g., openai/gpt-4o, anthropic/claude-3.5-sonnet):",
+            "Add Fallback Model",
+            null,
+            "",
+            object : InputValidator {
+                override fun checkInput(input: String?): Boolean {
+                    return !input.isNullOrBlank() && input.contains("/")
+                }
+
+                override fun canClose(input: String?): Boolean {
+                    return checkInput(input)
+                }
+            }
+        )
+
+        if (modelId != null && modelId.isNotBlank()) {
+            fallbackModelsModel.addElement(modelId)
+        }
     }
 
     private fun removeFallbackModel() {
