@@ -67,7 +67,17 @@ object OpenRouterConstants {
 
     // ========== Port Configuration ==========
 
-    /** Default proxy server port */
+    /**
+     * Nominal default proxy server port, used by tests and documentation.
+     *
+     * Note: this constant does NOT drive the runtime port. The actual runtime
+     * defaults live in two other places:
+     *  - Setup Wizard field default: [SetupWizardConfig.DEFAULT_PROXY_PORT] (8880)
+     *  - Auto-select range: [OpenRouterSettings.proxyPortRangeStart]..[OpenRouterSettings.proxyPortRangeEnd] (8880–8899)
+     *
+     * A user who runs the Setup Wizard or lets the plugin auto-select gets a
+     * port in the 8880–8899 range, not 8080.
+     */
     const val DEFAULT_PROXY_PORT = 8080
 
     /** PKCE OAuth callback server port */

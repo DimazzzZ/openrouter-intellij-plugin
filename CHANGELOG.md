@@ -5,6 +5,19 @@ All notable changes to the OpenRouter IntelliJ Plugin will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### New Features
+
+#### 🔧 Streaming Tool-Call Support
+- **Tool-Call Accumulator** - New `ToolCallAccumulator` reassembles streaming `delta.tool_calls` fragments across SSE chunks by index
+- **AI Assistant Agent Mode** - Streaming tool calls now flow correctly through the proxy, unblocking AI Assistant Agent Mode workflows
+- **Observability** - Streaming handler logs when complete tool_calls are assembled, aiding debugging of agent workflows
+
+### Testing
+- **Tool-Call Accumulator Tests** - 6 unit tests covering single-chunk, multi-chunk, multiple tool_calls, null/empty deltas, and reset behavior
+- **Streaming Integration Test** - End-to-end test verifying tool_call chunks are forwarded verbatim while accumulator tracks state
+
 ## [0.5.3] - 2026-06-18
 
 ### New Features

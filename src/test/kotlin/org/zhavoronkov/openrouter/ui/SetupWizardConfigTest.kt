@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.zhavoronkov.openrouter.models.OpenRouterSettings
 
 @DisplayName("SetupWizardConfig Tests")
 class SetupWizardConfigTest {
@@ -85,13 +86,25 @@ class SetupWizardConfigTest {
     inner class PortConfigurationTests {
 
         @Test
-        fun `DEFAULT_PROXY_PORT is 8000`() {
-            assertEquals(8000, SetupWizardConfig.DEFAULT_PROXY_PORT)
+        fun `DEFAULT_PROXY_PORT is 8880`() {
+            assertEquals(8880, SetupWizardConfig.DEFAULT_PROXY_PORT)
         }
 
         @Test
         fun `PKCE_PORT is 3000`() {
             assertEquals(3000, SetupWizardConfig.PKCE_PORT)
+        }
+
+        @Test
+        @DisplayName("T12: DEFAULT_PROXY_PORT matches settings range start")
+        fun testDefaultProxyPortMatchesSettingsRangeStart() {
+            // Verify the invariant: wizard default must match the auto-select range start
+            val settings = OpenRouterSettings()
+            assertEquals(
+                settings.proxyPortRangeStart,
+                SetupWizardConfig.DEFAULT_PROXY_PORT,
+                "SetupWizardConfig.DEFAULT_PROXY_PORT must match OpenRouterSettings.proxyPortRangeStart"
+            )
         }
     }
 

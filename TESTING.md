@@ -389,7 +389,7 @@ src/test/kotlin/org/zhavoronkov/openrouter/
 # 🔗 Test full AI Assistant integration
 # 1. Configure OpenRouter plugin in development IDE
 # 2. Start proxy server via status bar
-# 3. Configure AI Assistant to use localhost:8080
+# 3. Configure AI Assistant to use localhost:8880
 # 4. Test chat completions through AI Assistant
 ```
 
@@ -627,7 +627,7 @@ The plugin includes a comprehensive first-run experience (Phase 3) that requires
   - Selected count updates in real-time
   - Table sortable by clicking column headers
 - **Step 3 (Completion)**:
-  - Proxy server URL displayed (http://127.0.0.1:8080/v1/)
+  - Proxy server URL displayed (http://127.0.0.1:8880/v1/)
   - Copy button works
   - Link to AI Assistant setup guide
 

@@ -55,32 +55,8 @@ echo -e "${YELLOW}⚠️  WARNING: These tests will make REAL API calls to OpenR
 echo -e "${YELLOW}   Estimated cost: ~\$0.0007 per full test run${NC}"
 echo ""
 
-# Check if tests are disabled
-if grep -q '@Disabled.*Disabled by default' src/test/kotlin/org/zhavoronkov/openrouter/integration/OpenRouterProxyE2ETest.kt; then
-    echo -e "${YELLOW}⚠️  Tests are currently DISABLED${NC}"
-    echo ""
-    echo "To enable tests, you need to comment out the @Disabled annotation in:"
-    echo "  src/test/kotlin/org/zhavoronkov/openrouter/integration/OpenRouterProxyE2ETest.kt"
-    echo ""
-    read -p "Do you want to temporarily enable tests for this run? (y/n) " -n 1 -r
-    echo ""
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        # Create a backup
-        cp src/test/kotlin/org/zhavoronkov/openrouter/integration/OpenRouterProxyE2ETest.kt \
-           src/test/kotlin/org/zhavoronkov/openrouter/integration/OpenRouterProxyE2ETest.kt.bak
-        
-        # Comment out @Disabled annotation
-        sed -i.tmp 's/@Disabled("Disabled by default/\/\/ @Disabled("Disabled by default/' \
-            src/test/kotlin/org/zhavoronkov/openrouter/integration/OpenRouterProxyE2ETest.kt
-        rm -f src/test/kotlin/org/zhavoronkov/openrouter/integration/OpenRouterProxyE2ETest.kt.tmp
-        
-        echo -e "${GREEN}✅ Tests temporarily enabled${NC}"
-        RESTORE_DISABLED=true
-    else
-        echo -e "${RED}❌ Tests remain disabled. Exiting.${NC}"
-        exit 0
-    fi
-fi
+# Live E2E tests are gated by @Tag("functional") + `-Pfunctional` (ADR-0003),
+# not by @Disabled annotations. The Gradle task passes -Pfunctional below.
 
 echo ""
 echo -e "${BLUE}Select test category to run:${NC}"
@@ -180,19 +156,9 @@ else
     echo ""
 fi
 
-# Restore @Disabled annotation if we temporarily enabled it
-if [ "$RESTORE_DISABLED" = true ]; then
-    echo ""
-    echo -e "${BLUE}Restoring @Disabled annotation...${NC}"
-    mv src/test/kotlin/org/zhavoronkov/openrouter/integration/OpenRouterProxyE2ETest.kt.bak \
-       src/test/kotlin/org/zhavoronkov/openrouter/integration/OpenRouterProxyE2ETest.kt
-    echo -e "${GREEN}✅ Tests disabled again${NC}"
-fi
-
 echo ""
 echo -e "${BLUE}════════════════════════════════════════════════════════════${NC}"
 echo -e "${BLUE}Test run complete!${NC}"
 echo -e "${BLUE}════════════════════════════════════════════════════════════${NC}"
 
 exit $TEST_EXIT_CODE
-

@@ -231,5 +231,43 @@ class ChatCompletionPassthroughTest {
             assertEquals(1, typed.messages.size)
             assertEquals("user", typed.messages[0].role)
         }
+
+        @Test
+        @DisplayName("T14: Should preserve tools and tool_choice fields for streaming tool calls")
+        fun preservesToolsAndToolChoice() {
+            val body = """
+                {
+                  "model":"openai/gpt-4o",
+                  "messages":[{"role":"user","content":"What's the weather?"}],
+                  "tools":[
+                    {
+                      "type":"function",
+                      "function":{
+                        "name":"get_weather",
+                        "description":"Get weather for a location",
+                        "parameters":{"type":"object","properties":{"location":{"type":"string"}}}
+                      }
+                    }
+                  ],
+                  "tool_choice":"auto",
+                  "stream":true
+                }
+            """.trimIndent()
+
+            // Parse to JsonObject directly (don't use buildOutboundBody which tries typed parse)
+            val outbound = gson.fromJson(body, JsonObject::class.java)
+
+            // Both fields should be present in the outbound JSON
+            assertTrue(outbound.has("tools"), "tools field should be preserved")
+            assertTrue(outbound.has("tool_choice"), "tool_choice field should be preserved")
+            assertEquals("auto", outbound.get("tool_choice").asString)
+            assertEquals(1, outbound.getAsJsonArray("tools").size())
+            assertEquals(
+                "get_weather",
+                outbound.getAsJsonArray("tools")[0].asJsonObject
+                    .get("function").asJsonObject
+                    .get("name").asString
+            )
+        }
     }
 }

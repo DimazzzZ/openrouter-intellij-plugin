@@ -3,13 +3,16 @@
 # Test script to verify model mapping is working correctly
 # Tests that gpt-4o-mini maps to openai/gpt-4o-mini, not openai/gpt-4
 
+# Proxy port (override with OPENROUTER_PROXY_PORT; default matches runtime 8880)
+PORT="${OPENROUTER_PROXY_PORT:-8880}"
+
 echo "=== Model Mapping Test ==="
 echo "Testing that gpt-4o-mini maps correctly to openai/gpt-4o-mini"
 echo ""
 
 # Check if proxy server is running
-if ! curl -s http://127.0.0.1:8080/health > /dev/null 2>&1; then
-    echo "❌ Proxy server is not running on port 8080"
+if ! curl -s http://127.0.0.1:${PORT}/health > /dev/null 2>&1; then
+    echo "❌ Proxy server is not running on port ${PORT}"
     echo "Please restart the proxy server to pick up the model mapping fix:"
     echo "  1. Stop the current development IDE"
     echo "  2. Restart with: ./gradlew runIde --args=\"--proxy-server\" -Dopenrouter.force.proxy=true"
@@ -42,7 +45,7 @@ RESPONSE=$(curl -s -X POST \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer test-key" \
   -d "$CHAT_REQUEST" \
-  http://127.0.0.1:8080/v1/chat/completions)
+  http://127.0.0.1:${PORT}/v1/chat/completions)
 
 echo "Response:"
 echo "$RESPONSE" | jq . 2>/dev/null
@@ -91,7 +94,7 @@ RESPONSE_4O=$(curl -s -X POST \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer test-key" \
   -d "$CHAT_REQUEST_4O" \
-  http://127.0.0.1:8080/v1/chat/completions)
+  http://127.0.0.1:${PORT}/v1/chat/completions)
 
 RESPONSE_MODEL_4O=$(echo "$RESPONSE_4O" | jq -r '.model' 2>/dev/null)
 echo ""
