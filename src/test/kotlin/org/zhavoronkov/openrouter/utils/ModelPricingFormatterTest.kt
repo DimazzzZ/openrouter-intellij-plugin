@@ -79,6 +79,12 @@ class ModelPricingFormatterTest {
             val model = createTestModel(promptPrice = null, completionPrice = null)
             assertEquals("— / — per 1M tok", ModelPricingFormatter.formatCombinedPrice(model))
         }
+
+        @Test
+        fun `should format combined free price`() {
+            val model = createTestModel(promptPrice = "0", completionPrice = "0")
+            assertEquals("Free / Free per 1M tok", ModelPricingFormatter.formatCombinedPrice(model))
+        }
     }
 
     @Nested
@@ -86,10 +92,10 @@ class ModelPricingFormatterTest {
     inner class EdgeCasesTests {
 
         @Test
-        fun `should handle zero price`() {
+        fun `should format zero price as Free`() {
             val pricing = ModelPricing(prompt = "0", completion = "0", image = null, request = null)
-            assertEquals("$0.0000", ModelPricingFormatter.formatInputPrice(pricing))
-            assertEquals("$0.0000", ModelPricingFormatter.formatOutputPrice(pricing))
+            assertEquals("Free", ModelPricingFormatter.formatInputPrice(pricing))
+            assertEquals("Free", ModelPricingFormatter.formatOutputPrice(pricing))
         }
 
         @Test

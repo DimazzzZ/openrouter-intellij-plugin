@@ -15,6 +15,7 @@ object ModelPricingFormatter {
     private const val TOKENS_PER_MILLION = 1_000_000.0
     private const val CURRENCY_DECIMAL_PLACES = 4
     private const val FALLBACK = "—"
+    private const val FREE_TIER_LABEL = "Free"
 
     /**
      * Format input (prompt) price per 1M tokens.
@@ -35,7 +36,11 @@ object ModelPricingFormatter {
             null
         } else {
             priceString.toDoubleOrNull()?.let { perToken ->
-                "$" + String.format(Locale.US, "%.${CURRENCY_DECIMAL_PLACES}f", perToken * TOKENS_PER_MILLION)
+                if (perToken == 0.0) {
+                    FREE_TIER_LABEL
+                } else {
+                    "$" + String.format(Locale.US, "%.${CURRENCY_DECIMAL_PLACES}f", perToken * TOKENS_PER_MILLION)
+                }
             }
         }
 
