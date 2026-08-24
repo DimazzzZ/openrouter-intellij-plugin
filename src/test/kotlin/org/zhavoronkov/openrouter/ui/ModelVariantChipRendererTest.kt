@@ -41,8 +41,10 @@ class ModelVariantChipRendererTest {
     fun `chipFor renders each known variant`() {
         for (variant in ModelProviderUtils.ModelVariant.entries) {
             val chip = ModelVariantChipRenderer.chipFor(variant)
-            assertTrue(chip.contains(">${variant.displayName}<"),
-                "Chip for $variant should contain display name")
+            assertTrue(
+                chip.contains(">${variant.displayName}<"),
+                "Chip for $variant should contain display name"
+            )
             assertTrue(chip.contains("background:"))
         }
     }

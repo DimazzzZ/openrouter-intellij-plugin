@@ -1,9 +1,9 @@
 package org.zhavoronkov.openrouter.settings
 
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.Messages
-import com.intellij.openapi.ui.ComboBox
 import com.intellij.ui.ToolbarDecorator
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBList
@@ -27,7 +27,6 @@ import javax.swing.ListSelectionModel
 class ProviderRoutingSettingsPanel : Disposable {
 
     companion object {
-        private const val MIN_PANEL_WIDTH = 600
         private const val LIST_PREFERRED_HEIGHT = 150
         private val SORT_OPTIONS = listOf("", "price", "throughput", "latency")
         private val DATA_COLLECTION_OPTIONS = listOf("", "allow", "deny")
@@ -159,8 +158,10 @@ class ProviderRoutingSettingsPanel : Disposable {
 
             group("Provider Filters (Advanced)") {
                 row {
-                    comment("Restrict routing to specific providers (only) or exclude providers (ignore). " +
-                        "Leave both empty for no filtering.")
+                    comment(
+                        "Restrict routing to specific providers (only) or exclude providers (ignore). " +
+                            "Leave both empty for no filtering."
+                    )
                 }
 
                 row {
@@ -185,8 +186,10 @@ class ProviderRoutingSettingsPanel : Disposable {
             }
 
             row {
-                comment("These preferences are injected only when a request omits provider and models[]. " +
-                    "Clients (like this plugin's sidebar chat) can override per-conversation.")
+                comment(
+                    "These preferences are injected only when a request omits provider and models[]. " +
+                        "Clients (like this plugin's sidebar chat) can override per-conversation."
+                )
             }.topGap(TopGap.MEDIUM)
         }
     }

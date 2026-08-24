@@ -7,7 +7,6 @@ import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.panel
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
-import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 import java.awt.BorderLayout
 import java.awt.Dimension
 import javax.swing.BoxLayout

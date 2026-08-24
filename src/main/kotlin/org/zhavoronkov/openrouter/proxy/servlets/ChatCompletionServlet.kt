@@ -9,9 +9,8 @@ import jakarta.servlet.http.HttpServletResponse
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
-import org.zhavoronkov.openrouter.constants.OpenRouterConstants
-import org.zhavoronkov.openrouter.proxy.routing.ProviderRoutingInjector
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
+import org.zhavoronkov.openrouter.proxy.routing.ProviderRoutingInjector
 import org.zhavoronkov.openrouter.proxy.validation.MultimodalContentValidator
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.ErrorPatterns

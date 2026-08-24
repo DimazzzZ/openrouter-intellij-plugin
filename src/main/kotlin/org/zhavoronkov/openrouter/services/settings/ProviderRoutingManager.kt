@@ -90,18 +90,18 @@ class ProviderRoutingManager(
      * Returns null if no routing fields are meaningfully set (so the injector can skip).
      */
     fun toPreferences(): ProviderRoutingPreferences? {
-        val hasOrder = order.isNotEmpty()
-        val hasSort = sort.isNotBlank()
-        val hasDataCollection = dataCollection.isNotBlank()
-        val hasQuantizations = quantizations.isNotEmpty()
-        val hasOnly = only.isNotEmpty()
-        val hasIgnore = ignore.isNotEmpty()
-        val hasNonDefaultFallbacks = !allowFallbacks
-        val hasRequireParams = requireParameters
+        val signals = listOf(
+            order.isNotEmpty(),
+            sort.isNotBlank(),
+            dataCollection.isNotBlank(),
+            quantizations.isNotEmpty(),
+            only.isNotEmpty(),
+            ignore.isNotEmpty(),
+            !allowFallbacks,
+            requireParameters
+        )
 
-        if (!hasOrder && !hasSort && !hasDataCollection && !hasQuantizations &&
-            !hasOnly && !hasIgnore && !hasNonDefaultFallbacks && !hasRequireParams
-        ) {
+        if (signals.none { it }) {
             return null
         }
 

@@ -18,23 +18,41 @@ import java.awt.Color
  */
 object ModelVariantChipRenderer {
 
+    private const val RGB_MASK = 0xFFFFFF
+
     /**
      * Hex color codes for each variant chip. Tuned for good contrast in both
      * light and dark IntelliJ themes.
      */
     private val VARIANT_COLORS: Map<ModelVariant, ChipColor> = mapOf(
-        ModelVariant.FREE to ChipColor(bgLight = "#E8F5E9", bgDark = "#1B5E20", fgLight = "#1B5E20", fgDark = "#E8F5E9"),
-        ModelVariant.EXTENDED to ChipColor(bgLight = "#ECEFF1", bgDark = "#455A64", fgLight = "#37474F", fgDark = "#ECEFF1"),
-        ModelVariant.EXACTO to ChipColor(bgLight = "#F3E5F5", bgDark = "#6A1B9A", fgLight = "#6A1B9A", fgDark = "#F3E5F5"),
-        ModelVariant.THINKING to ChipColor(bgLight = "#EDE7F6", bgDark = "#4527A0", fgLight = "#4527A0", fgDark = "#EDE7F6"),
-        ModelVariant.ONLINE to ChipColor(bgLight = "#E3F2FD", bgDark = "#0D47A1", fgLight = "#0D47A1", fgDark = "#E3F2FD"),
-        ModelVariant.NITRO to ChipColor(bgLight = "#FFF3E0", bgDark = "#E65100", fgLight = "#E65100", fgDark = "#FFF3E0"),
-        ModelVariant.FLOOR to ChipColor(bgLight = "#E0F2F1", bgDark = "#00695C", fgLight = "#00695C", fgDark = "#E0F2F1")
+        ModelVariant.FREE to ChipColor(
+            bgLight = "#E8F5E9", bgDark = "#1B5E20", fgLight = "#1B5E20", fgDark = "#E8F5E9"
+        ),
+        ModelVariant.EXTENDED to ChipColor(
+            bgLight = "#ECEFF1", bgDark = "#455A64", fgLight = "#37474F", fgDark = "#ECEFF1"
+        ),
+        ModelVariant.EXACTO to ChipColor(
+            bgLight = "#F3E5F5", bgDark = "#6A1B9A", fgLight = "#6A1B9A", fgDark = "#F3E5F5"
+        ),
+        ModelVariant.THINKING to ChipColor(
+            bgLight = "#EDE7F6", bgDark = "#4527A0", fgLight = "#4527A0", fgDark = "#EDE7F6"
+        ),
+        ModelVariant.ONLINE to ChipColor(
+            bgLight = "#E3F2FD", bgDark = "#0D47A1", fgLight = "#0D47A1", fgDark = "#E3F2FD"
+        ),
+        ModelVariant.NITRO to ChipColor(
+            bgLight = "#FFF3E0", bgDark = "#E65100", fgLight = "#E65100", fgDark = "#FFF3E0"
+        ),
+        ModelVariant.FLOOR to ChipColor(
+            bgLight = "#E0F2F1", bgDark = "#00695C", fgLight = "#00695C", fgDark = "#E0F2F1"
+        )
     )
 
     private val UNKNOWN_CHIP_COLOR = ChipColor(
-        bgLight = "#FFF9C4", bgDark = "#F57F17",
-        fgLight = "#F57F17", fgDark = "#FFF9C4"
+        bgLight = "#FFF9C4",
+        bgDark = "#F57F17",
+        fgLight = "#F57F17",
+        fgDark = "#FFF9C4"
     )
 
     /**
@@ -63,7 +81,7 @@ object ModelVariantChipRenderer {
         val baseDisplay = escapeHtml(ModelProviderUtils.stripVariant(modelId))
 
         val baseHtml = if (baseTextColor != null) {
-            val hex = "#%06x".format(baseTextColor.rgb and 0xFFFFFF)
+            val hex = "#%06x".format(baseTextColor.rgb and RGB_MASK)
             "<span style='color:$hex'>$baseDisplay</span>"
         } else {
             baseDisplay

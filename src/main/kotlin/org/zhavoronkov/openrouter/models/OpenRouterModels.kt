@@ -407,7 +407,8 @@ data class OpenRouterSettings(
  */
 data class FavoriteModelGroupData(
     var baseId: String = "",
-    var variants: MutableList<String> = mutableListOf() // Variant suffixes, e.g., [":free", ":nitro"]; empty = base only
+    // Variant suffixes, e.g., [":free", ":nitro"]; empty = base only
+    var variants: MutableList<String> = mutableListOf()
 )
 
 /**

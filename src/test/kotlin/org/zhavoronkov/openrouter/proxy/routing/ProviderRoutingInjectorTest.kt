@@ -55,9 +55,9 @@ class ProviderRoutingInjectorTest {
             routing.enabled = true
             routing.order = mutableListOf("Anthropic")
 
-            val rawJson = buildRequest("""
-                {"model":"openai/gpt-4o","messages":[],"provider":{"order":["OpenAI"]}}
-            """.trimIndent())
+            val rawJson = buildRequest(
+                """{"model":"openai/gpt-4o","messages":[],"provider":{"order":["OpenAI"]}}"""
+            )
 
             val result = ProviderRoutingInjector.inject(rawJson, routing, gson, "test-002")
 
@@ -119,9 +119,9 @@ class ProviderRoutingInjectorTest {
             routing.enabled = true
             routing.fallbackModels = mutableListOf("anthropic/claude-3.5-sonnet")
 
-            val rawJson = buildRequest("""
-                {"model":"openai/gpt-4o","messages":[],"models":["meta-llama/llama-3.1-70b"]}
-            """.trimIndent())
+            val rawJson = buildRequest(
+                """{"model":"openai/gpt-4o","messages":[],"models":["meta-llama/llama-3.1-70b"]}"""
+            )
 
             ProviderRoutingInjector.inject(rawJson, routing, gson, "test-006")
 
@@ -169,9 +169,9 @@ class ProviderRoutingInjectorTest {
             routing.order = mutableListOf("Anthropic")
             routing.fallbackModels = mutableListOf("anthropic/claude-3.5-sonnet")
 
-            val rawJson = buildRequest("""
-                {"model":"openai/gpt-4o","messages":[],"provider":{"order":["OpenAI"]}}
-            """.trimIndent())
+            val rawJson = buildRequest(
+                """{"model":"openai/gpt-4o","messages":[],"provider":{"order":["OpenAI"]}}"""
+            )
 
             val result = ProviderRoutingInjector.inject(rawJson, routing, gson, "test-009")
 
@@ -190,9 +190,9 @@ class ProviderRoutingInjectorTest {
             routing.order = mutableListOf("Anthropic")
             routing.fallbackModels = mutableListOf("anthropic/claude-3.5-sonnet")
 
-            val rawJson = buildRequest("""
-                {"model":"openai/gpt-4o","messages":[],"models":["meta-llama/llama-3.1-70b"]}
-            """.trimIndent())
+            val rawJson = buildRequest(
+                """{"model":"openai/gpt-4o","messages":[],"models":["meta-llama/llama-3.1-70b"]}"""
+            )
 
             val result = ProviderRoutingInjector.inject(rawJson, routing, gson, "test-010")
 

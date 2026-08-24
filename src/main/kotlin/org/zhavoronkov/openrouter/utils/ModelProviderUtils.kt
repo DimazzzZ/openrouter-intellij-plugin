@@ -282,8 +282,8 @@ object ModelProviderUtils {
      * If the variant is unknown to this plugin, it's captured in unknownVariant.
      */
     data class ModelId(
-        val provider: String,      // e.g., "OpenAI", "Anthropic", "@preset"
-        val baseName: String,      // e.g., "gpt-4o", "claude-3.5-sonnet"
+        val provider: String, // e.g., "OpenAI", "Anthropic", "@preset"
+        val baseName: String, // e.g., "gpt-4o", "claude-3.5-sonnet"
         val variant: ModelVariant?, // Known variant or null
         val unknownVariant: String? // Raw suffix if it's not a known variant (e.g., ":brand-new")
     ) {
