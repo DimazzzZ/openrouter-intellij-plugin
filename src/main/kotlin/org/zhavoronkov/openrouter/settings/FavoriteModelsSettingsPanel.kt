@@ -28,6 +28,7 @@ import kotlinx.coroutines.launch
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.ui.VariantAwareFavoritesPickerDialog
 import org.zhavoronkov.openrouter.utils.ModelPricingFormatter
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 import org.zhavoronkov.openrouter.utils.PluginLogger
@@ -272,6 +273,8 @@ class FavoriteModelsSettingsPanel : Disposable {
                     .applyToComponent { toolTipText = "Add Google models" }
                 button("Budget") { addPresetToFavorites(ModelPresets.COST_EFFECTIVE_MODELS) }
                     .applyToComponent { toolTipText = "Add budget-friendly models" }
+                button("Variants\u2026") { openVariantPicker() }
+                    .applyToComponent { toolTipText = "Pick models and variants" }
             }.topGap(TopGap.NONE)
         }
     }
@@ -736,6 +739,33 @@ class FavoriteModelsSettingsPanel : Disposable {
     private fun clearAllFavorites() {
         if (!keyPresent) return
         favoriteTableManager.clearAll()
+    }
+
+    /**
+     * Open the variant-aware favorites picker dialog.
+     */
+    private fun openVariantPicker() {
+        if (!keyPresent) return
+
+        val currentFavorites = getCurrentFavoriteIds()
+        val dialog = VariantAwareFavoritesPickerDialog(
+            availableModels = allAvailableModels,
+            currentFavorites = currentFavorites,
+            onConfirm = { newFavorites ->
+                // Replace the favorites list with the picker's selection
+                favoriteTableManager.clearAll()
+                if (newFavorites.isNotEmpty()) {
+                    favoriteTableManager.addModels(
+                        newFavorites.mapNotNull { id ->
+                            allAvailableModels.find { it.id == id }
+                                ?: OpenRouterModelInfo(id = id, name = id, created = 0L)
+                        }
+                    )
+                }
+                updateStatusLabels()
+            }
+        )
+        dialog.show()
     }
 
     /**
