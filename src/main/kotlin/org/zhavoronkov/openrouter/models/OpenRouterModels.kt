@@ -383,7 +383,7 @@ data class OpenRouterSettings(
     // Extension Point Settings
     // Allow other plugins to receive balance data (enabled by default)
     var balanceProviderEnabled: Boolean = true,
-    // Provider Routing (Phase 2) — injected into proxy requests when enabled and absent
+    // Provider Routing — injected into proxy requests when enabled and absent
     var providerRoutingEnabled: Boolean = false,
     var providerOrder: MutableList<String> = mutableListOf(), // Provider display names, e.g., "Anthropic", "OpenAI"
     var providerAllowFallbacks: Boolean = true,
@@ -394,13 +394,13 @@ data class OpenRouterSettings(
     var providerOnly: MutableList<String> = mutableListOf(),
     var providerIgnore: MutableList<String> = mutableListOf(),
     var fallbackModels: MutableList<String> = mutableListOf(), // Global default `models[]` fallback list
-    // Favorites grouped storage migration (Phase 2, D9)
+    // Favorites grouped storage migration
     var favoriteModelsGroupedMigrated: Boolean = false,
     var favoriteModelGroups: MutableList<FavoriteModelGroupData> = mutableListOf()
 )
 
 /**
- * XML-friendly grouped representation of favorite models (Phase 2, D9).
+ * XML-friendly grouped representation of favorite models.
  * Records a base model ID and its selected variant suffixes.
  * The flat [OpenRouterSettings.favoriteModels] list remains authoritative on the wire;
  * this is a convenience layer for the grouped picker UI.

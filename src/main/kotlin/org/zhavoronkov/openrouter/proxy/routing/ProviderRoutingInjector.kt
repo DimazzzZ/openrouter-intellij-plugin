@@ -9,7 +9,7 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
 /**
  * Applies the plugin's global provider-routing preferences to an outbound
  * chat-completion request body, preserving any client-sent `provider` or
- * `models[]` block untouched (Phase 2 D10).
+ * `models[]` block untouched (only injects when absent).
  *
  * Extracted from [org.zhavoronkov.openrouter.proxy.servlets.ChatCompletionServlet]
  * so that the "inject only when absent" invariant can be exercised in unit tests

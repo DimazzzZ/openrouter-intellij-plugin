@@ -7,7 +7,7 @@ import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 /**
  * Manages favorite models configuration.
  * Handles adding, removing, and querying favorite models, plus the grouped
- * representation used by the Phase 2 variant-aware picker.
+ * representation used by the variant-aware picker.
  *
  * The flat [OpenRouterSettings.favoriteModels] list remains authoritative on the wire
  * (favorites are still sent as `base:variant` strings). The grouped view in
@@ -58,7 +58,7 @@ class FavoriteModelsManager(
         notifyChange()
     }
 
-    // --- Grouped model support (Phase 2, D9) ---
+    // --- Grouped model support ---
 
     /**
      * Get the grouped representation of favorites. Each group has a base model ID

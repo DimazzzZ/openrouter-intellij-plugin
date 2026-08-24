@@ -38,7 +38,7 @@ class FavoriteModelsManagerTest {
         assertEquals(2, changes)
     }
 
-    // --- Grouped storage migration tests (Phase 2, D9) ---
+    // --- Grouped storage migration tests ---
 
     @Test
     fun `migration groups base models with no variants`() {

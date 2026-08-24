@@ -148,7 +148,7 @@ object OpenRouterConstants {
     /** Percentage multiplier */
     const val PERCENTAGE_MULTIPLIER = 100
 
-    // ========== Model Variants (Phase 2) ==========
+    // ========== Model Variants ==========
 
     /** Model variant suffixes supported by OpenRouter */
     object ModelVariants {
@@ -161,7 +161,7 @@ object OpenRouterConstants {
         const val FLOOR = ":floor"
     }
 
-    // ========== Provider Routing Keys (Phase 2) ==========
+    // ========== Provider Routing Keys ==========
 
     /** JSON field names for provider routing preferences in OpenRouter API */
     object ProviderRoutingKeys {

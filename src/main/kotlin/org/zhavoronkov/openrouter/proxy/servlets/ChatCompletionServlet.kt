@@ -401,7 +401,7 @@ class ChatCompletionServlet : HttpServlet() {
      * Apply plugin-configured defaults (max_tokens, provider routing, fallback models) to
      * the raw JSON only when the request doesn't already include them.
      *
-     * Invariant (Phase 2 D10): if the client already sent `provider` or `models[]`, this
+     * Invariant: if the client already sent `provider` or `models[]`, this
      * function does NOT overwrite or merge — the client's block is preserved verbatim.
      * A DEBUG log line records the skip.
      */
@@ -413,7 +413,7 @@ class ChatCompletionServlet : HttpServlet() {
                 rawJson.addProperty("max_tokens", defaultMaxTokens)
             }
 
-            // Phase 2: inject global provider routing (D10 invariant: only when absent)
+            // Inject global provider routing (invariant: only when absent)
             ProviderRoutingInjector.inject(
                 rawJson = rawJson,
                 routing = settingsService.providerRoutingManager,

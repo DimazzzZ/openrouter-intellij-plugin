@@ -19,7 +19,7 @@ import javax.swing.JPanel
 import javax.swing.ListSelectionModel
 
 /**
- * Settings panel for managing provider routing preferences (Phase 2).
+ * Settings panel for managing provider routing preferences.
  * Allows users to configure global defaults for provider order, fallbacks, sorting, etc.
  * These preferences are injected into proxy requests when enabled and absent from the request.
  */

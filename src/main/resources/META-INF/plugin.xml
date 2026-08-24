@@ -68,7 +68,7 @@
 
     <!-- Change notes for this version -->
     <change-notes><![CDATA[
-        <h3>🎉 Version 0.6.0 - Model Variants & Provider Routing (Phase 2)</h3>
+        <h3>🎉 Version 0.6.0 - Model Variants & Provider Routing</h3>
 
         <p><strong>🏷️ Model Variant Support:</strong></p>
         <ul>
@@ -363,7 +363,7 @@
             id="org.zhavoronkov.openrouter.settings.PresetsConfigurable"
             displayName="Presets"/>
 
-        <!-- Provider Routing sub-page (Phase 2) -->
+        <!-- Provider Routing sub-page -->
         <applicationConfigurable
             parentId="org.zhavoronkov.openrouter.settings.OpenRouterConfigurable"
             instance="org.zhavoronkov.openrouter.settings.ProviderRoutingConfigurable"
