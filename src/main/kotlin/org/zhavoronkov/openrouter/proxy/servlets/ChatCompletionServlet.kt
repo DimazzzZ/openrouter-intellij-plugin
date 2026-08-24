@@ -9,6 +9,8 @@ import jakarta.servlet.http.HttpServletResponse
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import org.zhavoronkov.openrouter.constants.OpenRouterConstants
+import org.zhavoronkov.openrouter.proxy.routing.ProviderRoutingInjector
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
 import org.zhavoronkov.openrouter.proxy.validation.MultimodalContentValidator
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
@@ -387,7 +389,7 @@ class ChatCompletionServlet : HttpServlet() {
         isStreaming: Boolean
     ): String {
         // Apply configured defaults only when not already present in the request
-        applyConfiguredDefaults(rawJson)
+        applyConfiguredDefaults(rawJson, requestId)
 
         val jsonBody = gson.toJson(rawJson)
         val bodyPreview = jsonBody.take(STREAMING_TIMEOUT_MS.toInt())
@@ -397,16 +399,28 @@ class ChatCompletionServlet : HttpServlet() {
     }
 
     /**
-     * Apply plugin-configured defaults (temperature, max_tokens) to the raw JSON
-     * only when the request doesn't already include them and the plugin has them configured.
+     * Apply plugin-configured defaults (max_tokens, provider routing, fallback models) to
+     * the raw JSON only when the request doesn't already include them.
+     *
+     * Invariant (Phase 2 D10): if the client already sent `provider` or `models[]`, this
+     * function does NOT overwrite or merge — the client's block is preserved verbatim.
+     * A DEBUG log line records the skip.
      */
-    private fun applyConfiguredDefaults(rawJson: JsonObject) {
+    private fun applyConfiguredDefaults(rawJson: JsonObject, requestId: String) {
         try {
             val settingsService = OpenRouterSettingsService.getInstance()
             val defaultMaxTokens = settingsService.uiPreferencesManager.defaultMaxTokens
             if (defaultMaxTokens > 0 && !rawJson.has("max_tokens")) {
                 rawJson.addProperty("max_tokens", defaultMaxTokens)
             }
+
+            // Phase 2: inject global provider routing (D10 invariant: only when absent)
+            ProviderRoutingInjector.inject(
+                rawJson = rawJson,
+                routing = settingsService.providerRoutingManager,
+                gson = gson,
+                requestId = requestId
+            )
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             // Settings service may not be available in test environment
             // (getService can raise IllegalStateException or a class-loading
