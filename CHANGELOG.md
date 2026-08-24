@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Testing
 - 10 unit tests for `ProviderRoutingInjector` (inject-only-when-absent invariant)
+- 11 MockWebServer E2E tests for provider-routing injection through the full HTTP stack (injector → request builder → OkHttp → upstream)
 - 6 tests for `ToolCallAccumulator` (single-chunk, multi-chunk, multiple tool_calls, null/empty deltas, reset)
 - Variant picker logic tests (grouping, selection, deduplication)
 - Streaming integration test (tool_call chunks forwarded verbatim)
