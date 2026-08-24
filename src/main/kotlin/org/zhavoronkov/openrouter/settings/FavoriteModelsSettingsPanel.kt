@@ -28,6 +28,7 @@ import kotlinx.coroutines.launch
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.ui.ModelVariantChipRenderer
 import org.zhavoronkov.openrouter.ui.VariantAwareFavoritesPickerDialog
 import org.zhavoronkov.openrouter.utils.ModelPricingFormatter
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
@@ -414,6 +415,9 @@ class FavoriteModelsSettingsPanel : Disposable {
         val modelColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Model ID") {
             override fun valueOf(item: OpenRouterModelInfo): String = item.id
             override fun getPreferredStringValue(): String = "anthropic/claude-3.5-sonnet-20241022"
+            override fun getRenderer(item: OpenRouterModelInfo?): javax.swing.table.TableCellRenderer? {
+                return variantChipCellRenderer()
+            }
         }
         val inputPriceColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Input Price") {
             override fun valueOf(item: OpenRouterModelInfo): String =
@@ -437,6 +441,9 @@ class FavoriteModelsSettingsPanel : Disposable {
         val modelColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Model ID") {
             override fun valueOf(item: OpenRouterModelInfo): String = item.id
             override fun getPreferredStringValue(): String = "anthropic/claude-3.5-sonnet-20241022"
+            override fun getRenderer(item: OpenRouterModelInfo?): javax.swing.table.TableCellRenderer? {
+                return variantChipCellRenderer()
+            }
         }
         val inputPriceColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Input Price") {
             override fun valueOf(item: OpenRouterModelInfo): String =
@@ -739,6 +746,39 @@ class FavoriteModelsSettingsPanel : Disposable {
     private fun clearAllFavorites() {
         if (!keyPresent) return
         favoriteTableManager.clearAll()
+    }
+
+    /**
+     * Create a table cell renderer that displays model IDs with variant chips.
+     */
+    private fun variantChipCellRenderer(): javax.swing.table.TableCellRenderer {
+        return object : javax.swing.table.DefaultTableCellRenderer() {
+            override fun getTableCellRendererComponent(
+                table: javax.swing.JTable?,
+                value: Any?,
+                isSelected: Boolean,
+                hasFocus: Boolean,
+                row: Int,
+                column: Int
+            ): java.awt.Component {
+                val modelId = value as? String ?: ""
+                val html = ModelVariantChipRenderer.renderRow(modelId)
+                text = html
+                toolTipText = ModelVariantChipRenderer.tooltipFor(modelId)
+                isOpaque = true
+                background = if (isSelected) {
+                    table?.selectionBackground ?: com.intellij.ui.JBColor.BLUE
+                } else {
+                    table?.background ?: com.intellij.ui.JBColor.WHITE
+                }
+                foreground = if (isSelected) {
+                    table?.selectionForeground ?: com.intellij.ui.JBColor.WHITE
+                } else {
+                    table?.foreground ?: com.intellij.ui.JBColor.BLACK
+                }
+                return this
+            }
+        }
     }
 
     /**
