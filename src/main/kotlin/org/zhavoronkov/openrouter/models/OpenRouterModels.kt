@@ -382,7 +382,32 @@ data class OpenRouterSettings(
     var proxyPortRangeEnd: Int = 8899, // End of port range for auto-selection
     // Extension Point Settings
     // Allow other plugins to receive balance data (enabled by default)
-    var balanceProviderEnabled: Boolean = true
+    var balanceProviderEnabled: Boolean = true,
+    // Provider Routing (Phase 2) — injected into proxy requests when enabled and absent
+    var providerRoutingEnabled: Boolean = false,
+    var providerOrder: MutableList<String> = mutableListOf(), // Provider display names, e.g., "Anthropic", "OpenAI"
+    var providerAllowFallbacks: Boolean = true,
+    var providerSort: String = "", // "" | "price" | "throughput" | "latency"
+    var providerRequireParameters: Boolean = false,
+    var providerDataCollection: String = "", // "" | "allow" | "deny"
+    var providerQuantizations: MutableList<String> = mutableListOf(),
+    var providerOnly: MutableList<String> = mutableListOf(),
+    var providerIgnore: MutableList<String> = mutableListOf(),
+    var fallbackModels: MutableList<String> = mutableListOf(), // Global default `models[]` fallback list
+    // Favorites grouped storage migration (Phase 2, D9)
+    var favoriteModelsGroupedMigrated: Boolean = false,
+    var favoriteModelGroups: MutableList<FavoriteModelGroupData> = mutableListOf()
+)
+
+/**
+ * XML-friendly grouped representation of favorite models (Phase 2, D9).
+ * Records a base model ID and its selected variant suffixes.
+ * The flat [OpenRouterSettings.favoriteModels] list remains authoritative on the wire;
+ * this is a convenience layer for the grouped picker UI.
+ */
+data class FavoriteModelGroupData(
+    var baseId: String = "",
+    var variants: MutableList<String> = mutableListOf() // Variant suffixes, e.g., [":free", ":nitro"]; empty = base only
 )
 
 /**

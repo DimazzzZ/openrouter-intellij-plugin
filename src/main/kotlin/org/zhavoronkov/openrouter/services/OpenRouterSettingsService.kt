@@ -9,6 +9,7 @@ import org.zhavoronkov.openrouter.models.OpenRouterSettings
 import org.zhavoronkov.openrouter.services.settings.ApiKeySettingsManager
 import org.zhavoronkov.openrouter.services.settings.FavoriteModelsManager
 import org.zhavoronkov.openrouter.services.settings.PresetsManager
+import org.zhavoronkov.openrouter.services.settings.ProviderRoutingManager
 import org.zhavoronkov.openrouter.services.settings.ProxySettingsManager
 import org.zhavoronkov.openrouter.services.settings.SetupStateManager
 import org.zhavoronkov.openrouter.services.settings.UIPreferencesManager
@@ -37,6 +38,8 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
     lateinit var favoriteModelsManager: FavoriteModelsManager
         private set
     lateinit var presetsManager: PresetsManager
+
+    lateinit var providerRoutingManager: ProviderRoutingManager
         private set
 
     init {
@@ -50,6 +53,7 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
         setupStateManager = SetupStateManager(settings) { notifyStateChanged() }
         favoriteModelsManager = FavoriteModelsManager(settings) { notifyStateChanged() }
         presetsManager = PresetsManager(settings) { notifyStateChanged() }
+        providerRoutingManager = ProviderRoutingManager(settings) { notifyStateChanged() }
     }
 
     companion object {
