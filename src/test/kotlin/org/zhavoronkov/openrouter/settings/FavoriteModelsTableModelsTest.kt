@@ -24,7 +24,7 @@ class FavoriteModelsTableModelsTest {
             val model = createTestModel("openai/gpt-4")
             val display = AvailableModelDisplay.from(model)
 
-            assertEquals("openai", display.provider, "Should extract provider correctly")
+            assertEquals("OpenAI", display.provider, "Should extract canonical provider name")
         }
 
         @Test
@@ -32,7 +32,7 @@ class FavoriteModelsTableModelsTest {
             val model = createTestModel("gpt-4")
             val display = AvailableModelDisplay.from(model)
 
-            assertEquals("—", display.provider, "Should show unknown for missing provider")
+            assertEquals("Other", display.provider, "Should show 'Other' for unknown provider")
         }
 
         @Test
@@ -225,7 +225,7 @@ class FavoriteModelsTableModelsTest {
             val display = AvailableModelDisplay.from(model)
 
             assertEquals("openai/gpt-4", AvailableModelsColumns.MODEL_ID.valueOf(display))
-            assertEquals("openai", AvailableModelsColumns.PROVIDER.valueOf(display))
+            assertEquals("OpenAI", AvailableModelsColumns.PROVIDER.valueOf(display))
             assertEquals("8K", AvailableModelsColumns.CONTEXT.valueOf(display))
         }
 
