@@ -230,6 +230,22 @@ data class ActivityData(
 /**
  * Chat completion request and response models
  */
+/**
+ * Provider routing preferences for OpenRouter API requests.
+ * All fields are nullable — only explicitly set fields are serialized.
+ * See: https://openrouter.ai/docs/provider-routing
+ */
+data class ProviderRoutingPreferences(
+    val order: List<String>? = null,
+    @SerializedName("allow_fallbacks") val allowFallbacks: Boolean? = null,
+    val sort: String? = null, // "price" | "throughput" | "latency"
+    @SerializedName("require_parameters") val requireParameters: Boolean? = null,
+    @SerializedName("data_collection") val dataCollection: String? = null, // "allow" | "deny"
+    val quantizations: List<String>? = null, // e.g., ["int4", "int8", "fp8", "fp16", "bf16", "fp32"]
+    val only: List<String>? = null, // Provider slugs to restrict to
+    val ignore: List<String>? = null // Provider slugs to exclude
+)
+
 data class ChatCompletionRequest(
     val model: String,
     val messages: List<ChatMessage>,
@@ -243,7 +259,9 @@ data class ChatCompletionRequest(
     val reasoning: ReasoningConfig? = null,
     val verbosity: String? = null,
     val tools: List<ChatTool>? = null,
-    @SerializedName("tool_choice") val toolChoice: ToolChoice? = null
+    @SerializedName("tool_choice") val toolChoice: ToolChoice? = null,
+    val provider: ProviderRoutingPreferences? = null,
+    val models: List<String>? = null // Fallback model list
 )
 
 data class ReasoningConfig(
