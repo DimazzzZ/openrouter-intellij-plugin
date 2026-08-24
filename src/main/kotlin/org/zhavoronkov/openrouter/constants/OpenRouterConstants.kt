@@ -147,4 +147,33 @@ object OpenRouterConstants {
 
     /** Percentage multiplier */
     const val PERCENTAGE_MULTIPLIER = 100
+
+    // ========== Model Variants (Phase 2) ==========
+
+    /** Model variant suffixes supported by OpenRouter */
+    object ModelVariants {
+        const val FREE = ":free"
+        const val EXTENDED = ":extended"
+        const val EXACTO = ":exacto"
+        const val THINKING = ":thinking"
+        const val ONLINE = ":online"
+        const val NITRO = ":nitro"
+        const val FLOOR = ":floor"
+    }
+
+    // ========== Provider Routing Keys (Phase 2) ==========
+
+    /** JSON field names for provider routing preferences in OpenRouter API */
+    object ProviderRoutingKeys {
+        const val PROVIDER = "provider"
+        const val ORDER = "order"
+        const val ALLOW_FALLBACKS = "allow_fallbacks"
+        const val SORT = "sort"
+        const val REQUIRE_PARAMETERS = "require_parameters"
+        const val DATA_COLLECTION = "data_collection"
+        const val QUANTIZATIONS = "quantizations"
+        const val ONLY = "only"
+        const val IGNORE = "ignore"
+        const val MODELS = "models"
+    }
 }
