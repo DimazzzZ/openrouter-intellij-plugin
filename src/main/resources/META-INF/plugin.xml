@@ -335,6 +335,13 @@
             instance="org.zhavoronkov.openrouter.settings.PresetsConfigurable"
             id="org.zhavoronkov.openrouter.settings.PresetsConfigurable"
             displayName="Presets"/>
+
+        <!-- Provider Routing sub-page (Phase 2) -->
+        <applicationConfigurable
+            parentId="org.zhavoronkov.openrouter.settings.OpenRouterConfigurable"
+            instance="org.zhavoronkov.openrouter.settings.ProviderRoutingConfigurable"
+            id="org.zhavoronkov.openrouter.settings.ProviderRoutingConfigurable"
+            displayName="Provider Routing"/>
         
         <!-- Status bar widget -->
         <statusBarWidgetFactory

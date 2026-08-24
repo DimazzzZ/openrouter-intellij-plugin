@@ -20,7 +20,7 @@ object ModelProviderUtils {
     /**
      * Provider name mappings for known OpenRouter providers
      */
-    private val KNOWN_PROVIDERS = mapOf(
+    val KNOWN_PROVIDERS = mapOf(
         "openai" to "OpenAI",
         "anthropic" to "Anthropic",
         "google" to "Google",
