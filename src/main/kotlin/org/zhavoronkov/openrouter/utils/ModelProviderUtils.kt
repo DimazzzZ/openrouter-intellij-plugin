@@ -47,15 +47,11 @@ object ModelProviderUtils {
      * - "openai/gpt-4o" -> "OpenAI"
      * - "anthropic/claude-3.5-sonnet" -> "Anthropic"
      * - "google/gemini-pro-1.5" -> "Google"
+     * - "x-ai/grok-4-fast:free" -> "xAI"  (variant suffix is ignored)
+     * - "@preset/email-copywriter" -> "@preset"
      */
     fun extractProvider(modelId: String): String {
-        if (!modelId.contains(PROVIDER_SEPARATOR)) {
-            return UNKNOWN_PROVIDER
-        }
-
-        val providerKey = modelId.substringBefore(PROVIDER_SEPARATOR).lowercase()
-        return KNOWN_PROVIDERS[providerKey]
-            ?: providerKey.replaceFirstChar { it.uppercase() }
+        return parseModelId(modelId).provider
     }
 
     /**
@@ -250,5 +246,130 @@ object ModelProviderUtils {
         }
 
         return filtered
+    }
+
+    /**
+     * Model variant types supported by OpenRouter.
+     * Each variant has a suffix (e.g., ":free"), display name, and tooltip.
+     */
+    enum class ModelVariant(
+        val suffix: String,
+        val displayName: String,
+        val tooltip: String,
+        val chipColor: String // JBColor key or hex for chip rendering
+    ) {
+        FREE(":free", "Free", "Free tier — no cost", "Green"),
+        EXTENDED(":extended", "Extended", "Extended context window", "Gray"),
+        EXACTO(":exacto", "Exacto", "Quality-first provider sorting", "Magenta"),
+        THINKING(":thinking", "Thinking", "Extended reasoning capability", "Purple"),
+        ONLINE(":online", "Online", "Real-time web search integration", "Blue"),
+        NITRO(":nitro", "Nitro", "High-speed inference", "Orange"),
+        FLOOR(":floor", "Floor", "Lowest-cost inference", "Teal");
+
+        companion object {
+            /**
+             * Parse a variant suffix (e.g., ":free") into a ModelVariant.
+             * Returns null if the suffix doesn't match any known variant.
+             */
+            fun fromSuffix(raw: String): ModelVariant? {
+                return entries.find { it.suffix == raw }
+            }
+        }
+    }
+
+    /**
+     * Parsed model ID with provider, base name, and optional variant.
+     * If the variant is unknown to this plugin, it's captured in unknownVariant.
+     */
+    data class ModelId(
+        val provider: String,      // e.g., "OpenAI", "Anthropic", "@preset"
+        val baseName: String,      // e.g., "gpt-4o", "claude-3.5-sonnet"
+        val variant: ModelVariant?, // Known variant or null
+        val unknownVariant: String? // Raw suffix if it's not a known variant (e.g., ":brand-new")
+    ) {
+        /**
+         * Reconstruct the full model ID string.
+         */
+        fun toFullId(): String {
+            val base = if (provider == "@preset") {
+                "@preset/$baseName"
+            } else {
+                "$provider/$baseName"
+            }
+            return when {
+                variant != null -> base + variant.suffix
+                unknownVariant != null -> base + unknownVariant
+                else -> base
+            }
+        }
+    }
+
+    /**
+     * Parse a model ID into provider, base name, and variant components.
+     * Handles:
+     * - "provider/name" → ModelId(provider, name, null, null)
+     * - "provider/name:variant" → ModelId(provider, name, variant, null)
+     * - "provider/name:unknown-suffix" → ModelId(provider, name, null, ":unknown-suffix")
+     * - "@preset/slug" → ModelId("@preset", slug, null, null)
+     * - bare "name" → ModelId("Other", name, null, null)
+     */
+    fun parseModelId(id: String): ModelId {
+        if (id.isBlank()) {
+            return ModelId(UNKNOWN_PROVIDER, id, null, null)
+        }
+
+        // Check for preset slug
+        if (id.startsWith("@preset/")) {
+            val slug = id.substringAfter("@preset/")
+            return ModelId("@preset", slug, null, null)
+        }
+
+        // Split on "/" to separate provider from model+variant
+        val slashIndex = id.indexOf(PROVIDER_SEPARATOR)
+        if (slashIndex == -1) {
+            // No slash — bare model name
+            return ModelId(UNKNOWN_PROVIDER, id, null, null)
+        }
+
+        val providerKey = id.substring(0, slashIndex).lowercase()
+        val displayProvider = KNOWN_PROVIDERS[providerKey]
+            ?: providerKey.replaceFirstChar { it.uppercase() }
+
+        val modelPart = id.substring(slashIndex + 1)
+
+        // Split on ":" to separate base name from variant
+        val colonIndex = modelPart.indexOf(':')
+        return if (colonIndex == -1) {
+            // No variant suffix
+            ModelId(displayProvider, modelPart, null, null)
+        } else {
+            val baseName = modelPart.substring(0, colonIndex)
+            val variantSuffix = modelPart.substring(colonIndex) // Includes the ":"
+            val variant = ModelVariant.fromSuffix(variantSuffix)
+            ModelId(displayProvider, baseName, variant, if (variant == null) variantSuffix else null)
+        }
+    }
+
+    /**
+     * Strip the variant suffix from a model ID, returning just the base model.
+     * Examples:
+     * - "x-ai/grok-4-fast:free" → "x-ai/grok-4-fast"
+     * - "openai/gpt-4o" → "openai/gpt-4o"
+     * - "@preset/email:thinking" → "@preset/email"
+     */
+    fun stripVariant(id: String): String {
+        val colonIndex = id.indexOf(':')
+        return if (colonIndex == -1) id else id.substring(0, colonIndex)
+    }
+
+    /**
+     * Check if a model ID has a specific variant.
+     * Examples:
+     * - hasVariant("x-ai/grok-4-fast:free", ModelVariant.FREE) → true
+     * - hasVariant("x-ai/grok-4-fast", ModelVariant.FREE) → false
+     * - hasVariant("x-ai/grok-4-fast:unknown", ModelVariant.FREE) → false
+     */
+    fun hasVariant(id: String, variant: ModelVariant): Boolean {
+        return parseModelId(id).variant == variant
     }
 }

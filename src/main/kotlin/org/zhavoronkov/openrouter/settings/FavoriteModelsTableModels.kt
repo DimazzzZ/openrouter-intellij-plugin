@@ -4,6 +4,7 @@ import com.intellij.util.ui.ColumnInfo
 import com.intellij.util.ui.ListTableModel
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.utils.ModelPricingFormatter
+import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 import javax.swing.table.TableCellRenderer
 
 /**
@@ -34,10 +35,10 @@ data class AvailableModelDisplay(
             )
         }
 
-        private fun extractProvider(modelId: String): String {
-            val parts = modelId.split("/")
-            return if (parts.size >= 2) parts[0] else UNKNOWN_VALUE
-        }
+        // Delegates to the canonical implementation in ModelProviderUtils so
+        // provider extraction is variant-aware and consistent with the filter dropdown.
+        private fun extractProvider(modelId: String): String =
+            ModelProviderUtils.extractProvider(modelId)
 
         private fun formatContextWindow(contextLength: Int?): String {
             return if (contextLength != null && contextLength > 0) {

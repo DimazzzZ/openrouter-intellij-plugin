@@ -2,6 +2,8 @@ package org.zhavoronkov.openrouter.utils
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.zhavoronkov.openrouter.models.ModelArchitecture
@@ -400,5 +402,167 @@ class ModelProviderUtilsTest {
         val caps = ModelProviderUtils.getCapabilities(model)
         assertTrue(caps.contains("Reasoning"))
         assertTrue(caps.contains("Verbosity"))
+    }
+
+    // --- Model variant parsing tests ---
+
+    @Test
+    fun `parseModelId should parse standard model without variant`() {
+        val result = ModelProviderUtils.parseModelId("openai/gpt-4o")
+        assertEquals("OpenAI", result.provider)
+        assertEquals("gpt-4o", result.baseName)
+        assertNull(result.variant)
+        assertNull(result.unknownVariant)
+    }
+
+    @Test
+    fun `parseModelId should parse model with free variant`() {
+        val result = ModelProviderUtils.parseModelId("x-ai/grok-4-fast:free")
+        assertEquals("xAI", result.provider)
+        assertEquals("grok-4-fast", result.baseName)
+        assertEquals(ModelProviderUtils.ModelVariant.FREE, result.variant)
+        assertNull(result.unknownVariant)
+    }
+
+    @Test
+    fun `parseModelId should parse model with thinking variant`() {
+        val result = ModelProviderUtils.parseModelId("meta-llama/llama-3.1-70b-instruct:thinking")
+        assertEquals("Meta", result.provider)
+        assertEquals("llama-3.1-70b-instruct", result.baseName)
+        assertEquals(ModelProviderUtils.ModelVariant.THINKING, result.variant)
+        assertNull(result.unknownVariant)
+    }
+
+    @Test
+    fun `parseModelId should parse model with nitro variant`() {
+        val result = ModelProviderUtils.parseModelId("anthropic/claude-3.5-sonnet:nitro")
+        assertEquals("Anthropic", result.provider)
+        assertEquals("claude-3.5-sonnet", result.baseName)
+        assertEquals(ModelProviderUtils.ModelVariant.NITRO, result.variant)
+        assertNull(result.unknownVariant)
+    }
+
+    @Test
+    fun `parseModelId should capture unknown variant`() {
+        val result = ModelProviderUtils.parseModelId("some/model:brand-new-variant")
+        assertEquals("Some", result.provider)
+        assertEquals("model", result.baseName)
+        assertNull(result.variant)
+        assertEquals(":brand-new-variant", result.unknownVariant)
+    }
+
+    @Test
+    fun `parseModelId should handle preset slug`() {
+        val result = ModelProviderUtils.parseModelId("@preset/email-copywriter")
+        assertEquals("@preset", result.provider)
+        assertEquals("email-copywriter", result.baseName)
+        assertNull(result.variant)
+        assertNull(result.unknownVariant)
+    }
+
+    @Test
+    fun `parseModelId should handle bare model name without slash`() {
+        val result = ModelProviderUtils.parseModelId("gpt-4o")
+        assertEquals("Other", result.provider)
+        assertEquals("gpt-4o", result.baseName)
+        assertNull(result.variant)
+        assertNull(result.unknownVariant)
+    }
+
+    @Test
+    fun `parseModelId should handle blank input`() {
+        val result = ModelProviderUtils.parseModelId("")
+        assertEquals("Other", result.provider)
+        assertEquals("", result.baseName)
+        assertNull(result.variant)
+        assertNull(result.unknownVariant)
+    }
+
+    @Test
+    fun `parseModelId should handle all known variants`() {
+        val variants = ModelProviderUtils.ModelVariant.entries
+        for (variant in variants) {
+            val result = ModelProviderUtils.parseModelId("openai/gpt-4o${variant.suffix}")
+            assertEquals(variant, result.variant, "Failed to parse variant ${variant.suffix}")
+            assertEquals("gpt-4o", result.baseName)
+        }
+    }
+
+    // --- stripVariant tests ---
+
+    @Test
+    fun `stripVariant should remove free variant suffix`() {
+        assertEquals("x-ai/grok-4-fast", ModelProviderUtils.stripVariant("x-ai/grok-4-fast:free"))
+    }
+
+    @Test
+    fun `stripVariant should return unchanged ID without variant`() {
+        assertEquals("openai/gpt-4o", ModelProviderUtils.stripVariant("openai/gpt-4o"))
+    }
+
+    @Test
+    fun `stripVariant should remove unknown variant suffix`() {
+        assertEquals("some/model", ModelProviderUtils.stripVariant("some/model:brand-new"))
+    }
+
+    @Test
+    fun `stripVariant should handle preset slug with variant`() {
+        assertEquals("@preset/email", ModelProviderUtils.stripVariant("@preset/email:thinking"))
+    }
+
+    // --- hasVariant tests ---
+
+    @Test
+    fun `hasVariant should return true for matching variant`() {
+        assertTrue(ModelProviderUtils.hasVariant("x-ai/grok-4-fast:free", ModelProviderUtils.ModelVariant.FREE))
+    }
+
+    @Test
+    fun `hasVariant should return false for non-matching variant`() {
+        assertFalse(ModelProviderUtils.hasVariant("x-ai/grok-4-fast:free", ModelProviderUtils.ModelVariant.NITRO))
+    }
+
+    @Test
+    fun `hasVariant should return false for model without variant`() {
+        assertFalse(ModelProviderUtils.hasVariant("x-ai/grok-4-fast", ModelProviderUtils.ModelVariant.FREE))
+    }
+
+    @Test
+    fun `hasVariant should return false for unknown variant`() {
+        assertFalse(ModelProviderUtils.hasVariant("x-ai/grok-4-fast:unknown", ModelProviderUtils.ModelVariant.FREE))
+    }
+
+    // --- ModelVariant enum tests ---
+
+    @Test
+    fun `ModelVariant fromSuffix should parse known suffixes`() {
+        assertEquals(ModelProviderUtils.ModelVariant.FREE, ModelProviderUtils.ModelVariant.fromSuffix(":free"))
+        assertEquals(ModelProviderUtils.ModelVariant.EXTENDED, ModelProviderUtils.ModelVariant.fromSuffix(":extended"))
+        assertEquals(ModelProviderUtils.ModelVariant.EXACTO, ModelProviderUtils.ModelVariant.fromSuffix(":exacto"))
+        assertEquals(ModelProviderUtils.ModelVariant.THINKING, ModelProviderUtils.ModelVariant.fromSuffix(":thinking"))
+        assertEquals(ModelProviderUtils.ModelVariant.ONLINE, ModelProviderUtils.ModelVariant.fromSuffix(":online"))
+        assertEquals(ModelProviderUtils.ModelVariant.NITRO, ModelProviderUtils.ModelVariant.fromSuffix(":nitro"))
+        assertEquals(ModelProviderUtils.ModelVariant.FLOOR, ModelProviderUtils.ModelVariant.fromSuffix(":floor"))
+    }
+
+    @Test
+    fun `ModelVariant fromSuffix should return null for unknown suffix`() {
+        assertNull(ModelProviderUtils.ModelVariant.fromSuffix(":unknown"))
+        assertNull(ModelProviderUtils.ModelVariant.fromSuffix("free")) // Missing colon
+        assertNull(ModelProviderUtils.ModelVariant.fromSuffix(""))
+    }
+
+    // --- extractProvider with variant awareness ---
+
+    @Test
+    fun `extractProvider should ignore variant suffix`() {
+        assertEquals("xAI", ModelProviderUtils.extractProvider("x-ai/grok-4-fast:free"))
+        assertEquals("OpenAI", ModelProviderUtils.extractProvider("openai/gpt-4o:thinking"))
+        assertEquals("Anthropic", ModelProviderUtils.extractProvider("anthropic/claude-3.5-sonnet:nitro"))
+    }
+
+    @Test
+    fun `extractProvider should handle preset slug`() {
+        assertEquals("@preset", ModelProviderUtils.extractProvider("@preset/email-copywriter"))
     }
 }
