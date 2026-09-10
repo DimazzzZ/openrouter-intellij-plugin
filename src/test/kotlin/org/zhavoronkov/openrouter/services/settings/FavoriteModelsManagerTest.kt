@@ -38,18 +38,15 @@ class FavoriteModelsManagerTest {
         assertEquals(2, changes)
     }
 
-    // --- Grouped storage migration tests ---
+    // --- Grouped view (computed on-demand from flat list) ---
 
     @Test
-    fun `migration groups base models with no variants`() {
+    fun `groups base models with no variants`() {
         val settings = OpenRouterSettings().apply {
             favoriteModels = mutableListOf("openai/gpt-4o", "anthropic/claude-3.5-sonnet")
-            favoriteModelsGroupedMigrated = false
-            favoriteModelGroups = mutableListOf()
         }
         val manager = FavoriteModelsManager(settings) {}
 
-        assertTrue(settings.favoriteModelsGroupedMigrated)
         val groups = manager.getGroups()
         assertEquals(2, groups.size)
         assertEquals("openai/gpt-4o", groups[0].baseId)
@@ -57,15 +54,13 @@ class FavoriteModelsManagerTest {
     }
 
     @Test
-    fun `migration groups variants under the same base`() {
+    fun `groups variants under the same base`() {
         val settings = OpenRouterSettings().apply {
             favoriteModels = mutableListOf(
                 "x-ai/grok-4-fast",
                 "x-ai/grok-4-fast:free",
                 "x-ai/grok-4-fast:nitro"
             )
-            favoriteModelsGroupedMigrated = false
-            favoriteModelGroups = mutableListOf()
         }
         val manager = FavoriteModelsManager(settings) {}
 
@@ -76,38 +71,22 @@ class FavoriteModelsManagerTest {
     }
 
     @Test
-    fun `migration is idempotent and does not rerun`() {
-        val settings = OpenRouterSettings().apply {
-            favoriteModels = mutableListOf("openai/gpt-4o")
-            favoriteModelsGroupedMigrated = true // Already migrated
-            favoriteModelGroups = mutableListOf() // Intentionally empty
-        }
-        FavoriteModelsManager(settings) {}
-
-        // Migration should NOT run again — groups stay empty
-        assertTrue(settings.favoriteModelGroups.isEmpty())
-    }
-
-    @Test
-    fun `migration preserves flat list authoritatively`() {
+    fun `flat list is authoritative and unchanged by grouped view`() {
         val original = mutableListOf("openai/gpt-4o:thinking", "anthropic/claude-3.5-sonnet")
         val settings = OpenRouterSettings().apply {
             favoriteModels = original.toMutableList()
-            favoriteModelsGroupedMigrated = false
-            favoriteModelGroups = mutableListOf()
         }
         val manager = FavoriteModelsManager(settings) {}
 
-        // Flat list must be unchanged (still the wire source of truth)
+        // Reading groups must not mutate the flat list
+        manager.getGroups()
         assertEquals(original, manager.getFavoriteModels())
     }
 
     @Test
-    fun `add favorite updates grouped representation`() {
+    fun `add favorite is reflected in grouped view`() {
         val settings = OpenRouterSettings().apply {
             favoriteModels = mutableListOf()
-            favoriteModelsGroupedMigrated = true
-            favoriteModelGroups = mutableListOf()
         }
         val manager = FavoriteModelsManager(settings) {}
 
@@ -119,11 +98,9 @@ class FavoriteModelsManagerTest {
     }
 
     @Test
-    fun `clear favorites also clears groups`() {
+    fun `clear favorites also empties grouped view`() {
         val settings = OpenRouterSettings().apply {
             favoriteModels = mutableListOf("openai/gpt-4o")
-            favoriteModelsGroupedMigrated = false
-            favoriteModelGroups = mutableListOf()
         }
         val manager = FavoriteModelsManager(settings) {}
         assertTrue(manager.getGroups().isNotEmpty())
@@ -133,11 +110,9 @@ class FavoriteModelsManagerTest {
     }
 
     @Test
-    fun `migration handles unknown variant suffix`() {
+    fun `grouped view handles unknown variant suffix`() {
         val settings = OpenRouterSettings().apply {
             favoriteModels = mutableListOf("some/model:brand-new-variant")
-            favoriteModelsGroupedMigrated = false
-            favoriteModelGroups = mutableListOf()
         }
         val manager = FavoriteModelsManager(settings) {}
 

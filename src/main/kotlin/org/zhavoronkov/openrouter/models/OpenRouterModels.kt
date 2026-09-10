@@ -394,9 +394,6 @@ data class OpenRouterSettings(
     var providerOnly: MutableList<String> = mutableListOf(),
     var providerIgnore: MutableList<String> = mutableListOf(),
     var fallbackModels: MutableList<String> = mutableListOf(), // Global default `models[]` fallback list
-    // Favorites grouped storage migration
-    var favoriteModelsGroupedMigrated: Boolean = false,
-    var favoriteModelGroups: MutableList<FavoriteModelGroupData> = mutableListOf()
 )
 
 /**
