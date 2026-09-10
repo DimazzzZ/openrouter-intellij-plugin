@@ -256,22 +256,6 @@ tasks {
         }
     }
 
-    register<Test>("functionalTest") {
-        description = "Runs functional/integration tests that require external dependencies"
-        group = "verification"
-
-        useJUnitPlatform {
-            includeTags("functional")
-        }
-        systemProperty("openrouter.testMode", "true")
-        maxParallelForks = 1
-
-        reports {
-            junitXml.required.set(true)
-            html.required.set(true)
-        }
-    }
-
     named("check") {
         dependsOn("platformTest")
     }
@@ -290,6 +274,28 @@ intellijPlatformTesting {
                     includeTestsMatching("*SmokeTest")
                 }
                 systemProperty("openrouter.testMode", "true")
+                maxParallelForks = 1
+
+                reports {
+                    junitXml.required.set(true)
+                    html.required.set(true)
+                }
+            }
+        }
+        register("functionalTest") {
+            task {
+                description = "Runs functional/integration tests (@Tag(\"functional\")). " +
+                    "These exercise production code that transitively touches IntelliJ " +
+                    "platform classes (e.g. PluginLogger -> com.intellij.openapi.diagnostic.Logger), " +
+                    "so they need the shared TestApplication classpath that only a " +
+                    "testIde runner provisions — a plain Test task cannot resolve those classes."
+                group = "verification"
+
+                useJUnitPlatform {
+                    includeTags("functional")
+                }
+                systemProperty("openrouter.testMode", "true")
+                systemProperty("java.awt.headless", "true")
                 maxParallelForks = 1
 
                 reports {
