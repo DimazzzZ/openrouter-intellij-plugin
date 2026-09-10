@@ -17,7 +17,6 @@ class FavoriteModelsManager(
     private val notifyChange: () -> Unit
 ) {
 
-
     fun getFavoriteModels(): List<String> {
         return settings.favoriteModels.toList()
     }
@@ -59,7 +58,6 @@ class FavoriteModelsManager(
     fun getGroups(): List<FavoriteModelGroupData> {
         return buildGroupsFromFlat(settings.favoriteModels)
     }
-
 
     /**
      * Rebuild the grouped representation from the flat list.
