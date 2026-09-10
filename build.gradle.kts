@@ -294,6 +294,15 @@ intellijPlatformTesting {
                 useJUnitPlatform {
                     includeTags("functional")
                 }
+                // Functional tests are opt-in (see TESTING.md): they call real
+                // HTTP endpoints / a MockWebServer port and require a local .env
+                // with OPENROUTER_API_KEY, so they must not run in CI. Gate on
+                // -Pfunctional exactly like the fast `test` task does; without it
+                // the task is skipped instead of erroring in @BeforeAll.
+                // `project` cannot be touched at execution time under the
+                // configuration cache, so capture the flag now and close over it.
+                val functionalEnabled = project.hasProperty("functional")
+                onlyIf { functionalEnabled }
                 systemProperty("openrouter.testMode", "true")
                 systemProperty("java.awt.headless", "true")
                 maxParallelForks = 1
