@@ -42,9 +42,9 @@ import org.jetbrains.annotations.ApiStatus
  * background threads or coroutines.
  *
  * @see BalanceData
- * @since 0.5.1
+ * @since 0.6.0
  */
-@ApiStatus.AvailableSince("0.5.1")
+@ApiStatus.AvailableSince("0.6.0")
 interface BalanceProvider {
 
     /**

@@ -26,9 +26,9 @@ import org.jetbrains.annotations.ApiStatus
  *
  * @throws IllegalArgumentException if validation fails
  * @see BalanceProvider
- * @since 0.5.1
+ * @since 0.6.0
  */
-@ApiStatus.AvailableSince("0.5.1")
+@ApiStatus.AvailableSince("0.6.0")
 data class BalanceData(
     val totalCredits: Double,
     val totalUsage: Double,
