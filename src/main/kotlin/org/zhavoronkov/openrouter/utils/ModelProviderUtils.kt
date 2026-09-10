@@ -256,15 +256,14 @@ object ModelProviderUtils {
         val suffix: String,
         val displayName: String,
         val tooltip: String,
-        val chipColor: String // JBColor key or hex for chip rendering
     ) {
-        FREE(":free", "Free", "Free tier — no cost", "Green"),
-        EXTENDED(":extended", "Extended", "Extended context window", "Gray"),
-        EXACTO(":exacto", "Exacto", "Quality-first provider sorting", "Magenta"),
-        THINKING(":thinking", "Thinking", "Extended reasoning capability", "Purple"),
-        ONLINE(":online", "Online", "Real-time web search integration", "Blue"),
-        NITRO(":nitro", "Nitro", "High-speed inference", "Orange"),
-        FLOOR(":floor", "Floor", "Lowest-cost inference", "Teal");
+        FREE(":free", "Free", "Free tier — no cost"),
+        EXTENDED(":extended", "Extended", "Extended context window"),
+        EXACTO(":exacto", "Exacto", "Quality-first provider sorting"),
+        THINKING(":thinking", "Thinking", "Extended reasoning capability"),
+        ONLINE(":online", "Online", "Real-time web search integration"),
+        NITRO(":nitro", "Nitro", "High-speed inference"),
+        FLOOR(":floor", "Floor", "Lowest-cost inference");
 
         companion object {
             /**
