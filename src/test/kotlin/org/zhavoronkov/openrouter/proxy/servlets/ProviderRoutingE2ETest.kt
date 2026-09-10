@@ -14,6 +14,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.extension.ExtendWith
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
 import org.zhavoronkov.openrouter.proxy.routing.ProviderRoutingInjector
@@ -37,6 +38,7 @@ import java.util.concurrent.TimeUnit
  */
 @ExtendWith(OkHttpLeakSafeExtension::class)
 @DisplayName("Provider Routing E2E Tests (MockWebServer)")
+@Tag("functional")
 class ProviderRoutingE2ETest {
 
     private lateinit var mockWebServer: MockWebServer
