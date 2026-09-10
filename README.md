@@ -7,7 +7,7 @@
 
 An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.ai), providing access to 400+ AI models with usage monitoring, quota tracking, and seamless JetBrains AI Assistant integration.
 
-## What's New in v0.6.0 🎉
+## What's New (Unreleased) 🎉
 
 - **🏷️ Model Variants** - `:free`, `:nitro`, `:thinking`, `:online`, `:exacto`, `:floor`, `:extended` variants surfaced with colored chips in the model selector, favorites tables, and picker dialog
 - **🎛️ Provider Routing** - New settings tab for global routing preferences (provider order, fallbacks, sort, data collection, quantizations, only/ignore filters) — injected into proxy requests only when the client doesn't specify them

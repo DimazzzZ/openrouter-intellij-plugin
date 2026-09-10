@@ -1,6 +1,6 @@
 # Model Variants & Provider Routing
 
-This document describes two features shipped in v0.6.0:
+This document describes two features:
 
 1. **Model Variants** — first-class handling of OpenRouter's model-ID suffixes (`:free`, `:nitro`, `:thinking`, etc.) throughout the plugin UI.
 2. **Provider Routing** — a settings page that lets you configure global defaults (order, fallbacks, sort, filters, etc.) that the plugin injects into outbound proxy requests when your client doesn't specify them.
