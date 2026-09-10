@@ -59,7 +59,7 @@ class VariantAwareFavoritesPickerDialog(
 
         return panel {
             row {
-                label("Base Models").bold()
+                label("Base models").bold()
                 label("Variants").bold()
             }
             row {
@@ -108,7 +108,7 @@ class VariantAwareFavoritesPickerDialog(
         variantsForBase.forEach { variant ->
             val modelId = VariantPickerLogic.toModelId(selectedBase, variant)
             val cb = JBCheckBox(
-                if (variant == VariantPickerLogic.BASE_SENTINEL) "Base (no variant)" else "Variant: $variant",
+                if (variant == VariantPickerLogic.BASE_SENTINEL) "Base only" else "Variant: $variant",
                 modelId in selectedVariants
             )
             cb.addActionListener {
