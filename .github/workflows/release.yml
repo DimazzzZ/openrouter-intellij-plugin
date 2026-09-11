@@ -82,8 +82,10 @@ jobs:
     # verifyPlugin here runs the unpinned recommended() sweep over every
     # supported line (the PR CI pins one IDE; releases verify all of them).
     # failureLevel in build.gradle.kts makes findings fail the build.
+    # -Prelease turns buildSearchableOptions back on; it is skipped for
+    # every non-release build (see build.gradle.kts).
     - name: Build, test, and analyze
-      run: ./gradlew buildPlugin test detekt verifyPlugin --build-cache
+      run: ./gradlew buildPlugin test detekt verifyPlugin -Prelease --build-cache
 
     - name: Validate plugin archive integrity
       run: |
@@ -260,7 +262,7 @@ jobs:
         echo "SHA256: $(sha256sum "$PLUGIN_ZIP" | cut -d' ' -f1)"
 
     - name: Sign and publish plugin to JetBrains Marketplace
-      run: ./gradlew signPlugin publishPlugin --build-cache
+      run: ./gradlew signPlugin publishPlugin -Prelease --build-cache
       env:
         CERTIFICATE_CHAIN: ${{ secrets.CERTIFICATE_CHAIN }}
         PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}

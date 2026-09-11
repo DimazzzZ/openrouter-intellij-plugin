@@ -86,6 +86,7 @@ raw `./gradlew`. It keeps the daemon warm and skips slow verification tasks:
 ./scripts/fast-build.sh compile   # compileKotlin only (syntax check)
 ./scripts/fast-build.sh test      # unit tests, skip detekt + kover (default)
 ./scripts/fast-build.sh check     # tests + detekt, skip kover (pre-commit)
+./scripts/fast-build.sh verify    # plugin verifier vs local IDEA or IU-2025.3 (ADR-0002 gate, pre-push)
 ./scripts/fast-build.sh full      # full build incl. kover (release)
 ```
 

@@ -1,3 +1,4 @@
+import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask
 import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel
 
 plugins {
@@ -110,6 +111,12 @@ java {
 
 // Configure IntelliJ Platform Plugin (2.x)
 intellijPlatform {
+    // buildSearchableOptions launches a headless IDE (~1 min) to index the
+    // settings pages for Search Everywhere. Only the published zip needs it,
+    // so it is opt-in via -Prelease (release.yml passes it); local
+    // buildPlugin / verifyPlugin runs skip the IDE launch entirely.
+    buildSearchableOptions = project.hasProperty("release")
+
     pluginConfiguration {
         ideaVersion {
             sinceBuild = project.findProperty("pluginSinceBuild") as String? ?: "253"
@@ -130,6 +137,10 @@ intellijPlatform {
         // (the API still works), whereas SCHEDULED_FOR_REMOVAL_API_USAGES have
         // a hard deadline. JetBrains's own docs still recommend the deprecated
         // CredentialAttributes constructor, so there's no replacement yet.
+        // Android subsystems are irrelevant to this plugin and only add
+        // verifier work.
+        subsystemsToCheck = VerifyPluginTask.Subsystems.WITHOUT_ANDROID
+
         failureLevel = listOf(
             FailureLevel.COMPATIBILITY_PROBLEMS,
             FailureLevel.SCHEDULED_FOR_REMOVAL_API_USAGES,
@@ -142,10 +153,18 @@ intellijPlatform {
         ides {
             // Three ways to pick what to verify against, fastest first:
             //  -PverifierLocalIde=/path/to/IDE.app  an already-installed IDE
-            //                                       (local loop; no download)
-            //  -PverifierIdes=IC-2024.2[,IC-2025.1] an explicit, pinned set
-            //                                       (PR CI; one IDE is enough
-            //                                       to catch API breakage)
+            //                                       (no IDE download, but an
+            //                                       Ultimate install drags in
+            //                                       ~30 min of bundled-plugin
+            //                                       dependency downloads on
+            //                                       the first run)
+            //  -PverifierIdes=IU-2025.3[,IU-2026.2] an explicit, pinned set
+            //                                       (PR CI and the fallback of
+            //                                       `fast-build.sh verify`;
+            //                                       Community builds ended at
+            //                                       2025.2, so IU-2025.3 is the
+            //                                       cheapest match for
+            //                                       sinceBuild=253)
             //  neither                              recommended(), i.e. every
             //                                       supported line — thorough
             //                                       but several GB, so it is
