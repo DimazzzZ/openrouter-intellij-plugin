@@ -2,7 +2,7 @@
 
 This document describes two features:
 
-1. **Model Variants** — first-class handling of OpenRouter's model-ID suffixes (`:free`, `:nitro`, `:thinking`, etc.) throughout the plugin UI.
+1. **Model Variants** — first-class handling of OpenRouter's model-ID suffixes (`:free`, `:nitro`, `:exacto`, etc.) throughout the plugin UI.
 2. **Provider Routing** — a settings page that lets you configure global defaults (order, fallbacks, sort, filters, etc.) that the plugin injects into outbound proxy requests when your client doesn't specify them.
 
 ---
@@ -19,6 +19,7 @@ OpenRouter exposes many models under multiple variant suffixes. The same base mo
 | `:exacto`     | Exacto     | Quality-first provider sorting                |
 | `:nitro`      | Nitro      | High-speed inference                          |
 | `:floor`      | Floor      | Lowest-cost inference                         |
+| `:batch`      | Batch      | Asynchronous batch processing — 24h window, discounted pricing |
 
 Unknown suffixes are still tolerated (parsed into `unknownVariant`), but they don't get a color chip.
 
@@ -27,18 +28,19 @@ Unknown suffixes are still tolerated (parsed into `unknownVariant`), but they do
 ### Where variants appear
 
 - **Model selector dropdown** (chat panel): each entry shows the base model with a colored chip for its variant, and the tooltip explains what the variant does.
-- **Favorites & available-models tables** (settings): the model-ID column uses the same chip renderer, so users can visually distinguish `grok-4-fast:free` from `grok-4-fast:nitro` at a glance.
+- **Favorite Models table** (settings): the Model column uses the same chip renderer, so users can visually distinguish `grok-4-fast:free` from `grok-4-fast:nitro` at a glance. A context-help icon next to the page comment lists every chip and its meaning.
 - **Pricing columns**: models priced at zero display "Free" instead of "$0.0000" — most commonly the `:free` variant, but it applies to any zero-priced entry.
-- **Variant-aware picker** (see below).
+- **Variant filter** (see below).
 
-### Variant-aware favorites picker
+### Favorite Models page
 
-The "Variants…" button in the favorites settings panel opens a split-pane dialog:
+Settings → Tools → OpenRouter → Favorite Models is a single catalog table (see [ADR-0004](adr/0004-single-table-favorites-picker.md)):
 
-- Left pane: base models (grouped by canonical model, not by variant).
-- Right pane: for the currently-selected base, a checkbox per available variant plus a "Base only" option.
+- The first column is a checkbox: ticking a row appends the model to the ordered favorites list, unticking removes it. Variants are separate rows (`grok-4-fast` and `grok-4-fast:free`), so picking a variant is just ticking its row.
+- The toolbar holds the filters as drop-downs — Provider, Context, Capabilities (multi-select), Variant (Any / Base only / Free / Exacto / Nitro / Floor / Batch / Other) — plus Presets, Refresh, and Move Up / Move Down.
+- **Favorites only** (the star toggle) shows the favorites in stored order with sorting and filters disabled; Move Up / Move Down and drag-and-drop reorder rows there. That order is what AI Assistant lists.
 
-Selections are stored in `FavoriteModelGroupData` (grouped storage), then flattened back into the wire-format favorites list on save. The flat list remains authoritative for downstream consumers; the grouped view is UI-only.
+Favorites are stored as a flat, ordered list of model ids. [`FavoriteModelsManager.getGroups()`](../src/main/kotlin/org/zhavoronkov/openrouter/services/settings/FavoriteModelsManager.kt) can still derive a base-model → variants view on demand; the flat list remains authoritative for downstream consumers.
 
 ---
 
@@ -111,7 +113,9 @@ Uncheck the "Enable global provider routing" checkbox at the top of the settings
 
 ## Implementation notes
 
-- **Parsing**: [`ModelProviderUtils.parseModelId()`](../src/main/kotlin/org/zhavoronkov/openrouter/utils/ModelProviderUtils.kt) turns `anthropic/claude-3.5-sonnet:thinking` into a `ModelId(provider, baseName, variant)` triple.
+- **Parsing**: [`ModelProviderUtils.parseModelId()`](../src/main/kotlin/org/zhavoronkov/openrouter/utils/ModelProviderUtils.kt) turns `x-ai/grok-4-fast:free` into a `ModelId(provider, baseName, variant, unknownVariant)`.
 - **Chip rendering**: [`ModelVariantChipRenderer`](../src/main/kotlin/org/zhavoronkov/openrouter/ui/ModelVariantChipRenderer.kt) is the single source of truth for variant colors and tooltips.
-- **Storage**: Favorites are stored flat on the wire (backwards-compatible), but [`FavoriteModelsManager`](../src/main/kotlin/org/zhavoronkov/openrouter/services/settings/FavoriteModelsManager.kt) exposes a grouped view via `getGrouped()` / `setGrouped()`.
+- **Storage**: Favorites are stored flat and ordered; [`FavoriteModelsManager`](../src/main/kotlin/org/zhavoronkov/openrouter/services/settings/FavoriteModelsManager.kt) computes a grouped view on demand via `getGroups()`.
+- **Filtering**: [`ModelFilterCriteria.matches()`](../src/main/kotlin/org/zhavoronkov/openrouter/settings/ModelFilterCriteria.kt) is the single predicate behind the Favorite Models filters; [`VariantFilter`](../src/main/kotlin/org/zhavoronkov/openrouter/settings/favorites/VariantFilter.kt) covers the variant dimension.
+- **Page logic**: [`FavoriteModelsPageState`](../src/main/kotlin/org/zhavoronkov/openrouter/settings/favorites/FavoriteModelsPageState.kt) holds the ordered favorites, mode, criteria and catalog; the Swing panel only renders it.
 - **Injection**: [`ProviderRoutingInjector.inject()`](../src/main/kotlin/org/zhavoronkov/openrouter/proxy/routing/ProviderRoutingInjector.kt) is the sole entry point — the servlet delegates to it, and its behavior is unit-tested across ~10 scenarios in `ProviderRoutingInjectorTest`.

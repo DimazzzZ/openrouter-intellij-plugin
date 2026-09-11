@@ -9,9 +9,9 @@ An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.
 
 ## What's New (Unreleased) 🎉
 
-- **🏷️ Model Variants** - `:free`, `:nitro`, `:thinking`, `:online`, `:exacto`, `:floor`, `:extended` variants surfaced with colored chips in the model selector, favorites tables, and picker dialog
+- **🏷️ Model Variants** - `:free`, `:nitro`, `:exacto`, `:floor`, `:batch` variants surfaced with colored chips in the model selector and the Favorite Models table
 - **🎛️ Provider Routing** - New settings tab for global routing preferences (provider order, fallbacks, sort, data collection, quantizations, only/ignore filters) — injected into proxy requests only when the client doesn't specify them
-- **🔀 Variant-Aware Favorites Picker** - New split-pane dialog lets you pick a base model and check which variants to include; storage is now grouped by base model
+- **⭐ Single-Table Favorites** - Favorite Models is one catalog table with a ★ checkbox column, toolbar filters, presets, and a Favorites-only mode for reordering
 - **💰 Free Tier Hint** - Zero-price models display "Free" in pricing columns instead of "$0.0000"
 - See [`docs/MODEL_VARIANTS_AND_ROUTING.md`](docs/MODEL_VARIANTS_AND_ROUTING.md) for details.
 

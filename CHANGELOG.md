@@ -9,11 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### New Features
 
+#### ⭐ Favorite Models Page Redesign
+- **Single Catalog Table** - The two-table Add/Remove picker is replaced by one table with a favorite checkbox column; ticking appends to the ordered favorites, unticking removes ([ADR-0004](docs/adr/0004-single-table-favorites-picker.md))
+- **Favorites Only Mode** - Star toggle shows favorites in stored order (the order AI Assistant lists them) and enables Move Up / Move Down, Alt+↑/↓ and drag-and-drop reorder
+- **Toolbar Filters** - Provider, Context, Variant drop-downs and a multi-select Capabilities popup (now including Reasoning); "Clear filters" appears only when something is active
+- **Presets Drop-down** - All eight presets in one menu; adds catalog models to the end of the favorites and reports counts in the status line instead of modal dialogs
+- **Column Sorting** - Sort by Model, Context, Input or Output price (numeric) in catalog mode
+- **Empty States** - "No models match the filters · Clear filters", "Failed to load models · Retry", "No favorite models added · Add from presets…"
+- **Unavailable Favorites** - Favorites missing from the current catalog stay listed (greyed) so they can be removed
+
 #### 🏷️ Model Variants
-- **Variant Parsing** - Model IDs with suffixes (`:free`, `:nitro`, `:exacto`, `:floor`) are parsed into structured `ModelId` triples
-- **Chip Rendering** - Colored variant badges in model selector, favorites tables, and available-models tables
-- **Variant-Aware Favorites Picker** - New "Variants…" dialog with split-pane: base models on the left, variant checkboxes on the right
-- **Grouped Storage** - Favorites stored as `FavoriteModelGroupData` (base + variants list); flat wire format preserved for backwards compatibility
+- **Variant Parsing** - Model IDs with suffixes (`:free`, `:nitro`, `:exacto`, `:floor`, `:batch`) are parsed into structured `ModelId` values
+- **Chip Rendering** - Colored variant badges with rounded corners in the model selector and the Favorite Models table; chip meaning in tooltips and a context-help icon
+- **Variant Filter** - Any / Base only / per-variant / Other filter replaces the separate variants dialog; variants are ordinary rows in the catalog
 - **Free Tier Hint** - Zero-price models display "Free" instead of "$0.0000"
 
 #### ⚠️ Removed Deprecated Variants
@@ -30,16 +38,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tool-Call Accumulator** - `ToolCallAccumulator` reassembles streaming `delta.tool_calls` fragments across SSE chunks by index
 - **AI Assistant Agent Mode** - Streaming tool calls flow correctly through the proxy, unblocking Agent Mode workflows
 
+### Removed
+- **Two-table favorites picker** - Add / Add All / Remove / Clear All buttons, the capability checkbox row, the Quick preset buttons, the "Variants…" dialog and the chip legend
+- **`/models/count` request** on the Favorite Models page - the status line now counts the loaded catalog
+
 ### Testing
+- 40 unit tests for `FavoriteModelsPageState` (ordering, favorites-only view, reorder, presets, status, empty states) plus `ModelFilterCriteria`, `VariantFilter`, table column and table model tests
+- `FavoriteModelsSettingsPanelPlatformTest` replaces the headless-disabled panel test (checkbox toggle → apply, favorites-only order, Enter handling, empty state, status line)
 - 10 unit tests for `ProviderRoutingInjector` (inject-only-when-absent invariant)
 - 11 MockWebServer E2E tests for provider-routing injection through the full HTTP stack (injector → request builder → OkHttp → upstream)
 - 6 tests for `ToolCallAccumulator` (single-chunk, multi-chunk, multiple tool_calls, null/empty deltas, reset)
-- Variant picker logic tests (grouping, selection, deduplication)
 - Streaming integration test (tool_call chunks forwarded verbatim)
 - Deprecated-variant handling tests (`fromSuffix` returns null, `stripDeprecatedVariant` rewrites/skips correctly)
 
 ### Documentation
 - [`docs/MODEL_VARIANTS_AND_ROUTING.md`](docs/MODEL_VARIANTS_AND_ROUTING.md) — full reference for variant parsing, chip rendering, provider routing injection, and the settings UI
+- [`docs/adr/0004-single-table-favorites-picker.md`](docs/adr/0004-single-table-favorites-picker.md) — why the Favorite Models page is one table with a checkbox column
 
 ## [0.5.3] - 2026-06-18
 
