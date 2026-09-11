@@ -50,6 +50,7 @@ import org.zhavoronkov.openrouter.settings.favorites.RefreshCatalogAction
 import org.zhavoronkov.openrouter.settings.favorites.VariantLegend
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
+import java.awt.GraphicsEnvironment
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
 import javax.swing.JComponent
@@ -243,7 +244,9 @@ class FavoriteModelsSettingsPanel(
         if (modeChanged) {
             // JBTable.setModel re-evaluates the row sorter from isSortable.
             table.setModelAndUpdateColumns(tableModel)
-            table.dragEnabled = state.canReorder()
+            // setDragEnabled(true) throws HeadlessException with no display, and
+            // RowsDnDSupport guards its own call the same way.
+            table.dragEnabled = state.canReorder() && !GraphicsEnvironment.isHeadless()
             renderedMode = state.mode
         }
         restoreSelection(selectedId)

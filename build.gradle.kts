@@ -294,6 +294,11 @@ intellijPlatformTesting {
                     includeTestsMatching("*SmokeTest")
                 }
                 systemProperty("openrouter.testMode", "true")
+                // CI has no display, so headless is what these tests really run
+                // under there. Matching it locally keeps a headless-only failure
+                // (e.g. JComponent.setDragEnabled(true) throwing HeadlessException)
+                // from reaching CI.
+                systemProperty("java.awt.headless", "true")
                 maxParallelForks = 1
 
                 reports {
