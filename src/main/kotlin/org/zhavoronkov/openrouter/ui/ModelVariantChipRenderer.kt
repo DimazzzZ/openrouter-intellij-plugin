@@ -36,6 +36,9 @@ object ModelVariantChipRenderer {
         ),
         ModelVariant.FLOOR to ChipColor(
             bgLight = "#E0F2F1", bgDark = "#00695C", fgLight = "#00695C", fgDark = "#E0F2F1"
+        ),
+        ModelVariant.BATCH to ChipColor(
+            bgLight = "#E3F2FD", bgDark = "#0D47A1", fgLight = "#0D47A1", fgDark = "#E3F2FD"
         )
     )
 

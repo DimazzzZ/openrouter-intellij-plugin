@@ -55,7 +55,28 @@ class FavoriteModelsPageState(initialFavorites: List<String> = emptyList()) {
     fun setCatalog(models: List<OpenRouterModelInfo>) {
         catalog = models
         loadError = null
+        // A variant the new catalog no longer carries would filter everything out
+        // with no way to tell why, so drop it rather than leave a dead filter.
+        if (criteria.variant !in availableVariantFilters()) {
+            criteria = criteria.copy(variant = VariantFilter.ANY)
+        }
         fireChanged()
+    }
+
+    /**
+     * Variant filters worth offering: only the suffixes the loaded catalog actually
+     * carries. OpenRouter lists `:free` and `:batch` as separate models, while
+     * `:nitro`, `:floor` and `:exacto` are request-time routing shortcuts that never
+     * appear in the catalog — offering them would guarantee an empty table.
+     */
+    fun availableVariantFilters(): List<VariantFilter> = buildList {
+        add(VariantFilter.ANY)
+        val present = catalog.map { ModelProviderUtils.parseModelId(it.id) }
+        if (present.any { it.variant == null && it.unknownVariant == null }) add(VariantFilter.BASE_ONLY)
+        VariantFilter.entries
+            .filter { filter -> filter.variant != null && present.any { it.variant == filter.variant } }
+            .forEach(::add)
+        if (present.any { it.unknownVariant != null }) add(VariantFilter.OTHER)
     }
 
     // --- favorites -------------------------------------------------------------------------

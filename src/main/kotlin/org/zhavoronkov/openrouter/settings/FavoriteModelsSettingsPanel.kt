@@ -47,7 +47,7 @@ import org.zhavoronkov.openrouter.settings.favorites.FavoritesOnlyToggleAction
 import org.zhavoronkov.openrouter.settings.favorites.MoveFavoriteAction
 import org.zhavoronkov.openrouter.settings.favorites.PresetsAction
 import org.zhavoronkov.openrouter.settings.favorites.RefreshCatalogAction
-import org.zhavoronkov.openrouter.utils.ModelProviderUtils
+import org.zhavoronkov.openrouter.settings.favorites.VariantLegend
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.event.KeyAdapter
@@ -128,7 +128,7 @@ class FavoriteModelsSettingsPanel(
             group("Favorite Models") {
                 row {
                     comment(PAGE_COMMENT)
-                    contextHelp(variantHelpHtml(), "Model variants")
+                    cell(VariantLegend.createLabel())
                 }.topGap(TopGap.NONE).visible(keyPresent)
                 row {
                     cell(searchField).align(AlignX.FILL).resizableColumn()
@@ -229,14 +229,6 @@ class FavoriteModelsSettingsPanel(
         }
         action.registerCustomShortcutSet(if (up) CommonShortcuts.MOVE_UP else CommonShortcuts.MOVE_DOWN, table)
         return action
-    }
-
-    private fun variantHelpHtml(): String {
-        val known = ModelProviderUtils.ModelVariant.entries.joinToString("<br>") {
-            "<b>${it.displayName}</b> — ${it.tooltip}"
-        }
-        return "Model ids may carry a variant suffix shown as a chip:<br>$known<br>" +
-            "<b>Other</b> — a suffix this plugin does not recognise"
     }
 
     // --- rendering -------------------------------------------------------------------------

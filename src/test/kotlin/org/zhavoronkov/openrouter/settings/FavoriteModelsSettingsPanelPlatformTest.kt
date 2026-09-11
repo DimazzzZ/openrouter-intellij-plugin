@@ -2,6 +2,7 @@ package org.zhavoronkov.openrouter.settings
 
 import com.intellij.openapi.util.Disposer
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import com.intellij.ui.ContextHelpLabel
 import com.intellij.ui.SearchTextField
 import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.UIUtil
@@ -13,8 +14,11 @@ import org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsFixtures.GROK
 import org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsFixtures.SONNET
 import org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsPageState
 import org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsPageState.Mode
+import org.zhavoronkov.openrouter.settings.favorites.VariantLegend
 import java.awt.Component
 import java.awt.Container
+import java.awt.Dimension
+import java.awt.Point
 import java.awt.event.KeyEvent
 import javax.swing.JButton
 import javax.swing.JComponent
@@ -30,6 +34,7 @@ class FavoriteModelsSettingsPanelPlatformTest : BasePlatformTestCase() {
     private companion object {
         const val PAGE_WIDTH = 900
         const val PAGE_HEIGHT = 800
+        const val ICON_SIZE = 16
     }
 
     private lateinit var manager: FavoriteModelsManager
@@ -164,6 +169,38 @@ class FavoriteModelsSettingsPanelPlatformTest : BasePlatformTestCase() {
         assertTrue(
             "Table should take the page's spare height, but got ${scrollPane.height} of $PAGE_HEIGHT",
             scrollPane.height >= PAGE_HEIGHT / 2
+        )
+    }
+
+    fun testVariantHelpTooltipCannotFlickerUnderTheCursor() {
+        val icon = VariantLegend.createLabel()
+        icon.setSize(ICON_SIZE, ICON_SIZE)
+        val cursor = Point(ICON_SIZE / 2, ICON_SIZE / 2)
+
+        val shortTip = VariantLegend.ALIGNMENT.getPointFor(icon, Dimension(300, 60), cursor)
+        val tallTip = VariantLegend.ALIGNMENT.getPointFor(icon, Dimension(300, 900), cursor)
+
+        // HELP_BUTTON, the ContextHelpLabel default, returns -popupHeight above the
+        // icon. A tall popup then lands off the top of the screen, the platform
+        // clamps it back over the icon, and the owner flips between mouseExited and
+        // mouseEntered forever (IDEA-330235).
+        assertEquals(
+            "Tooltip position must not depend on its height, or a tall tooltip gets clamped over the cursor",
+            shortTip,
+            tallTip
+        )
+        assertTrue(
+            "Tooltip must open below the icon, clear of the cursor, but y was ${'$'}{shortTip.y}",
+            shortTip.y >= icon.height
+        )
+    }
+
+    fun testPageShowsTheVariantHelpIcon() {
+        val root = createPanel()
+
+        assertNotNull(
+            "The variant legend help icon should be on the page",
+            UIUtil.findComponentOfType(root, ContextHelpLabel::class.java)
         )
     }
 

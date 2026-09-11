@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### 🏷️ Model Variants
 - **Variant Parsing** - Model IDs with suffixes (`:free`, `:nitro`, `:exacto`, `:floor`, `:batch`) are parsed into structured `ModelId` values
 - **Chip Rendering** - Colored variant badges with rounded corners in the model selector and the Favorite Models table; chip meaning in tooltips and a context-help icon
-- **Variant Filter** - Any / Base only / per-variant / Other filter replaces the separate variants dialog; variants are ordinary rows in the catalog
+- **Variant Filter** - Any / Base only / Other plus one entry per suffix the loaded catalog carries, so the filter never offers an option that cannot match; variants are ordinary rows in the catalog
 - **Free Tier Hint** - Zero-price models display "Free" instead of "$0.0000"
 
 #### ⚠️ Removed Deprecated Variants
@@ -37,6 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### 🔧 Streaming Tool-Call Support
 - **Tool-Call Accumulator** - `ToolCallAccumulator` reassembles streaming `delta.tool_calls` fragments across SSE chunks by index
 - **AI Assistant Agent Mode** - Streaming tool calls flow correctly through the proxy, unblocking Agent Mode workflows
+
+### Bug Fixes
+- **Variant Legend Tooltip Flicker** - The "?" tooltip on the Favorite Models page hung above the icon at an offset equal to its own height; a legend-sized popup was clamped back over the icon and flickered endlessly (IDEA-330235). It now opens below the icon, clear of the cursor
+- **Batch Chip Color** - `:batch` had no palette entry and rendered in the "unknown variant" yellow; it now has its own blue chip
+- **Dead Variant Filter Options** - Nitro, Floor and Exacto were offered in the Variant drop-down but can never match: they are request-time routing shortcuts, not catalog entries. The drop-down is now built from the loaded catalog, and a selected variant that a reloaded catalog no longer carries resets to Any
 
 ### Removed
 - **Two-table favorites picker** - Add / Add All / Remove / Clear All buttons, the capability checkbox row, the Quick preset buttons, the "Variants…" dialog and the chip legend

@@ -97,7 +97,7 @@ internal class ChoiceFilterAction<T>(
         fun variant(state: FavoriteModelsPageState): ChoiceFilterAction<VariantFilter> = ChoiceFilterAction(
             label = "Variant",
             state = state,
-            options = { VariantFilter.entries },
+            options = { state.availableVariantFilters() },
             current = { state.criteria.variant },
             isDefault = { it == VariantFilter.ANY },
             display = { it.displayName },

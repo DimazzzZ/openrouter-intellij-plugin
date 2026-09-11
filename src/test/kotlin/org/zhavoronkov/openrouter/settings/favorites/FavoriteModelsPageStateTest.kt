@@ -193,6 +193,54 @@ class FavoriteModelsPageStateTest {
     }
 
     @Nested
+    @DisplayName("variant filter options")
+    inner class VariantFilterOptions {
+
+        @Test
+        fun `only suffixes present in the catalog are offered`() {
+            val s = state()
+
+            assertEquals(
+                listOf(VariantFilter.ANY, VariantFilter.BASE_ONLY, VariantFilter.FREE, VariantFilter.OTHER),
+                s.availableVariantFilters()
+            )
+        }
+
+        @Test
+        fun `a catalog of one suffix offers neither base nor other`() {
+            val s = state(catalog = listOf(FavoriteModelsFixtures.model("a/b:batch")))
+
+            assertEquals(listOf(VariantFilter.ANY, VariantFilter.BATCH), s.availableVariantFilters())
+        }
+
+        @Test
+        fun `an empty catalog offers only Any`() {
+            assertEquals(listOf(VariantFilter.ANY), FavoriteModelsPageState().availableVariantFilters())
+        }
+
+        @Test
+        fun `reloading a catalog without the selected variant resets the filter`() {
+            val s = state()
+            s.criteria = ModelFilterCriteria(variant = VariantFilter.FREE, provider = "OpenAI")
+
+            s.setCatalog(listOf(FavoriteModelsFixtures.model("a/b")))
+
+            assertEquals(VariantFilter.ANY, s.criteria.variant)
+            assertEquals("OpenAI", s.criteria.provider, "Other filter dimensions must be left alone")
+        }
+
+        @Test
+        fun `reloading a catalog that still has the selected variant keeps the filter`() {
+            val s = state()
+            s.criteria = ModelFilterCriteria(variant = VariantFilter.FREE)
+
+            s.setCatalog(CATALOG)
+
+            assertEquals(VariantFilter.FREE, s.criteria.variant)
+        }
+    }
+
+    @Nested
     @DisplayName("reordering")
     inner class Reordering {
 

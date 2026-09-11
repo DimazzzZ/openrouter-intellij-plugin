@@ -2,6 +2,7 @@ package org.zhavoronkov.openrouter.ui
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -100,6 +101,21 @@ class ModelVariantChipRendererTest {
     @Test
     fun `chipLabelFor prefixes unknown variant`() {
         assertEquals("? brand-new", ModelVariantChipRenderer.chipLabelFor("some/model:brand-new"))
+    }
+
+    @Test
+    fun `every known variant has its own color, not the unknown-variant fallback`() {
+        val unknownBg = ModelVariantChipRenderer.unknownChipBackground()
+        val unknownFg = ModelVariantChipRenderer.unknownChipForeground()
+
+        ModelProviderUtils.ModelVariant.entries.forEach { variant ->
+            assertNotEquals(
+                unknownBg,
+                ModelVariantChipRenderer.chipBackground(variant),
+                "${'$'}{variant.displayName} must not reuse the unknown-variant chip color"
+            )
+            assertNotEquals(unknownFg, ModelVariantChipRenderer.chipForeground(variant))
+        }
     }
 
     @Test
