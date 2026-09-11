@@ -25,7 +25,9 @@ import javax.swing.table.TableCellRenderer
  * chips inside a Swing table cell. The palette and labels are sourced from
  * [ModelVariantChipRenderer] so both renderers stay visually consistent.
  */
-class VariantChipTableCellRenderer : JLabel(), TableCellRenderer {
+class VariantChipTableCellRenderer(
+    private val isAvailable: (String) -> Boolean = { true },
+) : JLabel(), TableCellRenderer {
 
     private var modelId: String = ""
     private var chipLabel: String? = null
@@ -62,16 +64,17 @@ class VariantChipTableCellRenderer : JLabel(), TableCellRenderer {
         }
 
         text = modelId
-        toolTipText = ModelVariantChipRenderer.tooltipFor(id)
+        val available = isAvailable(id)
+        toolTipText = if (available) ModelVariantChipRenderer.tooltipFor(id) else UNAVAILABLE_TOOLTIP
         background = if (isSelected) {
             table?.selectionBackground ?: JBColor.BLUE
         } else {
             table?.background ?: JBColor.WHITE
         }
-        foreground = if (isSelected) {
-            table?.selectionForeground ?: JBColor.WHITE
-        } else {
-            table?.foreground ?: JBColor.BLACK
+        foreground = when {
+            isSelected -> table?.selectionForeground ?: JBColor.WHITE
+            !available -> JBUI.CurrentTheme.Label.disabledForeground()
+            else -> table?.foreground ?: JBColor.BLACK
         }
         return this
     }
@@ -122,6 +125,7 @@ class VariantChipTableCellRenderer : JLabel(), TableCellRenderer {
     }
 
     companion object {
+        private const val UNAVAILABLE_TOOLTIP = "Not in the current model catalog"
         private const val CHIP_ARC = 8
         private const val CHIP_H_PADDING = 6
         private const val CHIP_V_PADDING = 1
