@@ -136,19 +136,6 @@ object ModelProviderUtils {
     }
 
     /**
-     * Criteria for filtering models
-     */
-    data class FilterCriteria(
-        val provider: String = "All Providers",
-        val contextRange: ContextRange = ContextRange.ANY,
-        val requireVision: Boolean = false,
-        val requireAudio: Boolean = false,
-        val requireTools: Boolean = false,
-        val requireImageGen: Boolean = false,
-        val searchText: String = ""
-    )
-
-    /**
      * Check if model's context length matches the specified range
      */
     fun matchesContextRange(model: OpenRouterModelInfo, range: ContextRange): Boolean {
@@ -173,72 +160,6 @@ object ModelProviderUtils {
             contextLength >= THOUSAND -> "${contextLength / THOUSAND}K"
             else -> contextLength.toString()
         }
-    }
-
-    /**
-     * Filter models by provider
-     */
-    fun filterByProvider(models: List<OpenRouterModelInfo>, provider: String): List<OpenRouterModelInfo> {
-        if (provider == "All Providers") return models
-        return models.filter { extractProvider(it.id) == provider }
-    }
-
-    /**
-     * Filter models by capabilities
-     * All specified capabilities must be present (AND logic)
-     */
-    fun filterByCapabilities(
-        models: List<OpenRouterModelInfo>,
-        requireVision: Boolean = false,
-        requireAudio: Boolean = false,
-        requireTools: Boolean = false,
-        requireImageGen: Boolean = false
-    ): List<OpenRouterModelInfo> {
-        return models.filter { model ->
-            (!requireVision || hasCapability(model, Capability.VISION)) &&
-                (!requireAudio || hasCapability(model, Capability.AUDIO)) &&
-                (!requireTools || hasCapability(model, Capability.TOOLS)) &&
-                (!requireImageGen || hasCapability(model, Capability.IMAGE_GENERATION))
-        }
-    }
-
-    /**
-     * Apply all filters to a list of models
-     */
-    fun applyFilters(
-        models: List<OpenRouterModelInfo>,
-        criteria: FilterCriteria
-    ): List<OpenRouterModelInfo> {
-        var filtered = models
-
-        // Apply provider filter
-        if (criteria.provider != "All Providers") {
-            filtered = filtered.filter { extractProvider(it.id) == criteria.provider }
-        }
-
-        // Apply context range filter
-        if (criteria.contextRange != ContextRange.ANY) {
-            filtered = filtered.filter { matchesContextRange(it, criteria.contextRange) }
-        }
-
-        // Apply capability filters
-        filtered = filtered.filter { model ->
-            (!criteria.requireVision || hasCapability(model, Capability.VISION)) &&
-                (!criteria.requireAudio || hasCapability(model, Capability.AUDIO)) &&
-                (!criteria.requireTools || hasCapability(model, Capability.TOOLS)) &&
-                (!criteria.requireImageGen || hasCapability(model, Capability.IMAGE_GENERATION))
-        }
-
-        // Apply text search filter
-        if (criteria.searchText.isNotBlank()) {
-            filtered = filtered.filter { model ->
-                model.id.contains(criteria.searchText, ignoreCase = true) ||
-                    model.name.contains(criteria.searchText, ignoreCase = true) ||
-                    model.description?.contains(criteria.searchText, ignoreCase = true) == true
-            }
-        }
-
-        return filtered
     }
 
     /**
