@@ -5,19 +5,24 @@
 #   compile    — compileKotlin only (fastest; check syntax)
 #   test       — unit tests only, skip detekt and kover (fast feedback loop)
 #   check      — unit tests + detekt, skip kover (medium; for pre-commit)
-#   verify     — plugin verifier (ADR-0002 gate). Uses the locally installed
-#                IntelliJ IDEA when present (no IDE download), otherwise the
-#                pinned IU-2025.3 build, downloaded once into ~/.pluginVerifier.
-#                Override: VERIFIER_IDES=IU-2026.2 or VERIFIER_LOCAL_IDE=/path/IDE.app
+#   verify        — plugin verifier (ADR-0002 gate) against the pinned build in
+#                   gradle.properties (verifierIdes) — the same target CI and
+#                   releases use. First run downloads that IDE once.
+#   verify local  — same check against the IntelliJ IDEA installed on this
+#                   machine. Use it to see deprecations introduced by IDE
+#                   versions newer than the pinned one. Point it elsewhere with
+#                   VERIFIER_LOCAL_IDE=/path/to/IDE.app
 #   full       — full build including kover (slow; for release)
 #
 # Usage:
 #   ./scripts/fast-build.sh [mode]
-#   ./scripts/fast-build.sh test    # default: unit tests only
+#   ./scripts/fast-build.sh test          # default: unit tests only
+#   ./scripts/fast-build.sh verify local  # verifier against the installed IDE
 
 set -euo pipefail
 
 MODE="${1:-test}"
+TARGET="${2:-pinned}"
 
 case "$MODE" in
   compile)
@@ -33,18 +38,22 @@ case "$MODE" in
     ./gradlew check -x koverVerify --parallel
     ;;
   verify)
-    # Community builds stopped at 2025.2, so the cheapest valid target for
-    # pluginSinceBuild=253 is IU-2025.3 (see `./gradlew printProductsReleases`).
-    # A local install skips the download entirely; the verifier's own
-    # ~/.pluginVerifier cache makes repeat runs fast either way.
-    LOCAL_IDE="${VERIFIER_LOCAL_IDE:-/Applications/IntelliJ IDEA.app}"
-    if [ -z "${VERIFIER_IDES:-}" ] && [ -d "$LOCAL_IDE" ]; then
-      echo "🔎 Verifying plugin against local IDE ${LOCAL_IDE} (searchable options skipped)..."
+    if [ "$TARGET" = "local" ]; then
+      # Manual check against whatever IDE is installed here — typically newer
+      # than the pinned build, so it surfaces upcoming deprecations early.
+      # Findings are informational: the pinned build is what gates CI.
+      LOCAL_IDE="${VERIFIER_LOCAL_IDE:-/Applications/IntelliJ IDEA.app}"
+      if [ ! -d "$LOCAL_IDE" ]; then
+        echo "No IDE at ${LOCAL_IDE}. Set VERIFIER_LOCAL_IDE=/path/to/IDE.app" >&2
+        exit 1
+      fi
+      echo "🔎 Verifying plugin against the installed IDE ${LOCAL_IDE}..."
       ./gradlew verifyPlugin -PverifierLocalIde="${LOCAL_IDE}" --parallel
     else
-      IDES="${VERIFIER_IDES:-IU-2025.3}"
-      echo "🔎 Verifying plugin against ${IDES} (searchable options skipped)..."
-      ./gradlew verifyPlugin -PverifierIdes="${IDES}" --parallel
+      # No -PverifierIdes: picks up the pinned verifierIdes from gradle.properties,
+      # the same target CI and releases use.
+      echo "🔎 Verifying plugin against the pinned IDE from gradle.properties..."
+      ./gradlew verifyPlugin --parallel
     fi
     ;;
   full)
@@ -53,7 +62,7 @@ case "$MODE" in
     ;;
   *)
     echo "Unknown mode: $MODE"
-    echo "Usage: $0 [compile|test|check|verify|full]"
+    echo "Usage: $0 [compile|test|check|verify [local]|full]"
     exit 1
     ;;
 esac

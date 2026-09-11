@@ -86,9 +86,17 @@ raw `./gradlew`. It keeps the daemon warm and skips slow verification tasks:
 ./scripts/fast-build.sh compile   # compileKotlin only (syntax check)
 ./scripts/fast-build.sh test      # unit tests, skip detekt + kover (default)
 ./scripts/fast-build.sh check     # tests + detekt, skip kover (pre-commit)
-./scripts/fast-build.sh verify    # plugin verifier vs local IDEA or IU-2025.3 (ADR-0002 gate, pre-push)
+./scripts/fast-build.sh verify    # plugin verifier vs the pinned IDE (ADR-0002 gate, pre-push)
+./scripts/fast-build.sh verify local  # same check vs the IDE installed here (new deprecations)
 ./scripts/fast-build.sh full      # full build incl. kover (release)
 ```
+
+`verifierIdes` in `gradle.properties` pins the IDE that local runs, PR CI and releases
+all verify against, so the three cannot disagree. It is the oldest build satisfying
+`pluginSinceBuild`; `./gradlew printProductsReleases` lists the newer ones. It is an
+Ultimate build because JetBrains unified the IDEA distribution at 2025.3 — no Community
+artifact exists for build 253 or later. Run `verify local` by hand to see deprecations
+that newer IDEs introduce; those findings are informational and gate nothing.
 
 Do **not** pass `--no-daemon` — it re-forks the JVM on every command and adds
 ~30s of cold start. The Gradle daemon (enabled in `gradle.properties`) plus

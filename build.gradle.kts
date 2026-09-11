@@ -151,24 +151,25 @@ intellijPlatform {
         )
 
         ides {
-            // Three ways to pick what to verify against, fastest first:
-            //  -PverifierLocalIde=/path/to/IDE.app  an already-installed IDE
-            //                                       (no IDE download, but an
-            //                                       Ultimate install drags in
-            //                                       ~30 min of bundled-plugin
-            //                                       dependency downloads on
-            //                                       the first run)
-            //  -PverifierIdes=IU-2025.3[,IU-2026.2] an explicit, pinned set
-            //                                       (PR CI and the fallback of
-            //                                       `fast-build.sh verify`;
-            //                                       Community builds ended at
-            //                                       2025.2, so IU-2025.3 is the
-            //                                       cheapest match for
-            //                                       sinceBuild=253)
+            // What to verify against:
+            //  verifierIdes (gradle.properties)     the default for everyone —
+            //                                       local runs, PR CI and
+            //                                       releases share one pinned
+            //                                       build so they cannot drift.
+            //                                       Override per run with
+            //                                       -PverifierIdes=IU-2026.2.2
+            //  -PverifierLocalIde=/path/to/IDE.app  an already-installed IDE,
+            //                                       for checking a newer IDE by
+            //                                       hand (`fast-build.sh verify
+            //                                       local`). No IDE download,
+            //                                       but the verifier still
+            //                                       fetches that IDE's bundled
+            //                                       -plugin dependencies once.
             //  neither                              recommended(), i.e. every
-            //                                       supported line — thorough
-            //                                       but several GB, so it is
-            //                                       reserved for releases.
+            //                                       supported line — only
+            //                                       reachable if verifierIdes
+            //                                       is removed from
+            //                                       gradle.properties.
             val localIde = project.findProperty("verifierLocalIde") as String?
             val verifierIdesProperty = project.findProperty("verifierIdes") as String?
             val pinnedIdes = verifierIdesProperty
