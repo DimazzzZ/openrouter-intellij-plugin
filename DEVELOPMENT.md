@@ -86,8 +86,17 @@ raw `./gradlew`. It keeps the daemon warm and skips slow verification tasks:
 ./scripts/fast-build.sh compile   # compileKotlin only (syntax check)
 ./scripts/fast-build.sh test      # unit tests, skip detekt + kover (default)
 ./scripts/fast-build.sh check     # tests + detekt, skip kover (pre-commit)
+./scripts/fast-build.sh verify    # plugin verifier vs the pinned IDE (ADR-0002 gate, pre-push)
+./scripts/fast-build.sh verify local  # same check vs the IDE installed here (new deprecations)
 ./scripts/fast-build.sh full      # full build incl. kover (release)
 ```
+
+`verifierIdes` in `gradle.properties` pins the IDE that local runs, PR CI and releases
+all verify against, so the three cannot disagree. It is the oldest build satisfying
+`pluginSinceBuild`; `./gradlew printProductsReleases` lists the newer ones. It is an
+Ultimate build because JetBrains unified the IDEA distribution at 2025.3 — no Community
+artifact exists for build 253 or later. Run `verify local` by hand to see deprecations
+that newer IDEs introduce; those findings are informational and gate nothing.
 
 Do **not** pass `--no-daemon` — it re-forks the JVM on every command and adds
 ~30s of cold start. The Gradle daemon (enabled in `gradle.properties`) plus
@@ -285,9 +294,15 @@ openrouter-intellij-plugin/
 │   ├── 🔧 settings/                 # Settings UI components
 │   │   ├── OpenRouterConfigurable.kt # Settings page configuration
 │   │   ├── OpenRouterSettingsPanel.kt # Main settings UI panel
-│   │   ├── FavoriteModelsSettingsPanel.kt # Favorite models selector with filtering (Phase 1)
-│   │   ├── ModelPresets.kt          # Predefined model lists (Phase 1)
-│   │   └── ModelFilterCriteria.kt   # Filter state management (Phase 1)
+│   │   ├── FavoriteModelsSettingsPanel.kt # Favorite models page (thin Swing adapter, ADR-0004)
+│   │   ├── ModelPresets.kt          # Predefined model lists
+│   │   ├── ModelFilterCriteria.kt   # Set-based filter criteria with matches(model)
+│   │   └── 📁 favorites/            # Page logic + table plumbing for Favorite Models
+│   │       ├── FavoriteModelsPageState.kt   # Pure-Kotlin view-model (ordered favorites, mode, criteria)
+│   │       ├── VariantFilter.kt             # Any / Base only / per-variant / Other
+│   │       ├── FavoriteModelsTableColumns.kt # ColumnInfos: ★, Model, Context, Input, Output
+│   │       ├── FavoriteModelsTableModel.kt  # ListTableModel gating row exchange via the state
+│   │       └── FavoriteModelsToolbarActions.kt # Toolbar actions (toggle, filters, presets, move)
 │   ├── 📍 statusbar/                # Status bar integration
 │   │   ├── OpenRouterStatusBarWidget.kt # Main status bar widget
 │   │   └── OpenRouterStatusBarWidgetFactory.kt # Widget factory
@@ -316,7 +331,8 @@ openrouter-intellij-plugin/
 │   ├── ApiIntegrationTest.kt        # API tests (7 tests)
 │   ├── ModelProviderUtilsTest.kt    # Filtering tests (28 tests, Phase 1)
 │   ├── ModelPresetsTest.kt          # Preset tests (16 tests, Phase 1)
-│   ├── ModelFilterCriteriaTest.kt   # Filter criteria tests (20 tests, Phase 1)
+│   ├── ModelFilterCriteriaTest.kt   # Filter criteria tests
+│   ├── settings/favorites/          # FavoriteModelsPageStateTest and table/column tests
 │   └── 📁 resources/mocks/          # Mock API responses
 └── 📁 docs/                         # Documentation files
     ├── README.md                    # Main documentation
@@ -468,20 +484,31 @@ curl -X POST http://localhost:8880/v1/chat/completions \
 - **Model Selection** - Embedded table with search, filtering, and checkbox selection
 - **Configuration Saving** - Automatic settings persistence and completion tracking
 
-## 🔍 Advanced Model Filtering Architecture
+## 🔍 Favorite Models Page Architecture
+
+See [ADR-0004](docs/adr/0004-single-table-favorites-picker.md). The page is one catalog table with a
+favorite checkbox column; all logic is platform-free and unit-tested.
 
 ### Core Components
-- **ModelFilterCriteria.kt** - Filter state management with active filter counting
-- **ModelPresets.kt** - Predefined filter combinations (Multimodal, Coding, Cost-Effective)
-- **ModelProviderUtils.kt** - Core filtering logic for provider, context, and capability filtering
-- **ContextRange Enum** - Smart date parsing for context length filtering (1K, 4K, 8K, 16K, 32K+)
+- **FavoriteModelsPageState.kt** - View-model: ordered favorites (append on tick, positional removal), `CATALOG` /
+  `FAVORITES_ONLY` mode, criteria, catalog, `visibleRows()`, `statusText()`, `emptyState()`, reorder, presets,
+  `isModified()` / `markApplied()` / `reset()`
+- **ModelFilterCriteria.kt** - Immutable criteria (provider, context range, capability set, `VariantFilter`, search
+  text) with the single `matches(model)` predicate
+- **FavoriteModelsTableColumns.kt / FavoriteModelsTableModel.kt** - `ColumnInfo`s reading the state; the model
+  forwards `exchangeRows` to the state so drag-and-drop and Move Up/Down keep the stored order in sync
+- **FavoriteModelsToolbarActions.kt** - `ToggleAction` / `ComboBoxAction` / `DumbAwareAction` subclasses; the
+  Capabilities popup stays open via `KeepPopupOnPerform.Always`
+- **FavoriteModelsSettingsPanel.kt** - Thin Swing adapter with injectable seams (`favoriteModelsManager`,
+  `isConfigured`, `state`, `autoLoad`) so a `*PlatformTest` can drive it without network
+- **ModelPresets.kt** - Preset bundles shown in the Presets drop-down
+- **ModelProviderUtils.kt** - Provider extraction, capability and context-range helpers, variant parsing
 
-### Filtering Capabilities
-- **Provider Filtering**: OpenAI, Anthropic, Google, Meta, Mistral, etc.
-- **Context Filtering**: Automatic parsing of context lengths from model descriptions
-- **Capability Filtering**: Vision, Audio, Tools, Image Generation detection
-- **Quick Presets**: One-click filters for common use cases
-- **Real-time Search**: Fuzzy matching across model names and descriptions
+### Behaviour
+- **Provider / Context / Variant**: single-select drop-downs; **Capabilities**: multi-select (AND); **Search**:
+  case-insensitive over id, name and description
+- **Favorites only**: stored order, sorting and filters disabled, reorder enabled; the order is what AI Assistant lists
+- **Presets**: append catalog-present ids to the end, skip duplicates, report counts in the status line
 
 ## 📊 Enhanced Statistics Dialog Development
 

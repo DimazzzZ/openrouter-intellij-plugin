@@ -100,3 +100,6 @@ junit.xml
 ml-llm
 token-pulse/
 .mimocode
+
+# Kotlin compiler daemon session files
+.kotlin/

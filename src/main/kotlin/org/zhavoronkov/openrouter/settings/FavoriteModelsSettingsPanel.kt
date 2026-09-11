@@ -1,843 +1,406 @@
-
-@file:OptIn(ExperimentalStdlibApi::class)
-
 package org.zhavoronkov.openrouter.settings
 
 import com.intellij.icons.AllIcons
+import com.intellij.ide.DataManager
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.ActionPlaces
+import com.intellij.openapi.actionSystem.ActionToolbar
+import com.intellij.openapi.actionSystem.CommonShortcuts
+import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.intellij.openapi.actionSystem.Separator
+import com.intellij.openapi.actionSystem.toolbarLayout.ToolbarLayoutStrategy
 import com.intellij.openapi.options.ShowSettingsUtil
+import com.intellij.openapi.ui.popup.JBPopupFactory
+import com.intellij.ui.RowsDnDSupport
+import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.SearchTextField
+import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.TableSpeedSearch
-import com.intellij.ui.ToolbarDecorator
+import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBLoadingPanel
 import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.AlignX
-import com.intellij.ui.dsl.builder.AlignY
 import com.intellij.ui.dsl.builder.RightGap
-import com.intellij.ui.dsl.builder.RowLayout
 import com.intellij.ui.dsl.builder.TopGap
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.table.TableView
-import com.intellij.util.ui.ColumnInfo
+import com.intellij.util.ui.JBDimension
 import com.intellij.util.ui.JBUI
-import com.intellij.util.ui.ListTableModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancel
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
-import org.zhavoronkov.openrouter.utils.ModelPricingFormatter
-import org.zhavoronkov.openrouter.utils.ModelProviderUtils
+import org.zhavoronkov.openrouter.services.settings.FavoriteModelsManager
+import org.zhavoronkov.openrouter.settings.favorites.CapabilitiesFilterAction
+import org.zhavoronkov.openrouter.settings.favorites.ChoiceFilterAction
+import org.zhavoronkov.openrouter.settings.favorites.ClearFiltersAction
+import org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsPageState
+import org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsPageState.EmptyState
+import org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsPageState.Mode
+import org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsTableColumns
+import org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsTableModel
+import org.zhavoronkov.openrouter.settings.favorites.FavoritesOnlyToggleAction
+import org.zhavoronkov.openrouter.settings.favorites.MoveFavoriteAction
+import org.zhavoronkov.openrouter.settings.favorites.PresetsAction
+import org.zhavoronkov.openrouter.settings.favorites.RefreshCatalogAction
+import org.zhavoronkov.openrouter.settings.favorites.VariantLegend
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
-import java.awt.Dimension
+import java.awt.GraphicsEnvironment
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
-import java.awt.event.MouseAdapter
-import java.awt.event.MouseEvent
-import javax.swing.JCheckBox
-import javax.swing.JComboBox
+import javax.swing.JComponent
 import javax.swing.JPanel
+import javax.swing.ListSelectionModel
 import javax.swing.Timer
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 
 /**
- * Compact Favorite Models settings panel with provisioning key guard
- * Uses Kotlin UI DSL v2 with single-column tables for space efficiency
+ * Favorite Models settings page: one catalog table with a favorite checkbox column.
+ *
+ * This class is a thin Swing adapter. All page logic lives in
+ * [FavoriteModelsPageState]; the panel renders from it and forwards user
+ * actions to it. Ticking a row appends it to the ordered favorites list,
+ * "Favorites only" shows that list in stored order and enables reordering,
+ * and the stored order is what AI Assistant displays.
  */
-@Suppress("TooManyFunctions")
-class FavoriteModelsSettingsPanel : Disposable {
+class FavoriteModelsSettingsPanel(
+    private val favoriteModelsManager: FavoriteModelsManager =
+        OpenRouterSettingsService.getInstance().favoriteModelsManager,
+    private val isConfigured: () -> Boolean = { OpenRouterSettingsService.getInstance().isConfigured() },
+    private val favoriteModelsServiceProvider: () -> FavoriteModelsService = { FavoriteModelsService.getInstance() },
+    private val state: FavoriteModelsPageState = FavoriteModelsPageState(),
+    private val autoLoad: Boolean = true,
+) : Disposable {
 
-    companion object {
-        private const val SEARCH_DEBOUNCE_MS = 300
-        private const val MIN_DIALOG_WIDTH = 760
-        private const val MIN_DIALOG_HEIGHT = 420
-        private const val SEARCH_FIELD_HEIGHT = 26
-        private const val BUTTON_COLUMN_WIDTH = 85
-        private const val TABLE_PREFERRED_WIDTH = 300
-        private const val TABLE_PREFERRED_HEIGHT = 200
-        private const val TABLE_ROW_HEIGHT = 20
-        private const val PRICE_COLUMN_WIDTH = 100
+    private companion object {
+        const val SEARCH_DEBOUNCE_MS = 300
+        const val PRESET_FEEDBACK_MS = 4000
+        const val TABLE_ROW_HEIGHT = 20
+        const val TABLE_PREFERRED_WIDTH = 640
+        const val TABLE_PREFERRED_HEIGHT = 400
+        const val TABLE_MIN_HEIGHT = 160
+        const val PANEL_BORDER = 10
+        const val MISSING_KEY_MESSAGE =
+            "To manage favorite models, add your Provisioning Key in Tools → OpenRouter → Settings."
+        const val PAGE_COMMENT =
+            "Only favorite models are shown in AI Assistant. Their order here is the order there."
     }
 
-    private val settingsService = OpenRouterSettingsService.getInstance()
-    private val favoriteModelsService = FavoriteModelsService.getInstance()
+    private val keyPresent = isConfigured()
     private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-
-    private var keyPresent: Boolean = false
-    private val availableTableModel = createAvailableTableModel()
-    private val favoriteTableModel = createFavoriteTableModel()
-    private val availableTable = TableView(availableTableModel)
-    private val favoriteTable = TableView(favoriteTableModel)
-    private val searchField = SearchTextField()
-    private var searchDebounceTimer: Timer? = null
     private val loadingPanel = JBLoadingPanel(BorderLayout(), this)
-
-    private val favoriteTableManager = FavoriteModelsTableManager(
-        favoriteTableModel,
-        favoriteTable
-    ) {
-        filterAvailableModels()
-        updateStatusLabels()
+    private val searchField = SearchTextField()
+    private val tableModel = FavoriteModelsTableModel(FavoriteModelsTableColumns(state), state)
+    private val table = TableView(tableModel)
+    private val statusLabel = JBLabel().apply { name = "favoritesStatusLabel" }
+    private val toolbar: ActionToolbar by lazy { createToolbar() }
+    private val modelsDataManager: ModelsDataManager by lazy {
+        ModelsDataManager(favoriteModelsServiceProvider(), coroutineScope, ::onCatalogLoaded, ::onLoadError)
     }
 
-    private lateinit var modelsDataManager: ModelsDataManager
-    private lateinit var modelsFilterManager: ModelsFilterManager
+    private var searchDebounceTimer: Timer? = null
+    private var presetFeedbackTimer: Timer? = null
+    private var presetFeedback: String? = null
+    private var renderedMode: Mode? = null
 
-    private lateinit var providerComboBox: JComboBox<String>
-    private lateinit var contextComboBox: JComboBox<String>
-    private lateinit var visionCheckBox: JCheckBox
-    private lateinit var audioCheckBox: JCheckBox
-    private lateinit var toolsCheckBox: JCheckBox
-    private lateinit var imageGenCheckBox: JCheckBox
-
-    private var isLoading = false
-    private var loadError: String? = null
-    private var allAvailableModels: List<OpenRouterModelInfo> = emptyList()
-    private var filteredAvailableModels: List<OpenRouterModelInfo> = emptyList()
-    private var totalModelsCount: Int = 0
-    private var initialFavorites: List<String> = emptyList()
-    private var availableStatusLabel: javax.swing.JLabel? = null
-    private var favoritesStatusLabel: javax.swing.JLabel? = null
-
-    init {
-        checkProvisioningKey()
-        setupTables()
-        setupSearch()
-        // Note: loadInitialData() is called in initializeManagers() after managers are created
-        showGotItTooltips()
-    }
-
-    /**
-     * Show GotIt tooltips for first-time users
-     * Note: Tooltips are disabled for now to avoid memory leak issues
-     */
-    private fun showGotItTooltips() {
-        // GotIt tooltips are disabled for now to avoid memory leak issues
-        // They will be re-enabled in a future version with proper disposable management
-        // See: https://jetbrains.org/intellij/sdk/docs/basics/disposers.html
-    }
-
-    /**
-     * Check if provisioning key is present and valid
-     */
-    private fun checkProvisioningKey() {
-        keyPresent = settingsService.isConfigured()
-        PluginLogger.Settings.debug("Provisioning key present: $keyPresent")
-    }
-
-    /**
-     * Create the main panel using UI DSL v2
-     */
     fun createPanel(): JPanel {
-        val panel = panel {
-            // Warning banner when key is missing
+        state.reset(favoriteModelsManager.getFavoriteModels())
+        state.onChanged = ::render
+        setupTable()
+        setupSearch()
+
+        val content = panel {
             if (!keyPresent) {
                 row {
-                    icon(AllIcons.General.Warning)
-                        .gap(RightGap.SMALL)
-                    label("To manage favorite models, add your Provisioning Key in Tools → OpenRouter → Settings.")
-                    button("Open Settings") {
-                        openMainSettings()
-                    }
+                    icon(AllIcons.General.Warning).gap(RightGap.SMALL)
+                    label(MISSING_KEY_MESSAGE)
+                    button("Open Settings") { openMainSettings() }
                 }.topGap(TopGap.NONE)
             }
-
-            // Main content - disabled when key is missing
-            group("Favorite Models Management") {
+            // The group keeps its own grid, so it needs resizableRow() as well:
+            // without it the group claims only its preferred height and the
+            // table row's resizableRow() has no spare space to hand out.
+            group("Favorite Models") {
                 row {
-                    comment("Only favorite models are shown in AI Assistant model selection")
+                    comment(PAGE_COMMENT)
+                    cell(VariantLegend.createLabel())
                 }.topGap(TopGap.NONE).visible(keyPresent)
-
-                // Filters section
                 row {
-                    cell(createFiltersPanel())
-                        .align(Align.FILL)
-                        .resizableColumn()
-                }.layout(RowLayout.PARENT_GRID).visible(keyPresent)
-
+                    cell(searchField).align(AlignX.FILL).resizableColumn()
+                }.visible(keyPresent)
                 row {
-                    cell(createAvailableModelsPanel())
-                        .align(Align.FILL)
-                        .resizableColumn()
-
-                    cell(createPickerButtonsColumn())
-                        .align(AlignY.CENTER)
-
-                    cell(createFavoritesPanel())
-                        .align(Align.FILL)
-                        .resizableColumn()
-                }.layout(RowLayout.PARENT_GRID).resizableRow().visible(keyPresent)
-            }
+                    cell(toolbar.component).align(AlignX.FILL)
+                }.topGap(TopGap.NONE).visible(keyPresent)
+                row {
+                    cell(tableScrollPane()).align(Align.FILL).resizableColumn()
+                }.resizableRow().topGap(TopGap.NONE).visible(keyPresent)
+                row {
+                    cell(statusLabel)
+                }.topGap(TopGap.SMALL).visible(keyPresent)
+            }.resizableRow()
         }
+        content.border = JBUI.Borders.empty(PANEL_BORDER)
+        loadingPanel.add(content, BorderLayout.CENTER)
 
-        panel.minimumSize = Dimension(MIN_DIALOG_WIDTH, MIN_DIALOG_HEIGHT)
-        loadingPanel.add(panel, BorderLayout.CENTER)
-
-        // Initialize managers after UI components are created
         if (keyPresent) {
-            initializeManagers()
-            // Load initial data after managers are initialized
-            loadInitialData()
+            render()
+            if (autoLoad) loadCatalog()
         }
-
         return loadingPanel
     }
 
-    private fun initializeManagers() {
-        modelsDataManager = ModelsDataManager(
-            favoriteModelsService = favoriteModelsService,
-            coroutineScope = coroutineScope,
-            onModelsLoaded = ::handleModelsLoaded,
-            onLoadError = ::handleLoadError
-        )
-
-        // Fetch total models count from /models/count endpoint
-        loadTotalModelsCount()
-
-        val filterComponents = FilterComponents(
-            searchField = searchField,
-            providerComboBox = providerComboBox,
-            contextComboBox = contextComboBox,
-            visionCheckBox = visionCheckBox,
-            audioCheckBox = audioCheckBox,
-            toolsCheckBox = toolsCheckBox,
-            imageGenCheckBox = imageGenCheckBox
-        )
-
-        modelsFilterManager = ModelsFilterManager(
-            filterComponents = filterComponents,
-            availableTableModel = availableTableModel,
-            getCurrentFavoriteIds = ::getCurrentFavoriteIds
-        )
-    }
-
-    /**
-     * Create the filters panel
-     */
-
-    private fun createFiltersPanel(): JPanel {
-        return panel {
-            // Compact filter row with dropdowns
-            row {
-                label("Provider:")
-                providerComboBox = comboBox(listOf("All Providers"))
-                    .applyToComponent {
-                        addActionListener { onFilterChanged() }
-                    }
-                    .component
-
-                label("Context:").gap(RightGap.SMALL)
-                contextComboBox = comboBox(
-                    ModelProviderUtils.ContextRange.entries.map { it.displayName }
-                )
-                    .applyToComponent {
-                        addActionListener { onFilterChanged() }
-                    }
-                    .component
-
-                button("Clear") { clearFilters() }
-                    .applyToComponent { toolTipText = "Clear all filters" }
-            }.topGap(TopGap.NONE)
-
-            // Capabilities checkboxes in one row
-            row {
-                visionCheckBox = checkBox("Vision")
-                    .applyToComponent { addActionListener { onFilterChanged() } }
-                    .component
-                audioCheckBox = checkBox("Audio")
-                    .applyToComponent { addActionListener { onFilterChanged() } }
-                    .component
-                toolsCheckBox = checkBox("Tools")
-                    .applyToComponent { addActionListener { onFilterChanged() } }
-                    .component
-                imageGenCheckBox = checkBox("Image Gen")
-                    .applyToComponent { addActionListener { onFilterChanged() } }
-                    .component
-            }.topGap(TopGap.NONE)
-
-            // Quick add buttons - compact row
-            row {
-                label("Quick:")
-                button("Popular") { addPresetToFavorites(ModelPresets.POPULAR_MODELS) }
-                    .applyToComponent { toolTipText = "Add popular models" }
-                button("OpenAI") { addPresetToFavorites(ModelPresets.OPENAI_MODELS) }
-                    .applyToComponent { toolTipText = "Add OpenAI models" }
-                button("Anthropic") { addPresetToFavorites(ModelPresets.ANTHROPIC_MODELS) }
-                    .applyToComponent { toolTipText = "Add Anthropic models" }
-                button("Google") { addPresetToFavorites(ModelPresets.GOOGLE_MODELS) }
-                    .applyToComponent { toolTipText = "Add Google models" }
-                button("Budget") { addPresetToFavorites(ModelPresets.COST_EFFECTIVE_MODELS) }
-                    .applyToComponent { toolTipText = "Add budget-friendly models" }
-            }.topGap(TopGap.NONE)
-        }
-    }
-
-    /**
-     * Create the available models panel (left side)
-     */
-    private fun createAvailableModelsPanel(): JPanel {
-        return panel {
-            row {
-                label("Available Models")
-                    .bold()
-            }.topGap(TopGap.NONE)
-
-            row {
-                cell(searchField)
-                    .align(AlignX.FILL)
-                    .resizableColumn()
-                    .applyToComponent {
-                        preferredSize = Dimension(preferredSize.width, SEARCH_FIELD_HEIGHT)
-                        maximumSize = Dimension(Int.MAX_VALUE, SEARCH_FIELD_HEIGHT)
-                    }
-
-                button("Refresh") {
-                    refreshAvailableModels()
-                }.applyToComponent {
-                    preferredSize = Dimension(preferredSize.width, SEARCH_FIELD_HEIGHT)
-                }
-            }.topGap(TopGap.NONE)
-
-            row {
-                val decorator = ToolbarDecorator.createDecorator(availableTable)
-                    .disableAddAction()
-                    .disableRemoveAction()
-                    .disableUpDownActions()
-                    .setPreferredSize(Dimension(TABLE_PREFERRED_WIDTH, TABLE_PREFERRED_HEIGHT))
-
-                cell(decorator.createPanel())
-                    .align(Align.FILL)
-                    .resizableColumn()
-            }.resizableRow().topGap(TopGap.NONE)
-
-            row {
-                label(getAvailableModelsStatusText())
-                    .applyToComponent {
-                        name = "availableStatusLabel"
-                        availableStatusLabel = this
-                    }
-            }.topGap(TopGap.NONE)
-        }
-    }
-
-    /**
-     * Create the picker buttons column (middle)
-     */
-    private fun createPickerButtonsColumn(): JPanel {
-        return panel {
-            row {
-                button("Add →") {
-                    addSelectedToFavorites()
-                }.applyToComponent {
-                    toolTipText = "Add selected models to favorites (Enter)"
-                    preferredSize = Dimension(BUTTON_COLUMN_WIDTH, preferredSize.height)
-                }
-            }.topGap(TopGap.NONE)
-
-            row {
-                button("Add All") {
-                    addAllFilteredToFavorites()
-                }.applyToComponent {
-                    toolTipText = "Add all filtered models to favorites"
-                    preferredSize = Dimension(BUTTON_COLUMN_WIDTH, preferredSize.height)
-                }
-            }.topGap(TopGap.NONE)
-
-            row {
-                button("← Remove") {
-                    removeSelectedFromFavorites()
-                }.applyToComponent {
-                    toolTipText = "Remove selected from favorites (Delete)"
-                    preferredSize = Dimension(BUTTON_COLUMN_WIDTH, preferredSize.height)
-                }
-            }.topGap(TopGap.SMALL)
-
-            row {
-                button("Clear All") {
-                    clearAllFavorites()
-                }.applyToComponent {
-                    toolTipText = "Remove all favorites"
-                    preferredSize = Dimension(BUTTON_COLUMN_WIDTH, preferredSize.height)
-                }
-            }.topGap(TopGap.NONE)
-        }
-    }
-
-    /**
-     * Create the favorites panel (right side)
-     */
-    private fun createFavoritesPanel(): JPanel {
-        return panel {
-            row {
-                label("Favorite Models")
-                    .bold()
-            }.topGap(TopGap.NONE)
-
-            row {
-                comment("Drag to reorder or use Up/Down buttons")
-            }.topGap(TopGap.NONE)
-
-            row {
-                val decorator = ToolbarDecorator.createDecorator(favoriteTable)
-                    .disableAddAction()
-                    .disableRemoveAction()
-                    .setMoveUpAction { moveFavoriteUp() }
-                    .setMoveDownAction { moveFavoriteDown() }
-                    .setPreferredSize(Dimension(TABLE_PREFERRED_WIDTH, TABLE_PREFERRED_HEIGHT))
-
-                cell(decorator.createPanel())
-                    .align(Align.FILL)
-                    .resizableColumn()
-            }.resizableRow().topGap(TopGap.NONE)
-
-            row {
-                label(getFavoritesStatusText())
-                    .applyToComponent {
-                        name = "favoritesStatusLabel"
-                        favoritesStatusLabel = this
-                    }
-            }.topGap(TopGap.NONE)
-        }
-    }
-
-    /**
-     * Create table model for available models with price columns
-     */
-    private fun createAvailableTableModel(): ListTableModel<OpenRouterModelInfo> {
-        val modelColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Model ID") {
-            override fun valueOf(item: OpenRouterModelInfo): String = item.id
-            override fun getPreferredStringValue(): String = "anthropic/claude-3.5-sonnet-20241022"
-        }
-        val inputPriceColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Input Price") {
-            override fun valueOf(item: OpenRouterModelInfo): String =
-                ModelPricingFormatter.formatInputPrice(item.pricing)
-            override fun getPreferredStringValue(): String = "$0.0000"
-            override fun getWidth(table: javax.swing.JTable?): Int = JBUI.scale(PRICE_COLUMN_WIDTH)
-        }
-        val outputPriceColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Output Price") {
-            override fun valueOf(item: OpenRouterModelInfo): String =
-                ModelPricingFormatter.formatOutputPrice(item.pricing)
-            override fun getPreferredStringValue(): String = "$0.0000"
-            override fun getWidth(table: javax.swing.JTable?): Int = JBUI.scale(PRICE_COLUMN_WIDTH)
-        }
-        return ListTableModel(arrayOf(modelColumn, inputPriceColumn, outputPriceColumn), mutableListOf())
-    }
-
-    /**
-     * Create table model for favorite models with price columns
-     */
-    private fun createFavoriteTableModel(): ListTableModel<OpenRouterModelInfo> {
-        val modelColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Model ID") {
-            override fun valueOf(item: OpenRouterModelInfo): String = item.id
-            override fun getPreferredStringValue(): String = "anthropic/claude-3.5-sonnet-20241022"
-        }
-        val inputPriceColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Input Price") {
-            override fun valueOf(item: OpenRouterModelInfo): String =
-                ModelPricingFormatter.formatInputPrice(item.pricing)
-            override fun getPreferredStringValue(): String = "$0.0000"
-            override fun getWidth(table: javax.swing.JTable?): Int = JBUI.scale(PRICE_COLUMN_WIDTH)
-        }
-        val outputPriceColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Output Price") {
-            override fun valueOf(item: OpenRouterModelInfo): String =
-                ModelPricingFormatter.formatOutputPrice(item.pricing)
-            override fun getPreferredStringValue(): String = "$0.0000"
-            override fun getWidth(table: javax.swing.JTable?): Int = JBUI.scale(PRICE_COLUMN_WIDTH)
-        }
-        return ListTableModel(arrayOf(modelColumn, inputPriceColumn, outputPriceColumn), mutableListOf())
-    }
-
-    /**
-     * Open main OpenRouter settings
-     */
-    private fun openMainSettings() {
-        ShowSettingsUtil.getInstance().showSettingsDialog(
-            null,
-            OpenRouterConfigurable::class.java
-        )
-    }
-
-    /**
-     * Setup table configurations
-     */
-    private fun setupTables() {
-        // Available models table
-        availableTable.setShowGrid(false)
-        availableTable.setSelectionMode(javax.swing.ListSelectionModel.MULTIPLE_INTERVAL_SELECTION)
-        availableTable.rowHeight = JBUI.scale(TABLE_ROW_HEIGHT)
-
-        // Add speed search
-        TableSpeedSearch.installOn(availableTable) { obj, _ ->
-            if (obj is OpenRouterModelInfo) obj.id else null
+    /** The table is the page's focus: give it a tall baseline and let it absorb spare height. */
+    private fun tableScrollPane(): JComponent =
+        ScrollPaneFactory.createScrollPane(table).apply {
+            preferredSize = JBDimension(TABLE_PREFERRED_WIDTH, TABLE_PREFERRED_HEIGHT)
+            minimumSize = JBDimension(TABLE_PREFERRED_WIDTH, TABLE_MIN_HEIGHT)
         }
 
-        // Double-click to add
-        availableTable.addMouseListener(object : MouseAdapter() {
-            override fun mouseClicked(e: MouseEvent) {
-                if (e.clickCount == 2 && keyPresent) {
-                    addSelectedToFavorites()
-                }
-            }
-        })
+    // --- construction ----------------------------------------------------------------------
 
-        // Enter key to add
-        availableTable.addKeyListener(object : KeyAdapter() {
+    private fun setupTable() {
+        table.setShowGrid(false)
+        table.rowHeight = JBUI.scale(TABLE_ROW_HEIGHT)
+        table.fillsViewportHeight = true
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
+        table.putClientProperty("terminateEditOnFocusLost", true)
+        TableSpeedSearch.installOn(table) { value, _ -> (value as? OpenRouterModelInfo)?.id }
+        RowsDnDSupport.install(table, tableModel)
+        table.dragEnabled = false
+        table.addKeyListener(object : KeyAdapter() {
             override fun keyPressed(e: KeyEvent) {
-                if (e.keyCode == KeyEvent.VK_ENTER && keyPresent) {
-                    addSelectedToFavorites()
-                    e.consume()
-                }
-            }
-        })
-
-        // Favorite models table
-        favoriteTable.setShowGrid(false)
-        favoriteTable.setSelectionMode(javax.swing.ListSelectionModel.MULTIPLE_INTERVAL_SELECTION)
-        favoriteTable.rowHeight = JBUI.scale(TABLE_ROW_HEIGHT)
-
-        // Add speed search
-        TableSpeedSearch.installOn(favoriteTable) { obj, _ ->
-            if (obj is OpenRouterModelInfo) obj.id else null
-        }
-
-        // Double-click to remove
-        favoriteTable.addMouseListener(object : MouseAdapter() {
-            override fun mouseClicked(e: MouseEvent) {
-                if (e.clickCount == 2 && keyPresent) {
-                    removeSelectedFromFavorites()
-                }
-            }
-        })
-
-        // Delete key to remove
-        favoriteTable.addKeyListener(object : KeyAdapter() {
-            override fun keyPressed(e: KeyEvent) {
-                if ((e.keyCode == KeyEvent.VK_DELETE || e.keyCode == KeyEvent.VK_BACK_SPACE) && keyPresent) {
-                    removeSelectedFromFavorites()
+                if (e.keyCode == KeyEvent.VK_SPACE) {
+                    table.selectedObject?.let { state.toggleFavorite(it.id) }
                     e.consume()
                 }
             }
         })
     }
 
-    /**
-     * Setup search field with debouncing
-     */
     private fun setupSearch() {
+        searchField.textEditor.emptyText.text = "Search models by id or name"
         searchField.addDocumentListener(object : DocumentListener {
             override fun insertUpdate(e: DocumentEvent?) = scheduleSearch()
             override fun removeUpdate(e: DocumentEvent?) = scheduleSearch()
             override fun changedUpdate(e: DocumentEvent?) = scheduleSearch()
         })
-
-        // Add KeyListener to handle Enter key and prevent dialog from closing
+        // Consume Enter so the Settings dialog does not close; apply the search immediately.
         searchField.textEditor.addKeyListener(object : KeyAdapter() {
-            override fun keyPressed(e: KeyEvent?) {
-                if (e?.keyCode == KeyEvent.VK_ENTER) {
-                    // Consume the Enter key event to prevent dialog from closing
+            override fun keyPressed(e: KeyEvent) {
+                if (e.keyCode == KeyEvent.VK_ENTER) {
                     e.consume()
-                    // Immediately trigger search without debouncing on Enter
-                    if (keyPresent) {
-                        filterAvailableModels()
-                    }
+                    searchDebounceTimer?.stop()
+                    applySearchText()
                 }
             }
         })
     }
 
-    /**
-     * Schedule a debounced search operation
-     */
+    private fun createToolbar(): ActionToolbar {
+        val group = DefaultActionGroup(
+            FavoritesOnlyToggleAction(state),
+            Separator.getInstance(),
+            ChoiceFilterAction.provider(state),
+            ChoiceFilterAction.context(state),
+            CapabilitiesFilterAction(state),
+            ChoiceFilterAction.variant(state),
+            ClearFiltersAction(state, ::clearFilters),
+            Separator.getInstance(),
+            PresetsAction(::applyPreset),
+            RefreshCatalogAction({ modelsDataManager.isCurrentlyLoading() }, ::refreshCatalog),
+            Separator.getInstance(),
+            moveAction(up = true),
+            moveAction(up = false),
+        )
+        val toolbar = ActionManager.getInstance().createActionToolbar(ActionPlaces.TOOLBAR, group, true)
+        toolbar.targetComponent = table
+        toolbar.setLayoutStrategy(ToolbarLayoutStrategy.AUTOLAYOUT_STRATEGY)
+        return toolbar
+    }
+
+    private fun moveAction(up: Boolean): MoveFavoriteAction {
+        val action = MoveFavoriteAction(state, up, { table.selectedRow }) { newRow ->
+            table.setRowSelectionInterval(newRow, newRow)
+        }
+        action.registerCustomShortcutSet(if (up) CommonShortcuts.MOVE_UP else CommonShortcuts.MOVE_DOWN, table)
+        return action
+    }
+
+    // --- rendering -------------------------------------------------------------------------
+
+    private fun render() {
+        if (table.isEditing) table.cellEditor?.stopCellEditing()
+        val selectedId = table.selectedObject?.id
+        val modeChanged = renderedMode != state.mode
+
+        tableModel.isSortable = state.mode == Mode.CATALOG
+        tableModel.items = state.visibleRows()
+        if (modeChanged) {
+            // JBTable.setModel re-evaluates the row sorter from isSortable.
+            table.setModelAndUpdateColumns(tableModel)
+            // setDragEnabled(true) throws HeadlessException with no display, and
+            // RowsDnDSupport guards its own call the same way.
+            table.dragEnabled = state.canReorder() && !GraphicsEnvironment.isHeadless()
+            renderedMode = state.mode
+        }
+        restoreSelection(selectedId)
+
+        searchField.isEnabled = state.mode == Mode.CATALOG
+        refreshEmptyText()
+        statusLabel.text = statusText()
+        toolbar.updateActionsAsync()
+    }
+
+    private fun restoreSelection(selectedId: String?) {
+        val modelRow = tableModel.items.indexOfFirst { it.id == selectedId }
+        if (modelRow < 0) {
+            table.clearSelection()
+            return
+        }
+        val viewRow = table.convertRowIndexToView(modelRow)
+        table.setRowSelectionInterval(viewRow, viewRow)
+    }
+
+    private fun refreshEmptyText() {
+        val emptyText = table.emptyText.clear()
+        val link = SimpleTextAttributes.LINK_PLAIN_ATTRIBUTES
+        when (state.emptyState()) {
+            EmptyState.NONE -> Unit
+            EmptyState.NO_CATALOG -> emptyText.appendText("Loading models…")
+            EmptyState.LOAD_FAILED -> emptyText.appendText("Failed to load models.")
+                .appendSecondaryText("Retry", link) { refreshCatalog() }
+            EmptyState.NO_MATCHES -> emptyText.appendText("No models match the filters.")
+                .appendSecondaryText("Clear filters", link) { clearFilters() }
+            EmptyState.NO_FAVORITES -> emptyText.appendText("No favorite models added.")
+                .appendSecondaryText("Add from presets…", link) { showPresetsPopup() }
+        }
+    }
+
+    private fun statusText(): String {
+        val base = state.statusText()
+        return presetFeedback?.let { "$base · $it" } ?: base
+    }
+
+    // --- user actions ----------------------------------------------------------------------
+
     private fun scheduleSearch() {
         if (!keyPresent) return
-
         searchDebounceTimer?.stop()
-        searchDebounceTimer = Timer(SEARCH_DEBOUNCE_MS) {
-            filterAvailableModels()
+        searchDebounceTimer = Timer(SEARCH_DEBOUNCE_MS) { applySearchText() }.apply {
+            isRepeats = false
+            start()
+        }
+    }
+
+    private fun applySearchText() {
+        state.criteria = state.criteria.copy(searchText = searchField.text.trim())
+    }
+
+    private fun clearFilters() {
+        searchDebounceTimer?.stop()
+        searchField.text = ""
+        state.clearFilters()
+    }
+
+    private fun applyPreset(name: String) {
+        val result = state.applyPreset(name)
+        val details = buildList {
+            if (result.alreadyPresent > 0) add("${result.alreadyPresent} already favorites")
+            if (result.notInCatalog > 0) add("${result.notInCatalog} not in catalog")
+        }
+        val suffix = if (details.isEmpty()) "" else " (${details.joinToString(", ")})"
+        showPresetFeedback("Added ${result.added} from $name$suffix")
+    }
+
+    private fun showPresetFeedback(message: String) {
+        presetFeedback = message
+        statusLabel.text = statusText()
+        presetFeedbackTimer?.stop()
+        presetFeedbackTimer = Timer(PRESET_FEEDBACK_MS) {
+            presetFeedback = null
+            statusLabel.text = statusText()
         }.apply {
             isRepeats = false
             start()
         }
     }
 
-    /**
-     * Load initial data from API and settings
-     */
-    private fun loadInitialData() {
-        if (!keyPresent) return
+    private fun showPresetsPopup() {
+        JBPopupFactory.getInstance()
+            .createActionGroupPopup(
+                "Add from Preset",
+                PresetsAction.presetsGroup(::applyPreset),
+                DataManager.getInstance().getDataContext(table),
+                JBPopupFactory.ActionSelectionAid.SPEEDSEARCH,
+                false,
+            )
+            .showInCenterOf(table)
+    }
 
-        PluginLogger.Settings.debug("Starting initial data load...")
-        loadError = null
+    private fun openMainSettings() {
+        ShowSettingsUtil.getInstance().showSettingsDialog(null, OpenRouterConfigurable::class.java)
+    }
+
+    // --- catalog loading -------------------------------------------------------------------
+
+    private fun loadCatalog() {
         loadingPanel.startLoading()
-
         modelsDataManager.loadInitialData()
     }
 
-    private fun handleModelsLoaded(models: List<OpenRouterModelInfo>?) {
-        PluginLogger.Settings.debug("EDT callback executing...")
-        loadingPanel.stopLoading()
-
-        if (models != null) {
-            PluginLogger.Settings.debug("Loading ${models.size} models into UI")
-            allAvailableModels = models
-            modelsFilterManager.setAllModels(models)
-            modelsFilterManager.updateProviderDropdown()
-            PluginLogger.Settings.debug("Set allAvailableModels, now calling filterAvailableModels()")
-            modelsFilterManager.filterModels()
-            PluginLogger.Settings.debug(
-                "After filterAvailableModels(), table has ${availableTableModel.rowCount} rows"
-            )
-            loadFavorites()
-            initialFavorites = getCurrentFavoriteIds()
-            PluginLogger.Settings.debug("Initial data load complete")
-        } else {
-            loadError = "Failed to load models from API"
-            showErrorState()
-            PluginLogger.Settings.warn("Models response was null")
-        }
-    }
-
-    private fun handleLoadError(message: String, throwable: Throwable) {
-        loadingPanel.stopLoading()
-        loadError = message
-        showErrorState()
-        PluginLogger.Settings.error(message, throwable)
-    }
-
-    /**
-     * Load total models count from /models/count?output_modalities=all
-     */
-    private fun loadTotalModelsCount() {
-        coroutineScope.launch {
-            totalModelsCount = favoriteModelsService.getModelsCount() ?: 0
-            if (totalModelsCount > 0) {
-                PluginLogger.Settings.debug("Total models count: $totalModelsCount")
-                updateStatusLabels()
-            } else {
-                PluginLogger.Settings.debug("Failed to fetch total models count")
-            }
-        }
-    }
-
-    /**
-     * Refresh available models from API (bypass cache)
-     */
-    private fun refreshAvailableModels() {
+    private fun refreshCatalog() {
         if (!keyPresent) return
-
-        loadError = null
         loadingPanel.startLoading()
+        modelsDataManager.refreshAvailableModels { models -> onCatalogLoaded(models) }
+    }
 
-        modelsDataManager.refreshAvailableModels { models ->
-            loadingPanel.stopLoading()
-
-            if (models != null) {
-                allAvailableModels = models
-                modelsFilterManager.setAllModels(models)
-                modelsFilterManager.updateProviderDropdown()
-                modelsFilterManager.filterModels()
-                updateFavoriteAvailability(models)
-            } else {
-                loadError = "Failed to refresh models"
-                showErrorState()
-            }
+    /** Catalog callback; also the seam platform tests use to feed a fixture catalog. */
+    internal fun onCatalogLoaded(models: List<OpenRouterModelInfo>?) {
+        loadingPanel.stopLoading()
+        if (models == null) {
+            showLoadError("Failed to load models from API")
+            return
         }
+        PluginLogger.Settings.debug("Loaded ${models.size} models into the favorites catalog")
+        state.setCatalog(models)
     }
 
-    /**
-     * Filter available models based on all filter criteria
-     */
-    private fun filterAvailableModels() {
-        modelsFilterManager.filterModels()
-        filteredAvailableModels = modelsFilterManager.getFilteredModels()
-        updateStatusLabels()
+    private fun onLoadError(message: String, throwable: Throwable) {
+        loadingPanel.stopLoading()
+        PluginLogger.Settings.error(message, throwable)
+        showLoadError(message)
     }
 
-    /**
-     * Handle filter changes
-     */
-    private fun onFilterChanged() {
-        modelsFilterManager.onFilterChanged()
-        filteredAvailableModels = modelsFilterManager.getFilteredModels()
-        updateStatusLabels()
+    private fun showLoadError(message: String) {
+        state.loadError = message
+        render()
     }
 
-    /**
-     * Clear all filters
-     */
-    private fun clearFilters() {
-        modelsFilterManager.clearFilters()
-        filteredAvailableModels = modelsFilterManager.getFilteredModels()
-        updateStatusLabels()
-    }
+    // --- Configurable contract -------------------------------------------------------------
 
-    /**
-     * Add preset models to favorites
-     */
-    private fun addPresetToFavorites(presetModelIds: List<String>) {
-        if (!keyPresent) return
-        favoriteTableManager.addPresetModels(presetModelIds, allAvailableModels)
-    }
+    fun isModified(): Boolean = keyPresent && state.isModified()
 
-    /**
-     * Load favorites from settings
-     */
-    private fun loadFavorites() {
-        val favoriteIds = settingsService.favoriteModelsManager.getFavoriteModels()
-        val favoriteModels = favoriteIds.map { id ->
-            allAvailableModels.find { it.id == id }
-                ?: OpenRouterModelInfo(id = id, name = id, created = 0L) // Unavailable model
-        }
-        favoriteTableManager.setItems(favoriteModels)
-        updateStatusLabels()
-    }
-
-    /**
-     * Update favorite models availability after refresh
-     */
-    private fun updateFavoriteAvailability(availableModels: List<OpenRouterModelInfo>) {
-        favoriteTableManager.updateAvailability(availableModels)
-        updateStatusLabels()
-    }
-
-    /**
-     * Add selected models to favorites
-     */
-    private fun addSelectedToFavorites() {
-        if (!keyPresent) return
-        val selectedRows = availableTable.selectedRows
-        if (selectedRows.isEmpty()) return
-        val selectedModels = selectedRows.map { availableTableModel.getItem(it) }
-        favoriteTableManager.addModels(selectedModels)
-    }
-
-    /**
-     * Add all filtered models to favorites
-     */
-    private fun addAllFilteredToFavorites() {
-        if (!keyPresent) return
-        favoriteTableManager.addModels(filteredAvailableModels)
-    }
-
-    /**
-     * Remove selected models from favorites
-     */
-    private fun removeSelectedFromFavorites() {
-        if (!keyPresent) return
-        favoriteTableManager.removeSelectedModels()
-    }
-
-    /**
-     * Clear all favorites with confirmation
-     */
-    private fun clearAllFavorites() {
-        if (!keyPresent) return
-        favoriteTableManager.clearAll()
-    }
-
-    /**
-     * Move selected favorite up
-     */
-    private fun moveFavoriteUp() {
-        if (!keyPresent) return
-        favoriteTableManager.moveUp()
-    }
-
-    /**
-     * Move selected favorite down
-     */
-    private fun moveFavoriteDown() {
-        if (!keyPresent) return
-        favoriteTableManager.moveDown()
-    }
-
-    /**
-     * Get current favorite model IDs
-     */
-    private fun getCurrentFavoriteIds(): List<String> {
-        return favoriteTableManager.getCurrentIds()
-    }
-
-    /**
-     * Show error state in UI
-     */
-    private fun showErrorState() {
-        // Keep previous data if available, just show error message
-        PluginLogger.Settings.warn("Error state: $loadError")
-
-        // Update status label to show error
-        updateStatusLabels()
-    }
-
-    /**
-     * Get status text for available models
-     */
-    private fun getAvailableModelsStatusText(): String {
-        return when {
-            !keyPresent -> "Provisioning key required"
-            isLoading -> "Loading models..."
-            loadError != null -> "Error: $loadError"
-            filteredAvailableModels.isEmpty() && searchField.text.isNotBlank() -> "No models match search"
-            filteredAvailableModels.isEmpty() -> "No models available"
-            totalModelsCount > 0 -> "${filteredAvailableModels.size} shown ($totalModelsCount total)"
-            else -> "${filteredAvailableModels.size} models available"
-        }
-    }
-
-    /**
-     * Get status text for favorites
-     */
-    private fun getFavoritesStatusText(): String {
-        return when {
-            !keyPresent -> "Provisioning key required"
-            favoriteTableModel.rowCount == 0 -> "No favorites yet. Select models on the left and click 'Add'"
-            else -> "${favoriteTableModel.rowCount} favorite models"
-        }
-    }
-
-    /**
-     * Update status labels with current state
-     */
-    private fun updateStatusLabels() {
-        availableStatusLabel?.text = getAvailableModelsStatusText()
-        favoritesStatusLabel?.text = getFavoritesStatusText()
-    }
-
-    /**
-     * Check if settings have been modified
-     */
-    fun isModified(): Boolean {
-        if (!keyPresent) return false
-        return getCurrentFavoriteIds() != initialFavorites
-    }
-
-    /**
-     * Apply changes to settings
-     */
     fun apply() {
         if (!keyPresent) return
-
-        val favoriteIds = getCurrentFavoriteIds()
-        settingsService.favoriteModelsManager.setFavoriteModels(favoriteIds)
-        initialFavorites = favoriteIds
-        PluginLogger.Settings.info("Applied ${favoriteIds.size} favorite models")
+        val favorites = state.markApplied()
+        favoriteModelsManager.setFavoriteModels(favorites)
+        PluginLogger.Settings.info("Applied ${favorites.size} favorite models")
     }
 
-    /**
-     * Reset to initial state
-     */
     fun reset() {
         if (!keyPresent) return
-
-        loadFavorites()
-        filterAvailableModels()
+        state.reset(favoriteModelsManager.getFavoriteModels())
     }
 
     override fun dispose() {
         searchDebounceTimer?.stop()
-        searchDebounceTimer = null
+        presetFeedbackTimer?.stop()
+        coroutineScope.cancel()
     }
 }

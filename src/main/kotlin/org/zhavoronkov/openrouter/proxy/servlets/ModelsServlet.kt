@@ -14,6 +14,7 @@ import org.zhavoronkov.openrouter.proxy.translation.ResponseTranslator
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.settings.PresetsManager
+import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
@@ -290,11 +291,19 @@ class ModelsServlet(
     }
 
     /**
-     * Extract provider name from model ID (e.g., "openai/gpt-4" -> "openai")
+     * Extract the owning-organization slug from a model ID for the OpenAI-compatible
+     * `owned_by` field (e.g., "openai/gpt-4" -> "openai", "x-ai/grok:free" -> "x-ai").
+     *
+     * Note: this intentionally returns the lowercase raw org slug (not the canonical
+     * display name from [ModelProviderUtils.extractProvider]) because the OpenAI models
+     * API convention expects a lowercase organization identifier. Variant suffixes are
+     * stripped via [ModelProviderUtils.stripVariant] so `x-ai/grok:free` and `x-ai/grok`
+     * both resolve to "x-ai".
      */
     private fun extractProvider(modelId: String): String {
-        return if (modelId.contains("/")) {
-            modelId.substringBefore("/")
+        val stripped = ModelProviderUtils.stripVariant(modelId)
+        return if (stripped.contains("/")) {
+            stripped.substringBefore("/")
         } else {
             "openai" // Default to openai for compatibility
         }

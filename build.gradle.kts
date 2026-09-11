@@ -1,3 +1,4 @@
+import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask
 import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel
 
 plugins {
@@ -110,6 +111,12 @@ java {
 
 // Configure IntelliJ Platform Plugin (2.x)
 intellijPlatform {
+    // buildSearchableOptions launches a headless IDE (~1 min) to index the
+    // settings pages for Search Everywhere. Only the published zip needs it,
+    // so it is opt-in via -Prelease (release.yml passes it); local
+    // buildPlugin / verifyPlugin runs skip the IDE launch entirely.
+    buildSearchableOptions = project.hasProperty("release")
+
     pluginConfiguration {
         ideaVersion {
             sinceBuild = project.findProperty("pluginSinceBuild") as String? ?: "253"
@@ -130,6 +137,10 @@ intellijPlatform {
         // (the API still works), whereas SCHEDULED_FOR_REMOVAL_API_USAGES have
         // a hard deadline. JetBrains's own docs still recommend the deprecated
         // CredentialAttributes constructor, so there's no replacement yet.
+        // Android subsystems are irrelevant to this plugin and only add
+        // verifier work.
+        subsystemsToCheck = VerifyPluginTask.Subsystems.WITHOUT_ANDROID
+
         failureLevel = listOf(
             FailureLevel.COMPATIBILITY_PROBLEMS,
             FailureLevel.SCHEDULED_FOR_REMOVAL_API_USAGES,
@@ -140,16 +151,25 @@ intellijPlatform {
         )
 
         ides {
-            // Three ways to pick what to verify against, fastest first:
-            //  -PverifierLocalIde=/path/to/IDE.app  an already-installed IDE
-            //                                       (local loop; no download)
-            //  -PverifierIdes=IC-2024.2[,IC-2025.1] an explicit, pinned set
-            //                                       (PR CI; one IDE is enough
-            //                                       to catch API breakage)
+            // What to verify against:
+            //  verifierIdes (gradle.properties)     the default for everyone —
+            //                                       local runs, PR CI and
+            //                                       releases share one pinned
+            //                                       build so they cannot drift.
+            //                                       Override per run with
+            //                                       -PverifierIdes=IU-2026.2.2
+            //  -PverifierLocalIde=/path/to/IDE.app  an already-installed IDE,
+            //                                       for checking a newer IDE by
+            //                                       hand (`fast-build.sh verify
+            //                                       local`). No IDE download,
+            //                                       but the verifier still
+            //                                       fetches that IDE's bundled
+            //                                       -plugin dependencies once.
             //  neither                              recommended(), i.e. every
-            //                                       supported line — thorough
-            //                                       but several GB, so it is
-            //                                       reserved for releases.
+            //                                       supported line — only
+            //                                       reachable if verifierIdes
+            //                                       is removed from
+            //                                       gradle.properties.
             val localIde = project.findProperty("verifierLocalIde") as String?
             val verifierIdesProperty = project.findProperty("verifierIdes") as String?
             val pinnedIdes = verifierIdesProperty
@@ -256,22 +276,6 @@ tasks {
         }
     }
 
-    register<Test>("functionalTest") {
-        description = "Runs functional/integration tests that require external dependencies"
-        group = "verification"
-
-        useJUnitPlatform {
-            includeTags("functional")
-        }
-        systemProperty("openrouter.testMode", "true")
-        maxParallelForks = 1
-
-        reports {
-            junitXml.required.set(true)
-            html.required.set(true)
-        }
-    }
-
     named("check") {
         dependsOn("platformTest")
     }
@@ -290,6 +294,42 @@ intellijPlatformTesting {
                     includeTestsMatching("*SmokeTest")
                 }
                 systemProperty("openrouter.testMode", "true")
+                // CI has no display, so headless is what these tests really run
+                // under there. Matching it locally keeps a headless-only failure
+                // (e.g. JComponent.setDragEnabled(true) throwing HeadlessException)
+                // from reaching CI.
+                systemProperty("java.awt.headless", "true")
+                maxParallelForks = 1
+
+                reports {
+                    junitXml.required.set(true)
+                    html.required.set(true)
+                }
+            }
+        }
+        register("functionalTest") {
+            task {
+                description = "Runs functional/integration tests (@Tag(\"functional\")). " +
+                    "These exercise production code that transitively touches IntelliJ " +
+                    "platform classes (e.g. PluginLogger -> com.intellij.openapi.diagnostic.Logger), " +
+                    "so they need the shared TestApplication classpath that only a " +
+                    "testIde runner provisions — a plain Test task cannot resolve those classes."
+                group = "verification"
+
+                useJUnitPlatform {
+                    includeTags("functional")
+                }
+                // Functional tests are opt-in (see TESTING.md): they call real
+                // HTTP endpoints / a MockWebServer port and require a local .env
+                // with OPENROUTER_API_KEY, so they must not run in CI. Gate on
+                // -Pfunctional exactly like the fast `test` task does; without it
+                // the task is skipped instead of erroring in @BeforeAll.
+                // `project` cannot be touched at execution time under the
+                // configuration cache, so capture the flag now and close over it.
+                val functionalEnabled = project.hasProperty("functional")
+                onlyIf { functionalEnabled }
+                systemProperty("openrouter.testMode", "true")
+                systemProperty("java.awt.headless", "true")
                 maxParallelForks = 1
 
                 reports {

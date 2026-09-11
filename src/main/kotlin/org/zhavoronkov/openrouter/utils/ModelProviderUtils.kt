@@ -20,7 +20,7 @@ object ModelProviderUtils {
     /**
      * Provider name mappings for known OpenRouter providers
      */
-    private val KNOWN_PROVIDERS = mapOf(
+    val KNOWN_PROVIDERS = mapOf(
         "openai" to "OpenAI",
         "anthropic" to "Anthropic",
         "google" to "Google",
@@ -47,15 +47,11 @@ object ModelProviderUtils {
      * - "openai/gpt-4o" -> "OpenAI"
      * - "anthropic/claude-3.5-sonnet" -> "Anthropic"
      * - "google/gemini-pro-1.5" -> "Google"
+     * - "x-ai/grok-4-fast:free" -> "xAI"  (variant suffix is ignored)
+     * - "@preset/email-copywriter" -> "@preset"
      */
     fun extractProvider(modelId: String): String {
-        if (!modelId.contains(PROVIDER_SEPARATOR)) {
-            return UNKNOWN_PROVIDER
-        }
-
-        val providerKey = modelId.substringBefore(PROVIDER_SEPARATOR).lowercase()
-        return KNOWN_PROVIDERS[providerKey]
-            ?: providerKey.replaceFirstChar { it.uppercase() }
+        return parseModelId(modelId).provider
     }
 
     /**
@@ -105,29 +101,22 @@ object ModelProviderUtils {
     /**
      * Capability types for models
      */
-    enum class Capability {
-        VISION,
-        AUDIO,
-        TOOLS,
-        IMAGE_GENERATION,
-        REASONING,
-        VERBOSITY
+    enum class Capability(val displayName: String) {
+        VISION("Vision"),
+        AUDIO("Audio"),
+        TOOLS("Tools"),
+        IMAGE_GENERATION("Image Gen"),
+        REASONING("Reasoning"),
+        VERBOSITY("Verbosity")
     }
 
     /**
      * Get all capabilities for a model as a list of strings
      */
     fun getCapabilities(model: OpenRouterModelInfo): List<String> {
-        val capabilities = mutableListOf<String>()
-
-        if (hasCapability(model, Capability.VISION)) capabilities.add("Vision")
-        if (hasCapability(model, Capability.AUDIO)) capabilities.add("Audio")
-        if (hasCapability(model, Capability.TOOLS)) capabilities.add("Tools")
-        if (hasCapability(model, Capability.IMAGE_GENERATION)) capabilities.add("Image Gen")
-        if (hasCapability(model, Capability.REASONING)) capabilities.add("Reasoning")
-        if (hasCapability(model, Capability.VERBOSITY)) capabilities.add("Verbosity")
-
-        return capabilities
+        return Capability.entries
+            .filter { hasCapability(model, it) }
+            .map { it.displayName }
     }
 
     /**
@@ -145,19 +134,6 @@ object ModelProviderUtils {
             }
         }
     }
-
-    /**
-     * Criteria for filtering models
-     */
-    data class FilterCriteria(
-        val provider: String = "All Providers",
-        val contextRange: ContextRange = ContextRange.ANY,
-        val requireVision: Boolean = false,
-        val requireAudio: Boolean = false,
-        val requireTools: Boolean = false,
-        val requireImageGen: Boolean = false,
-        val searchText: String = ""
-    )
 
     /**
      * Check if model's context length matches the specified range
@@ -187,68 +163,142 @@ object ModelProviderUtils {
     }
 
     /**
-     * Filter models by provider
+     * Model variant types supported by OpenRouter.
+     * Each variant has a suffix (e.g., ":free"), display name, and tooltip.
      */
-    fun filterByProvider(models: List<OpenRouterModelInfo>, provider: String): List<OpenRouterModelInfo> {
-        if (provider == "All Providers") return models
-        return models.filter { extractProvider(it.id) == provider }
-    }
+    enum class ModelVariant(
+        val suffix: String,
+        val displayName: String,
+        val tooltip: String,
+    ) {
+        FREE(":free", "Free", "Free tier — no cost"),
+        EXACTO(":exacto", "Exacto", "Quality-first provider sorting"),
+        NITRO(":nitro", "Nitro", "High-speed inference"),
+        FLOOR(":floor", "Floor", "Lowest-cost inference"),
+        BATCH(":batch", "Batch", "Asynchronous batch processing — 24h completion window, discounted pricing");
 
-    /**
-     * Filter models by capabilities
-     * All specified capabilities must be present (AND logic)
-     */
-    fun filterByCapabilities(
-        models: List<OpenRouterModelInfo>,
-        requireVision: Boolean = false,
-        requireAudio: Boolean = false,
-        requireTools: Boolean = false,
-        requireImageGen: Boolean = false
-    ): List<OpenRouterModelInfo> {
-        return models.filter { model ->
-            (!requireVision || hasCapability(model, Capability.VISION)) &&
-                (!requireAudio || hasCapability(model, Capability.AUDIO)) &&
-                (!requireTools || hasCapability(model, Capability.TOOLS)) &&
-                (!requireImageGen || hasCapability(model, Capability.IMAGE_GENERATION))
-        }
-    }
-
-    /**
-     * Apply all filters to a list of models
-     */
-    fun applyFilters(
-        models: List<OpenRouterModelInfo>,
-        criteria: FilterCriteria
-    ): List<OpenRouterModelInfo> {
-        var filtered = models
-
-        // Apply provider filter
-        if (criteria.provider != "All Providers") {
-            filtered = filtered.filter { extractProvider(it.id) == criteria.provider }
-        }
-
-        // Apply context range filter
-        if (criteria.contextRange != ContextRange.ANY) {
-            filtered = filtered.filter { matchesContextRange(it, criteria.contextRange) }
-        }
-
-        // Apply capability filters
-        filtered = filtered.filter { model ->
-            (!criteria.requireVision || hasCapability(model, Capability.VISION)) &&
-                (!criteria.requireAudio || hasCapability(model, Capability.AUDIO)) &&
-                (!criteria.requireTools || hasCapability(model, Capability.TOOLS)) &&
-                (!criteria.requireImageGen || hasCapability(model, Capability.IMAGE_GENERATION))
-        }
-
-        // Apply text search filter
-        if (criteria.searchText.isNotBlank()) {
-            filtered = filtered.filter { model ->
-                model.id.contains(criteria.searchText, ignoreCase = true) ||
-                    model.name.contains(criteria.searchText, ignoreCase = true) ||
-                    model.description?.contains(criteria.searchText, ignoreCase = true) == true
+        companion object {
+            /**
+             * Parse a variant suffix (e.g., ":free") into a ModelVariant.
+             * Returns null if the suffix doesn't match any known variant.
+             */
+            fun fromSuffix(raw: String): ModelVariant? {
+                return entries.find { it.suffix == raw }
             }
         }
+    }
 
-        return filtered
+    /**
+     * Parsed model ID with provider, base name, and optional variant.
+     * If the variant is unknown to this plugin, it's captured in unknownVariant.
+     */
+    data class ModelId(
+        val provider: String, // e.g., "OpenAI", "Anthropic", "@preset"
+        val baseName: String, // e.g., "gpt-4o", "claude-3.5-sonnet"
+        val variant: ModelVariant?, // Known variant or null
+        val unknownVariant: String? // Raw suffix if it's not a known variant (e.g., ":brand-new")
+    ) {
+        /**
+         * Reconstruct the full model ID string.
+         */
+        fun toFullId(): String {
+            val base = if (provider == "@preset") {
+                "@preset/$baseName"
+            } else {
+                "$provider/$baseName"
+            }
+            return when {
+                variant != null -> base + variant.suffix
+                unknownVariant != null -> base + unknownVariant
+                else -> base
+            }
+        }
+    }
+
+    /**
+     * Parse a model ID into provider, base name, and variant components.
+     * Handles:
+     * - "provider/name" → ModelId(provider, name, null, null)
+     * - "provider/name:variant" → ModelId(provider, name, variant, null)
+     * - "provider/name:unknown-suffix" → ModelId(provider, name, null, ":unknown-suffix")
+     * - "@preset/slug" → ModelId("@preset", slug, null, null)
+     * - bare "name" → ModelId("Other", name, null, null)
+     */
+    fun parseModelId(id: String): ModelId {
+        if (id.isBlank()) {
+            return ModelId(UNKNOWN_PROVIDER, id, null, null)
+        }
+
+        // Check for preset slug
+        if (id.startsWith("@preset/")) {
+            val slug = id.substringAfter("@preset/")
+            return ModelId("@preset", slug, null, null)
+        }
+
+        // Split on "/" to separate provider from model+variant
+        val slashIndex = id.indexOf(PROVIDER_SEPARATOR)
+        if (slashIndex == -1) {
+            // No slash — bare model name
+            return ModelId(UNKNOWN_PROVIDER, id, null, null)
+        }
+
+        val providerKey = id.substring(0, slashIndex).lowercase()
+        val displayProvider = KNOWN_PROVIDERS[providerKey]
+            ?: providerKey.replaceFirstChar { it.uppercase() }
+
+        val modelPart = id.substring(slashIndex + 1)
+
+        // Split on ":" to separate base name from variant
+        val colonIndex = modelPart.indexOf(':')
+        return if (colonIndex == -1) {
+            // No variant suffix
+            ModelId(displayProvider, modelPart, null, null)
+        } else {
+            val baseName = modelPart.substring(0, colonIndex)
+            val variantSuffix = modelPart.substring(colonIndex) // Includes the ":"
+            val variant = ModelVariant.fromSuffix(variantSuffix)
+            ModelId(displayProvider, baseName, variant, if (variant == null) variantSuffix else null)
+        }
+    }
+
+    /**
+     * Strip the variant suffix from a model ID, returning just the base model.
+     * Examples:
+     * - "x-ai/grok-4-fast:free" → "x-ai/grok-4-fast"
+     * - "openai/gpt-4o" → "openai/gpt-4o"
+     * - "@preset/email:thinking" → "@preset/email"
+     */
+    fun stripVariant(id: String): String {
+        val colonIndex = id.indexOf(':')
+        return if (colonIndex == -1) id else id.substring(0, colonIndex)
+    }
+
+    /**
+     * Suffixes OpenRouter has retired. They are no longer valid model-ID variants,
+     * so the plugin drops them entirely (parsing, chips, and saved favorites).
+     */
+    val DEPRECATED_VARIANT_SUFFIXES: List<String> = listOf(":extended", ":thinking", ":online")
+
+    /**
+     * Strip any deprecated variant suffix from a model ID, leaving other suffixes intact.
+     * Examples:
+     * - "openai/gpt-4o:thinking" → "openai/gpt-4o"
+     * - "x-ai/grok-4-fast:free" → "x-ai/grok-4-fast:free" (still valid, untouched)
+     * - "openai/gpt-4o" → "openai/gpt-4o"
+     */
+    fun stripDeprecatedVariant(id: String): String {
+        val suffix = DEPRECATED_VARIANT_SUFFIXES.firstOrNull { id.endsWith(it) } ?: return id
+        return id.removeSuffix(suffix)
+    }
+
+    /**
+     * Check if a model ID has a specific variant.
+     * Examples:
+     * - hasVariant("x-ai/grok-4-fast:free", ModelVariant.FREE) → true
+     * - hasVariant("x-ai/grok-4-fast", ModelVariant.FREE) → false
+     * - hasVariant("x-ai/grok-4-fast:unknown", ModelVariant.FREE) → false
+     */
+    fun hasVariant(id: String, variant: ModelVariant): Boolean {
+        return parseModelId(id).variant == variant
     }
 }

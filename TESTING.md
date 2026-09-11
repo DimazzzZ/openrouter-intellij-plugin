@@ -38,6 +38,8 @@ tags and Gradle task assignment:
 ### Choosing a category for a new test
 
 - **Pure logic, no IntelliJ APIs, no network?** → Unit test. No tag needed.
+  Keep UI logic in platform-free classes so it lands here — `settings/favorites/FavoriteModelsPageState`
+  and its `FavoriteModelsPageStateTest` are the reference example.
 - **Calls a real HTTP endpoint (OpenRouter, mock server on a real port)?** → `@Tag("functional")`.
 - **Uses `BasePlatformTestCase`, `ProjectFixture`, or any `com.intellij.testFramework.*`?** → Name it `*SmokeTest` or `*PlatformTest` and place it under `integration/` or `toolwindow/` to be picked up by `platformTest`.
 
@@ -141,12 +143,9 @@ echo "OPENROUTER_PROVISIONING_KEY=pk-your-real-provisioning-key" >> .env
 ./gradlew test --tests "*E2E*" --tests "*Duplicate*" --tests "*SimpleProxy*"
 ```
 
-**UI Tests** (require graphical environment):
-```bash
-# Run in non-headless environment
-export JAVA_AWT_HEADLESS=false
-./gradlew test --tests "*UI*" --tests "*SettingsPanel*"
-```
+**Settings UI** is covered by platform tests (`./gradlew platformTest`), e.g.
+`FavoriteModelsSettingsPanelPlatformTest`; the page logic itself lives in the unit tier
+(`FavoriteModelsPageStateTest`). There are no longer any headless-skipped UI tests.
 
 #### **Method 2: Enable via Test Tags**
 

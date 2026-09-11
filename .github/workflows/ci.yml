@@ -108,21 +108,12 @@ jobs:
           restore-keys: |
             pluginVerifier-${{ runner.os }}-
 
-      # PRs verify the NEWEST supported build so deprecation annotations are
-      # visible. Resolved from printProductsReleases, which honours sinceBuild
-      # and cannot drift from gradle.properties.
-      - name: Resolve newest supported IDE
-        id: ide
-        shell: bash
-        run: |
-          set -euo pipefail
-          IDE=$(./gradlew printProductsReleases -q | grep -E '^[A-Z]+-[0-9]{4}\.[0-9]+' | sort -V | tail -1)
-          [[ -n "$IDE" ]] || { echo "::error::could not resolve an IDE to verify against"; exit 1; }
-          echo "Newest supported IDE: $IDE"
-          echo "ide=$IDE" >> "$GITHUB_OUTPUT"
-
+      # Verifies against the single pinned build in gradle.properties
+      # (verifierIdes), the same one releases use, so PR results and release
+      # results cannot disagree. Deprecations introduced by newer IDEs are
+      # checked by hand with `./scripts/fast-build.sh verify local`.
       - name: Verify plugin
-        run: ./gradlew verifyPlugin -PverifierIdes="${{ steps.ide.outputs.ide }}" --build-cache
+        run: ./gradlew verifyPlugin --build-cache
 
       - name: Upload verifier report
         if: always()

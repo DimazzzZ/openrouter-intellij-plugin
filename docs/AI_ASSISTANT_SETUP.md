@@ -129,9 +129,10 @@ selectors in the AI Assistant. All models in the Assistant's selectors are shown
 You can configure your favorite models for quick access:
 
 1. Open **Settings** → **Tools** → **OpenRouter** → **Favorite Models**
-2. Select models from the **Available Models** list
-3. Click **Add to Favorites** (→ button)
-4. Reorder favorites using **↑** and **↓** buttons
+2. Tick the **★** checkbox next to each model you want; use the search field and the Provider / Context /
+   Capabilities / Variant drop-downs to narrow the catalog, or pick a bundle from **Presets**
+3. Switch on **Favorites only** (the star in the toolbar) to see your list in the order AI Assistant will show it
+4. Reorder with **↑** / **↓**, Alt+↑/↓, or drag rows
 5. Click **Apply** and **OK**
 
 ![Favorite Models](images/favorite-models.png)

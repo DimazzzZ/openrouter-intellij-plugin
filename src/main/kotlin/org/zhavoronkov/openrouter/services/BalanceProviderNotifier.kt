@@ -30,7 +30,7 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
  *
  * @see BalanceProvider
  * @see BalanceData
- * @since 0.6.0
+ * @since 0.5.1
  */
 @ApiStatus.Internal
 @Service(Service.Level.APP)

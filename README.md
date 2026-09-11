@@ -7,7 +7,15 @@
 
 An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.ai), providing access to 400+ AI models with usage monitoring, quota tracking, and seamless JetBrains AI Assistant integration.
 
-## What's New in v0.5.3 🎉
+## What's New (Unreleased) 🎉
+
+- **🏷️ Model Variants** - `:free`, `:nitro`, `:exacto`, `:floor`, `:batch` variants surfaced with colored chips in the model selector and the Favorite Models table
+- **🎛️ Provider Routing** - New settings tab for global routing preferences (provider order, fallbacks, sort, data collection, quantizations, only/ignore filters) — injected into proxy requests only when the client doesn't specify them
+- **⭐ Single-Table Favorites** - Favorite Models is one catalog table with a ★ checkbox column, toolbar filters, presets, and a Favorites-only mode for reordering
+- **💰 Free Tier Hint** - Zero-price models display "Free" in pricing columns instead of "$0.0000"
+- See [`docs/MODEL_VARIANTS_AND_ROUTING.md`](docs/MODEL_VARIANTS_AND_ROUTING.md) for details.
+
+## What's New in v0.5.3
 
 - **💬 Reasoning & Verbosity Controls** - New dropdowns in chat panel for model-specific reasoning effort and response verbosity
 - **🔧 Tool Calling Support** - Proxy translation layer now handles tool calls for AI Assistant agent workflows

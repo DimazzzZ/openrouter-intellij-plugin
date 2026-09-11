@@ -9,6 +9,7 @@ import org.zhavoronkov.openrouter.models.OpenRouterSettings
 import org.zhavoronkov.openrouter.services.settings.ApiKeySettingsManager
 import org.zhavoronkov.openrouter.services.settings.FavoriteModelsManager
 import org.zhavoronkov.openrouter.services.settings.PresetsManager
+import org.zhavoronkov.openrouter.services.settings.ProviderRoutingManager
 import org.zhavoronkov.openrouter.services.settings.ProxySettingsManager
 import org.zhavoronkov.openrouter.services.settings.SetupStateManager
 import org.zhavoronkov.openrouter.services.settings.UIPreferencesManager
@@ -37,6 +38,8 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
     lateinit var favoriteModelsManager: FavoriteModelsManager
         private set
     lateinit var presetsManager: PresetsManager
+
+    lateinit var providerRoutingManager: ProviderRoutingManager
         private set
 
     init {
@@ -50,6 +53,7 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
         setupStateManager = SetupStateManager(settings) { notifyStateChanged() }
         favoriteModelsManager = FavoriteModelsManager(settings) { notifyStateChanged() }
         presetsManager = PresetsManager(settings) { notifyStateChanged() }
+        providerRoutingManager = ProviderRoutingManager(settings) { notifyStateChanged() }
     }
 
     companion object {
@@ -80,6 +84,39 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
         ) {
             PluginLogger.Service.info("Migration: Detected existing provisioning key, setting authScope to EXTENDED")
             settings.authScope = org.zhavoronkov.openrouter.models.AuthScope.EXTENDED
+        }
+
+        migrateDeprecatedFavoriteVariants()
+    }
+
+    /**
+     * Migration for v0.5.4: strip OpenRouter's retired variant suffixes
+     * (:extended, :thinking, :online) from saved favorites. These suffixes are no
+     * longer valid model IDs, so favorites carrying them are rewritten to the base
+     * model. Duplicates that collapse into an existing favorite are dropped.
+     */
+    private fun migrateDeprecatedFavoriteVariants() {
+        val favorites = settings.favoriteModels
+        if (favorites.isEmpty()) {
+            return
+        }
+
+        val migrated = LinkedHashSet<String>()
+        var changed = false
+        for (modelId in favorites) {
+            val stripped = org.zhavoronkov.openrouter.utils.ModelProviderUtils.stripDeprecatedVariant(modelId)
+            if (stripped != modelId) {
+                changed = true
+            }
+            migrated.add(stripped)
+        }
+
+        if (changed) {
+            PluginLogger.Service.info(
+                "Migration: stripped deprecated variant suffixes from favorites " +
+                    "(${favorites.size} → ${migrated.size} entries)"
+            )
+            settings.favoriteModels = migrated.toMutableList()
         }
     }
 

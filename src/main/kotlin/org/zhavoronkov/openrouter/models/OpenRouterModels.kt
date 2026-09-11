@@ -230,6 +230,22 @@ data class ActivityData(
 /**
  * Chat completion request and response models
  */
+/**
+ * Provider routing preferences for OpenRouter API requests.
+ * All fields are nullable — only explicitly set fields are serialized.
+ * See: https://openrouter.ai/docs/provider-routing
+ */
+data class ProviderRoutingPreferences(
+    val order: List<String>? = null,
+    @SerializedName("allow_fallbacks") val allowFallbacks: Boolean? = null,
+    val sort: String? = null, // "price" | "throughput" | "latency"
+    @SerializedName("require_parameters") val requireParameters: Boolean? = null,
+    @SerializedName("data_collection") val dataCollection: String? = null, // "allow" | "deny"
+    val quantizations: List<String>? = null, // e.g., ["int4", "int8", "fp8", "fp16", "bf16", "fp32"]
+    val only: List<String>? = null, // Provider slugs to restrict to
+    val ignore: List<String>? = null // Provider slugs to exclude
+)
+
 data class ChatCompletionRequest(
     val model: String,
     val messages: List<ChatMessage>,
@@ -243,7 +259,9 @@ data class ChatCompletionRequest(
     val reasoning: ReasoningConfig? = null,
     val verbosity: String? = null,
     val tools: List<ChatTool>? = null,
-    @SerializedName("tool_choice") val toolChoice: ToolChoice? = null
+    @SerializedName("tool_choice") val toolChoice: ToolChoice? = null,
+    val provider: ProviderRoutingPreferences? = null,
+    val models: List<String>? = null // Fallback model list
 )
 
 data class ReasoningConfig(
@@ -364,7 +382,30 @@ data class OpenRouterSettings(
     var proxyPortRangeEnd: Int = 8899, // End of port range for auto-selection
     // Extension Point Settings
     // Allow other plugins to receive balance data (enabled by default)
-    var balanceProviderEnabled: Boolean = true
+    var balanceProviderEnabled: Boolean = true,
+    // Provider Routing — injected into proxy requests when enabled and absent
+    var providerRoutingEnabled: Boolean = false,
+    var providerOrder: MutableList<String> = mutableListOf(), // Provider display names, e.g., "Anthropic", "OpenAI"
+    var providerAllowFallbacks: Boolean = true,
+    var providerSort: String = "", // "" | "price" | "throughput" | "latency"
+    var providerRequireParameters: Boolean = false,
+    var providerDataCollection: String = "", // "" | "allow" | "deny"
+    var providerQuantizations: MutableList<String> = mutableListOf(),
+    var providerOnly: MutableList<String> = mutableListOf(),
+    var providerIgnore: MutableList<String> = mutableListOf(),
+    var fallbackModels: MutableList<String> = mutableListOf(), // Global default `models[]` fallback list
+)
+
+/**
+ * XML-friendly grouped representation of favorite models.
+ * Records a base model ID and its selected variant suffixes.
+ * The flat [OpenRouterSettings.favoriteModels] list remains authoritative on the wire;
+ * this is a convenience layer for the grouped picker UI.
+ */
+data class FavoriteModelGroupData(
+    var baseId: String = "",
+    // Variant suffixes, e.g., [":free", ":nitro"]; empty = base only
+    var variants: MutableList<String> = mutableListOf()
 )
 
 /**
