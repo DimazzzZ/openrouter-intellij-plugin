@@ -35,18 +35,28 @@ instead of button rows, and `StatusText` empty states with one action link.
 - Filters are **toolbar drop-downs** (Provider, Context, Variant single-select;
   Capabilities multi-select) plus a Presets drop-down and Refresh. A
   text-only "Clear filters" action is visible only while a filter or search
-  text is active.
+  text is active. The Variant drop-down lists only the suffixes the loaded
+  catalog carries: `:free` and `:batch` are catalog entries, while `:nitro`,
+  `:floor` and `:exacto` are request-time routing shortcuts that never appear
+  in `/models`, so offering them would guarantee an empty table.
 - Variants are surfaced through the chip renderer, the Variant filter and a
   context-help icon; there is no dedicated variants dialog.
 - All page logic lives in `settings/favorites/FavoriteModelsPageState`, a
   platform-free view-model tested in the unit tier. The Swing panel is a thin
   adapter with injectable seams, covered by one `*PlatformTest`.
-- Only public, non-deprecated platform API is used (ADR-0002): `TableView` +
-  `ListTableModel`, `BooleanTableCellRenderer`/`BooleanTableCellEditor`,
-  `RowsDnDSupport`, `ActionToolbar` with `ComboBoxAction`/`ToggleAction`,
-  `KeepPopupOnPerform`, `StatusText`, and the UI DSL `contextHelp`.
-  `ToolbarDecorator` was rejected because mixing custom actions into it
-  requires deprecated members.
+- The variant legend is a `ContextHelpLabel` built from an explicit
+  `HelpTooltip` anchored **below** the icon. The `ContextHelpLabel.create`
+  default hangs the popup `-popupHeight` above the icon; a legend-sized popup
+  is clamped back over the icon and the owner then alternates
+  mouseExited / mouseEntered forever (IDEA-330235).
+- Only public platform API is used (ADR-0002): `TableView` + `ListTableModel`,
+  `BooleanTableCellRenderer`/`BooleanTableCellEditor`, `RowsDnDSupport`,
+  `ActionToolbar` with `ComboBoxAction`/`ToggleAction`, `KeepPopupOnPerform`,
+  `StatusText`, `ContextHelpLabel` and `HelpTooltip`. `ToolbarDecorator` was
+  rejected because mixing custom actions into it requires deprecated members.
+  One knowing exception: `HelpTooltip.setTitle`/`setDescription` are current
+  API on the 2025.3 platform the plugin compiles against, and 2026.2
+  deprecates every overload of both with no replacement reachable from 2025.3.
 
 ## Consequences
 
@@ -63,6 +73,8 @@ instead of button rows, and `StatusText` empty states with one action link.
   with a `matches(model)` predicate.
 - The separate `/models/count` request is dropped; "of N" uses the loaded
   catalog size so the numbers are reachable.
+- The table claims the page's spare height, so the group row and the table row
+  are both resizable; the page no longer leaves the lower half empty.
 - Note: `gradle.properties` builds against platform 2025.3 (`pluginSinceBuild
   = 253`) while ADR-0001 records 2024.2. Nothing in this design needs a newer
   API than 2024.2, but the drift should be reconciled in a follow-up ADR.
@@ -73,5 +85,6 @@ instead of button rows, and `StatusText` empty states with one action link.
 - `src/main/kotlin/org/zhavoronkov/openrouter/settings/FavoriteModelsSettingsPanel.kt`
 - `src/main/kotlin/org/zhavoronkov/openrouter/settings/favorites/`
 - `src/test/kotlin/org/zhavoronkov/openrouter/settings/favorites/FavoriteModelsPageStateTest.kt`
+- `src/main/kotlin/org/zhavoronkov/openrouter/settings/favorites/VariantLegend.kt` (tooltip placement)
 - `src/test/kotlin/org/zhavoronkov/openrouter/settings/FavoriteModelsSettingsPanelPlatformTest.kt`
 - `docs/MODEL_VARIANTS_AND_ROUTING.md`

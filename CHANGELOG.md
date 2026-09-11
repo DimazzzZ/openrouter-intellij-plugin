@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Column Sorting** - Sort by Model, Context, Input or Output price (numeric) in catalog mode
 - **Empty States** - "No models match the filters · Clear filters", "Failed to load models · Retry", "No favorite models added · Add from presets…"
 - **Unavailable Favorites** - Favorites missing from the current catalog stay listed (greyed) so they can be removed
+- **Full-Height Table** - The table takes the page's spare height instead of collapsing to a few rows above empty space
 
 #### 🏷️ Model Variants
 - **Variant Parsing** - Model IDs with suffixes (`:free`, `:nitro`, `:exacto`, `:floor`, `:batch`) are parsed into structured `ModelId` values
@@ -40,16 +41,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 - **Variant Legend Tooltip Flicker** - The "?" tooltip on the Favorite Models page hung above the icon at an offset equal to its own height; a legend-sized popup was clamped back over the icon and flickered endlessly (IDEA-330235). It now opens below the icon, clear of the cursor
+- **Collapsed Favorites Table** - The table claimed only its preferred height, leaving most of the page empty; both the group row and the table row are resizable now
 - **Batch Chip Color** - `:batch` had no palette entry and rendered in the "unknown variant" yellow; it now has its own blue chip
 - **Dead Variant Filter Options** - Nitro, Floor and Exacto were offered in the Variant drop-down but can never match: they are request-time routing shortcuts, not catalog entries. The drop-down is now built from the loaded catalog, and a selected variant that a reloaded catalog no longer carries resets to Any
+
+### Build & Tooling
+- **One Pinned Verification Target** - Local runs, PR CI and releases all read `verifierIdes` from `gradle.properties` (currently `IU-2025.3.6.1`, the oldest build satisfying `pluginSinceBuild`), so the three cannot disagree. Not a Community build: JetBrains unified the IDEA distribution at 2025.3, so no IC artifact exists for build 253 or later
+- **Manual Local Verification** - `./scripts/fast-build.sh verify local` checks the plugin against the IDE installed on the machine, which is how deprecations from newer IDEs get noticed before the pin moves; those findings gate nothing
+- **Faster Builds** - `buildSearchableOptions` launches a headless IDE and only the published archive needs it, so it is now opt-in via `-Prelease`. With a warm `~/.pluginVerifier` cache a verification run takes about a minute instead of half an hour
 
 ### Removed
 - **Two-table favorites picker** - Add / Add All / Remove / Clear All buttons, the capability checkbox row, the Quick preset buttons, the "Variants…" dialog and the chip legend
 - **`/models/count` request** on the Favorite Models page - the status line now counts the loaded catalog
 
 ### Testing
-- 40 unit tests for `FavoriteModelsPageState` (ordering, favorites-only view, reorder, presets, status, empty states) plus `ModelFilterCriteria`, `VariantFilter`, table column and table model tests
-- `FavoriteModelsSettingsPanelPlatformTest` replaces the headless-disabled panel test (checkbox toggle → apply, favorites-only order, Enter handling, empty state, status line)
+- 45 unit tests for `FavoriteModelsPageState` (ordering, favorites-only view, reorder, presets, variant filter options, status, empty states)
+- 19 tests for `ModelFilterCriteria`, 10 for `VariantFilter`, 8 for the table columns and 6 for the table model
+- `FavoriteModelsSettingsPanelPlatformTest` replaces the headless-disabled panel test: 10 tests covering checkbox toggle → apply, favorites-only order, Enter handling, empty state, status line, that the table fills the page height, and that the help tooltip cannot be placed under the cursor
 - 10 unit tests for `ProviderRoutingInjector` (inject-only-when-absent invariant)
 - 11 MockWebServer E2E tests for provider-routing injection through the full HTTP stack (injector → request builder → OkHttp → upstream)
 - 6 tests for `ToolCallAccumulator` (single-chunk, multi-chunk, multiple tool_calls, null/empty deltas, reset)
