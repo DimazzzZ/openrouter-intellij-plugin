@@ -37,6 +37,13 @@ object VariantLegend {
             "catalog entries, so no model is listed under them."
     }
 
+    /**
+     * `setTitle` / `setDescription` are current API on the 2025.3 platform the plugin
+     * compiles against; 2026.2 deprecates every overload of both with no replacement
+     * reachable from 2025.3, so the verifier reports two deprecated usages when run
+     * against a newer IDE. They still work there — migrate when `platformVersion`
+     * moves to 2026.x.
+     */
     fun createLabel(): ContextHelpLabel = ContextHelpLabel.createFromTooltip(
         HelpTooltip()
             .setTitle(TITLE)
