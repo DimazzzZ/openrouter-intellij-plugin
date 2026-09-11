@@ -13,16 +13,24 @@ import org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsFixtures.GROK
 import org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsFixtures.SONNET
 import org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsPageState
 import org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsPageState.Mode
+import java.awt.Component
+import java.awt.Container
 import java.awt.event.KeyEvent
 import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JLabel
+import javax.swing.JScrollPane
 
 /**
  * Platform test for the single-table Favorite Models page. The panel is built with
  * `autoLoad = false` and fed a fixture catalog, so no network is touched.
  */
 class FavoriteModelsSettingsPanelPlatformTest : BasePlatformTestCase() {
+
+    private companion object {
+        const val PAGE_WIDTH = 900
+        const val PAGE_HEIGHT = 800
+    }
 
     private lateinit var manager: FavoriteModelsManager
     private lateinit var state: FavoriteModelsPageState
@@ -58,6 +66,14 @@ class FavoriteModelsSettingsPanelPlatformTest : BasePlatformTestCase() {
 
     private fun table(root: JComponent): JBTable =
         UIUtil.findComponentOfType(root, JBTable::class.java) ?: error("table not found")
+
+    /** Lays out the whole hierarchy without a native peer, so sizes are real. */
+    private fun forceLayout(component: Component) {
+        if (component is Container) {
+            component.doLayout()
+            component.components.forEach { forceLayout(it) }
+        }
+    }
 
     private fun statusLabel(root: JComponent): JLabel =
         UIUtil.findComponentsOfType(root, JLabel::class.java).first { it.name == "favoritesStatusLabel" }
@@ -135,6 +151,19 @@ class FavoriteModelsSettingsPanelPlatformTest : BasePlatformTestCase() {
         assertTrue(
             "Empty text was: ${table.emptyText.text}",
             table.emptyText.text.contains("No models match", ignoreCase = true)
+        )
+    }
+
+    fun testTableFillsAvailableVerticalSpace() {
+        val root = createPanel()
+
+        root.setSize(PAGE_WIDTH, PAGE_HEIGHT)
+        forceLayout(root)
+
+        val scrollPane = UIUtil.findComponentOfType(root, JScrollPane::class.java)!!
+        assertTrue(
+            "Table should take the page's spare height, but got ${scrollPane.height} of $PAGE_HEIGHT",
+            scrollPane.height >= PAGE_HEIGHT / 2
         )
     }
 

@@ -25,6 +25,7 @@ import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.TopGap
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.table.TableView
+import com.intellij.util.ui.JBDimension
 import com.intellij.util.ui.JBUI
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +52,7 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
+import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.ListSelectionModel
 import javax.swing.Timer
@@ -79,6 +81,9 @@ class FavoriteModelsSettingsPanel(
         const val SEARCH_DEBOUNCE_MS = 300
         const val PRESET_FEEDBACK_MS = 4000
         const val TABLE_ROW_HEIGHT = 20
+        const val TABLE_PREFERRED_WIDTH = 640
+        const val TABLE_PREFERRED_HEIGHT = 400
+        const val TABLE_MIN_HEIGHT = 160
         const val PANEL_BORDER = 10
         const val MISSING_KEY_MESSAGE =
             "To manage favorite models, add your Provisioning Key in Tools → OpenRouter → Settings."
@@ -117,6 +122,9 @@ class FavoriteModelsSettingsPanel(
                     button("Open Settings") { openMainSettings() }
                 }.topGap(TopGap.NONE)
             }
+            // The group keeps its own grid, so it needs resizableRow() as well:
+            // without it the group claims only its preferred height and the
+            // table row's resizableRow() has no spare space to hand out.
             group("Favorite Models") {
                 row {
                     comment(PAGE_COMMENT)
@@ -129,12 +137,12 @@ class FavoriteModelsSettingsPanel(
                     cell(toolbar.component).align(AlignX.FILL)
                 }.topGap(TopGap.NONE).visible(keyPresent)
                 row {
-                    cell(ScrollPaneFactory.createScrollPane(table)).align(Align.FILL).resizableColumn()
+                    cell(tableScrollPane()).align(Align.FILL).resizableColumn()
                 }.resizableRow().topGap(TopGap.NONE).visible(keyPresent)
                 row {
                     cell(statusLabel)
-                }.topGap(TopGap.NONE).visible(keyPresent)
-            }
+                }.topGap(TopGap.SMALL).visible(keyPresent)
+            }.resizableRow()
         }
         content.border = JBUI.Borders.empty(PANEL_BORDER)
         loadingPanel.add(content, BorderLayout.CENTER)
@@ -145,6 +153,13 @@ class FavoriteModelsSettingsPanel(
         }
         return loadingPanel
     }
+
+    /** The table is the page's focus: give it a tall baseline and let it absorb spare height. */
+    private fun tableScrollPane(): JComponent =
+        ScrollPaneFactory.createScrollPane(table).apply {
+            preferredSize = JBDimension(TABLE_PREFERRED_WIDTH, TABLE_PREFERRED_HEIGHT)
+            minimumSize = JBDimension(TABLE_PREFERRED_WIDTH, TABLE_MIN_HEIGHT)
+        }
 
     // --- construction ----------------------------------------------------------------------
 
