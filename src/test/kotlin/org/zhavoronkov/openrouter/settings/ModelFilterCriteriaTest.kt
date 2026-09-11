@@ -2,175 +2,233 @@ package org.zhavoronkov.openrouter.settings
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.zhavoronkov.openrouter.utils.ModelProviderUtils
+import org.zhavoronkov.openrouter.models.ModelArchitecture
+import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
+import org.zhavoronkov.openrouter.settings.favorites.VariantFilter
+import org.zhavoronkov.openrouter.utils.ModelProviderUtils.Capability
+import org.zhavoronkov.openrouter.utils.ModelProviderUtils.ContextRange
 
+@DisplayName("ModelFilterCriteria")
 class ModelFilterCriteriaTest {
 
-    @Test
-    fun `default criteria should have no active filters`() {
-        val criteria = ModelFilterCriteria.default()
+    private fun model(
+        id: String,
+        name: String = id,
+        description: String? = null,
+        contextLength: Int? = 128_000,
+        inputModalities: List<String> = listOf("text"),
+        outputModalities: List<String> = listOf("text"),
+        supportedParameters: List<String> = emptyList(),
+    ) = OpenRouterModelInfo(
+        id = id,
+        name = name,
+        created = 0L,
+        description = description,
+        architecture = ModelArchitecture(inputModalities = inputModalities, outputModalities = outputModalities),
+        contextLength = contextLength,
+        supportedParameters = supportedParameters,
+    )
 
-        assertEquals("All Providers", criteria.provider)
-        assertEquals(ModelProviderUtils.ContextRange.ANY, criteria.contextRange)
-        assertFalse(criteria.requireVision)
-        assertFalse(criteria.requireAudio)
-        assertFalse(criteria.requireTools)
-        assertFalse(criteria.requireImageGen)
-        assertEquals("", criteria.searchText)
-        assertFalse(criteria.hasActiveFilters())
+    @Nested
+    @DisplayName("active filters")
+    inner class ActiveFilters {
+
+        @Test
+        fun `default has no active filters and no input`() {
+            val criteria = ModelFilterCriteria.default()
+
+            assertFalse(criteria.hasActiveFilters())
+            assertFalse(criteria.hasAnyInput())
+            assertEquals(0, criteria.activeFilterCount())
+        }
+
+        @Test
+        fun `provider flips hasActiveFilters`() {
+            assertTrue(ModelFilterCriteria(provider = "OpenAI").hasActiveFilters())
+        }
+
+        @Test
+        fun `context range flips hasActiveFilters`() {
+            assertTrue(ModelFilterCriteria(contextRange = ContextRange.LARGE).hasActiveFilters())
+        }
+
+        @Test
+        fun `capabilities flip hasActiveFilters`() {
+            assertTrue(ModelFilterCriteria(capabilities = setOf(Capability.VISION)).hasActiveFilters())
+        }
+
+        @Test
+        fun `variant flips hasActiveFilters`() {
+            assertTrue(ModelFilterCriteria(variant = VariantFilter.FREE).hasActiveFilters())
+        }
+
+        @Test
+        fun `search text is input but not a filter`() {
+            val criteria = ModelFilterCriteria(searchText = "gpt")
+
+            assertFalse(criteria.hasActiveFilters())
+            assertTrue(criteria.hasAnyInput())
+        }
+
+        @Test
+        fun `activeFilterCount counts dimensions not individual capabilities`() {
+            val criteria = ModelFilterCriteria(
+                provider = "OpenAI",
+                contextRange = ContextRange.LARGE,
+                capabilities = setOf(Capability.VISION, Capability.TOOLS),
+                variant = VariantFilter.FREE,
+                searchText = "ignored",
+            )
+
+            assertEquals(4, criteria.activeFilterCount())
+        }
     }
 
-    @Test
-    fun `hasActiveFilters should return true when provider is set`() {
-        val criteria = ModelFilterCriteria(provider = "OpenAI")
-        assertTrue(criteria.hasActiveFilters())
+    @Nested
+    @DisplayName("describe")
+    inner class Describe {
+
+        @Test
+        fun `no filters`() {
+            assertEquals("No filters", ModelFilterCriteria.default().describe())
+        }
+
+        @Test
+        fun `all dimensions`() {
+            val criteria = ModelFilterCriteria(
+                provider = "OpenAI",
+                contextRange = ContextRange.LARGE,
+                capabilities = setOf(Capability.TOOLS, Capability.VISION),
+                variant = VariantFilter.FREE,
+            )
+
+            assertEquals(
+                "Provider: OpenAI | Context: > 128K | Capabilities: Vision, Tools | Variant: Free",
+                criteria.describe()
+            )
+        }
     }
 
-    @Test
-    fun `hasActiveFilters should return true when context range is set`() {
-        val criteria = ModelFilterCriteria(contextRange = ModelProviderUtils.ContextRange.LARGE)
-        assertTrue(criteria.hasActiveFilters())
-    }
+    @Nested
+    @DisplayName("matches")
+    inner class Matches {
 
-    @Test
-    fun `hasActiveFilters should return true when vision is required`() {
-        val criteria = ModelFilterCriteria(requireVision = true)
-        assertTrue(criteria.hasActiveFilters())
-    }
+        @Test
+        fun `default matches everything`() {
+            val criteria = ModelFilterCriteria.default()
 
-    @Test
-    fun `hasActiveFilters should return true when audio is required`() {
-        val criteria = ModelFilterCriteria(requireAudio = true)
-        assertTrue(criteria.hasActiveFilters())
-    }
+            assertTrue(criteria.matches(model("openai/gpt-4o")))
+            assertTrue(criteria.matches(model("x-ai/grok-4-fast:free", contextLength = null)))
+        }
 
-    @Test
-    fun `hasActiveFilters should return true when tools is required`() {
-        val criteria = ModelFilterCriteria(requireTools = true)
-        assertTrue(criteria.hasActiveFilters())
-    }
+        @Test
+        fun `provider uses display name and ignores variant suffix`() {
+            val criteria = ModelFilterCriteria(provider = "xAI")
 
-    @Test
-    fun `hasActiveFilters should return true when image gen is required`() {
-        val criteria = ModelFilterCriteria(requireImageGen = true)
-        assertTrue(criteria.hasActiveFilters())
-    }
+            assertTrue(criteria.matches(model("x-ai/grok-4-fast")))
+            assertTrue(criteria.matches(model("x-ai/grok-4-fast:free")))
+            assertFalse(criteria.matches(model("openai/gpt-4o")))
+        }
 
-    @Test
-    fun `hasActiveFilters should not count search text`() {
-        val criteria = ModelFilterCriteria(searchText = "gpt")
-        assertFalse(criteria.hasActiveFilters())
-    }
+        private fun inRange(range: ContextRange, contextLength: Int?): Boolean =
+            ModelFilterCriteria(contextRange = range).matches(model("a/b", contextLength = contextLength))
 
-    @Test
-    fun `getActiveFiltersDescription should describe provider filter`() {
-        val criteria = ModelFilterCriteria(provider = "OpenAI")
-        val description = criteria.getActiveFiltersDescription()
-        assertTrue(description.contains("Provider: OpenAI"))
-    }
+        @Test
+        fun `context range boundaries`() {
+            assertTrue(inRange(ContextRange.SMALL, 8_000))
+            assertFalse(inRange(ContextRange.SMALL, 32_000))
+            assertTrue(inRange(ContextRange.MEDIUM, 32_000))
+            assertTrue(inRange(ContextRange.MEDIUM, 128_000))
+            assertTrue(inRange(ContextRange.LARGE, 200_000))
+            assertFalse(inRange(ContextRange.LARGE, 128_000))
+        }
 
-    @Test
-    fun `getActiveFiltersDescription should describe context filter`() {
-        val criteria = ModelFilterCriteria(contextRange = ModelProviderUtils.ContextRange.LARGE)
-        val description = criteria.getActiveFiltersDescription()
-        assertTrue(description.contains("Context: > 128K"))
-    }
+        @Test
+        fun `null context length is excluded by any non-ANY range`() {
+            assertTrue(inRange(ContextRange.ANY, null))
+            assertFalse(inRange(ContextRange.SMALL, null))
+            assertFalse(inRange(ContextRange.LARGE, null))
+        }
 
-    @Test
-    fun `getActiveFiltersDescription should describe capability filters`() {
-        val criteria = ModelFilterCriteria(
-            requireVision = true,
-            requireTools = true
-        )
-        val description = criteria.getActiveFiltersDescription()
-        assertTrue(description.contains("Capabilities: Vision, Tools"))
-    }
+        @Test
+        fun `capabilities are ANDed`() {
+            val visionAndTools = model(
+                "openai/gpt-4o",
+                inputModalities = listOf("text", "image"),
+                supportedParameters = listOf("tools"),
+            )
+            val visionOnly = model("a/vision", inputModalities = listOf("text", "image"))
+            val criteria = ModelFilterCriteria(capabilities = setOf(Capability.VISION, Capability.TOOLS))
 
-    @Test
-    fun `getActiveFiltersDescription should combine multiple filters`() {
-        val criteria = ModelFilterCriteria(
-            provider = "OpenAI",
-            contextRange = ModelProviderUtils.ContextRange.MEDIUM,
-            requireVision = true
-        )
-        val description = criteria.getActiveFiltersDescription()
+            assertTrue(criteria.matches(visionAndTools))
+            assertFalse(criteria.matches(visionOnly))
+        }
 
-        // Check that all filter types are present in the description
-        assertTrue(description.contains("Provider: OpenAI"))
-        assertTrue(description.contains("Context:"))
-        assertTrue(description.contains("Capabilities: Vision"))
+        @Test
+        fun `reasoning capability is honoured`() {
+            val reasoning = model("a/thinker", supportedParameters = listOf("reasoning"))
+            val plain = model("a/plain")
+            val criteria = ModelFilterCriteria(capabilities = setOf(Capability.REASONING))
 
-        // Check that filters are separated by pipe
-        assertTrue(description.contains(" | "))
-    }
+            assertTrue(criteria.matches(reasoning))
+            assertFalse(criteria.matches(plain))
+        }
 
-    @Test
-    fun `getActiveFiltersDescription should return No filters when none active`() {
-        val criteria = ModelFilterCriteria.default()
-        assertEquals("No filters", criteria.getActiveFiltersDescription())
-    }
+        @Test
+        fun `variant filter is applied`() {
+            val free = ModelFilterCriteria(variant = VariantFilter.FREE)
+            val base = ModelFilterCriteria(variant = VariantFilter.BASE_ONLY)
+            val other = ModelFilterCriteria(variant = VariantFilter.OTHER)
 
-    @Test
-    fun `getActiveFilterCount should count all active filters`() {
-        val criteria = ModelFilterCriteria(
-            provider = "OpenAI",
-            contextRange = ModelProviderUtils.ContextRange.LARGE,
-            requireVision = true,
-            requireTools = true
-        )
-        assertEquals(4, criteria.getActiveFilterCount())
-    }
+            assertTrue(free.matches(model("x-ai/grok-4-fast:free")))
+            assertFalse(free.matches(model("x-ai/grok-4-fast")))
+            assertTrue(base.matches(model("x-ai/grok-4-fast")))
+            assertFalse(base.matches(model("x-ai/grok-4-fast:free")))
+            assertTrue(other.matches(model("some/model:brand-new")))
+            assertFalse(other.matches(model("x-ai/grok-4-fast:free")))
+        }
 
-    @Test
-    fun `getActiveFilterCount should return 0 for default criteria`() {
-        val criteria = ModelFilterCriteria.default()
-        assertEquals(0, criteria.getActiveFilterCount())
-    }
+        @Test
+        fun `search is case-insensitive across id, name and description`() {
+            val byId = model("openai/gpt-4o", name = "GPT-4o")
+            val byName = model("anthropic/claude-3.5-sonnet", name = "Claude Sonnet")
+            val byDescription = model("google/gemini", name = "Gemini", description = "Multimodal SONNET-class model")
+            val miss = model("meta-llama/llama-3", name = "Llama")
 
-    @Test
-    fun `forProvider should create criteria with provider set`() {
-        val criteria = ModelFilterCriteria.forProvider("Anthropic")
-        assertEquals("Anthropic", criteria.provider)
-        assertEquals(ModelProviderUtils.ContextRange.ANY, criteria.contextRange)
-        assertFalse(criteria.requireVision)
-    }
+            val criteria = ModelFilterCriteria(searchText = "sonnet")
 
-    @Test
-    fun `forMultimodal should create criteria with vision required`() {
-        val criteria = ModelFilterCriteria.forMultimodal()
-        assertTrue(criteria.requireVision)
-        assertEquals("All Providers", criteria.provider)
-    }
+            assertFalse(criteria.matches(byId))
+            assertTrue(criteria.matches(byName))
+            assertTrue(criteria.matches(byDescription))
+            assertFalse(criteria.matches(miss))
+            assertTrue(ModelFilterCriteria(searchText = "GPT").matches(byId))
+        }
 
-    @Test
-    fun `forCoding should create criteria with tools required`() {
-        val criteria = ModelFilterCriteria.forCoding()
-        assertTrue(criteria.requireTools)
-        assertEquals("All Providers", criteria.provider)
-    }
+        @Test
+        fun `blank search text matches everything`() {
+            assertTrue(ModelFilterCriteria(searchText = "   ").matches(model("a/b")))
+        }
 
-    @Test
-    fun `criteria should be immutable data class`() {
-        val criteria1 = ModelFilterCriteria(provider = "OpenAI")
-        val criteria2 = criteria1.copy(requireVision = true)
+        @Test
+        fun `dimensions compose with AND`() {
+            val criteria = ModelFilterCriteria(
+                provider = "OpenAI",
+                capabilities = setOf(Capability.VISION),
+                searchText = "4o",
+            )
+            val hit = model("openai/gpt-4o", inputModalities = listOf("text", "image"))
+            val wrongProvider = model("anthropic/claude-4o", inputModalities = listOf("text", "image"))
+            val noVision = model("openai/gpt-4o-text")
+            val wrongSearch = model("openai/gpt-5", inputModalities = listOf("text", "image"))
 
-        assertEquals("OpenAI", criteria1.provider)
-        assertFalse(criteria1.requireVision)
-
-        assertEquals("OpenAI", criteria2.provider)
-        assertTrue(criteria2.requireVision)
-    }
-
-    @Test
-    fun `criteria equality should work correctly`() {
-        val criteria1 = ModelFilterCriteria(provider = "OpenAI", requireVision = true)
-        val criteria2 = ModelFilterCriteria(provider = "OpenAI", requireVision = true)
-        val criteria3 = ModelFilterCriteria(provider = "Anthropic", requireVision = true)
-
-        assertEquals(criteria1, criteria2)
-        assertNotEquals(criteria1, criteria3)
+            assertTrue(criteria.matches(hit))
+            assertFalse(criteria.matches(wrongProvider))
+            assertFalse(criteria.matches(noVision))
+            assertFalse(criteria.matches(wrongSearch))
+        }
     }
 }

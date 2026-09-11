@@ -101,29 +101,22 @@ object ModelProviderUtils {
     /**
      * Capability types for models
      */
-    enum class Capability {
-        VISION,
-        AUDIO,
-        TOOLS,
-        IMAGE_GENERATION,
-        REASONING,
-        VERBOSITY
+    enum class Capability(val displayName: String) {
+        VISION("Vision"),
+        AUDIO("Audio"),
+        TOOLS("Tools"),
+        IMAGE_GENERATION("Image Gen"),
+        REASONING("Reasoning"),
+        VERBOSITY("Verbosity")
     }
 
     /**
      * Get all capabilities for a model as a list of strings
      */
     fun getCapabilities(model: OpenRouterModelInfo): List<String> {
-        val capabilities = mutableListOf<String>()
-
-        if (hasCapability(model, Capability.VISION)) capabilities.add("Vision")
-        if (hasCapability(model, Capability.AUDIO)) capabilities.add("Audio")
-        if (hasCapability(model, Capability.TOOLS)) capabilities.add("Tools")
-        if (hasCapability(model, Capability.IMAGE_GENERATION)) capabilities.add("Image Gen")
-        if (hasCapability(model, Capability.REASONING)) capabilities.add("Reasoning")
-        if (hasCapability(model, Capability.VERBOSITY)) capabilities.add("Verbosity")
-
-        return capabilities
+        return Capability.entries
+            .filter { hasCapability(model, it) }
+            .map { it.displayName }
     }
 
     /**

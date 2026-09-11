@@ -1,103 +1,67 @@
 package org.zhavoronkov.openrouter.settings
 
+import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
+import org.zhavoronkov.openrouter.settings.favorites.VariantFilter
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
+import org.zhavoronkov.openrouter.utils.ModelProviderUtils.Capability
+import org.zhavoronkov.openrouter.utils.ModelProviderUtils.ContextRange
 
 /**
- * Data class representing filter criteria for model selection
+ * Immutable filter criteria for the Favorite Models catalog.
+ *
+ * Every dimension is ANDed. [provider] is the display name from
+ * [ModelProviderUtils.extractProvider]; `null` means all providers.
+ * [capabilities] must all be present. [searchText] is matched
+ * case-insensitively against id, name and description.
  */
 data class ModelFilterCriteria(
-    val provider: String = "All Providers",
-    val contextRange: ModelProviderUtils.ContextRange = ModelProviderUtils.ContextRange.ANY,
-    val requireVision: Boolean = false,
-    val requireAudio: Boolean = false,
-    val requireTools: Boolean = false,
-    val requireImageGen: Boolean = false,
-    val searchText: String = ""
+    val provider: String? = null,
+    val contextRange: ContextRange = ContextRange.ANY,
+    val capabilities: Set<Capability> = emptySet(),
+    val variant: VariantFilter = VariantFilter.ANY,
+    val searchText: String = "",
 ) {
-    /**
-     * Check if any filters are active (excluding search text)
-     */
-    fun hasActiveFilters(): Boolean {
-        return provider != "All Providers" ||
-            contextRange != ModelProviderUtils.ContextRange.ANY ||
-            requireVision ||
-            requireAudio ||
-            requireTools ||
-            requireImageGen
+
+    fun matches(model: OpenRouterModelInfo): Boolean =
+        matchesProvider(model) &&
+            ModelProviderUtils.matchesContextRange(model, contextRange) &&
+            capabilities.all { ModelProviderUtils.hasCapability(model, it) } &&
+            variant.matches(model.id) &&
+            matchesSearch(model)
+
+    private fun matchesProvider(model: OpenRouterModelInfo): Boolean =
+        provider == null || ModelProviderUtils.extractProvider(model.id) == provider
+
+    private fun matchesSearch(model: OpenRouterModelInfo): Boolean {
+        val needle = searchText.trim()
+        if (needle.isEmpty()) return true
+        return model.id.contains(needle, ignoreCase = true) ||
+            model.name.contains(needle, ignoreCase = true) ||
+            model.description?.contains(needle, ignoreCase = true) == true
     }
 
-    /**
-     * Get a human-readable description of active filters
-     */
-    fun getActiveFiltersDescription(): String {
-        val filters = mutableListOf<String>()
+    /** True when any drop-down filter is set (search text excluded). */
+    fun hasActiveFilters(): Boolean = activeFilterCount() > 0
 
-        if (provider != "All Providers") {
-            filters.add("Provider: $provider")
-        }
+    /** True when a filter or search text is set — drives the "Clear filters" action. */
+    fun hasAnyInput(): Boolean = hasActiveFilters() || searchText.isNotBlank()
 
-        if (contextRange != ModelProviderUtils.ContextRange.ANY) {
-            filters.add("Context: ${contextRange.displayName}")
-        }
+    /** Number of active filter dimensions (a multi-capability selection counts once). */
+    fun activeFilterCount(): Int = activeParts().size
 
-        val capabilities = mutableListOf<String>()
-        if (requireVision) capabilities.add("Vision")
-        if (requireAudio) capabilities.add("Audio")
-        if (requireTools) capabilities.add("Tools")
-        if (requireImageGen) capabilities.add("Image Gen")
+    fun describe(): String =
+        activeParts().takeIf { it.isNotEmpty() }?.joinToString(" | ") ?: "No filters"
 
+    private fun activeParts(): List<String> = buildList {
+        provider?.let { add("Provider: $it") }
+        if (contextRange != ContextRange.ANY) add("Context: ${contextRange.displayName}")
         if (capabilities.isNotEmpty()) {
-            filters.add("Capabilities: ${capabilities.joinToString(", ")}")
+            add("Capabilities: ${capabilities.sortedBy { it.ordinal }.joinToString(", ") { it.displayName }}")
         }
-
-        return if (filters.isNotEmpty()) {
-            filters.joinToString(" | ")
-        } else {
-            "No filters"
-        }
-    }
-
-    /**
-     * Get count of active filters
-     */
-    fun getActiveFilterCount(): Int {
-        var count = 0
-        if (provider != "All Providers") count++
-        if (contextRange != ModelProviderUtils.ContextRange.ANY) count++
-        if (requireVision) count++
-        if (requireAudio) count++
-        if (requireTools) count++
-        if (requireImageGen) count++
-        return count
+        if (variant != VariantFilter.ANY) add("Variant: ${variant.displayName}")
     }
 
     companion object {
-        /**
-         * Default filter criteria (no filters applied)
-         */
-        fun default(): ModelFilterCriteria {
-            return ModelFilterCriteria()
-        }
-
-        /**
-         * Create filter criteria for a specific provider
-         */
-        fun forProvider(provider: String): ModelFilterCriteria {
-            return ModelFilterCriteria(provider = provider)
-        }
-
-        /**
-         * Create filter criteria for multimodal models
-         */
-        fun forMultimodal(): ModelFilterCriteria {
-            return ModelFilterCriteria(requireVision = true)
-        }
-
-        /**
-         * Create filter criteria for coding models
-         */
-        fun forCoding(): ModelFilterCriteria {
-            return ModelFilterCriteria(requireTools = true)
-        }
+        fun default(): ModelFilterCriteria = ModelFilterCriteria()
     }
 }
