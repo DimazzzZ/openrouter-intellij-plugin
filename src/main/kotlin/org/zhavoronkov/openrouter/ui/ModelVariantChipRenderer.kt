@@ -28,17 +28,8 @@ object ModelVariantChipRenderer {
         ModelVariant.FREE to ChipColor(
             bgLight = "#E8F5E9", bgDark = "#1B5E20", fgLight = "#1B5E20", fgDark = "#E8F5E9"
         ),
-        ModelVariant.EXTENDED to ChipColor(
-            bgLight = "#ECEFF1", bgDark = "#455A64", fgLight = "#37474F", fgDark = "#ECEFF1"
-        ),
         ModelVariant.EXACTO to ChipColor(
             bgLight = "#F3E5F5", bgDark = "#6A1B9A", fgLight = "#6A1B9A", fgDark = "#F3E5F5"
-        ),
-        ModelVariant.THINKING to ChipColor(
-            bgLight = "#EDE7F6", bgDark = "#4527A0", fgLight = "#4527A0", fgDark = "#EDE7F6"
-        ),
-        ModelVariant.ONLINE to ChipColor(
-            bgLight = "#E3F2FD", bgDark = "#0D47A1", fgLight = "#0D47A1", fgDark = "#E3F2FD"
         ),
         ModelVariant.NITRO to ChipColor(
             bgLight = "#FFF3E0", bgDark = "#E65100", fgLight = "#E65100", fgDark = "#FFF3E0"
@@ -66,6 +57,38 @@ object ModelVariantChipRenderer {
     ) {
         fun bg(): String = if (JBColor.isBright()) bgLight else bgDark
         fun fg(): String = if (JBColor.isBright()) fgLight else fgDark
+        fun bgColor(): Color = Color.decode(bg())
+        fun fgColor(): Color = Color.decode(fg())
+    }
+
+    /**
+     * Theme-aware background color for a known variant chip, for use by a
+     * Graphics2D-based renderer that paints real rounded rectangles (Swing's
+     * HTML/CSS engine cannot draw `border-radius`). Returns null for a base
+     * model that has no chip.
+     */
+    fun chipBackground(variant: ModelVariant): Color = (VARIANT_COLORS[variant] ?: UNKNOWN_CHIP_COLOR).bgColor()
+
+    /** Theme-aware foreground (text) color for a known variant chip. */
+    fun chipForeground(variant: ModelVariant): Color = (VARIANT_COLORS[variant] ?: UNKNOWN_CHIP_COLOR).fgColor()
+
+    /** Background color for the "unknown variant" chip. */
+    fun unknownChipBackground(): Color = UNKNOWN_CHIP_COLOR.bgColor()
+
+    /** Foreground color for the "unknown variant" chip. */
+    fun unknownChipForeground(): Color = UNKNOWN_CHIP_COLOR.fgColor()
+
+    /**
+     * The short label shown inside a chip for a model id, or null when the id
+     * has no variant. Unknown variants use a `? suffix` label.
+     */
+    fun chipLabelFor(modelId: String): String? {
+        val parsed = ModelProviderUtils.parseModelId(modelId)
+        return when {
+            parsed.variant != null -> parsed.variant.displayName
+            parsed.unknownVariant != null -> "? " + parsed.unknownVariant.removePrefix(":")
+            else -> null
+        }
     }
 
     /**
@@ -93,10 +116,12 @@ object ModelVariantChipRenderer {
             else -> ""
         }
 
+        // white-space:nowrap keeps the base id and its chip on a single line inside
+        // narrow JBTable / JBList cells; without it the chip wraps below the id.
         return if (chipHtml.isEmpty()) {
-            "<html>$baseHtml</html>"
+            "<html><nobr>$baseHtml</nobr></html>"
         } else {
-            "<html>$baseHtml &nbsp; $chipHtml</html>"
+            "<html><nobr>$baseHtml &nbsp; $chipHtml</nobr></html>"
         }
     }
 
@@ -135,8 +160,17 @@ object ModelVariantChipRenderer {
     private fun buildChip(label: String, color: ChipColor): String {
         val bg = color.bg()
         val fg = color.fg()
-        return "<span style='background:$bg;color:$fg;padding:1px 6px;" +
-            "border-radius:8px;font-size:10px;font-weight:bold;'>$label</span>"
+        // Swing's javax.swing.text.html.CSS only understands a CSS1 subset. Two
+        // properties we previously emitted make it throw an NPE from
+        // CSS.getInternalCSSValue when the HTML is set on a JLabel-backed cell
+        // renderer (crashes the whole Settings dialog paint loop):
+        //   - border-radius        -> unrecognized property, null converter
+        //   - padding: 1px 6px     -> two-value shorthand, unrecognized
+        // Emit only long-form, single-value properties Swing can parse, and use
+        // non-breaking spaces to fake the horizontal padding. Rounded corners are
+        // dropped because Swing cannot render them anyway.
+        return "<span style='background-color:$bg;color:$fg;" +
+            "font-size:10px;font-weight:bold;'>&nbsp;$label&nbsp;</span>"
     }
 
     private fun escapeHtml(text: String): String {

@@ -16,14 +16,13 @@ OpenRouter exposes many models under multiple variant suffixes. The same base mo
 | Suffix        | Display    | Meaning                                       |
 |---------------|------------|-----------------------------------------------|
 | `:free`       | Free       | Free tier — no cost                           |
-| `:extended`   | Extended   | Extended context window                       |
 | `:exacto`     | Exacto     | Quality-first provider sorting                |
-| `:thinking`   | Thinking   | Extended reasoning capability                 |
-| `:online`     | Online     | Real-time web search integration              |
 | `:nitro`      | Nitro      | High-speed inference                          |
 | `:floor`      | Floor      | Lowest-cost inference                         |
 
 Unknown suffixes are still tolerated (parsed into `unknownVariant`), but they don't get a color chip.
+
+> **Retired suffixes:** OpenRouter no longer documents `:extended`, `:thinking`, or `:online` as model-ID variants. The plugin dropped them: they no longer parse into a known variant (they fall through to `unknownVariant`), get no chip, and are stripped from saved favorites on upgrade.
 
 ### Where variants appear
 

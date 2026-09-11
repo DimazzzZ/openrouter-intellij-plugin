@@ -30,17 +30,21 @@ import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.ui.ModelVariantChipRenderer
 import org.zhavoronkov.openrouter.ui.VariantAwareFavoritesPickerDialog
+import org.zhavoronkov.openrouter.ui.VariantChipLabel
+import org.zhavoronkov.openrouter.ui.VariantChipTableCellRenderer
 import org.zhavoronkov.openrouter.utils.ModelPricingFormatter
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.Dimension
+import java.awt.FlowLayout
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.JCheckBox
 import javax.swing.JComboBox
+import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.Timer
 import javax.swing.event.DocumentEvent
@@ -62,7 +66,13 @@ class FavoriteModelsSettingsPanel : Disposable {
         private const val TABLE_PREFERRED_WIDTH = 300
         private const val TABLE_PREFERRED_HEIGHT = 200
         private const val TABLE_ROW_HEIGHT = 20
-        private const val PRICE_COLUMN_WIDTH = 100
+
+        // Price cells hold short values like "$0.0000"; keep them narrow so the
+        // model-id column (with its variant chip) gets the width it needs.
+        private const val PRICE_COLUMN_WIDTH = 64
+
+        // Preferred width for the model-id column so long ids + chip stay on one line.
+        private const val MODEL_COLUMN_WIDTH = 320
     }
 
     private val settingsService = OpenRouterSettingsService.getInstance()
@@ -173,6 +183,12 @@ class FavoriteModelsSettingsPanel : Disposable {
                         .align(Align.FILL)
                         .resizableColumn()
                 }.layout(RowLayout.PARENT_GRID).resizableRow().visible(keyPresent)
+
+                row {
+                    cell(createLegendPanel())
+                        .align(AlignX.FILL)
+                        .resizableColumn()
+                }.layout(RowLayout.PARENT_GRID).topGap(TopGap.SMALL).visible(keyPresent)
             }
         }
 
@@ -409,8 +425,34 @@ class FavoriteModelsSettingsPanel : Disposable {
     }
 
     /**
-     * Create table model for available models with price columns
+     * Create the legend panel showing all variant chips and their meanings.
+     * Placed at the bottom of the Favorite Models group, it displays each known
+     * [ModelVariant] as a painted chip followed by its tooltip text.
      */
+    private fun createLegendPanel(): JPanel {
+        val legendPanel = JPanel(FlowLayout(FlowLayout.LEADING, JBUI.scale(12), JBUI.scale(8)))
+        legendPanel.isOpaque = false
+
+        val titleLabel = JLabel("Legend:")
+        titleLabel.font = JBUI.Fonts.label().deriveFont(java.awt.Font.BOLD)
+        legendPanel.add(titleLabel)
+
+        // Add a chip + tooltip for each known variant
+        for (variant in ModelProviderUtils.ModelVariant.entries) {
+            val chipBg = ModelVariantChipRenderer.chipBackground(variant)
+            val chipFg = ModelVariantChipRenderer.chipForeground(variant)
+            val chip = VariantChipLabel(variant.displayName, chipBg, chipFg)
+            chip.toolTipText = variant.tooltip
+            legendPanel.add(chip)
+
+            val tooltipLabel = JLabel(variant.tooltip)
+            tooltipLabel.font = JBUI.Fonts.smallFont()
+            legendPanel.add(tooltipLabel)
+        }
+
+        return legendPanel
+    }
+
     private fun createAvailableTableModel(): ListTableModel<OpenRouterModelInfo> {
         val modelColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Model ID") {
             override fun valueOf(item: OpenRouterModelInfo): String = item.id
@@ -418,14 +460,15 @@ class FavoriteModelsSettingsPanel : Disposable {
             override fun getRenderer(item: OpenRouterModelInfo?): javax.swing.table.TableCellRenderer? {
                 return variantChipCellRenderer()
             }
+            override fun getWidth(table: javax.swing.JTable?): Int = JBUI.scale(MODEL_COLUMN_WIDTH)
         }
-        val inputPriceColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Input Price") {
+        val inputPriceColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Input") {
             override fun valueOf(item: OpenRouterModelInfo): String =
                 ModelPricingFormatter.formatInputPrice(item.pricing)
             override fun getPreferredStringValue(): String = "$0.0000"
             override fun getWidth(table: javax.swing.JTable?): Int = JBUI.scale(PRICE_COLUMN_WIDTH)
         }
-        val outputPriceColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Output Price") {
+        val outputPriceColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Output") {
             override fun valueOf(item: OpenRouterModelInfo): String =
                 ModelPricingFormatter.formatOutputPrice(item.pricing)
             override fun getPreferredStringValue(): String = "$0.0000"
@@ -444,14 +487,15 @@ class FavoriteModelsSettingsPanel : Disposable {
             override fun getRenderer(item: OpenRouterModelInfo?): javax.swing.table.TableCellRenderer? {
                 return variantChipCellRenderer()
             }
+            override fun getWidth(table: javax.swing.JTable?): Int = JBUI.scale(MODEL_COLUMN_WIDTH)
         }
-        val inputPriceColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Input Price") {
+        val inputPriceColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Input") {
             override fun valueOf(item: OpenRouterModelInfo): String =
                 ModelPricingFormatter.formatInputPrice(item.pricing)
             override fun getPreferredStringValue(): String = "$0.0000"
             override fun getWidth(table: javax.swing.JTable?): Int = JBUI.scale(PRICE_COLUMN_WIDTH)
         }
-        val outputPriceColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Output Price") {
+        val outputPriceColumn = object : ColumnInfo<OpenRouterModelInfo, String>("Output") {
             override fun valueOf(item: OpenRouterModelInfo): String =
                 ModelPricingFormatter.formatOutputPrice(item.pricing)
             override fun getPreferredStringValue(): String = "$0.0000"
@@ -697,12 +741,29 @@ class FavoriteModelsSettingsPanel : Disposable {
      */
     private fun loadFavorites() {
         val favoriteIds = settingsService.favoriteModelsManager.getFavoriteModels()
-        val favoriteModels = favoriteIds.map { id ->
-            allAvailableModels.find { it.id == id }
-                ?: OpenRouterModelInfo(id = id, name = id, created = 0L) // Unavailable model
-        }
+        val favoriteModels = favoriteIds.map { id -> resolveFavoriteModel(id) }
         favoriteTableManager.setItems(favoriteModels)
         updateStatusLabels()
+    }
+
+    /**
+     * Resolve a favorite model id to an [OpenRouterModelInfo] carrying pricing.
+     *
+     * The catalog may only contain the base model (e.g. `x-ai/grok-4-fast`)
+     * while the favorite is a variant slug (e.g. `x-ai/grok-4-fast:free`). An
+     * exact-id miss then produced a placeholder with no pricing, so the Input /
+     * Output columns rendered blank. Fall back to the base model and reuse its
+     * pricing, keeping the variant id for the chip.
+     */
+    private fun resolveFavoriteModel(id: String): OpenRouterModelInfo {
+        allAvailableModels.find { it.id == id }?.let { return it }
+        val baseId = ModelProviderUtils.stripVariant(id)
+        val base = allAvailableModels.find { it.id == baseId }
+        return if (base != null) {
+            base.copy(id = id, name = id)
+        } else {
+            OpenRouterModelInfo(id = id, name = id, created = 0L) // Unavailable model
+        }
     }
 
     /**
@@ -752,33 +813,10 @@ class FavoriteModelsSettingsPanel : Disposable {
      * Create a table cell renderer that displays model IDs with variant chips.
      */
     private fun variantChipCellRenderer(): javax.swing.table.TableCellRenderer {
-        return object : javax.swing.table.DefaultTableCellRenderer() {
-            override fun getTableCellRendererComponent(
-                table: javax.swing.JTable?,
-                value: Any?,
-                isSelected: Boolean,
-                hasFocus: Boolean,
-                row: Int,
-                column: Int
-            ): java.awt.Component {
-                val modelId = value as? String ?: ""
-                val html = ModelVariantChipRenderer.renderRow(modelId)
-                text = html
-                toolTipText = ModelVariantChipRenderer.tooltipFor(modelId)
-                isOpaque = true
-                background = if (isSelected) {
-                    table?.selectionBackground ?: com.intellij.ui.JBColor.BLUE
-                } else {
-                    table?.background ?: com.intellij.ui.JBColor.WHITE
-                }
-                foreground = if (isSelected) {
-                    table?.selectionForeground ?: com.intellij.ui.JBColor.WHITE
-                } else {
-                    table?.foreground ?: com.intellij.ui.JBColor.BLACK
-                }
-                return this
-            }
-        }
+        // Uses a Graphics2D-painted renderer so chips get real rounded corners.
+        // The HTML-based ModelVariantChipRenderer can't: Swing's CSS engine
+        // throws on `border-radius`. See VariantChipTableCellRenderer.
+        return VariantChipTableCellRenderer()
     }
 
     /**
@@ -796,10 +834,7 @@ class FavoriteModelsSettingsPanel : Disposable {
                 favoriteTableManager.clearAll()
                 if (newFavorites.isNotEmpty()) {
                     favoriteTableManager.addModels(
-                        newFavorites.mapNotNull { id ->
-                            allAvailableModels.find { it.id == id }
-                                ?: OpenRouterModelInfo(id = id, name = id, created = 0L)
-                        }
+                        newFavorites.map { id -> resolveFavoriteModel(id) }
                     )
                 }
                 updateStatusLabels()

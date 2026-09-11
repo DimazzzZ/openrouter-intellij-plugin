@@ -85,6 +85,39 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
             PluginLogger.Service.info("Migration: Detected existing provisioning key, setting authScope to EXTENDED")
             settings.authScope = org.zhavoronkov.openrouter.models.AuthScope.EXTENDED
         }
+
+        migrateDeprecatedFavoriteVariants()
+    }
+
+    /**
+     * Migration for v0.5.4: strip OpenRouter's retired variant suffixes
+     * (:extended, :thinking, :online) from saved favorites. These suffixes are no
+     * longer valid model IDs, so favorites carrying them are rewritten to the base
+     * model. Duplicates that collapse into an existing favorite are dropped.
+     */
+    private fun migrateDeprecatedFavoriteVariants() {
+        val favorites = settings.favoriteModels
+        if (favorites.isEmpty()) {
+            return
+        }
+
+        val migrated = LinkedHashSet<String>()
+        var changed = false
+        for (modelId in favorites) {
+            val stripped = org.zhavoronkov.openrouter.utils.ModelProviderUtils.stripDeprecatedVariant(modelId)
+            if (stripped != modelId) {
+                changed = true
+            }
+            migrated.add(stripped)
+        }
+
+        if (changed) {
+            PluginLogger.Service.info(
+                "Migration: stripped deprecated variant suffixes from favorites " +
+                    "(${favorites.size} → ${migrated.size} entries)"
+            )
+            settings.favoriteModels = migrated.toMutableList()
+        }
     }
 
     // Convenience methods for frequently used operations

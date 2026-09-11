@@ -153,10 +153,7 @@ object OpenRouterConstants {
     /** Model variant suffixes supported by OpenRouter */
     object ModelVariants {
         const val FREE = ":free"
-        const val EXTENDED = ":extended"
         const val EXACTO = ":exacto"
-        const val THINKING = ":thinking"
-        const val ONLINE = ":online"
         const val NITRO = ":nitro"
         const val FLOOR = ":floor"
     }

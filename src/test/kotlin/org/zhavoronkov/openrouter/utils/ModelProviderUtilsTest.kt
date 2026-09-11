@@ -424,12 +424,12 @@ class ModelProviderUtilsTest {
     }
 
     @Test
-    fun `parseModelId should parse model with thinking variant`() {
+    fun `parseModelId should treat retired thinking suffix as unknown variant`() {
         val result = ModelProviderUtils.parseModelId("meta-llama/llama-3.1-70b-instruct:thinking")
         assertEquals("Meta", result.provider)
         assertEquals("llama-3.1-70b-instruct", result.baseName)
-        assertEquals(ModelProviderUtils.ModelVariant.THINKING, result.variant)
-        assertNull(result.unknownVariant)
+        assertNull(result.variant)
+        assertEquals(":thinking", result.unknownVariant)
     }
 
     @Test
@@ -509,6 +509,22 @@ class ModelProviderUtilsTest {
         assertEquals("@preset/email", ModelProviderUtils.stripVariant("@preset/email:thinking"))
     }
 
+    // --- stripDeprecatedVariant tests ---
+
+    @Test
+    fun `stripDeprecatedVariant removes retired suffixes`() {
+        assertEquals("openai/gpt-4o", ModelProviderUtils.stripDeprecatedVariant("openai/gpt-4o:thinking"))
+        assertEquals("openai/gpt-4o", ModelProviderUtils.stripDeprecatedVariant("openai/gpt-4o:online"))
+        assertEquals("openai/gpt-4o", ModelProviderUtils.stripDeprecatedVariant("openai/gpt-4o:extended"))
+    }
+
+    @Test
+    fun `stripDeprecatedVariant leaves valid variants untouched`() {
+        assertEquals("x-ai/grok-4-fast:free", ModelProviderUtils.stripDeprecatedVariant("x-ai/grok-4-fast:free"))
+        assertEquals("openai/gpt-4o:nitro", ModelProviderUtils.stripDeprecatedVariant("openai/gpt-4o:nitro"))
+        assertEquals("openai/gpt-4o", ModelProviderUtils.stripDeprecatedVariant("openai/gpt-4o"))
+    }
+
     // --- hasVariant tests ---
 
     @Test
@@ -536,12 +552,26 @@ class ModelProviderUtilsTest {
     @Test
     fun `ModelVariant fromSuffix should parse known suffixes`() {
         assertEquals(ModelProviderUtils.ModelVariant.FREE, ModelProviderUtils.ModelVariant.fromSuffix(":free"))
-        assertEquals(ModelProviderUtils.ModelVariant.EXTENDED, ModelProviderUtils.ModelVariant.fromSuffix(":extended"))
         assertEquals(ModelProviderUtils.ModelVariant.EXACTO, ModelProviderUtils.ModelVariant.fromSuffix(":exacto"))
-        assertEquals(ModelProviderUtils.ModelVariant.THINKING, ModelProviderUtils.ModelVariant.fromSuffix(":thinking"))
-        assertEquals(ModelProviderUtils.ModelVariant.ONLINE, ModelProviderUtils.ModelVariant.fromSuffix(":online"))
         assertEquals(ModelProviderUtils.ModelVariant.NITRO, ModelProviderUtils.ModelVariant.fromSuffix(":nitro"))
         assertEquals(ModelProviderUtils.ModelVariant.FLOOR, ModelProviderUtils.ModelVariant.fromSuffix(":floor"))
+        assertEquals(ModelProviderUtils.ModelVariant.BATCH, ModelProviderUtils.ModelVariant.fromSuffix(":batch"))
+    }
+
+    @Test
+    fun `ModelVariant fromSuffix returns null for retired suffixes`() {
+        assertNull(ModelProviderUtils.ModelVariant.fromSuffix(":extended"))
+        assertNull(ModelProviderUtils.ModelVariant.fromSuffix(":thinking"))
+        assertNull(ModelProviderUtils.ModelVariant.fromSuffix(":online"))
+    }
+
+    @Test
+    fun `parseModelId should recognize the batch variant`() {
+        val result = ModelProviderUtils.parseModelId("openai/gpt-4o:batch")
+        assertEquals(ModelProviderUtils.ModelVariant.BATCH, result.variant)
+        assertEquals("gpt-4o", result.baseName)
+        assertNull(result.unknownVariant)
+        assertEquals("Batch", ModelProviderUtils.ModelVariant.BATCH.displayName)
     }
 
     @Test

@@ -258,12 +258,10 @@ object ModelProviderUtils {
         val tooltip: String,
     ) {
         FREE(":free", "Free", "Free tier — no cost"),
-        EXTENDED(":extended", "Extended", "Extended context window"),
         EXACTO(":exacto", "Exacto", "Quality-first provider sorting"),
-        THINKING(":thinking", "Thinking", "Extended reasoning capability"),
-        ONLINE(":online", "Online", "Real-time web search integration"),
         NITRO(":nitro", "Nitro", "High-speed inference"),
-        FLOOR(":floor", "Floor", "Lowest-cost inference");
+        FLOOR(":floor", "Floor", "Lowest-cost inference"),
+        BATCH(":batch", "Batch", "Asynchronous batch processing — 24h completion window, discounted pricing");
 
         companion object {
             /**
@@ -359,6 +357,24 @@ object ModelProviderUtils {
     fun stripVariant(id: String): String {
         val colonIndex = id.indexOf(':')
         return if (colonIndex == -1) id else id.substring(0, colonIndex)
+    }
+
+    /**
+     * Suffixes OpenRouter has retired. They are no longer valid model-ID variants,
+     * so the plugin drops them entirely (parsing, chips, and saved favorites).
+     */
+    val DEPRECATED_VARIANT_SUFFIXES: List<String> = listOf(":extended", ":thinking", ":online")
+
+    /**
+     * Strip any deprecated variant suffix from a model ID, leaving other suffixes intact.
+     * Examples:
+     * - "openai/gpt-4o:thinking" → "openai/gpt-4o"
+     * - "x-ai/grok-4-fast:free" → "x-ai/grok-4-fast:free" (still valid, untouched)
+     * - "openai/gpt-4o" → "openai/gpt-4o"
+     */
+    fun stripDeprecatedVariant(id: String): String {
+        val suffix = DEPRECATED_VARIANT_SUFFIXES.firstOrNull { id.endsWith(it) } ?: return id
+        return id.removeSuffix(suffix)
     }
 
     /**

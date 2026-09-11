@@ -72,7 +72,7 @@ class FavoriteModelsManagerTest {
 
     @Test
     fun `flat list is authoritative and unchanged by grouped view`() {
-        val original = mutableListOf("openai/gpt-4o:thinking", "anthropic/claude-3.5-sonnet")
+        val original = mutableListOf("openai/gpt-4o:nitro", "anthropic/claude-3.5-sonnet")
         val settings = OpenRouterSettings().apply {
             favoriteModels = original.toMutableList()
         }

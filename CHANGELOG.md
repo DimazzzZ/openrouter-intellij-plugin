@@ -10,11 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### New Features
 
 #### 🏷️ Model Variants
-- **Variant Parsing** - Model IDs with suffixes (`:free`, `:nitro`, `:thinking`, `:online`, `:exacto`, `:floor`, `:extended`) are parsed into structured `ModelId` triples
+- **Variant Parsing** - Model IDs with suffixes (`:free`, `:nitro`, `:exacto`, `:floor`) are parsed into structured `ModelId` triples
 - **Chip Rendering** - Colored variant badges in model selector, favorites tables, and available-models tables
 - **Variant-Aware Favorites Picker** - New "Variants…" dialog with split-pane: base models on the left, variant checkboxes on the right
 - **Grouped Storage** - Favorites stored as `FavoriteModelGroupData` (base + variants list); flat wire format preserved for backwards compatibility
 - **Free Tier Hint** - Zero-price models display "Free" instead of "$0.0000"
+
+#### ⚠️ Removed Deprecated Variants
+- **Dropped `:extended`, `:thinking`, `:online`** - OpenRouter no longer documents these as model-ID variants, so the plugin stopped parsing them (they now fall through to the generic "unknown variant" path), removed their chips, and deleted their unused constants
+- **Favorites Auto-Migration** - On upgrade, any saved favorite carrying one of these retired suffixes is rewritten to its base model ID; entries that collapse into an existing favorite are de-duplicated
 
 #### 🎛️ Provider Routing
 - **Settings Page** - New "Provider Routing" sub-page for configuring global defaults (order, fallbacks, sort, data collection, quantizations, only/ignore)
@@ -32,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 6 tests for `ToolCallAccumulator` (single-chunk, multi-chunk, multiple tool_calls, null/empty deltas, reset)
 - Variant picker logic tests (grouping, selection, deduplication)
 - Streaming integration test (tool_call chunks forwarded verbatim)
+- Deprecated-variant handling tests (`fromSuffix` returns null, `stripDeprecatedVariant` rewrites/skips correctly)
 
 ### Documentation
 - [`docs/MODEL_VARIANTS_AND_ROUTING.md`](docs/MODEL_VARIANTS_AND_ROUTING.md) — full reference for variant parsing, chip rendering, provider routing injection, and the settings UI
