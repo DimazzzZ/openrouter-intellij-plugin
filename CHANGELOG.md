@@ -39,6 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tool-Call Accumulator** - `ToolCallAccumulator` reassembles streaming `delta.tool_calls` fragments across SSE chunks by index
 - **AI Assistant Agent Mode** - Streaming tool calls flow correctly through the proxy, unblocking Agent Mode workflows
 
+#### 🎨 Brand Refresh
+- **New OpenRouter Glyph** - Refreshed all 10 plugin icons to the current OpenRouter brand glyph: the plugin icon (`pluginIcon.svg`), logo (light/dark/base), status-bar (light/dark), and tool-window variants (16px and @20x20, light/dark)
+- **Simplified SVG Paths** - Redrawn as leaner vector paths (net −34 lines across the set) while preserving the theme-aware light/dark pairing and HiDPI status-bar rendering introduced in 0.5.3
+
 ### Bug Fixes
 - **Variant Legend Tooltip Flicker** - The "?" tooltip on the Favorite Models page hung above the icon at an offset equal to its own height; a legend-sized popup was clamped back over the icon and flickered endlessly (IDEA-330235). It now opens below the icon, clear of the cursor
 - **Collapsed Favorites Table** - The table claimed only its preferred height, leaving most of the page empty; both the group row and the table row are resizable now
