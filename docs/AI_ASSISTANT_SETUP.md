@@ -40,12 +40,13 @@ The proxy server should start automatically when you configure your Provisioning
 
 Now configure AI Assistant to use the OpenRouter proxy:
 
-1. Open **Settings** → **Tools** → **AI Assistant** → **Providers & API keys**
-2. Configure the custom third-party AI provider:
-   - **Provider**: Select **OpenAI-compatible** / **OpenAI API**
-   - **Server URL**: Paste the proxy URL from Step 2 (e.g., `http://127.0.0.1:8880`)
-   - **API Key**: Use any non-empty placeholder value if AI Assistant requires one for the test dialog; the plugin proxy uses your OpenRouter credentials from the OpenRouter plugin settings
+1. Open **Settings** → **Tools** → **AI Assistant** → **Models**
+2. In the **Third-party AI providers** section, select **Other OpenAI-compatible service** and configure it:
+   - **Server URL** / **URL**: Paste the proxy URL from Step 2 (e.g., `http://127.0.0.1:8880`)
+   - **API Key**: Leave this **empty** — authentication is handled by the OpenRouter plugin. (If your IDE version forces a non-empty value, type any placeholder; it is ignored.)
    - **Tool calling**: **Enable this** if you want AI Assistant Agents to invoke MCP tools through tool-calling capable OpenRouter models
+
+> **IDE version note:** JetBrains has reorganized this screen across releases. Depending on your AI Assistant version, the entry point may appear as **Models**, **Providers & API keys**, or **Third-party AI providers**, and the option may read **Other OpenAI-compatible service** or **OpenAI-compatible**. The plugin also prints the exact, version-correct steps for your IDE — see **Tools** → **OpenRouter** and the setup wizard's "View AI Assistant Setup Guide".
 
 ![AI Assistant Custom Model](images/ai-assistant-custom-model.png)
 <p style="text-align:center;font-style: italic">AI Assistant custom model configuration dialog</p>
@@ -70,11 +71,17 @@ AI Assistant can then combine:
 
 ### Step 4: Select OpenRouter Model
 
-1. In the AI Assistant chat window, click the **model selector** dropdown
-2. Select your OpenRouter custom model
-3. Start chatting with any of OpenRouter's 400+ models!
+> **⚠️ Read this first — the #1 reason OpenRouter models "don't show up".**
+> AI Assistant lists the models you have marked as **Favorites** in the
+> OpenRouter plugin. If you don't star any, the proxy falls back to a small
+> set of defaults, but AI Assistant may still not surface them — so the
+> reliable path is to pick your favorites first. This is by design: it keeps
+> the dropdown from being flooded with 400+ entries.
 
-Also, set up default models you want to use in the Local Models section:
+1. Pick your models first: open **Settings** → **Tools** → **OpenRouter** → **Favorite Models**, tick the **★** for the models you want, then **Apply** / **OK**. (See [Using Favorite Models](#using-favorite-models) below for the full workflow.)
+2. In the AI Assistant chat window, click the **model selector** dropdown
+3. Select one of your OpenRouter models — your favorites appear here, in the order you set
+4. Start chatting with any of OpenRouter's 400+ models!
 
 ![AI Assistant Model Selection](images/ai-assistant-model-selection.png)
 <p style="text-align:center;font-style: italic">AI Assistant model selectors showing OpenRouter models</p>
@@ -177,6 +184,22 @@ You can manually control the proxy server:
 3. Make sure you're using `http://127.0.0.1:PORT` not `localhost:PORT`
 4. Try restarting the proxy server (Stop → Start)
 
+### Only JetBrains Models Appear — No OpenRouter Models
+
+**Problem**: The connection tests fine, but the AI Assistant model selector only
+shows JetBrains' own models. You can't pick any OpenRouter model.
+
+**Solutions**:
+1. **Add favorites first** — AI Assistant lists the models you have starred in
+   **Settings** → **Tools** → **OpenRouter** → **Favorite Models**. With an empty
+   favorites list the proxy returns only a small default set, which AI Assistant
+   may not surface reliably. Star at least one model, click **Apply** / **OK**,
+   then reopen the selector.
+2. **Refresh the list** — after changing favorites, restart the proxy server
+   (Stop → Start) so AI Assistant re-fetches the model list.
+3. **Confirm the provider is the custom one** — make sure the chat is using your
+   **Other OpenAI-compatible service** provider, not the default JetBrains provider.
+
 ### Model Not Found Error
 
 **Problem**: AI Assistant shows "Model not found" error
@@ -247,4 +270,3 @@ A: The proxy automatically fetches the latest model list from OpenRouter. Just r
 ---
 
 **Need help?** Open an issue on [GitHub](https://github.com/DimazzzZ/openrouter-intellij-plugin/issues) or check the [troubleshooting guide](../DEBUGGING.md).
-
