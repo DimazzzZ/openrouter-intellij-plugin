@@ -62,7 +62,7 @@ class OpenRouterModelConfigurationProvider {
             2. Open IntelliJ IDEA Settings → Tools → OpenRouter
             3. Enter your Provisioning Key
             4. Click "Test Connection" to verify setup
-            5. OpenRouter models will appear in AI Assistant → Models
+            5. OpenRouter models will appear in AI Assistant → Providers & API keys
 
             The OpenRouter plugin will automatically create an API key for AI Assistant usage.
         """.trimIndent()

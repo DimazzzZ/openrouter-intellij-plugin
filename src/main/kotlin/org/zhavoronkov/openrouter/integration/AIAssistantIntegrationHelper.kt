@@ -16,7 +16,10 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
 
 object AIAssistantIntegrationHelper {
 
-    private const val DEFAULT_PROXY_PORT = 8080
+    // Used only to build a sample proxy URL in a user-facing message when the
+    // server is not running. Must match the runtime default (8880), NOT the
+    // doc-only OpenRouterConstants.DEFAULT_PROXY_PORT (8080).
+    private const val DEFAULT_PROXY_PORT = 8880
     private const val AI_ASSISTANT_PLUGIN_ID = "com.intellij.ml.llm"
 
     data class AIAssistantInfo(val isAvailable: Boolean, val version: String?)
@@ -144,8 +147,8 @@ object AIAssistantIntegrationHelper {
                 AI Assistant plugin: ${getAIAssistantVersion() ?: "Installed"}
 
                 To configure AI Assistant:
-                1. Go to Settings > Tools > AI Assistant > Models
-                2. Add "Other OpenAI-compatible service"
+                1. Go to Settings > Tools > AI Assistant > Providers & API keys
+                2. Add "OpenAI-compatible" under "Third-party AI providers"
                 3. Set URL to: ${serverStatus.url}
                 4. Leave API key empty
                 5. Test connection and apply

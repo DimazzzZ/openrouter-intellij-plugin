@@ -5,7 +5,7 @@ This guide covers development setup, building, testing, and contributing to the 
 ## 📋 Prerequisites
 
 ### Required Tools
-- **JDK 21** - Required for IntelliJ Platform 2024.2+ development (JDK 26+ is not yet supported by the Kotlin compiler used in Gradle builds)
+- **JDK 21** - Required for IntelliJ Platform 2025.3+ development (JDK 26+ is not yet supported by the Kotlin compiler used in Gradle builds)
 - **IntelliJ IDEA** - Ultimate or Community Edition with Plugin Development support
 - **Git** - For version control and collaboration
 
@@ -118,7 +118,7 @@ All plugin metadata is centralized in `gradle.properties` for consistency:
 
 ```properties
 # Core plugin information
-pluginVersion = 0.2.0
+pluginVersion = 0.5.3
 pluginName = OpenRouter
 pluginGroup = org.zhavoronkov
 pluginId = org.zhavoronkov.openrouter
@@ -127,20 +127,19 @@ pluginId = org.zhavoronkov.openrouter
 pluginDisplayName = OpenRouter
 pluginVendorName = Dmitry Zhavoronkov
 pluginVendorEmail = openrouter-plugin@zhavoronkov.org
-pluginDescription = OpenRouter plugin for IntelliJ IDEA...
+pluginDescription = OpenRouter plugin for IntelliJ IDEA
 
 # Compatibility
-pluginSinceBuild = 242        # IntelliJ 2024.2+
-pluginUntilBuild = 252.*      # IntelliJ 2025.2+
+pluginSinceBuild = 253        # IntelliJ 2025.3+
 ```
 
 ### Version Update Process
 ```bash
 # 🔄 Update version (if update script exists)
-./scripts/update-version.sh 0.2.0
+./scripts/update-version.sh 0.5.3
 
 # 📝 Manual update in gradle.properties
-# Edit pluginVersion = 0.2.0
+# Edit pluginVersion = 0.5.3
 
 # ✅ Verify version
 ./gradlew properties | grep pluginVersion
@@ -168,8 +167,8 @@ pluginUntilBuild = 252.*      # IntelliJ 2025.2+
 # Run plugin in development IDE
 ./gradlew runIde
 
-# Run with specific IntelliJ version
-./gradlew runIde -PplatformVersion=2024.1
+# Run with a specific IntelliJ version (must satisfy pluginSinceBuild = 253)
+./gradlew runIde -PplatformVersion=2025.3.6
 
 # Run tests
 ./gradlew test
@@ -251,94 +250,47 @@ grep -r "@Tag(\"platformTest\")" src/test/ --include="*.kt" | wc -l
 ## 🏗️ Project Architecture
 
 ### Directory Structure
-```
+A package-level overview is intentionally kept here — per-file trees rot
+quickly. Generate a live listing with `find src/main/kotlin -type d | sort`
+or open the module tree in your IDE.
+
+```text
 openrouter-intellij-plugin/
-├── 📁 build.gradle.kts              # Build configuration & dependencies
-├── 📁 gradle.properties             # Plugin metadata & versions
-├── 📁 settings.gradle.kts           # Gradle settings
-├── 📁 src/main/kotlin/org/zhavoronkov/openrouter/
-│   ├── 🎯 actions/                  # Plugin actions & menu items
-│   │   ├── OpenSettingsAction.kt    # Open settings dialog
-│   │   ├── RefreshQuotaAction.kt    # Refresh quota information
-│   │   └── ShowUsageAction.kt       # Show usage statistics
-│   ├── 🎨 icons/                    # Icon definitions & resources
-│   │   └── OpenRouterIcons.kt       # Icon constants & loading
-│   ├── 🤖 integration/              # AI Assistant integration
-│   │   └── AIAssistantIntegrationHelper.kt # AI Assistant setup utilities
-│   ├── 📊 models/                   # Data models & DTOs
-│   │   ├── ConnectionStatus.kt      # Connection state enum
-│   │   └── OpenRouterModels.kt      # API response models
-│   ├── 🌐 proxy/                    # OpenAI-compatible proxy server
-│   │   ├── OpenRouterProxyServer.kt # Jetty-based HTTP server
-│   │   ├── CorsFilter.kt           # CORS filter for cross-origin requests
-│   │   ├── models/                 # Proxy-specific models
-│   │   │   └── OpenAIModels.kt     # OpenAI API compatibility models
-│   │   ├── servlets/               # HTTP request handlers
-│   │   │   ├── ChatCompletionServlet.kt # Chat completions endpoint
-│   │   │   ├── ModelsServlet.kt    # Models list endpoint
-│   │   │   ├── HealthCheckServlet.kt # Health check endpoint
-│   │   │   ├── RootServlet.kt      # Root endpoint handler
-│   │   │   ├── EnginesServlet.kt   # OpenAI engines compatibility
-│   │   │   └── OrganizationServlet.kt # Organization info endpoint
-│   │   └── translation/            # Request/response translation
-│   │       ├── RequestTranslator.kt # OpenAI to OpenRouter format
-│   │       └── ResponseTranslator.kt # OpenRouter to OpenAI format
-│   ├── ⚙️ services/                 # Core business logic
-│   │   ├── OpenRouterService.kt     # API communication service
-│   │   ├── OpenRouterSettingsService.kt # Settings persistence
-│   │   ├── OpenRouterProxyService.kt # AI Assistant proxy server management
-│   │   └── OpenRouterGenerationTrackingService.kt # Usage tracking
-│   ├── 🚀 startup/                  # Startup activities
-│   │   ├── ProxyServerStartupActivity.kt # Auto-start proxy server
-│   │   └── WelcomeNotificationActivity.kt # First-run welcome notification (Phase 3)
-│   ├── 🔧 settings/                 # Settings UI components
-│   │   ├── OpenRouterConfigurable.kt # Settings page configuration
-│   │   ├── OpenRouterSettingsPanel.kt # Main settings UI panel
-│   │   ├── FavoriteModelsSettingsPanel.kt # Favorite models page (thin Swing adapter, ADR-0004)
-│   │   ├── ModelPresets.kt          # Predefined model lists
-│   │   ├── ModelFilterCriteria.kt   # Set-based filter criteria with matches(model)
-│   │   └── 📁 favorites/            # Page logic + table plumbing for Favorite Models
-│   │       ├── FavoriteModelsPageState.kt   # Pure-Kotlin view-model (ordered favorites, mode, criteria)
-│   │       ├── VariantFilter.kt             # Any / Base only / per-variant / Other
-│   │       ├── FavoriteModelsTableColumns.kt # ColumnInfos: ★, Model, Context, Input, Output
-│   │       ├── FavoriteModelsTableModel.kt  # ListTableModel gating row exchange via the state
-│   │       └── FavoriteModelsToolbarActions.kt # Toolbar actions (toggle, filters, presets, move)
-│   ├── 📍 statusbar/                # Status bar integration
-│   │   ├── OpenRouterStatusBarWidget.kt # Main status bar widget
-│   │   └── OpenRouterStatusBarWidgetFactory.kt # Widget factory
-│   ├── 🛠️ toolwindow/               # Chat Tool Window (added in v0.5.0)
-│   │   ├── OpenRouterToolWindowContent.kt # Tool window content panel
-│   │   └── OpenRouterToolWindowFactory.kt # Tool window factory
-│   ├── 🎭 ui/                       # UI components & dialogs
-│   │   ├── OpenRouterStatsPopup.kt  # Statistics popup dialog
-│   │   └── SetupWizardDialog.kt     # First-run setup wizard (Phase 3)
-│   └── 🔧 utils/                    # Utility classes
-│       ├── PluginLogger.kt          # Logging utilities
-│       ├── ModelProviderUtils.kt    # Model filtering utilities (Phase 1)
-│       └── EncryptionUtil.kt        # API key encryption
-├── 📁 src/main/resources/
-│   ├── 📁 META-INF/
+├── build.gradle.kts                 # Build configuration & dependencies
+├── gradle.properties                # Plugin metadata & versions
+├── settings.gradle.kts              # Gradle settings
+├── src/main/kotlin/org/zhavoronkov/openrouter/
+│   ├── actions/                     # Plugin actions & menu items
+│   ├── aiassistant/                 # AI Assistant SPI providers (model/chat/context/endpoint)
+│   ├── api/                         # OpenRouter HTTP client + response DTOs
+│   ├── constants/                   # OpenRouterConstants (defaults, endpoints, port range)
+│   ├── icons/                       # OpenRouterIcons — icon loading
+│   ├── integration/                 # AI Assistant integration helpers
+│   ├── listeners/                   # Application/project lifecycle listeners
+│   ├── models/                      # Data models & DTOs (+ value/ for value objects)
+│   ├── proxy/                       # OpenAI-compatible proxy server
+│   │   ├── models/                  # Proxy-specific request/response models
+│   │   ├── routing/                 # Provider routing preferences
+│   │   ├── servlets/                # HTTP request handlers (chat, models, health, …)
+│   │   ├── translation/             # Request/response translation
+│   │   └── validation/              # Request validation
+│   ├── services/                    # Core business logic (application-level)
+│   │   └── settings/                # Settings sub-managers
+│   ├── settings/                    # Settings UI components
+│   │   └── favorites/               # Favorite models page state + table (ADR-0004)
+│   ├── startup/                     # Startup activities
+│   ├── statusbar/                   # Status bar widget
+│   ├── toolwindow/                  # Chat Tool Window (added in v0.5.0)
+│   ├── ui/                          # Setup wizard, stats popup, dialogs
+│   └── utils/                       # PluginLogger, model utils, EncryptionUtil, …
+├── src/main/resources/
+│   ├── META-INF/
 │   │   ├── plugin.xml               # Plugin configuration
-│   │   ├── pluginIcon.png           # Plugin icon (16x16)
-│   │   └── pluginIcon@2x.png        # Plugin icon (32x32)
-│   └── 📁 icons/                    # UI icons & branding
-│       ├── openrouter-logo.png      # Official OpenRouter logo
-│       ├── openrouter-13.png        # Status bar icon (13x13)
-│       ├── openrouter-16.png        # Menu icon (16x16)
-│       └── openrouter-40.png        # Large icon (40x40)
-├── 📁 src/test/kotlin/              # Test suites (270+ tests)
-│   ├── SimpleUnitTest.kt            # Unit tests (15 tests)
-│   ├── ApiIntegrationTest.kt        # API tests (7 tests)
-│   ├── ModelProviderUtilsTest.kt    # Filtering tests (28 tests, Phase 1)
-│   ├── ModelPresetsTest.kt          # Preset tests (16 tests, Phase 1)
-│   ├── ModelFilterCriteriaTest.kt   # Filter criteria tests
-│   ├── settings/favorites/          # FavoriteModelsPageStateTest and table/column tests
-│   └── 📁 resources/mocks/          # Mock API responses
-└── 📁 docs/                         # Documentation files
-    ├── README.md                    # Main documentation
-    ├── DEVELOPMENT.md               # This file
-    ├── TESTING.md                   # Testing guide
-    └── CHANGELOG.md                 # Version history
+│   │   └── pluginIcon.svg           # Plugin icon (vector)
+│   └── icons/                       # UI icons (SVG — light/dark variants for logo,
+│                                    #   status bar, tool window, badges)
+├── src/test/kotlin/                 # Test suites (see TESTING.md for taxonomy)
+└── docs/                            # Documentation (README, DEVELOPMENT, TESTING, …)
 ```
 
 ## 🔧 Key Components

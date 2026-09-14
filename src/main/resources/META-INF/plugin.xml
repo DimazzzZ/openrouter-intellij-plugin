@@ -4,7 +4,7 @@
     <id>org.zhavoronkov.openrouter</id>
 
     <!-- Enable dynamic plugin support - allows install/update/uninstall without IDE restart -->
-    <idea-version since-build="242"/>
+    <idea-version since-build="253"/>
 
     <!-- Public plugin name should be written in Title Case.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-name -->
@@ -72,7 +72,7 @@
         
         <p><strong>💬 Reasoning & Verbosity Controls:</strong></p>
         <ul>
-            <li><strong>Reasoning Dropdown</strong> - New reasoning effort control in chat panel (None/Minimal/Low/Medium/High/XHigh)</li>
+            <li><strong>Reasoning Dropdown</strong> - New reasoning effort control in chat panel (Default/None/Minimal/Low/Medium/High/XHigh)</li>
             <li><strong>Verbosity Dropdown</strong> - New response verbosity control (Low/Medium/High/XHigh/Max)</li>
             <li><strong>Auto-Detection</strong> - Model capabilities detected from OpenRouter API, no hardcoded model IDs</li>
         </ul>

@@ -42,7 +42,7 @@ This checklist aligns with the **JetBrains Marketplace Approval Guidelines v1.3 
 
 ## 5. Pre-Submission Verification
 
-- [ ] [ ] Run `./gradlew build` — passes without errors
+- [ ] Run `./gradlew build` — passes without errors
 - [ ] Run `./gradlew test` — all tests pass
 - [ ] Run `./gradlew detekt` — no critical issues
 - [ ] Run `./gradlew verifyPlugin` — no compatibility issues

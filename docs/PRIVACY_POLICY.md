@@ -29,12 +29,12 @@ OpenRouter's own privacy policy applies to this data: https://openrouter.ai/priv
 #### Third-Party AI Providers
 When you use the Plugin, your prompts may be forwarded to third-party AI providers (e.g., OpenAI, Anthropic, Google) through OpenRouter's routing. Each provider has its own privacy policy.
 
-### Balance Sharing (Optional)
-If you explicitly enable the **"Share balance data with other plugins"** setting:
+### Balance Sharing
+While the **"Share balance data with other plugins"** setting is enabled:
 - Your OpenRouter credit balance and usage data may be shared with other installed JetBrains plugins that implement the `BalanceProvider` extension point
 - This data includes: remaining credits, total usage, and recent activity summaries
-- **This feature is enabled by default** and requires explicit user consent to disable
-- You can disable it at any time in Plugin Settings → Plugin Integration
+- **This feature is enabled by default.** No data leaves your machine — it is only exposed to other plugins running in the same IDE.
+- You can disable it at any time in **Settings → Tools → OpenRouter** by unchecking "Share balance data with other plugins"
 
 ## Data Not Collected
 
@@ -55,7 +55,7 @@ The Plugin does **NOT**:
 
 - Settings persist until you uninstall the Plugin or clear them manually
 - Generation tracking data is limited to the most recent entries (configurable, default: 100)
-- You can clear all stored data via Settings → OpenRouter → Reset
+- You can remove stored credentials in **Settings → Tools → OpenRouter** (delete API keys via the table's Remove action), and all stored settings are cleared when you uninstall the Plugin
 
 ## Your Rights
 

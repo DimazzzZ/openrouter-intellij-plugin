@@ -68,10 +68,11 @@ When you first install the plugin, a **welcome notification** will appear with a
 Connect JetBrains AI Assistant to OpenRouter's 400+ models:
 
 1. Start the proxy server in `Settings` → `Tools` → `OpenRouter`
-2. In AI Assistant: `Settings` → `Tools` → `AI Assistant` → `Models` → Add custom model
+2. Mark the models you want in `Settings` → `Tools` → `OpenRouter` → `Favorite Models` — **AI Assistant lists your favorites** (with an empty list the proxy falls back to a small default set, but starring what you want is the reliable path)
+3. In AI Assistant: `Settings` → `Tools` → `AI Assistant` → `Providers & API keys` → **Third-party AI providers** → **OpenAI-compatible**
    - **Server URL**: Copy from OpenRouter settings (e.g., `http://127.0.0.1:8880`)
-   - **API Key**: Any text (not validated)
-   - **Model**: Any model from [OpenRouter's catalog](https://openrouter.ai/models)
+   - **API Key**: Leave empty (authentication is handled by the OpenRouter plugin)
+   - Menu labels vary slightly across AI Assistant versions — see the [Complete Setup Guide](docs/AI_ASSISTANT_SETUP.md) for version notes
 
 📖 **[Complete Setup Guide](docs/AI_ASSISTANT_SETUP.md)** with screenshots
 
@@ -118,7 +119,7 @@ See the [CHANGELOG](CHANGELOG.md#051---2026-03-27) for API details and the `Bala
 | | |
 |---|---|
 | **Supported IDEs** | IntelliJ IDEA, WebStorm, PyCharm, PhpStorm, RubyMine, CLion, Android Studio, GoLand, Rider |
-| **IDE Versions** | 2024.2+ and all future versions |
+| **IDE Versions** | 2025.3+ and all future versions |
 | **Requirements** | Java 21+, [OpenRouter.ai](https://openrouter.ai) account (free or paid) |
 
 ## Development

@@ -32,8 +32,9 @@ See ADR-0003 and TESTING.md. In short:
 
 - **unit** — pure logic tests. Default `./gradlew test`.
 - **functional** — external-service tests. `@Tag("functional")`, opt-in.
-- **platformTest** — tests needing IntelliJ TestApplication. Runs via
-  `intellijPlatformTesting.testIde`.
+- **platformTest** — tests needing IntelliJ TestApplication. Selected by a
+  `*PlatformTest` / `*SmokeTest` class-name suffix (not a `@Tag`); runs via
+  `intellijPlatformTesting.testIde` and is excluded from the default `test` task.
 
 ## ADR layout
 

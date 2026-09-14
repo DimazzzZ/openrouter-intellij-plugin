@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Simplified SVG Paths** - Redrawn as leaner vector paths (net −34 lines across the set) while preserving the theme-aware light/dark pairing and HiDPI status-bar rendering introduced in 0.5.3
 
 ### Bug Fixes
+- **JetBrains AI Assistant Setup Guide (#55)** - Corrected the navigation path to the current AI Assistant UI (`AI Assistant → Providers & API keys → Third-party AI providers → OpenAI-compatible`, with an explicit ≤ 2025.2 fallback showing the older `Models → Other OpenAI-compatible service` wording), documented the separate **AI Completion** section added in AI Assistant 2026.2 as an optional inline-completion setup, moved the "favorite your models first" requirement out of Advanced Configuration and up to Step 4 (it is the #1 reason OpenRouter models fail to appear), added a dedicated troubleshooting entry for the "only JetBrains models appear" symptom, and aligned the plugin's in-IDE setup wizard and proxy instructions with the new wording
 - **Variant Legend Tooltip Flicker** - The "?" tooltip on the Favorite Models page hung above the icon at an offset equal to its own height; a legend-sized popup was clamped back over the icon and flickered endlessly (IDEA-330235). It now opens below the icon, clear of the cursor
 - **Collapsed Favorites Table** - The table claimed only its preferred height, leaving most of the page empty; both the group row and the table row are resizable now
 - **Batch Chip Color** - `:batch` had no palette entry and rendered in the "unknown variant" yellow; it now has its own blue chip
@@ -462,7 +463,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - fix: resolve JetBrains plugin verifier compatibility issues and optimize workflows
 
-## [0.2.0] - 2025-10-04
+## [0.2.0] - 2025-10-03
 
 ### OpenRouter models support for 3rd-party AI Assistants
 

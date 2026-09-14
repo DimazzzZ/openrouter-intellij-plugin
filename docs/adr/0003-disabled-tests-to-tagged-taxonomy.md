@@ -3,6 +3,14 @@
 **Status**: Accepted  
 **Date**: 2025-08-19  
 
+> **Correction (2025-11-01):** the platform-test selector is class-name-based,
+> not tag-based. `platformTest` picks up classes whose names end in
+> `*PlatformTest` or `*SmokeTest`; there is no `@Tag("platformTest")`
+> annotation in use. The default `test` task excludes only
+> `@Tag("functional")`. ADRs are append-only, so the decision text below is
+> preserved verbatim; see `build.gradle.kts` and `TESTING.md` for the
+> authoritative selectors.
+
 ## Context
 
 The project had 12 tests annotated with `@Disabled`, mostly integration tests

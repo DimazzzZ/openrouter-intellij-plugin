@@ -1,7 +1,13 @@
 # ADR-0001: Raise Minimum Platform to 2024.2
 
-**Status**: Accepted  
+**Status**: Superseded by [ADR-0005](0005-raise-minimum-platform-to-2025-3.md)  
 **Date**: 2025-09-01  
+
+> **Note:** The version claims in this ADR (2024.2 / build 242 / Gradle 9.4.0)
+> are superseded by ADR-0005, which raises the floor to 2025.3 / build 253.
+> The architectural rationale below (adopt IPGP 2.x, require Java 21, drop the
+> deprecated Gradle IntelliJ Plugin 1.x) still stands. Per project convention
+> ADRs are append-only; the original decision text is preserved verbatim.
 
 ## Context
 

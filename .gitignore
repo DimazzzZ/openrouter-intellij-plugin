@@ -101,5 +101,8 @@ ml-llm
 token-pulse/
 .mimocode
 
+# Agent-local onboarding (kept locally, not tracked)
+CLAUDE.md
+
 # Kotlin compiler daemon session files
 .kotlin/
