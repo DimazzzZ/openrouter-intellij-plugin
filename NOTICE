@@ -1,0 +1,33 @@
+OpenRouter IntelliJ Plugin
+Copyright (c) 2025 Dmitry Zhavoronkov
+
+This product is licensed under the MIT License. See the LICENSE file for the full
+license text covering the plugin's source code.
+
+--------------------------------------------------------------------------------
+Third-party trademarks and brand assets
+--------------------------------------------------------------------------------
+
+"OpenRouter" and the OpenRouter name and logos are trademarks of OpenRouter, Inc.
+
+This plugin bundles OpenRouter brand assets for identification purposes only, in
+accordance with OpenRouter's published brand assets (https://openrouter.ai/brand).
+All rights in these assets belong to OpenRouter, Inc; they are not claimed as the
+plugin author's own work.
+
+Bundled OpenRouter-branded assets:
+  - src/main/resources/META-INF/pluginIcon.svg
+  - src/main/resources/icons/openrouter-logo.svg
+  - src/main/resources/icons/openrouter-logo_light.svg
+  - src/main/resources/icons/openrouter-logo_dark.svg
+  - src/main/resources/icons/openrouter-toolwindow.svg
+  - src/main/resources/icons/openrouter-toolwindow_dark.svg
+  - src/main/resources/icons/openrouter-toolwindow@20x20.svg
+  - src/main/resources/icons/openrouter-toolwindow@20x20_dark.svg
+  - src/main/resources/icons/openrouter-statusbar.svg
+  - src/main/resources/icons/openrouter-statusbar_dark.svg
+  - src/main/resources/icons/openrouter-badge-ok.svg
+  - src/main/resources/icons/openrouter-badge-error.svg
+
+This is an unofficial plugin and is not affiliated with, endorsed by, or sponsored
+by OpenRouter, Inc or JetBrains s.r.o.

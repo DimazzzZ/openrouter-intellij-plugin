@@ -144,4 +144,6 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
-*This is an unofficial plugin and is not affiliated with OpenRouter.ai or JetBrains.*
+*This is an unofficial plugin and is not affiliated with OpenRouter, Inc or JetBrains.*
+
+*The OpenRouter name and logos are trademarks of OpenRouter, Inc. The branded assets bundled with this plugin (the plugin icon and the tool-window, status-bar, badge, and logo SVGs) belong to OpenRouter, Inc and are used here for identification purposes only, per OpenRouter's published [brand assets](https://openrouter.ai/brand). They are not claimed as the plugin author's own work. See [NOTICE](NOTICE) for the full attribution.*
