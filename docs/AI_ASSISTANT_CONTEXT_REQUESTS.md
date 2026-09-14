@@ -35,7 +35,7 @@ AI Assistant sends requests to determine if specific context is relevant to your
   "messages": [
     {
       "role": "user",
-      "content": "Determine if the following context is required to solve the task in the user's input in the chat session: \"Hello\"\nContext:\nProject View: \n```\nProject View content:\n```\nopenrouter-intellij-plugin\n .github\n .gradle\n .idea\n build\n config\n docs\n  images\n  AI_ASSISTANT_SETUP.md\n  AI_ASSISTANT_TECHNICAL_GUIDE.md\n  DUPLICATE_REQUEST_ANALYSIS.md\n  MODEL_UNAVAILABILITY_HANDLING.md\n  PRODUCTION_LOGGING.md\n  TEST_RESULTS_DUPLICATE_ANALYSIS.md\n gradle\n..."
+      "content": "Determine if the following context is required to solve the task in the user's input in the chat session: \"Hello\"\nContext:\nProject View: \n```\nProject View content:\n```\nopenrouter-intellij-plugin\n .github\n .gradle\n .idea\n build\n config\n docs\n  images\n  AI_ASSISTANT_SETUP.md\n  PRODUCTION_LOGGING.md\n  PRIVACY_POLICY.md\n gradle\n..."
     }
   ]
 }
@@ -370,4 +370,3 @@ The multiple API calls you see in OpenRouter analytics are **not a bug** - they'
 - ✅ Improves response quality
 
 **Bottom line:** Don't be alarmed by high request counts in OpenRouter analytics. Focus on the **total cost** and **answer quality** instead.
-

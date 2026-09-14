@@ -27,7 +27,7 @@ The plugin writes to IntelliJ's standard log files:
 
 ### Finding Your Version
 
-Replace `{version}` with your IntelliJ version (e.g., `2023.2`, `2024.1`).
+Replace `{version}` with your IntelliJ version (e.g., `2025.3`).
 
 ## 📊 Log Levels in Production
 
@@ -35,8 +35,7 @@ Replace `{version}` with your IntelliJ version (e.g., `2023.2`, `2024.1`).
 
 These are logged even without debug mode:
 
-- **API Key Usage:** `🔑 Using API key from plugin settings: sk-or-v1-xxx...`
-- **Request Success:** `✅ Chat completion successful`
+- **Request Success:** `✅ Chat completion successful in <duration>ms, returning response`
 - **API Errors:** `❌ OpenRouter API Error: 401`
 - **Connection Issues:** `❌ Failed to connect to OpenRouter`
 - **Settings Changes:** `Settings state persisted successfully`
@@ -60,6 +59,11 @@ Enable for detailed troubleshooting:
    -Didea.log.debug.categories=org.zhavoronkov.openrouter
    ```
 3. Restart IntelliJ IDEA
+
+> The `org.zhavoronkov.openrouter` root category enables debug logging for all
+> plugin namespaces (`.services`, `.settings`, `.statusbar`, `.models`,
+> `.startup`, …). To narrow it, append a child namespace, e.g.
+> `org.zhavoronkov.openrouter.services`.
 
 ### Method 2: Registry (IntelliJ 2020.3+)
 
@@ -107,22 +111,20 @@ grep -E "API key|🔑" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
 
 ### Successful Request
 ```
-[OpenRouter] [Chat-000001] 🔑 Using API key from plugin settings: sk-or-v1-xxx... (length: 73)
 [OpenRouter] [Chat-000001] 📝 Model: 'openai/gpt-4o-mini'
-[OpenRouter] [Chat-000001] ✅ Chat completion successful
+[OpenRouter] [Chat-000001] ✅ Chat completion successful in 1234ms, returning response
 ```
 
 ### API Key Issues
 ```
 [OpenRouter] [Chat-000002] ❌ No API key configured in OpenRouter plugin settings
 [OpenRouter] [Chat-000003] ❌ OpenRouter API Error: 401
-[OpenRouter] [Chat-000003] ❌ API key prefix: sk-or-v1-xxx... (length: 73)
 ```
 
 ### Connection Problems
 ```
-[OpenRouter] [Chat-000004] ❌ Failed to connect to OpenRouter: timeout
 [OpenRouter] [Chat-000004] ❌ Request URL: https://openrouter.ai/api/v1/chat/completions
+[OpenRouter] [Chat-000004] ❌ Failed to connect to OpenRouter: timeout
 ```
 
 ## 🚨 Troubleshooting
