@@ -3,6 +3,13 @@
 **Status**: Accepted  
 **Date**: 2025-09-01  
 
+> **Correction (2025-11-01):** `DEPRECATED_API_USAGES` was later removed from
+> the failure list because deprecations are informational (the API still
+> works) — only scheduled-for-removal usages fail the build. The current
+> failure levels are the six listed under [Related](#related). ADRs are
+> append-only, so the decision text below is preserved verbatim; see
+> `build.gradle.kts` for the authoritative list.
+
 ## Context
 
 JetBrains penalizes plugins that use internal, experimental, or
@@ -36,4 +43,8 @@ report unavailable *optional* dependencies we do not control.
 
 ## Related
 
-- `build.gradle.kts`: `pluginVerification { failureLevel = listOf(...) }`
+- `build.gradle.kts` (`pluginVerification { failureLevel = listOf(...) }`) —
+  authoritative source. Current levels:
+  `COMPATIBILITY_PROBLEMS`, `SCHEDULED_FOR_REMOVAL_API_USAGES`,
+  `INTERNAL_API_USAGES`, `EXPERIMENTAL_API_USAGES`, `OVERRIDE_ONLY_API_USAGES`,
+  `NON_EXTENDABLE_API_USAGES`.

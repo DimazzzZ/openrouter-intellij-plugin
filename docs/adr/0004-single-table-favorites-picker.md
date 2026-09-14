@@ -75,9 +75,9 @@ instead of button rows, and `StatusText` empty states with one action link.
   catalog size so the numbers are reachable.
 - The table claims the page's spare height, so the group row and the table row
   are both resizable; the page no longer leaves the lower half empty.
-- Note: `gradle.properties` builds against platform 2025.3 (`pluginSinceBuild
-  = 253`) while ADR-0001 records 2024.2. Nothing in this design needs a newer
-  API than 2024.2, but the drift should be reconciled in a follow-up ADR.
+- Note: The platform version was raised from 2024.2 (ADR-0001) to 2025.3 (ADR-0005).
+  This design does not require any APIs newer than 2024.2, so it remains compatible
+  across the version range.
 
 ## Related
 
