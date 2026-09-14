@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="src/main/resources/META-INF/pluginIcon.svg" alt="OpenRouter logo" width="96" height="96" />
+</p>
+
 # OpenRouter IntelliJ Plugin
 
 [![JetBrains Plugin](https://img.shields.io/badge/JetBrains-Plugin-orange.svg)](https://plugins.jetbrains.com/plugin/28520)
@@ -6,14 +10,6 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.ai), providing access to 400+ AI models with usage monitoring, quota tracking, and seamless JetBrains AI Assistant integration.
-
-## What's New (Unreleased) 🎉
-
-- **🏷️ Model Variants** - `:free`, `:nitro`, `:exacto`, `:floor`, `:batch` variants surfaced with colored chips in the model selector and the Favorite Models table
-- **🎛️ Provider Routing** - New settings tab for global routing preferences (provider order, fallbacks, sort, data collection, quantizations, only/ignore filters) — injected into proxy requests only when the client doesn't specify them
-- **⭐ Single-Table Favorites** - Favorite Models is one catalog table with a ★ checkbox column, toolbar filters, presets, and a Favorites-only mode for reordering
-- **💰 Free Tier Hint** - Zero-price models display "Free" in pricing columns instead of "$0.0000"
-- See [`docs/MODEL_VARIANTS_AND_ROUTING.md`](docs/MODEL_VARIANTS_AND_ROUTING.md) for details.
 
 ## What's New in v0.5.3
 
@@ -75,6 +71,10 @@ Connect JetBrains AI Assistant to OpenRouter's 400+ models:
    - Menu labels vary slightly across AI Assistant versions — see the [Complete Setup Guide](docs/AI_ASSISTANT_SETUP.md) for version notes
 
 📖 **[Complete Setup Guide](docs/AI_ASSISTANT_SETUP.md)** with screenshots
+
+<p align="center">
+  <img src="docs/images/openrouter-settings.png" alt="OpenRouter settings panel in IntelliJ IDEA" width="720" />
+</p>
 
 ## Features
 
