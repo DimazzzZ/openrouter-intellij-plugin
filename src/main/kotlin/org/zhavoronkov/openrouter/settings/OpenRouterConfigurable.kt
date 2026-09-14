@@ -13,6 +13,7 @@ class OpenRouterConfigurable : Configurable {
 
     companion object {
         private const val PREFERRED_DEFAULT_MAX_TOKENS = 8000
+
         // Fallback shown in the settings field when no port is configured yet.
         // Must match the runtime default (SetupWizardConfig.DEFAULT_PROXY_PORT /
         // OpenRouterSettings.proxyPortRangeStart = 8880), NOT the doc-only
