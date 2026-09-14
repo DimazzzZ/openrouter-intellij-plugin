@@ -49,6 +49,8 @@ Settings → Tools → OpenRouter → Favorite Models is a single catalog table 
 - The toolbar holds the filters as drop-downs — Provider, Context, Capabilities (multi-select), Variant (Any, Base only, plus one entry per suffix found in the catalog, and Other) — plus Presets, Refresh, and Move Up / Move Down.
 - **Favorites only** (the star toggle) shows the favorites in stored order with sorting and filters disabled; Move Up / Move Down and drag-and-drop reorder rows there. That order is what AI Assistant lists.
 
+![Favorite Models filter toolbar and Presets](images/presets.png)
+
 Favorites are stored as a flat, ordered list of model ids. [`FavoriteModelsManager.getGroups()`](../src/main/kotlin/org/zhavoronkov/openrouter/services/settings/FavoriteModelsManager.kt) can still derive a base-model → variants view on demand; the flat list remains authoritative for downstream consumers.
 
 ---
@@ -58,6 +60,8 @@ Favorites are stored as a flat, ordered list of model ids. [`FavoriteModelsManag
 OpenRouter's chat-completion API accepts a `provider` block and a `models[]` fallback list. See [OpenRouter's provider routing docs](https://openrouter.ai/docs/provider-routing) for the upstream schema.
 
 The plugin adds a **Provider Routing** sub-page under settings where you configure global defaults. When enabled, the proxy injects your settings into every outbound request — but only if the client didn't already specify them.
+
+![Provider Routing settings page](images/provider-routing.png)
 
 ### Configurable fields
 
@@ -72,6 +76,8 @@ The plugin adds a **Provider Routing** sub-page under settings where you configu
 | `only`               | Whitelist provider slugs                                    |
 | `ignore`             | Blacklist provider slugs                                    |
 | `fallbackModels`     | `models[]` fallback list injected into requests             |
+
+![Quantizations filter and global fallback models](images/quantizations-and-global-fallback.png)
 
 ### Injection invariant
 
