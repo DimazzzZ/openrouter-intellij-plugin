@@ -4,7 +4,7 @@
     <id>org.zhavoronkov.openrouter</id>
 
     <!-- Enable dynamic plugin support - allows install/update/uninstall without IDE restart -->
-    <idea-version since-build="242"/>
+    <idea-version since-build="253"/>
 
     <!-- Public plugin name should be written in Title Case.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-name -->

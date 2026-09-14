@@ -119,7 +119,7 @@ See the [CHANGELOG](CHANGELOG.md#051---2026-03-27) for API details and the `Bala
 | | |
 |---|---|
 | **Supported IDEs** | IntelliJ IDEA, WebStorm, PyCharm, PhpStorm, RubyMine, CLion, Android Studio, GoLand, Rider |
-| **IDE Versions** | 2024.2+ and all future versions |
+| **IDE Versions** | 2025.3+ and all future versions |
 | **Requirements** | Java 21+, [OpenRouter.ai](https://openrouter.ai) account (free or paid) |
 
 ## Development
