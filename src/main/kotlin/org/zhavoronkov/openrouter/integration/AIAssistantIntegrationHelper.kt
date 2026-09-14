@@ -16,7 +16,10 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
 
 object AIAssistantIntegrationHelper {
 
-    private const val DEFAULT_PROXY_PORT = 8080
+    // Used only to build a sample proxy URL in a user-facing message when the
+    // server is not running. Must match the runtime default (8880), NOT the
+    // doc-only OpenRouterConstants.DEFAULT_PROXY_PORT (8080).
+    private const val DEFAULT_PROXY_PORT = 8880
     private const val AI_ASSISTANT_PLUGIN_ID = "com.intellij.ml.llm"
 
     data class AIAssistantInfo(val isAvailable: Boolean, val version: String?)
