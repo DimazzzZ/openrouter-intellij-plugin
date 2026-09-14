@@ -36,17 +36,17 @@ The proxy server should start automatically when you configure your Provisioning
 
 > **Note**: If the server isn't running, click **Start Server** button.
 
-### Step 3: Configure AI Assistant
+### Step 3: Configure AI Assistant (chat & core features)
 
-Now configure AI Assistant to use the OpenRouter proxy:
+Now point AI Assistant's **chat and core features** at the OpenRouter proxy. This is the primary setup — it drives the model selector in the chat window.
 
-1. Open **Settings** → **Tools** → **AI Assistant** → **Models**
-2. In the **Third-party AI providers** section, select **Other OpenAI-compatible service** and configure it:
+1. Open **Settings** → **Tools** → **AI Assistant** → **Providers & API keys**
+2. In the **Third-party AI providers** section, select **OpenAI-compatible** and configure it:
    - **Server URL** / **URL**: Paste the proxy URL from Step 2 (e.g., `http://127.0.0.1:8880`)
    - **API Key**: Leave this **empty** — authentication is handled by the OpenRouter plugin. (If your IDE version forces a non-empty value, type any placeholder; it is ignored.)
    - **Tool calling**: **Enable this** if you want AI Assistant Agents to invoke MCP tools through tool-calling capable OpenRouter models
 
-> **IDE version note:** JetBrains has reorganized this screen across releases. Depending on your AI Assistant version, the entry point may appear as **Models**, **Providers & API keys**, or **Third-party AI providers**, and the option may read **Other OpenAI-compatible service** or **OpenAI-compatible**. The plugin also prints the exact, version-correct steps for your IDE — see **Tools** → **OpenRouter** and the setup wizard's "View AI Assistant Setup Guide".
+> **IDE version note:** JetBrains has reorganized this screen across releases. The steps above use the current wording. On **AI Assistant 2025.3+** the page is titled **Providers & API keys** and the option reads **OpenAI-compatible**. On **older IDEs (≤ 2025.2)** the page was titled **Models** and the option read **Other OpenAI-compatible service** — the settings live in the same place. The plugin also prints the exact, version-correct steps for your IDE — see **Tools** → **OpenRouter** and the setup wizard's "View AI Assistant Setup Guide".
 
 ![AI Assistant Custom Model](images/ai-assistant-custom-model.png)
 <p style="text-align:center;font-style: italic">AI Assistant custom model configuration dialog</p>
@@ -68,6 +68,19 @@ AI Assistant can then combine:
 - **MCP servers** for tool execution.
 
 > **Important:** for agent workflows, you need both a **tool-capable model** and **Tool calling enabled** in AI Assistant's provider settings.
+
+### Step 3.2: Configure inline code completion (optional, AI Assistant 2026.2+)
+
+AI Assistant **2026.2** added a separate **AI Completion** section for **inline code completion and next-edit suggestions**. This is a *different* surface from the chat provider in Step 3 — configuring one does not configure the other. Set this up only if you want OpenRouter to power inline completion; it is optional.
+
+1. Open **Settings** → **Tools** → **AI Assistant** → **Providers & API keys**
+2. In the **AI Completion** section, select **OpenAI Compatible** and configure it:
+   - **Base URL** / **URL**: Paste the proxy URL from Step 2 (e.g., `http://127.0.0.1:8880`)
+   - **API Key**: Leave this **empty** — authentication is handled by the OpenRouter plugin. (If your IDE version forces a non-empty value, type any placeholder; it is ignored.)
+   - **Model**: Pick an OpenRouter model you have starred as a favorite (see Step 4)
+3. Click **Apply** / **OK** to save
+
+> **Note:** This section only exists on **AI Assistant 2026.2 and later**. If you don't see **AI Completion**, your IDE is on an earlier release and only the chat setup in Step 3 applies. Inline-completion quality and latency depend heavily on the model you choose — prefer fast, completion-oriented models here.
 
 ### Step 4: Select OpenRouter Model
 
@@ -198,7 +211,8 @@ shows JetBrains' own models. You can't pick any OpenRouter model.
 2. **Refresh the list** — after changing favorites, restart the proxy server
    (Stop → Start) so AI Assistant re-fetches the model list.
 3. **Confirm the provider is the custom one** — make sure the chat is using your
-   **Other OpenAI-compatible service** provider, not the default JetBrains provider.
+   **OpenAI-compatible** provider (called **Other OpenAI-compatible service** on
+   IDEs ≤ 2025.2), not the default JetBrains provider.
 
 ### Model Not Found Error
 

@@ -144,8 +144,8 @@ object AIAssistantIntegrationHelper {
                 AI Assistant plugin: ${getAIAssistantVersion() ?: "Installed"}
 
                 To configure AI Assistant:
-                1. Go to Settings > Tools > AI Assistant > Models
-                2. Add "Other OpenAI-compatible service"
+                1. Go to Settings > Tools > AI Assistant > Providers & API keys
+                2. Add "OpenAI-compatible" under "Third-party AI providers"
                 3. Set URL to: ${serverStatus.url}
                 4. Leave API key empty
                 5. Test connection and apply
