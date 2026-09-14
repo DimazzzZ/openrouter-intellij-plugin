@@ -72,7 +72,7 @@
         
         <p><strong>💬 Reasoning & Verbosity Controls:</strong></p>
         <ul>
-            <li><strong>Reasoning Dropdown</strong> - New reasoning effort control in chat panel (None/Minimal/Low/Medium/High/XHigh)</li>
+            <li><strong>Reasoning Dropdown</strong> - New reasoning effort control in chat panel (Default/None/Minimal/Low/Medium/High/XHigh)</li>
             <li><strong>Verbosity Dropdown</strong> - New response verbosity control (Low/Medium/High/XHigh/Max)</li>
             <li><strong>Auto-Detection</strong> - Model capabilities detected from OpenRouter API, no hardcoded model IDs</li>
         </ul>

@@ -463,7 +463,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - fix: resolve JetBrains plugin verifier compatibility issues and optimize workflows
 
-## [0.2.0] - 2025-10-04
+## [0.2.0] - 2025-10-03
 
 ### OpenRouter models support for 3rd-party AI Assistants
 

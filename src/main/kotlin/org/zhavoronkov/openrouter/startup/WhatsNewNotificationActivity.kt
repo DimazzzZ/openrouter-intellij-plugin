@@ -26,6 +26,11 @@ import java.io.IOException
 class WhatsNewNotificationActivity : ProjectActivity {
 
     companion object {
+        // NOTE: This is hand-synced with `gradle.properties` (`pluginVersion`) and
+        // `src/main/resources/META-INF/plugin.xml` change-notes. When you bump the
+        // plugin version, update this constant too, or the "What's New" notification
+        // will not fire for the new release. (Follow-up: derive from
+        // `PluginManagerCore.getPlugin(PluginId.getId(...))?.version`.)
         private const val CURRENT_VERSION = "0.5.3"
         private const val CHANGELOG_URL =
             "https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/CHANGELOG.md"
