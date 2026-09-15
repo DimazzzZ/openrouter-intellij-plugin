@@ -21,8 +21,10 @@ import org.zhavoronkov.openrouter.models.DeleteApiKeyResponse
 import org.zhavoronkov.openrouter.models.ExchangeAuthCodeRequest
 import org.zhavoronkov.openrouter.models.ExchangeAuthCodeResponse
 import org.zhavoronkov.openrouter.models.GenerationResponse
+import org.zhavoronkov.openrouter.models.GetPresetResponse
 import org.zhavoronkov.openrouter.models.KeyData
 import org.zhavoronkov.openrouter.models.KeyInfoResponse
+import org.zhavoronkov.openrouter.models.ListPresetsResponse
 import org.zhavoronkov.openrouter.models.ModelsCountResponse
 import org.zhavoronkov.openrouter.models.OpenRouterModelsResponse
 import org.zhavoronkov.openrouter.models.OpenRouterResponse
@@ -58,7 +60,10 @@ import java.util.concurrent.TimeUnit
  *    - Publicly accessible information
  */
 
-@Suppress("TooManyFunctions")
+// LargeClass: this is the single OpenRouter API client; adding the presets read/write
+// methods (T1-T3) pushed it past the 600 metric. Splitting the HTTP client by resource
+// is a separate refactor (tracked as a deepening item), not part of the presets feature.
+@Suppress("TooManyFunctions", "LargeClass")
 open class OpenRouterService(
     private val gson: Gson = Gson(),
     private val client: OkHttpClient = OkHttpClient.Builder()
@@ -90,6 +95,10 @@ open class OpenRouterService(
     private fun getProvidersEndpoint() = "${getBaseUrl()}/providers"
     private fun getModelsEndpoint() = "${getBaseUrl()}/models"
     private fun getModelsCountEndpoint() = "${getBaseUrl()}/models/count"
+    private fun getPresetsEndpoint() = "${getBaseUrl()}/presets"
+    private fun getPresetEndpoint(slug: String) = "${getBaseUrl()}/presets/$slug"
+    private fun getPresetChatCompletionsEndpoint(slug: String) =
+        "${getBaseUrl()}/presets/$slug/chat/completions"
 
     /**
      * Handle network errors gracefully without alarming users
@@ -748,4 +757,121 @@ open class OpenRouterService(
             PluginLogger.Service.error("Error during OpenRouterService disposal", e)
         }
     }
+
+    /**
+     * List the user's presets. Keyed by the configured API key (mirrors
+     * createChatCompletion, NOT the provisioning-key path). Returns typed [ApiResult].
+     */
+    suspend fun getPresets(): ApiResult<ListPresetsResponse> =
+        withContext(Dispatchers.IO) {
+            val apiKey = settingsService.apiKeyManager.getStoredApiKey()
+            if (apiKey.isNullOrBlank()) {
+                PluginLogger.Service.warn("[OR] No API key configured for presets endpoint")
+                return@withContext ApiResult.Error("No API key configured")
+            }
+            try {
+                PluginLogger.Service.info("[OR] GET ${getPresetsEndpoint()}")
+                val request = OpenRouterRequestBuilder.buildGetRequest(
+                    url = getPresetsEndpoint(),
+                    authType = OpenRouterRequestBuilder.AuthType.API_KEY,
+                    authToken = apiKey
+                )
+                val response = client.newCall(request).await()
+                val body = response.body?.string().orEmpty()
+                if (response.isSuccessful) {
+                    ApiResult.Success(gson.fromJson(body, ListPresetsResponse::class.java), response.code)
+                } else {
+                    PluginLogger.Service.warn("[OR] Failed to list presets: ${response.code} - $body")
+                    ApiResult.Error(body.ifBlank { response.message }, statusCode = response.code)
+                }
+            } catch (e: IOException) {
+                handleNetworkError(e, "Error listing presets")
+                ApiResult.Error(message = e.message ?: "Network error", throwable = e)
+            } catch (e: JsonSyntaxException) {
+                PluginLogger.Service.error("[OR] Failed to parse presets list", e)
+                ApiResult.Error("Failed to parse response", throwable = e)
+            }
+        }
+
+    /**
+     * Read a single preset (including its designated_version + untyped config).
+     */
+    suspend fun getPreset(slug: String): ApiResult<GetPresetResponse> =
+        withContext(Dispatchers.IO) {
+            val apiKey = settingsService.apiKeyManager.getStoredApiKey()
+            if (apiKey.isNullOrBlank()) {
+                PluginLogger.Service.warn("[OR] No API key configured for preset read")
+                return@withContext ApiResult.Error("No API key configured")
+            }
+            try {
+                PluginLogger.Service.info("[OR] GET ${getPresetEndpoint(slug)}")
+                val request = OpenRouterRequestBuilder.buildGetRequest(
+                    url = getPresetEndpoint(slug),
+                    authType = OpenRouterRequestBuilder.AuthType.API_KEY,
+                    authToken = apiKey
+                )
+                val response = client.newCall(request).await()
+                val body = response.body?.string().orEmpty()
+                if (response.isSuccessful) {
+                    ApiResult.Success(gson.fromJson(body, GetPresetResponse::class.java), response.code)
+                } else {
+                    PluginLogger.Service.warn("[OR] Failed to read preset $slug: ${response.code} - $body")
+                    ApiResult.Error(body.ifBlank { response.message }, statusCode = response.code)
+                }
+            } catch (e: IOException) {
+                handleNetworkError(e, "Error reading preset")
+                ApiResult.Error(message = e.message ?: "Network error", throwable = e)
+            } catch (e: JsonSyntaxException) {
+                PluginLogger.Service.error("[OR] Failed to parse preset $slug", e)
+                ApiResult.Error("Failed to parse response", throwable = e)
+            }
+        }
+
+    /**
+     * Create a preset (if [slug] is new) or add a new designated version (if it exists) by
+     * POSTing a ChatRequest-shaped body to /presets/{slug}/chat/completions. [config] is an
+     * untyped map merged verbatim into the body so unknown keys survive a round-trip;
+     * [systemPrompt] is added as system_prompt when non-null. There is no delete endpoint.
+     */
+    suspend fun createOrUpdatePreset(
+        slug: String,
+        config: Map<String, Any?>,
+        systemPrompt: String?
+    ): ApiResult<GetPresetResponse> =
+        withContext(Dispatchers.IO) {
+            val apiKey = settingsService.apiKeyManager.getStoredApiKey()
+            if (apiKey.isNullOrBlank()) {
+                PluginLogger.Service.warn("[OR] No API key configured for preset write")
+                return@withContext ApiResult.Error("No API key configured")
+            }
+            try {
+                // ChatRequest-shaped body: config passed through verbatim + optional system_prompt.
+                val payload = LinkedHashMap<String, Any?>(config)
+                if (systemPrompt != null) {
+                    payload["system_prompt"] = systemPrompt
+                }
+                val jsonBody = gson.toJson(payload)
+                PluginLogger.Service.info("[OR] POST ${getPresetChatCompletionsEndpoint(slug)}")
+                val request = OpenRouterRequestBuilder.buildPostRequest(
+                    url = getPresetChatCompletionsEndpoint(slug),
+                    jsonBody = jsonBody,
+                    authType = OpenRouterRequestBuilder.AuthType.API_KEY,
+                    authToken = apiKey
+                )
+                val response = client.newCall(request).await()
+                val body = response.body?.string().orEmpty()
+                if (response.isSuccessful) {
+                    ApiResult.Success(gson.fromJson(body, GetPresetResponse::class.java), response.code)
+                } else {
+                    PluginLogger.Service.warn("[OR] Failed to write preset $slug: ${response.code} - $body")
+                    ApiResult.Error(body.ifBlank { response.message }, statusCode = response.code)
+                }
+            } catch (e: IOException) {
+                handleNetworkError(e, "Error writing preset")
+                ApiResult.Error(message = e.message ?: "Network error", throwable = e)
+            } catch (e: JsonSyntaxException) {
+                PluginLogger.Service.error("[OR] Failed to parse preset write response", e)
+                ApiResult.Error("Failed to parse response", throwable = e)
+            }
+        }
 }
