@@ -152,4 +152,61 @@ class OpenRouterServicePresetsTest {
         assertTrue(result is ApiResult.Error, "expected error, got $result")
         assertEquals(401, (result as ApiResult.Error).statusCode)
     }
+
+    @Test
+    @DisplayName("getPreset surfaces a non-2xx as ApiResult.Error carrying the status code")
+    fun getPresetHttpError() = runBlocking {
+        mockWebServer.enqueue(
+            MockResponse().setResponseCode(404).setBody("""{"error":{"message":"not found"}}""")
+        )
+        val result = service.getPreset("missing")
+        assertTrue(result is ApiResult.Error, "expected error, got $result")
+        assertEquals(404, (result as ApiResult.Error).statusCode)
+
+        val recorded = mockWebServer.takeRequest()
+        assertEquals("GET", recorded.method)
+        assertEquals("/api/v1/presets/missing", recorded.path)
+    }
+
+    @Test
+    @DisplayName("createOrUpdatePreset surfaces a non-2xx as ApiResult.Error carrying the status code")
+    fun createPresetHttpError() = runBlocking {
+        mockWebServer.enqueue(
+            MockResponse().setResponseCode(422).setBody("""{"error":{"message":"bad model"}}""")
+        )
+        val result = service.createOrUpdatePreset("email", mapOf("model" to "openai/gpt-4o"), null)
+        assertTrue(result is ApiResult.Error, "expected error, got $result")
+        assertEquals(422, (result as ApiResult.Error).statusCode)
+    }
+
+    @Test
+    @DisplayName("getPresets maps a malformed JSON body to a parse Error, does not throw")
+    fun getPresetsMalformedBody() = runBlocking {
+        mockWebServer.enqueue(
+            MockResponse().setResponseCode(200).setHeader("Content-Type", "application/json")
+                .setBody("{ this is not json ]")
+        )
+        val result = service.getPresets()
+        assertTrue(result is ApiResult.Error, "expected parse error, got $result")
+        assertNotNull((result as ApiResult.Error).throwable, "parse error should carry the cause")
+    }
+
+    @Test
+    @DisplayName("getPresets maps a network failure (dead server) to a network Error, does not throw")
+    fun getPresetsNetworkError() = runBlocking {
+        mockWebServer.shutdown()
+        val result = service.getPresets()
+        assertTrue(result is ApiResult.Error, "expected network error, got $result")
+        assertNotNull((result as ApiResult.Error).throwable, "network error should carry the cause")
+    }
+
+    @Test
+    @DisplayName("getPresets returns Error when no API key is configured, without calling the endpoint")
+    fun getPresetsNoApiKey() = runBlocking {
+        `when`(mockSettingsService.apiKeyManager.getStoredApiKey()).thenReturn(null)
+        val result = service.getPresets()
+        assertTrue(result is ApiResult.Error, "expected error, got $result")
+        assertEquals("No API key configured", (result as ApiResult.Error).message)
+        assertEquals(0, mockWebServer.requestCount, "no request should be sent without a key")
+    }
 }

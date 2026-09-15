@@ -69,8 +69,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Testing
 - Preset model JSON round-trip tests using payloads captured from the live API (verbatim config/`tools` passthrough)
-- MockWebServer tests for `OpenRouterService` list/read/create-update (path, verb, auth header, config passthrough)
+- MockWebServer tests for `OpenRouterService` list/read/create-update (path, verb, auth header, config passthrough), plus error-path coverage: HTTP non-2xx status propagation, malformed-JSON parse errors, network failures, and the no-API-key short-circuit
 - Platform-free unit tests for `PresetsPageState` (list, selection, edit, create vs new-version, error surfacing)
+- `PresetsSettingsPanelPlatformTest` covering the Swing surface over the view-model: fetched list rendering and status line, read-only detail text, editor field enable/populate on edit, cancel clears the staged editor, and the missing-key / load-failed / no-presets empty states
 - 45 unit tests for `FavoriteModelsPageState` (ordering, favorites-only view, reorder, presets, variant filter options, status, empty states)
 - 19 tests for `ModelFilterCriteria`, 10 for `VariantFilter`, 8 for the table columns and 6 for the table model
 - `FavoriteModelsSettingsPanelPlatformTest` replaces the headless-disabled panel test: 10 tests covering checkbox toggle → apply, favorites-only order, Enter handling, empty state, status line, that the table fills the page height, and that the help tooltip cannot be placed under the cursor
