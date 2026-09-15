@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### New Features
 
+#### 🎛️ Presets CRUD via OpenRouter API
+- **List & Refresh** - Settings → Presets fetches the user's presets from the OpenRouter API (keyed by the configured API key) and refreshes on demand, replacing hand-typed slugs
+- **Read-Only View** - Selecting a preset shows its designated-version config; unknown generation keys and the `tools` array are preserved verbatim rather than rendered field-by-field
+- **Create & Update** - New Preset creates a slug, and saving an existing slug creates a new version via POST; edits cover the well-known config keys plus `system_prompt`
+- **Built-in Presets Preserved** - Router presets (`openrouter/auto`, `openrouter/free`) stay listed separately and continue to feed the `@preset/<slug>` model selector
+- **Visible Load Errors** - A status label surfaces fetch/refresh failures even when a previously loaded list is still shown
+- **Platform-Free View-Model** - Panel is a thin Swing adapter over a unit-tested `PresetsPageState`
+
 #### ⭐ Favorite Models Page Redesign
 - **Single Catalog Table** - The two-table Add/Remove picker is replaced by one table with a favorite checkbox column; ticking appends to the ordered favorites, unticking removes ([ADR-0004](docs/adr/0004-single-table-favorites-picker.md))
 - **Favorites Only Mode** - Star toggle shows favorites in stored order (the order AI Assistant lists them) and enables Move Up / Move Down, Alt+↑/↓ and drag-and-drop reorder
@@ -60,6 +68,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`/models/count` request** on the Favorite Models page - the status line now counts the loaded catalog
 
 ### Testing
+- Preset model JSON round-trip tests using payloads captured from the live API (verbatim config/`tools` passthrough)
+- MockWebServer tests for `OpenRouterService` list/read/create-update (path, verb, auth header, config passthrough), plus error-path coverage: HTTP non-2xx status propagation, malformed-JSON parse errors, network failures, and the no-API-key short-circuit
+- Platform-free unit tests for `PresetsPageState` (list, selection, edit, create vs new-version, error surfacing)
+- `PresetsSettingsPanelPlatformTest` covering the Swing surface over the view-model: fetched list rendering and status line, read-only detail text, editor field enable/populate on edit, cancel clears the staged editor, and the missing-key / load-failed / no-presets empty states
 - 45 unit tests for `FavoriteModelsPageState` (ordering, favorites-only view, reorder, presets, variant filter options, status, empty states)
 - 19 tests for `ModelFilterCriteria`, 10 for `VariantFilter`, 8 for the table columns and 6 for the table model
 - `FavoriteModelsSettingsPanelPlatformTest` replaces the headless-disabled panel test: 10 tests covering checkbox toggle → apply, favorites-only order, Enter handling, empty state, status line, that the table fills the page height, and that the help tooltip cannot be placed under the cursor

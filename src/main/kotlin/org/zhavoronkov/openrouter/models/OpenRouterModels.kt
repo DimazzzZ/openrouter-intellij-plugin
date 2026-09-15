@@ -68,6 +68,50 @@ data class ApiKeyInfo(
     val hash: String
 )
 
+/**
+ * Preset API models (OpenRouter /presets).
+ *
+ * A [Preset] is a named server-side config referenced as `@preset/<slug>`. Its active
+ * [PresetDesignatedVersion] holds the generation [PresetDesignatedVersion.config] (an
+ * untyped JSON map, preserved verbatim so unknown keys survive a read/write round-trip)
+ * and an optional `system_prompt`. List rows omit `designated_version`; the single-preset
+ * read includes it. `creator_user_id` is null on list rows and populated on read/create.
+ */
+data class ListPresetsResponse(
+    val data: List<Preset> = emptyList()
+)
+
+data class GetPresetResponse(
+    val data: Preset
+)
+
+data class Preset(
+    val id: String,
+    val name: String,
+    val slug: String,
+    val status: String? = null,
+    val description: String? = null,
+    @SerializedName("creator_user_id") val creatorUserId: String? = null,
+    @SerializedName("workspace_id") val workspaceId: String? = null,
+    @SerializedName("designated_version_id") val designatedVersionId: String? = null,
+    @SerializedName("designated_version") val designatedVersion: PresetDesignatedVersion? = null,
+    @SerializedName("created_at") val createdAt: String? = null,
+    @SerializedName("updated_at") val updatedAt: String? = null,
+    @SerializedName("status_updated_at") val statusUpdatedAt: String? = null
+)
+
+data class PresetDesignatedVersion(
+    val id: String? = null,
+    val version: Int? = null,
+    @SerializedName("preset_id") val presetId: String? = null,
+    @SerializedName("creator_id") val creatorId: String? = null,
+    @SerializedName("system_prompt") val systemPrompt: String? = null,
+    // Untyped passthrough: generation settings (model, temperature, tools, provider, ...).
+    val config: Map<String, Any?>? = null,
+    @SerializedName("created_at") val createdAt: String? = null,
+    @SerializedName("updated_at") val updatedAt: String? = null
+)
+
 // API Key creation request and response
 data class CreateApiKeyRequest(
     val name: String,
