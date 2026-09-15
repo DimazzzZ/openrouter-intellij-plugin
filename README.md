@@ -7,6 +7,7 @@
 [![JetBrains Plugin](https://img.shields.io/badge/JetBrains-Plugin-orange.svg)](https://plugins.jetbrains.com/plugin/28520)
 [![Version](https://img.shields.io/badge/version-0.5.3-blue.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
 [![CI](https://github.com/DimazzzZ/openrouter-intellij-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-74%25%20lines-yellow.svg?logo=kotlin)](TESTING.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.ai), providing access to 400+ AI models with usage monitoring, quota tracking, and seamless JetBrains AI Assistant integration.
