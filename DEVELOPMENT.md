@@ -118,7 +118,7 @@ All plugin metadata is centralized in `gradle.properties` for consistency:
 
 ```properties
 # Core plugin information
-pluginVersion = 0.5.3
+pluginVersion = 0.6.0
 pluginName = OpenRouter
 pluginGroup = org.zhavoronkov
 pluginId = org.zhavoronkov.openrouter
@@ -136,10 +136,10 @@ pluginSinceBuild = 253        # IntelliJ 2025.3+
 ### Version Update Process
 ```bash
 # 🔄 Update version (if update script exists)
-./scripts/update-version.sh 0.5.3
+./scripts/update-version.sh 0.6.0
 
 # 📝 Manual update in gradle.properties
-# Edit pluginVersion = 0.5.3
+# Edit pluginVersion = 0.6.0
 
 # ✅ Verify version
 ./gradlew properties | grep pluginVersion
