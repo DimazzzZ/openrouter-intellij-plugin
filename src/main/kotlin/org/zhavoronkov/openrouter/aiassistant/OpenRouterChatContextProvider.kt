@@ -8,9 +8,10 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
  * Provides context for AI Assistant chat conversations using OpenRouter
  * This integrates with the AI Assistant's chatContextProvider extension point
  */
-class OpenRouterChatContextProvider {
-
-    private val settingsService = OpenRouterSettingsService.getInstance()
+class OpenRouterChatContextProvider internal constructor(
+    private val settingsService: OpenRouterSettingsService
+) {
+    constructor() : this(OpenRouterSettingsService.getInstance())
 
     companion object {
         private const val PROVIDER_ID = "openrouter"

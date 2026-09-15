@@ -11,9 +11,10 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
  */
 
 @Suppress("TooManyFunctions")
-class OpenRouterSmartChatEndpointProvider {
-
-    private val settingsService = OpenRouterSettingsService.getInstance()
+class OpenRouterSmartChatEndpointProvider internal constructor(
+    private val settingsService: OpenRouterSettingsService
+) {
+    constructor() : this(OpenRouterSettingsService.getInstance())
 
     companion object {
         private const val PROVIDER_ID = "openrouter"
