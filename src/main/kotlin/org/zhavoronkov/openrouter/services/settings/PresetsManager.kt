@@ -3,9 +3,10 @@ package org.zhavoronkov.openrouter.services.settings
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
 
 /**
- * Manages user-configured OpenRouter presets.
- * Presets are named configurations created in the OpenRouter web UI
- * that can be referenced in API requests using @preset/slug format.
+ * Manages OpenRouter presets referenced in API requests using the @preset/slug format.
+ * Presets are named, server-side configurations: the plugin lists, reads and
+ * creates/updates them through the OpenRouter preset API (see OpenRouterService).
+ * Deletion is web-UI-only — OpenRouter exposes no delete endpoint.
  *
  * Built-in presets (openrouter/auto, openrouter/free) are always available
  * and don't need to be configured here.
