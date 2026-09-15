@@ -147,6 +147,32 @@ class OpenRouterGenerationTrackingServiceTest {
         }
 
         @Test
+        fun `updateGenerationStats should retain existing values when new stats are null`() {
+            val state = OpenRouterSettings(trackGenerations = true)
+            `when`(mockSettingsService.getState()).thenReturn(state)
+
+            service.trackGeneration(
+                createGeneration("gen-1", totalTokens = 10, totalCost = 0.01)
+                    .copy(promptTokens = 3, completionTokens = 7)
+            )
+
+            // All new stats null -> every field must fall back to the existing value
+            service.updateGenerationStats(
+                generationId = "gen-1",
+                promptTokens = null,
+                completionTokens = null,
+                totalTokens = null,
+                totalCost = null
+            )
+
+            val retained = service.getRecentGenerations(1).first()
+            assertEquals(3, retained.promptTokens)
+            assertEquals(7, retained.completionTokens)
+            assertEquals(10, retained.totalTokens)
+            assertEquals(0.01, retained.totalCost)
+        }
+
+        @Test
         fun `clearGenerations should remove all records`() {
             val state = OpenRouterSettings(trackGenerations = true)
             `when`(mockSettingsService.getState()).thenReturn(state)

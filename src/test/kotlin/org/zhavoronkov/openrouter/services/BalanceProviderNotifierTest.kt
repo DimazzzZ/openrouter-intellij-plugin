@@ -20,6 +20,51 @@ import org.zhavoronkov.openrouter.api.BalanceProvider
  *
  * Note: These tests verify class structure without requiring IntelliJ platform initialization.
  * Integration tests with actual extension point registration require IDE environment.
+ *
+ * ## Platform-bound exclusions (B13 classification ledger)
+ *
+ * Every method body on [BalanceProviderNotifier] is unreachable from the fast unit lane
+ * because the earliest platform call in each path throws BEFORE the catchable
+ * [IllegalStateException] the service degrades on. Empirically observed off-platform:
+ *
+ *   - notifyBalanceUpdated / notifyLoading / notifyError
+ *       → isEnabled() → OpenRouterSettingsService.getInstance()
+ *       → ApplicationManager.getApplication() returns null → NullPointerException.
+ *   - hasProviders / getProviderCount / getProviderNames
+ *       → EP_NAME.hasAnyExtensions() / .extensionList
+ *       → Extensions.getRootArea() returns null → NullPointerException,
+ *         or IllegalArgumentException ("If you're running a JUnit5 test, make sure the
+ *         test class is annotated with `@TestApplication`.").
+ *   - getInstance()
+ *       → ApplicationManager.getApplication().getService(...) → NullPointerException.
+ *   - safeInvoke (private inline)
+ *       → only reachable from notify* iteration, which itself is platform-bound.
+ *
+ * Concretely, Kover reports the following lines as uncovered on this class, all
+ * accounted for by the platform-bound rationale above (see BalanceProviderNotifier.kt):
+ *
+ *   55        getInstance() body — needs a live Application.
+ *   67,69,70  getInstanceOrNull() success + IllegalStateException catch — needs a live app.
+ *   86–103    notifyBalanceUpdated — settings service NPE (see above).
+ *   110–116   notifyLoading — settings service NPE.
+ *   125–136   notifyError — settings service NPE.
+ *   148,150,151  hasProviders — EP access NPE / IAE.
+ *   163       getProviderCount — EP access.
+ *   174       getProviderNames — EP access.
+ *   187–191   isEnabled (private) — settings service platform lookup.
+ *   202,205,206  getProviders (private) — EP access.
+ *   227,229–231  safeInvoke (private inline) — only invoked from notify*.
+ *
+ * The only reachable off-platform coverage is:
+ *   - getInstanceOrNull returning null when the Application is unavailable (line 66 branch),
+ *   - dispose() logging (line 237, hit by disposeIsSafe / disposeIdempotent below),
+ *   - and the reflection-based structure checks and mock-provider fixtures in this file.
+ *
+ * The notify/query bodies are genuine COVER logic — they belong in a platform test
+ * (BasePlatformTestCase or a JUnit5 `@TestApplication`), not a Kover `excludes` filter.
+ * That work is out of scope for the fast unit lane; the lines above are documented as
+ * platform-bound rather than annotated away, so a future platform-test batch can retire
+ * them without touching this file's build config.
  */
 @DisplayName("BalanceProviderNotifier Tests")
 class BalanceProviderNotifierTest {
