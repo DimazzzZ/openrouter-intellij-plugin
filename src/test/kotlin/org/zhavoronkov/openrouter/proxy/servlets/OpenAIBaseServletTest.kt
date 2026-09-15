@@ -23,7 +23,11 @@ class OpenAIBaseServletTest {
         fun extractKey(resp: HttpServletResponse, req: HttpServletRequest) = validateAndExtractApiKey(resp, req)
         fun cors(resp: HttpServletResponse, methods: String = "GET, OPTIONS") = setCORSHeaders(resp, methods)
         fun authError(resp: HttpServletResponse) = sendAuthErrorResponse(resp)
-        fun errorResponse(resp: HttpServletResponse, message: String, code: Int) = sendErrorResponse(resp, message, code)
+        fun errorResponse(
+            resp: HttpServletResponse,
+            message: String,
+            code: Int
+        ) = sendErrorResponse(resp, message, code)
         fun run(handler: () -> Unit, resp: HttpServletResponse, ctx: String) = handleRequest(handler, resp, ctx)
     }
 

@@ -794,7 +794,12 @@ class StreamingResponseHandlerErrorPathTest {
     @Test
     fun `non-SSE content matches known error patterns`() {
         val handler = StreamingResponseHandler()
-        for (pattern in listOf("unauthorized token", "resource not found", "temporarily unavailable", "operation timeout")) {
+        for (pattern in listOf(
+            "unauthorized token",
+            "resource not found",
+            "temporarily unavailable",
+            "operation timeout"
+        )) {
             val response = sseResponse(pattern)
             val out = StringWriter()
             handler.streamResponseToClient(response, PrintWriter(out), "p")
@@ -828,7 +833,7 @@ class StreamingResponseHandlerErrorPathTest {
         val response = sseResponse(body)
         val out = StringWriter()
         handler.streamResponseToClient(response, PrintWriter(out), "partial-fields")
-assertTrue(out.toString().contains("partial"))
+        assertTrue(out.toString().contains("partial"))
     }
 
     @Test
@@ -883,7 +888,14 @@ assertTrue(out.toString().contains("partial"))
 
     @Test
     fun `handleStreamingErrorResponse non-json body maps 402 429 5xx fallback`() {
-        for ((code, expect) in listOf(402 to "Insufficient credits", 429 to "Rate limit exceeded", 500 to "temporarily unavailable", 502 to "temporarily unavailable", 503 to "temporarily unavailable", 418 to "Request failed with status")) {
+        for ((code, expect) in listOf(
+            402 to "Insufficient credits",
+            429 to "Rate limit exceeded",
+            500 to "temporarily unavailable",
+            502 to "temporarily unavailable",
+            503 to "temporarily unavailable",
+            418 to "Request failed with status"
+        )) {
             val rb: ResponseBody = "plain".toResponseBody("text/plain".toMediaType())
             val response = Response.Builder().request(Request.Builder().url("http://localhost").build())
                 .protocol(Protocol.HTTP_1_1).code(code).message("X").body(rb).build()

@@ -1,9 +1,9 @@
 package org.zhavoronkov.openrouter.utils
 
 import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertDoesNotThrow
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -116,7 +116,9 @@ class ModelAvailabilityNotifierTest {
         val field = ModelAvailabilityNotifier::class.java.getDeclaredField("notifiedModels")
         field.isAccessible = true
         @Suppress("UNCHECKED_CAST")
-        val set = field.get(ModelAvailabilityNotifier) as java.util.concurrent.ConcurrentHashMap.KeySetView<String, Boolean>
+        val set = field.get(
+            ModelAvailabilityNotifier
+        ) as java.util.concurrent.ConcurrentHashMap.KeySetView<String, Boolean>
         set.add(name)
     }
 

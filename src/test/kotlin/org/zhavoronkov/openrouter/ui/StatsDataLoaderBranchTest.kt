@@ -55,8 +55,14 @@ class StatsDataLoaderBranchTest {
         ApiKeysListResponse(
             listOf(
                 ApiKeyInfo(
-                    name = "k", label = "l", limit = null, usage = 0.0, disabled = false,
-                    createdAt = "2025-01-01", updatedAt = null, hash = "h"
+                    name = "k",
+                    label = "l",
+                    limit = null,
+                    usage = 0.0,
+                    disabled = false,
+                    createdAt = "2025-01-01",
+                    updatedAt = null,
+                    hash = "h"
                 )
             )
         ),
@@ -167,7 +173,9 @@ class StatsDataLoaderBranchTest {
         fun `credits error takes precedence when activity also errors`() {
             val settings = settingsMock(configured = true, provisioningKey = "pk")
             val router = routerMock(
-                okApiKeys(), ApiResult.Error("credits boom", 500), ApiResult.Error("activity boom", 500)
+                okApiKeys(),
+                ApiResult.Error("credits boom", 500),
+                ApiResult.Error("activity boom", 500)
             )
             val result = runLoad(settings, router)
             assertTrue(result is StatsDataLoader.LoadResult.Error)

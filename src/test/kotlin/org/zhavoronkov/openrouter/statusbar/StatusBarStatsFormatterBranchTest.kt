@@ -28,7 +28,10 @@ class StatusBarStatsFormatterBranchTest {
     @DisplayName("tooltip shows Unlimited when total is zero and no activity list")
     fun tooltipUnlimitedNoActivity() {
         val tooltip = StatusBarStatsFormatter.formatStatusTooltipFromCredits(
-            statusText = "Status: Ready", used = 2.0, total = 0.0, activityList = null
+            statusText = "Status: Ready",
+            used = 2.0,
+            total = 0.0,
+            activityList = null
         )
         assertTrue(tooltip.contains("Unlimited"))
         assertFalse(tooltip.contains("<b>Activity</b>"))
@@ -39,7 +42,9 @@ class StatusBarStatsFormatterBranchTest {
     fun tooltipWithActivity() {
         val today = LocalDate.now(ZoneId.of("UTC")).toString()
         val tooltip = StatusBarStatsFormatter.formatStatusTooltipFromCredits(
-            statusText = "Status: Ready", used = 2.0, total = 10.0,
+            statusText = "Status: Ready",
+            used = 2.0,
+            total = 10.0,
             activityList = listOf(activity(today, 1.0))
         )
         assertTrue(tooltip.contains("<b>Activity</b>"))
@@ -86,8 +91,11 @@ class StatusBarStatsFormatterBranchTest {
     fun tooltipRemainingNa() {
         val today = LocalDate.now(ZoneId.of("UTC")).toString()
         val tooltip = StatusBarStatsFormatter.formatStatusTooltipFromCredits(
-            statusText = "Status: Ready", used = 2.0, total = 10.0,
-            activityList = listOf(activity(today, 1.0)), creditsData = null
+            statusText = "Status: Ready",
+            used = 2.0,
+            total = 10.0,
+            activityList = listOf(activity(today, 1.0)),
+            creditsData = null
         )
         assertTrue(tooltip.contains("N/A"))
     }

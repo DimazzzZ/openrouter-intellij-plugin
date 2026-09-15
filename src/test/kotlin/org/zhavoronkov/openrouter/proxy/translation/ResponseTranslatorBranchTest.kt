@@ -37,9 +37,11 @@ class ResponseTranslatorBranchTest {
         val response = ChatCompletionResponse(
             id = "gen-2",
             model = "openai/gpt-4o",
-            choices = listOf(ChatChoice(index = 0,
+            choices = listOf(ChatChoice(
+                index = 0,
                 message = ChatMessage(role = "assistant", content = JsonPrimitive("hi")),
-                finishReason = "stop"))
+                finishReason = "stop"
+            ))
         )
         val translated = ResponseTranslator.translateChatCompletionResponse(response, "gpt-4o")
         assertEquals("assistant", translated.choices[0].message.role)
@@ -50,8 +52,10 @@ class ResponseTranslatorBranchTest {
         id: String = "chatcmpl-1",
         model: String = "gpt-4o",
         choices: List<OpenAIChatChoice> = listOf(
-            OpenAIChatChoice(index = 0,
-                message = OpenAIChatMessage(role = "assistant", content = JsonPrimitive("hello")))
+            OpenAIChatChoice(
+                index = 0,
+                message = OpenAIChatMessage(role = "assistant", content = JsonPrimitive("hello"))
+            )
         )
     ) = OpenAIChatCompletionResponse(id = id, created = 0, model = model, choices = choices)
 
@@ -82,16 +86,20 @@ class ResponseTranslatorBranchTest {
     @Test
     @DisplayName("validate rejects a choice with neither content nor tool calls")
     fun validateRejectsEmptyChoice() {
-        val choice = OpenAIChatChoice(index = 0,
-            message = OpenAIChatMessage(role = "assistant", content = JsonPrimitive("")))
+        val choice = OpenAIChatChoice(
+            index = 0,
+            message = OpenAIChatMessage(role = "assistant", content = JsonPrimitive(""))
+        )
         assertFalse(ResponseTranslator.validateTranslatedResponse(validResponse(choices = listOf(choice))))
     }
 
     @Test
     @DisplayName("validate rejects a choice with a blank role")
     fun validateRejectsBlankRole() {
-        val choice = OpenAIChatChoice(index = 0,
-            message = OpenAIChatMessage(role = "", content = JsonPrimitive("hi")))
+        val choice = OpenAIChatChoice(
+            index = 0,
+            message = OpenAIChatMessage(role = "", content = JsonPrimitive("hi"))
+        )
         assertFalse(ResponseTranslator.validateTranslatedResponse(validResponse(choices = listOf(choice))))
     }
 }
