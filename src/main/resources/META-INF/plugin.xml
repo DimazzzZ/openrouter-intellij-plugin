@@ -68,6 +68,42 @@
 
     <!-- Change notes for this version -->
     <change-notes><![CDATA[
+        <h3>🎉 Version 0.6.0 - Presets CRUD, Favorites Redesign, Variants & Provider Routing (2026-09-15)</h3>
+        <p><strong>🎛️ Presets CRUD via OpenRouter API:</strong></p>
+        <ul>
+            <li><strong>List &amp; Refresh</strong> - Settings → Presets fetches your presets from the API and refreshes on demand, replacing hand-typed slugs</li>
+            <li><strong>Create &amp; Update</strong> - New Preset creates a slug; saving an existing slug posts a new version</li>
+            <li><strong>Verbatim Config</strong> - Unknown generation keys and the server-side <code>tools</code> array are preserved, not flattened</li>
+            <li><strong>Built-in Presets Preserved</strong> - <code>openrouter/auto</code> and <code>openrouter/free</code> stay listed and feed the <code>@preset/</code> selector</li>
+        </ul>
+        <p><strong>⭐ Favorite Models Page Redesign:</strong></p>
+        <ul>
+            <li><strong>Single Catalog Table</strong> - One table with a favorite checkbox column replaces the two-table Add/Remove picker</li>
+            <li><strong>Favorites-Only Mode</strong> - Reorder via Move Up/Down, Alt+↑/↓ and drag-and-drop in stored order</li>
+            <li><strong>Filters &amp; Sorting</strong> - Provider, Context, Variant and multi-select Capabilities filters; sort by Model, Context, Input or Output price</li>
+        </ul>
+        <p><strong>🏷️ Model Variants:</strong></p>
+        <ul>
+            <li><strong>Variant Parsing &amp; Chips</strong> - Suffixes (<code>:free</code>, <code>:nitro</code>, <code>:exacto</code>, <code>:floor</code>, <code>:batch</code>) parse into structured values with colored badges</li>
+            <li><strong>Catalog-Driven Filter</strong> - The Variant drop-down only offers suffixes the loaded catalog actually carries</li>
+            <li><strong>Removed Deprecated Variants</strong> - Dropped <code>:extended</code>, <code>:thinking</code>, <code>:online</code>; saved favorites auto-migrate to their base ID</li>
+        </ul>
+        <p><strong>🎛️ Provider Routing:</strong></p>
+        <ul>
+            <li><strong>Settings Page</strong> - Configure global routing defaults (order, fallbacks, sort, data collection, quantizations, only/ignore)</li>
+            <li><strong>Proxy Injection</strong> - Configured routing is injected into outbound requests, never overwriting client-supplied <code>provider</code>/<code>models[]</code></li>
+        </ul>
+        <p><strong>🔧 Streaming Tool-Call Support:</strong></p>
+        <ul>
+            <li><strong>Tool-Call Accumulator</strong> - Streaming <code>delta.tool_calls</code> fragments are reassembled across SSE chunks</li>
+            <li><strong>AI Assistant Agent Mode</strong> - Streaming tool calls now flow correctly through the proxy</li>
+        </ul>
+        <p><strong>🎨 Brand Refresh:</strong></p>
+        <ul>
+            <li><strong>New OpenRouter Glyph</strong> - All 10 plugin icons redrawn to the current brand glyph, theme-aware and HiDPI-ready</li>
+        </ul>
+        <p><a href="https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/CHANGELOG.md">Full Changelog</a></p>
+        <hr/>
         <h3>🎉 Version 0.5.3 - Reasoning Controls, Tool Calling & Settings Fixes (2026-06-18)</h3>
         
         <p><strong>💬 Reasoning & Verbosity Controls:</strong></p>

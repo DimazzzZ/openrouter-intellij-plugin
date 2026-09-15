@@ -5,19 +5,21 @@
 # OpenRouter IntelliJ Plugin
 
 [![JetBrains Plugin](https://img.shields.io/badge/JetBrains-Plugin-orange.svg)](https://plugins.jetbrains.com/plugin/28520)
-[![Version](https://img.shields.io/badge/version-0.5.3-blue.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
+[![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
 [![CI](https://github.com/DimazzzZ/openrouter-intellij-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/badge/coverage-74%25%20lines-yellow.svg?logo=kotlin)](TESTING.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.ai), providing access to 400+ AI models with usage monitoring, quota tracking, and seamless JetBrains AI Assistant integration.
 
-## What's New in v0.5.3
+## What's New in v0.6.0
 
-- **💬 Reasoning & Verbosity Controls** - New dropdowns in chat panel for model-specific reasoning effort and response verbosity
-- **🔧 Tool Calling Support** - Proxy translation layer now handles tool calls for AI Assistant agent workflows
-- **🔒 Settings Reliability** - Fixed API keys being lost on IDE restart (PasswordSafe race condition)
-- **🎯 Presets in AI Assistant** - Custom presets now appear in AI Assistant model selection dropdown
+- **🎛️ Presets CRUD via OpenRouter API** - Settings → Presets now lists, creates, and updates your OpenRouter presets over the API (no more hand-typed slugs); server-side `tools` config is preserved verbatim
+- **⭐ Favorite Models Page Redesign** - One catalog table with a favorite checkbox, favorites-only reorder mode (drag/Alt+↑↓), provider/context/variant/capability filters, and column sorting
+- **🏷️ Model Variants** - Model-ID suffixes (`:free`, `:nitro`, `:exacto`, `:floor`, `:batch`) parse into structured values with colored chips and a catalog-driven variant filter
+- **🎛️ Provider Routing** - New settings sub-page for global routing defaults, injected into outbound requests without ever overwriting client-supplied `provider`/`models[]`
+- **🔧 Streaming Tool-Call Support** - Streaming `delta.tool_calls` are reassembled correctly, unblocking AI Assistant Agent Mode
+- **🎨 Brand Refresh** - All plugin icons redrawn to the current OpenRouter brand glyph (theme-aware, HiDPI)
 
 ## Key Features
 

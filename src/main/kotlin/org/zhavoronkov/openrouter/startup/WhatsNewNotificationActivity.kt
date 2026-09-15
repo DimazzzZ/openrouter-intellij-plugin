@@ -31,7 +31,7 @@ class WhatsNewNotificationActivity : ProjectActivity {
         // plugin version, update this constant too, or the "What's New" notification
         // will not fire for the new release. (Follow-up: derive from
         // `PluginManagerCore.getPlugin(PluginId.getId(...))?.version`.)
-        private const val CURRENT_VERSION = "0.5.3"
+        private const val CURRENT_VERSION = "0.6.0"
         private const val CHANGELOG_URL =
             "https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/CHANGELOG.md"
     }
@@ -73,21 +73,21 @@ class WhatsNewNotificationActivity : ProjectActivity {
             .createNotification(
                 "OpenRouter Plugin Updated to v$CURRENT_VERSION",
                 """
-                <b>💬 Reasoning & Verbosity Controls:</b><br/>
-                • <b>Reasoning Dropdown</b> - Control reasoning effort for supported models<br/>
-                • <b>Verbosity Dropdown</b> - Control response verbosity level<br/>
-                • <b>Auto-Detection</b> - Model capabilities from OpenRouter API<br/>
+                <b>🎛️ Presets CRUD via OpenRouter API:</b><br/>
+                • <b>List, Create & Update</b> - Manage presets over the API, no hand-typed slugs<br/>
+                • <b>Verbatim Config</b> - Server-side <code>tools</code> array preserved as-is<br/>
                 <br/>
-                <b>🔧 Tool Calling Support:</b><br/>
-                • <b>Proxy Translation</b> - Tool call handling in proxy layer<br/>
-                • <b>Agent Foundation</b> - Infrastructure for AI Assistant workflows<br/>
+                <b>⭐ Favorite Models Page Redesign:</b><br/>
+                • <b>Single Table</b> - Checkbox favorites, reorder, filters and column sorting<br/>
                 <br/>
-                <b>🔒 Settings Reliability:</b><br/>
-                • <b>Fixed Settings Loss</b> - API keys no longer lost on IDE restart<br/>
-                • <b>Deprecated API Fix</b> - Updated CredentialAttributes usage<br/>
+                <b>🏷️ Model Variants:</b><br/>
+                • <b>Suffix Chips</b> - <code>:free</code>, <code>:nitro</code>, <code>:exacto</code>, <code>:floor</code>, <code>:batch</code> parsed and badged<br/>
                 <br/>
-                <b>🎯 AI Assistant Improvements:</b><br/>
-                • <b>Presets in Dropdown</b> - Custom presets now in model selection
+                <b>🎛️ Provider Routing:</b><br/>
+                • <b>Global Defaults</b> - Injected without overwriting client routing<br/>
+                <br/>
+                <b>🔧 Streaming Tool Calls:</b><br/>
+                • <b>Agent Mode</b> - Streaming tool calls reassembled correctly
                 """.trimIndent(),
                 NotificationType.INFORMATION
             )
