@@ -480,4 +480,101 @@ class ModelProviderUtilsTest {
     fun `extractProvider should handle preset slug`() {
         assertEquals("@preset", ModelProviderUtils.extractProvider("@preset/email-copywriter"))
     }
+
+    // --- Coverage gap fillers: null-architecture branches, ContextRange.fromDisplayName, ModelId.toFullId ---
+
+    @Test
+    fun `hasCapability VISION returns false when architecture is null`() {
+        val model = createModel("openai/gpt-4o", architecture = null)
+        assertFalse(ModelProviderUtils.hasCapability(model, ModelProviderUtils.Capability.VISION))
+    }
+
+    @Test
+    fun `hasCapability AUDIO returns false when architecture is null`() {
+        val model = createModel("openai/gpt-4o", architecture = null)
+        assertFalse(ModelProviderUtils.hasCapability(model, ModelProviderUtils.Capability.AUDIO))
+    }
+
+    @Test
+    fun `hasCapability AUDIO returns false when inputModalities is null`() {
+        val model = createModel(
+            "openai/gpt-4o",
+            architecture = ModelArchitecture(inputModalities = null)
+        )
+        assertFalse(ModelProviderUtils.hasCapability(model, ModelProviderUtils.Capability.AUDIO))
+    }
+
+    @Test
+    fun `hasCapability TOOLS returns false when supportedParameters is null`() {
+        val model = createModel("openai/gpt-4o", supportedParameters = null)
+        assertFalse(ModelProviderUtils.hasCapability(model, ModelProviderUtils.Capability.TOOLS))
+    }
+
+    @Test
+    fun `hasCapability IMAGE_GENERATION returns false when architecture is null`() {
+        val model = createModel("openai/gpt-4o", architecture = null)
+        assertFalse(ModelProviderUtils.hasCapability(model, ModelProviderUtils.Capability.IMAGE_GENERATION))
+    }
+
+    @Test
+    fun `hasCapability IMAGE_GENERATION returns false when outputModalities is null`() {
+        val model = createModel(
+            "openai/gpt-4o",
+            architecture = ModelArchitecture(outputModalities = null)
+        )
+        assertFalse(ModelProviderUtils.hasCapability(model, ModelProviderUtils.Capability.IMAGE_GENERATION))
+    }
+
+    @Test
+    fun `hasCapability VISION returns false when inputModalities is null`() {
+        val model = createModel(
+            "openai/gpt-4o",
+            architecture = ModelArchitecture(inputModalities = null)
+        )
+        assertFalse(ModelProviderUtils.hasCapability(model, ModelProviderUtils.Capability.VISION))
+    }
+
+    @Test
+    fun `ContextRange fromDisplayName resolves known ranges`() {
+        assertEquals(
+            ModelProviderUtils.ContextRange.ANY,
+            ModelProviderUtils.ContextRange.fromDisplayName("Any")
+        )
+        assertEquals(
+            ModelProviderUtils.ContextRange.SMALL,
+            ModelProviderUtils.ContextRange.fromDisplayName(ModelProviderUtils.ContextRange.SMALL.displayName)
+        )
+    }
+
+    @Test
+    fun `ContextRange fromDisplayName falls back to ANY for unknown name`() {
+        assertEquals(
+            ModelProviderUtils.ContextRange.ANY,
+            ModelProviderUtils.ContextRange.fromDisplayName("not-a-real-range")
+        )
+    }
+
+    @Test
+    fun `ModelId toFullId round-trips a plain provider slash model`() {
+        val parsed = ModelProviderUtils.parseModelId("openai/gpt-4o")
+        assertEquals("OpenAI/gpt-4o", parsed.toFullId())
+    }
+
+    @Test
+    fun `ModelId toFullId reattaches a known variant suffix`() {
+        val parsed = ModelProviderUtils.parseModelId("openai/gpt-4o:free")
+        assertEquals("OpenAI/gpt-4o:free", parsed.toFullId())
+    }
+
+    @Test
+    fun `ModelId toFullId reattaches an unknown variant suffix`() {
+        val parsed = ModelProviderUtils.parseModelId("openai/gpt-4o:brand-new")
+        assertEquals("OpenAI/gpt-4o:brand-new", parsed.toFullId())
+    }
+
+    @Test
+    fun `ModelId toFullId formats a preset slug`() {
+        val parsed = ModelProviderUtils.parseModelId("@preset/email-copywriter")
+        assertEquals("@preset/email-copywriter", parsed.toFullId())
+    }
 }

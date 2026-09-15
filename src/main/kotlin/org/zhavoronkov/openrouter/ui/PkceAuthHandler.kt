@@ -34,6 +34,43 @@ class PkceAuthHandler(
 ) {
     private var serverJob: Job? = null
 
+    companion object {
+        private const val VERIFIER_BYTE_LENGTH = 32
+
+        /**
+         * Generate a cryptographically secure PKCE code verifier: [VERIFIER_BYTE_LENGTH]
+         * random bytes, base64url-encoded without padding (RFC 7636 §4.1).
+         */
+        internal fun generatePkceVerifier(secureRandom: SecureRandom = SecureRandom()): String {
+            val bytes = ByteArray(VERIFIER_BYTE_LENGTH)
+            secureRandom.nextBytes(bytes)
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+        }
+
+        /**
+         * Derive the S256 PKCE code challenge from [codeVerifier]: SHA-256 of the ASCII
+         * verifier, base64url-encoded without padding (RFC 7636 §4.2).
+         */
+        internal fun generatePkceChallenge(codeVerifier: String): String {
+            val bytes = codeVerifier.toByteArray(Charsets.US_ASCII)
+            val messageDigest = MessageDigest.getInstance("SHA-256")
+            messageDigest.update(bytes, 0, bytes.size)
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(messageDigest.digest())
+        }
+
+        /**
+         * Extract the OAuth authorization code from an HTTP request line such as
+         * `GET /callback?code=abc123&state=x HTTP/1.1`. Returns null when the line is not a
+         * callback request or carries no `code` parameter.
+         */
+        internal fun extractAuthCode(requestLine: String): String? {
+            if (!requestLine.contains("GET /callback")) return null
+            if (!requestLine.contains("code=")) return null
+            val code = requestLine.substringAfter("code=").substringBefore(" ").substringBefore("&")
+            return code.ifEmpty { null }
+        }
+    }
+
     /**
      * Start the PKCE authentication flow
      */
@@ -50,21 +87,14 @@ class PkceAuthHandler(
      */
     private fun generateCodeVerifier(): String {
         SetupWizardLogger.logPkceEvent("Generating code verifier")
-        val secureRandom = SecureRandom()
-        val codeVerifier = ByteArray(32)
-        secureRandom.nextBytes(codeVerifier)
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(codeVerifier)
+        return generatePkceVerifier()
     }
 
     /**
      * Generate code challenge from verifier using SHA-256
      */
     private fun generateCodeChallenge(codeVerifier: String): String {
-        val bytes = codeVerifier.toByteArray(Charsets.US_ASCII)
-        val messageDigest = MessageDigest.getInstance("SHA-256")
-        messageDigest.update(bytes, 0, bytes.size)
-        val digest = messageDigest.digest()
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(digest)
+        return generatePkceChallenge(codeVerifier)
     }
 
     /**
@@ -139,7 +169,7 @@ class PkceAuthHandler(
             SetupWizardLogger.logPkceEvent("Request received", line.take(50) + "...")
 
             if (line.contains("GET /callback")) {
-                val code = line.substringAfter("code=").substringBefore(" ").substringBefore("&")
+                val code = extractAuthCode(line) ?: return null
                 SetupWizardLogger.logPkceEvent("Auth code extracted", "code=${code.take(5)}...")
 
                 // Send success response

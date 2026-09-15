@@ -347,14 +347,78 @@ kover {
         filters {
             excludes {
                 classes(
-                    "org.zhavoronkov.openrouter.ui.*",
-                    "org.zhavoronkov.openrouter.ui.*\$*",
-                    "org.zhavoronkov.openrouter.service.*Service",
-                    "org.zhavoronkov.openrouter.service.*Service\$*",
-                    "org.zhavoronkov.openrouter.settings.*",
-                    "org.zhavoronkov.openrouter.settings.*\$*",
+                    // Swing views, dialogs, and table renderers (pure UI, not unit-testable).
+                    // Named explicitly so pure-logic files in the same packages count toward coverage.
+                    "org.zhavoronkov.openrouter.ui.ModelVariantChipRenderer",
+                    "org.zhavoronkov.openrouter.ui.ModelVariantChipRenderer\$*",
+                    "org.zhavoronkov.openrouter.ui.OpenRouterStatsPopup",
+                    "org.zhavoronkov.openrouter.ui.OpenRouterStatsPopup\$*",
+                    "org.zhavoronkov.openrouter.ui.SetupWizardDialog",
+                    "org.zhavoronkov.openrouter.ui.SetupWizardDialog\$*",
+                    "org.zhavoronkov.openrouter.ui.VariantChipTableCellRenderer",
+                    "org.zhavoronkov.openrouter.ui.VariantChipTableCellRenderer\$*",
+                    // IntelliJ Configurable glue and Swing settings panels (framework wiring / views).
+                    "org.zhavoronkov.openrouter.settings.ApiKeyDialogManager",
+                    "org.zhavoronkov.openrouter.settings.ApiKeyDialogManager\$*",
+                    "org.zhavoronkov.openrouter.settings.FavoriteModelsConfigurable",
+                    "org.zhavoronkov.openrouter.settings.FavoriteModelsConfigurable\$*",
+                    "org.zhavoronkov.openrouter.settings.FavoriteModelsSettingsPanel",
+                    "org.zhavoronkov.openrouter.settings.FavoriteModelsSettingsPanel\$*",
+                    "org.zhavoronkov.openrouter.settings.OpenRouterConfigurable",
+                    "org.zhavoronkov.openrouter.settings.OpenRouterConfigurable\$*",
+                    "org.zhavoronkov.openrouter.settings.OpenRouterSettingsPanel",
+                    "org.zhavoronkov.openrouter.settings.OpenRouterSettingsPanel\$*",
+                    "org.zhavoronkov.openrouter.settings.PresetsConfigurable",
+                    "org.zhavoronkov.openrouter.settings.PresetsConfigurable\$*",
+                    "org.zhavoronkov.openrouter.settings.PresetsSettingsPanel",
+                    "org.zhavoronkov.openrouter.settings.PresetsSettingsPanel\$*",
+                    "org.zhavoronkov.openrouter.settings.ProviderRoutingConfigurable",
+                    "org.zhavoronkov.openrouter.settings.ProviderRoutingConfigurable\$*",
+                    "org.zhavoronkov.openrouter.settings.ProviderRoutingSettingsPanel",
+                    "org.zhavoronkov.openrouter.settings.ProviderRoutingSettingsPanel\$*",
+                    // Swing table column/toolbar wiring in the favorites subpackage.
+                    "org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsTableColumns",
+                    "org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsTableColumns\$*",
+                    "org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsToolbarActions",
+                    "org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsToolbarActions\$*",
+                    // Startup activities and actions are IntelliJ lifecycle/command wiring.
                     "org.zhavoronkov.openrouter.startup.*",
-                    "org.zhavoronkov.openrouter.actions.*"
+                    "org.zhavoronkov.openrouter.startup.*\$*",
+                    "org.zhavoronkov.openrouter.actions.*",
+                    "org.zhavoronkov.openrouter.actions.*\$*",
+                    // Phase 0.5 EXCLUDE: async/EDT/Swing orchestration whose bodies are
+                    // ApplicationManager.invokeLater + Dispatchers.IO/Main launches, ServerSocket,
+                    // BrowserUtil, JTable/JButton/JBLabel wiring, or Messages dialogs. Not unit-
+                    // testable under the fast :test task (need a platform runner). The pure-logic
+                    // helpers in the same packages remain in scope.
+                    "org.zhavoronkov.openrouter.settings.ApiKeyManager",
+                    "org.zhavoronkov.openrouter.settings.ApiKeyManager\$*",
+                    "org.zhavoronkov.openrouter.settings.IntellijApiKeyManager",
+                    "org.zhavoronkov.openrouter.settings.IntellijApiKeyManager\$*",
+                    "org.zhavoronkov.openrouter.settings.ModelsDataManager",
+                    "org.zhavoronkov.openrouter.settings.ModelsDataManager\$*",
+                    "org.zhavoronkov.openrouter.settings.ProxyServerManager",
+                    "org.zhavoronkov.openrouter.settings.ProxyServerManager\$*",
+                    "org.zhavoronkov.openrouter.ui.PkceAuthHandler",
+                    "org.zhavoronkov.openrouter.ui.PkceAuthHandler\$*",
+                    // Phase B3: AI Assistant provider integration.
+                    // openSettings() calls ShowSettingsUtil.getInstance().showSettingsDialog(...),
+                    // which requires the IntelliJ platform (see platformTest task). Exception
+                    // handlers in validateModelConfiguration() and onProviderStateChanged() are
+                    // defensive paths that only execute if mocked services throw — not realistic
+                    // in unit tests. The pure configuration/validation logic on this class is
+                    // covered by OpenRouterModelConfigurationProviderTest. The no-arg constructor
+                    // is also platform-bound (calls OpenRouterSettingsService.getInstance()).
+                    "org.zhavoronkov.openrouter.aiassistant.OpenRouterModelConfigurationProvider",
+                    "org.zhavoronkov.openrouter.aiassistant.OpenRouterModelConfigurationProvider\$*",
+                    // OpenRouterChatModelProvider: sendChatRequest/sendCompletionRequest configured
+                    // branches call makeOpenRouterRequest, which opens an OkHttp connection to
+                    // openrouter.ai. Network-bound — belongs to functional/integration testing, not
+                    // the fast :test task. The pure-logic surface (request body creation, response
+                    // parsing, token estimation, streaming flag, not-configured short-circuits) is
+                    // covered by OpenRouterChatModelProviderTest + OpenRouterChatModelProviderLogicTest.
+                    "org.zhavoronkov.openrouter.aiassistant.OpenRouterChatModelProvider",
+                    "org.zhavoronkov.openrouter.aiassistant.OpenRouterChatModelProvider\$*"
                 )
             }
         }

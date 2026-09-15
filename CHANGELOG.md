@@ -59,6 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dead Variant Filter Options** - Nitro, Floor and Exacto were offered in the Variant drop-down but can never match: they are request-time routing shortcuts, not catalog entries. The drop-down is now built from the loaded catalog, and a selected variant that a reloaded catalog no longer carries resets to Any
 
 ### Build & Tooling
+- **Kover Coverage Scope Refined** - Replaced broad wildcard exclusions (`ui.*`, `settings.*`, `*Service`) with explicit, per-class exclusions carrying documented rationale, so pure-logic files sharing a package with Swing views, IntelliJ `Configurable` glue, or platform-bound services now count toward coverage instead of being silently skipped
 - **One Pinned Verification Target** - Local runs, PR CI and releases all read `verifierIdes` from `gradle.properties` (currently `IU-2025.3.6.1`, the oldest build satisfying `pluginSinceBuild`), so the three cannot disagree. Not a Community build: JetBrains unified the IDEA distribution at 2025.3, so no IC artifact exists for build 253 or later
 - **Manual Local Verification** - `./scripts/fast-build.sh verify local` checks the plugin against the IDE installed on the machine, which is how deprecations from newer IDEs get noticed before the pin moves; those findings gate nothing
 - **Faster Builds** - `buildSearchableOptions` launches a headless IDE and only the published archive needs it, so it is now opt-in via `-Prelease`. With a warm `~/.pluginVerifier` cache a verification run takes about a minute instead of half an hour
@@ -68,6 +69,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`/models/count` request** on the Favorite Models page - the status line now counts the loaded catalog
 
 ### Testing
+
+#### 🧪 Kotlin Unit-Test Coverage Campaign
+- **Test Seams, Not Behavior Changes** - Widened select production members to `internal` and added `internal` DI constructors (defaulting to `getInstance()`) on the AI Assistant providers (`OpenRouterChatContextProvider`, `OpenRouterChatModelProvider`, `OpenRouterModelConfigurationProvider`, `OpenRouterSmartChatEndpointProvider`) and extracted the pure PKCE helpers (`generatePkceVerifier`, `generatePkceChallenge`, `extractAuthCode`) on `PkceAuthHandler` — public behavior is unchanged
+- **AI Assistant Provider Tests** - New off-platform unit suites for chat context, chat model logic (request-body creation, response parsing, token estimation, streaming flag, not-configured short-circuits), model configuration, the smart chat endpoint, and extended model-provider coverage
+- **Proxy Tests** - New `OpenAIBaseServlet`, `RequestTranslator` and `ResponseTranslator` branch tests, plus expanded servlet suites (health check, models, root, request builder/validator, streaming/non-streaming handlers)
+- **Service & Settings Tests** - New `OpenRouterService` endpoint/branch tests, `FavoriteModelsService` API tests and `ApiKeySettingsManager` branch tests; expanded balance-notifier, credit-history, generation-tracking, proxy-service and settings-migration suites
+- **UI, Utils & Status-Bar Tests** - New `PkceAuthHandler`, `StatsDataLoader`, `OkHttpExtensions`, `PluginLogger` and `StatusBarStatsFormatter` tests; expanded stats-formatter, encryption, model-availability and model-provider-utils suites
+- **Documented Coverage Ceilings** - `TESTING.md` records which service/logger lines are intentionally excluded from the fast `test` task because they require a live IntelliJ `Application` (message bus, `invokeLater`, extension points, sockets), and why each belongs to a future `*PlatformTest`
+
 - Preset model JSON round-trip tests using payloads captured from the live API (verbatim config/`tools` passthrough)
 - MockWebServer tests for `OpenRouterService` list/read/create-update (path, verb, auth header, config passthrough), plus error-path coverage: HTTP non-2xx status propagation, malformed-JSON parse errors, network failures, and the no-API-key short-circuit
 - Platform-free unit tests for `PresetsPageState` (list, selection, edit, create vs new-version, error surfacing)

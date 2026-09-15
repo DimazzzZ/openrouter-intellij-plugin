@@ -13,9 +13,11 @@ import java.util.concurrent.TimeoutException
  * OpenRouter Chat Model Provider for AI Assistant integration
  * Handles the actual chat/completion requests when AI Assistant uses OpenRouter models
  */
-class OpenRouterChatModelProvider {
+class OpenRouterChatModelProvider internal constructor(
+    private val settingsService: OpenRouterSettingsService
+) {
+    constructor() : this(OpenRouterSettingsService.getInstance())
 
-    private val settingsService = OpenRouterSettingsService.getInstance()
     private val gson = Gson()
 
     companion object {
@@ -123,7 +125,7 @@ class OpenRouterChatModelProvider {
         return (text.length / CHARS_PER_TOKEN).coerceAtLeast(1)
     }
 
-    private fun createChatRequestBody(
+    internal fun createChatRequestBody(
         modelId: String,
         messages: List<ChatMessage>,
         maxTokens: Int,
@@ -171,7 +173,7 @@ class OpenRouterChatModelProvider {
         }
     }
 
-    private fun parseOpenRouterResponse(responseBody: String?): ChatResponse {
+    internal fun parseOpenRouterResponse(responseBody: String?): ChatResponse {
         return try {
             when {
                 responseBody.isNullOrBlank() -> ChatResponse.error("Empty response from OpenRouter")
@@ -186,13 +188,13 @@ class OpenRouterChatModelProvider {
         }
     }
 
-    private fun parseValidResponse(responseBody: String): ChatResponse {
+    internal fun parseValidResponse(responseBody: String): ChatResponse {
         val responseJson = gson.fromJson(responseBody, JsonObject::class.java)
             ?: return ChatResponse.error("Invalid response format")
         return parseResponseJson(responseJson)
     }
 
-    private fun parseResponseJson(responseJson: JsonObject): ChatResponse {
+    internal fun parseResponseJson(responseJson: JsonObject): ChatResponse {
         val errorObject = ResponseJsonParser.getAsJsonObjectOrNull(responseJson, "error")
         if (errorObject != null) {
             val errorMessage = ResponseJsonParser.getAsStringOrNull(errorObject, "message") ?: "Unknown error"
