@@ -2,6 +2,7 @@ package org.zhavoronkov.openrouter.settings
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.ui.ComboBox
+import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.ToolbarDecorator
@@ -15,6 +16,7 @@ import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 import java.awt.Dimension
 import javax.swing.DefaultComboBoxModel
 import javax.swing.DefaultListModel
+import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.ListSelectionModel
 
@@ -31,6 +33,20 @@ class ProviderRoutingSettingsPanel : Disposable {
         private val SORT_OPTIONS = listOf("", "price", "throughput", "latency")
         private val DATA_COLLECTION_OPTIONS = listOf("", "allow", "deny")
         private val QUANTIZATIONS = listOf("int4", "int8", "fp8", "fp16", "bf16", "fp32")
+
+        /**
+         * Modal single-choice picker used by the "add provider" actions.
+         *
+         * Replaces the deprecated Messages.showChooseDialog overload, which has no drop-in
+         * replacement reachable from the 2025.3 compile target (the HtmlChunk-based and
+         * dialog-builder variants only landed in 2026.x). Returns the selected item, or
+         * null on cancel.
+         */
+        private fun chooseFromList(message: String, title: String, options: List<String>): String? {
+            if (options.isEmpty()) return null
+            val dialog = ProviderChooserDialog(message, title, options)
+            return if (dialog.showAndGet()) dialog.selected else null
+        }
     }
 
     private val settingsService = OpenRouterSettingsService.getInstance()
@@ -204,16 +220,8 @@ class ProviderRoutingSettingsPanel : Disposable {
             return
         }
 
-        val selected = Messages.showChooseDialog(
-            "Select a provider to add:",
-            "Add Provider",
-            available.toTypedArray(),
-            available[0],
-            null
-        )
-
-        if (selected in 0 until available.size) {
-            providerOrderModel.addElement(available[selected])
+        chooseFromList("Select a provider to add:", "Add Provider", available)?.let {
+            providerOrderModel.addElement(it)
         }
     }
 
@@ -299,15 +307,8 @@ class ProviderRoutingSettingsPanel : Disposable {
         val available = allProviders.filter { it !in used }
         if (available.isEmpty()) return
 
-        val selected = Messages.showChooseDialog(
-            "Select a provider to restrict to:",
-            "Add 'Only' Provider",
-            available.toTypedArray(),
-            available[0],
-            null
-        )
-        if (selected in 0 until available.size) {
-            onlyProvidersModel.addElement(available[selected])
+        chooseFromList("Select a provider to restrict to:", "Add 'Only' Provider", available)?.let {
+            onlyProvidersModel.addElement(it)
         }
     }
 
@@ -322,15 +323,8 @@ class ProviderRoutingSettingsPanel : Disposable {
         val available = allProviders.filter { it !in used }
         if (available.isEmpty()) return
 
-        val selected = Messages.showChooseDialog(
-            "Select a provider to exclude:",
-            "Add 'Ignore' Provider",
-            available.toTypedArray(),
-            available[0],
-            null
-        )
-        if (selected in 0 until available.size) {
-            ignoreProvidersModel.addElement(available[selected])
+        chooseFromList("Select a provider to exclude:", "Add 'Ignore' Provider", available)?.let {
+            ignoreProvidersModel.addElement(it)
         }
     }
 
@@ -416,4 +410,35 @@ class ProviderRoutingSettingsPanel : Disposable {
     override fun dispose() {
         // No special cleanup needed
     }
+}
+
+/**
+ * Small modal picker used to replace the deprecated Messages.showChooseDialog.
+ *
+ * A plain ComboBox inside a DialogWrapper; the initial selection defaults to the
+ * first entry, matching the previous initialValue = available[0] behaviour.
+ */
+private class ProviderChooserDialog(
+    private val message: String,
+    dialogTitle: String,
+    private val options: List<String>
+) : DialogWrapper(null, true) {
+
+    private val combo = ComboBox(DefaultComboBoxModel(options.toTypedArray())).apply {
+        if (options.isNotEmpty()) selectedIndex = 0
+    }
+
+    init {
+        title = dialogTitle
+        init()
+    }
+
+    val selected: String? get() = combo.selectedItem as? String
+
+    override fun createCenterPanel(): JComponent = panel {
+        row { label(message) }
+        row { cell(combo).align(Align.FILL) }
+    }
+
+    override fun getPreferredFocusedComponent(): JComponent = combo
 }

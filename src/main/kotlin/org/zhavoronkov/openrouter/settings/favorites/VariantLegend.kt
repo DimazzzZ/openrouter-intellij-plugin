@@ -38,15 +38,22 @@ object VariantLegend {
     }
 
     /**
-     * `setTitle` / `setDescription` are current API on the 2025.3 platform the plugin
-     * compiles against; 2026.2 deprecates every overload of both with no replacement
-     * reachable from 2025.3, so the verifier reports two deprecated usages when run
-     * against a newer IDE. They still work there — migrate when `platformVersion`
-     * moves to 2026.x.
+     * setTitle(Supplier) is the non-deprecated overload available on the 2025.3 compile
+     * target. setDescription(String), by contrast, is the ONLY description setter in
+     * 2025.3 — every overload is deprecated in 2026.2 and the replacement
+     * setDescription(HtmlChunk) is not reachable from 2025.3. There is no method that
+     * sets the description AND exists in both versions, so the @Suppress below is
+     * unavoidable while platformVersion stays on 2025.x; it silences the verifier for
+     * this single call only.
+     *
+     * TODO(platform 2026.x): when platformVersion moves to 2026.x, drop the @Suppress
+     * and replace `.setDescription(describe())` with
+     * `.setDescription(HtmlChunk.raw(describe()))` (import com.intellij.util.ui.HtmlChunk).
      */
+    @Suppress("DEPRECATION")
     fun createLabel(): ContextHelpLabel = ContextHelpLabel.createFromTooltip(
         HelpTooltip()
-            .setTitle(TITLE)
+            .setTitle { TITLE }
             .setDescription(describe())
             .setNeverHideOnTimeout(true)
             .setLocation(ALIGNMENT)
