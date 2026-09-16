@@ -31,3 +31,42 @@ Bundled OpenRouter-branded assets:
 
 This is an unofficial plugin and is not affiliated with, endorsed by, or sponsored
 by OpenRouter, Inc or JetBrains s.r.o.
+
+--------------------------------------------------------------------------------
+Third-party software
+--------------------------------------------------------------------------------
+
+The distributed plugin (the published .zip, under `lib/`) bundles the following
+third-party libraries. Their copyrights and licenses are retained here in
+accordance with those licenses. Each library remains under its own license; the
+Apache-2.0 license of this plugin does not relicense them.
+
+Apache License, Version 2.0:
+  - OkHttp (com.squareup.okhttp3:okhttp) - Copyright Square, Inc.
+  - Okio (com.squareup.okio:okio-jvm) - Copyright Square, Inc.
+  - Gson (com.google.code.gson:gson) - Copyright Google Inc.
+  - error-prone annotations (com.google.errorprone:error_prone_annotations) - Copyright Google LLC
+  - Eclipse Jetty (org.eclipse.jetty:*) - Copyright Mort Bay Consulting Pty Ltd
+    and others (dual-licensed under Apache-2.0 and EPL-2.0)
+  - Kotlin standard library (org.jetbrains.kotlin:kotlin-stdlib*) - Copyright JetBrains s.r.o.
+  - JetBrains Java annotations (org.jetbrains:annotations) - Copyright JetBrains s.r.o.
+
+BSD 2-Clause License:
+  - flexmark-java (com.vladsch.flexmark:*) - Copyright Vladimir Schneider and
+    contributors; portions Copyright Atlassian Pty Ltd (original commonmark-java)
+  - autolink-java (org.nibor.autolink:autolink) - Copyright Robin Stocker
+
+MIT License:
+  - SLF4J (org.slf4j:slf4j-api) - Copyright QOS.ch Sarl (Switzerland)
+
+Eclipse Public License 2.0 / GPL-2.0-with-classpath-exception (dual):
+  - Jakarta Servlet API (jakarta.servlet:jakarta.servlet-api) - Copyright Eclipse
+    Foundation and others
+
+Mozilla Public License 2.0:
+  - The Public Suffix List data bundled inside OkHttp
+    (okhttp3/internal/publicsuffix/publicsuffixes.gz), compiled from
+    https://publicsuffix.org/list/public_suffix_list.dat
+
+Full license texts are available in each library's respective source
+distribution and are referenced from the OSI/SPDX identifiers above.
