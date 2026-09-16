@@ -4,7 +4,7 @@
 
 ## 1. License Grant
 
-The OpenRouter IntelliJ Plugin ("the Plugin") is provided free of charge under the MIT License. You are granted a non-exclusive, revocable license to use, modify, and distribute the Plugin subject to the terms of the MIT License included in the repository.
+The OpenRouter IntelliJ Plugin ("the Plugin") is provided free of charge under the Apache License, Version 2.0. You are granted a non-exclusive, revocable license to use, modify, and distribute the Plugin subject to the terms of the Apache License, Version 2.0 included in the repository.
 
 ## 2. Scope of Use
 
@@ -55,7 +55,7 @@ This is an **unofficial** plugin. It is not developed by, endorsed by, or affili
 
 ## 10. Termination
 
-Your license to use the Plugin terminates if you violate the terms of the MIT License. You may terminate the license at any time by uninstalling the Plugin and deleting all copies.
+Your license to use the Plugin terminates if you violate the terms of the Apache License, Version 2.0. You may terminate the license at any time by uninstalling the Plugin and deleting all copies.
 
 ## 11. Governing Law
 
