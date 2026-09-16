@@ -162,7 +162,7 @@ jobs:
         echo "EOF" >> $GITHUB_OUTPUT
 
     - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: v${{ needs.validate-version.outputs.version }}
         name: Release ${{ needs.validate-version.outputs.version }}
@@ -170,6 +170,10 @@ jobs:
         prerelease: ${{ needs.validate-version.outputs.is_prerelease }}
         files: build/distributions/*.zip
         generate_release_notes: true
+        # Idempotent re-runs: update an existing release/tag instead of failing,
+        # and overwrite the plugin asset if it was already uploaded.
+        make_latest: ${{ needs.validate-version.outputs.is_prerelease != 'true' }}
+        overwrite_files: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
