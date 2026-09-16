@@ -9,7 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Relicensed to Apache-2.0** - The plugin is now distributed under the Apache License, Version 2.0 instead of the MIT License. Updated `LICENSE`, `NOTICE`, `README.md`, the EULA, and the marketplace submission checklist accordingly. Apache-2.0 adds an explicit patent grant and clearer contribution terms while remaining a permissive license.
+- **Relicensed to Apache-2.0** - The plugin is now distributed under the Apache License, Version 2.0 instead of the MIT License. Updated `LICENSE`, `NOTICE`, `README.md`, the EULA, and the marketplace submission checklist accordingly.
+
+  **Why the change?** Nothing about how you use this plugin changes — Apache-2.0 is still a permissive, business-friendly open-source license, so you can keep using, modifying, and redistributing it freely, for personal or commercial projects, at no cost. The move to Apache-2.0 simply adds a couple of protections that MIT does not spell out:
+  - **An explicit patent grant** so every contributor grants you a license to any patents their contribution touches — this protects users and contributors from patent surprises.
+  - **Clearer contribution and attribution terms**, which matter now that the plugin bundles several third-party libraries; each is credited in `NOTICE` under its own license.
+
+  Apache-2.0 is also the license the wider JetBrains and IntelliJ Platform ecosystem uses, so this keeps the plugin aligned with the tools it builds on. If you have questions about the change, please open an issue — happy to explain further.
 
 ## [0.6.0] - 2026-09-15
 
