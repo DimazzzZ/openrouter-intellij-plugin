@@ -59,7 +59,7 @@ This checklist aligns with the **JetBrains Marketplace Approval Guidelines v1.3 
 - [ ] **Video preview** (optional) demonstrates key features
 - [ ] **Tags** are relevant and accurate
 - [ ] **Category** is appropriate (e.g., "AI", "Integration")
-- [ ] **License** is specified (MIT)
+- [ ] **License** is specified (Apache-2.0)
 - [ ] **Source code URL** points to GitHub repository
 - [ ] **Privacy Policy URL** points to `docs/PRIVACY_POLICY.md`
 - [ ] **EULA / Terms URL** points to `docs/EULA.md`

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Relicensed to Apache-2.0** - The plugin is now distributed under the Apache License, Version 2.0 instead of the MIT License. Updated `LICENSE`, `NOTICE`, `README.md`, the EULA, and the marketplace submission checklist accordingly. Apache-2.0 adds an explicit patent grant and clearer contribution terms while remaining a permissive license.
+
 ## [0.6.0] - 2026-09-15
 
 ### New Features
