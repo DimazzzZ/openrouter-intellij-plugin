@@ -261,7 +261,33 @@ jobs:
         unzip -l "$PLUGIN_ZIP" | grep -E "openrouter-intellij-plugin/lib/openrouter-intellij-plugin.*\.jar$" || (echo "ERROR: Missing main plugin JAR" && exit 1)
         echo "SHA256: $(sha256sum "$PLUGIN_ZIP" | cut -d' ' -f1)"
 
+    - name: Check if version already on Marketplace
+      id: marketplace_check
+      env:
+        VERSION: ${{ needs.validate-version.outputs.version }}
+      run: |
+        # publishPlugin cannot re-upload an existing version. Skip it when VERSION
+        # is already published so idempotent re-runs finish green.
+        API="https://plugins.jetbrains.com/api/plugins/28520/updates"
+        RAW=$(curl -sS --fail --max-time 30 -H "Accept: application/json" "$API" || echo '__CURL_FAILED__')
+        if [ "$RAW" = "__CURL_FAILED__" ]; then
+          echo "::warning::Could not reach Marketplace API; proceeding with publish attempt."
+          echo "exists=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        # Marketplace release notes contain raw control chars that break strict jq;
+        # strip them since we only need the top-level .version field.
+        RESP=$(printf '%s' "$RAW" | tr -d '\000-\037')
+        if echo "$RESP" | jq -e --arg v "$VERSION" 'map(.version) | index($v) != null' >/dev/null; then
+          echo "Version $VERSION already exists on JetBrains Marketplace; skipping publish."
+          echo "exists=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "Version $VERSION not found on Marketplace; will publish."
+          echo "exists=false" >> "$GITHUB_OUTPUT"
+        fi
+
     - name: Sign and publish plugin to JetBrains Marketplace
+      if: steps.marketplace_check.outputs.exists != 'true'
       run: ./gradlew signPlugin publishPlugin -Prelease --build-cache
       env:
         CERTIFICATE_CHAIN: ${{ secrets.CERTIFICATE_CHAIN }}
@@ -269,7 +295,12 @@ jobs:
         PRIVATE_KEY_PASSWORD: ${{ secrets.PRIVATE_KEY_PASSWORD }}
         PUBLISH_TOKEN: ${{ secrets.PUBLISH_TOKEN }}
 
+    - name: Marketplace publish skipped (version already published)
+      if: steps.marketplace_check.outputs.exists == 'true'
+      run: echo "::notice::v${{ needs.validate-version.outputs.version }} is already on the JetBrains Marketplace; publish step skipped for idempotent re-run."
+
     - name: Update release with marketplace link
+      if: steps.marketplace_check.outputs.exists != 'true'
       uses: actions/github-script@v6
       with:
         script: |
