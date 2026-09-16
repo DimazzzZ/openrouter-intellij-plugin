@@ -188,7 +188,6 @@ jobs:
         PUBLISH_TOKEN: ${{ secrets.PUBLISH_TOKEN }}
         CERTIFICATE_CHAIN: ${{ secrets.CERTIFICATE_CHAIN }}
         PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
-        PRIVATE_KEY_PASSWORD: ${{ secrets.PRIVATE_KEY_PASSWORD }}
       run: |
         missing_secrets=""
         if [ -z "$PUBLISH_TOKEN" ]; then
@@ -199,9 +198,6 @@ jobs:
         fi
         if [ -z "$PRIVATE_KEY" ]; then
           missing_secrets="${missing_secrets}PRIVATE_KEY "
-        fi
-        if [ -z "$PRIVATE_KEY_PASSWORD" ]; then
-          missing_secrets="${missing_secrets}PRIVATE_KEY_PASSWORD "
         fi
 
         if [ -n "$missing_secrets" ]; then
@@ -216,11 +212,11 @@ jobs:
           echo ""
           echo "  - CERTIFICATE_CHAIN: Your plugin signing certificate chain (PEM format)"
           echo "  - PRIVATE_KEY: Your plugin signing private key (PEM format)"
-          echo "  - PRIVATE_KEY_PASSWORD: Password for the private key"
           echo "    Generate signing keys: https://plugins.jetbrains.com/docs/intellij/plugin-signing.html"
           exit 1
         fi
         echo "All required secrets are configured."
+        echo "Note: PRIVATE_KEY_PASSWORD is optional and only needed for an encrypted signing key."
 
     - name: Checkout code
       uses: actions/checkout@v4
