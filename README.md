@@ -8,7 +8,7 @@
 [![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
 [![CI](https://github.com/DimazzzZ/openrouter-intellij-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/badge/coverage-74%25%20lines-yellow.svg?logo=kotlin)](TESTING.md)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.ai), providing access to 400+ AI models with usage monitoring, quota tracking, and seamless JetBrains AI Assistant integration.
 
@@ -145,7 +145,7 @@ For cutting or re-running a release, see [docs/RELEASING.md](docs/RELEASING.md).
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+Apache License 2.0 - see [LICENSE](LICENSE) for details.
 
 ---
 
