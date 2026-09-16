@@ -129,6 +129,8 @@ See the [CHANGELOG](CHANGELOG.md#051---2026-03-27) for API details and the `Bala
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) for build instructions, testing, and contribution guidelines.
 
+For cutting or re-running a release, see [docs/RELEASING.md](docs/RELEASING.md).
+
 ## Legal & Privacy
 
 - **Privacy Policy**: [docs/PRIVACY_POLICY.md](docs/PRIVACY_POLICY.md)
