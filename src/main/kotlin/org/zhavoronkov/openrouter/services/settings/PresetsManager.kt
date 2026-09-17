@@ -19,21 +19,17 @@ class PresetsManager(
 ) {
     companion object {
         /**
-         * Built-in presets that are always available
-         * These are model IDs, not preset slugs, but provide similar functionality
+         * Built-in presets that are always available.
+         *
+         * Empty by design: `openrouter/auto`, `openrouter/free`, and the other
+         * `openrouter/` slugs (fusion, pareto-code, ...) are routers, not
+         * @preset/ server presets. They
+         * live in [org.zhavoronkov.openrouter.proxy.routing.RouterCatalog] and
+         * are configured under Settings → OpenRouter → Router Defaults, so the
+         * Presets page no longer double-lists them. Kept as an (empty) list to
+         * preserve the type and any external references.
          */
-        val BUILT_IN_PRESETS = listOf(
-            BuiltInPreset(
-                id = "openrouter/auto",
-                name = "Auto Router",
-                description = "Automatically routes to the best model based on prompt complexity"
-            ),
-            BuiltInPreset(
-                id = "openrouter/free",
-                name = "Free Models",
-                description = "Routes to free-tier models only"
-            )
-        )
+        val BUILT_IN_PRESETS = emptyList<BuiltInPreset>()
 
         /**
          * Prefix used for custom presets in API requests

@@ -75,8 +75,6 @@ class PresetsSettingsPanel(
         const val TOOLS_KEY = "tools"
         const val MISSING_KEY_MESSAGE =
             "To manage presets, add your API key in Tools -> OpenRouter -> Settings."
-        const val BUILT_IN_COMMENT =
-            "These presets are always available and don't need to be configured:"
         const val DELETE_NOTE =
             "Presets cannot be deleted here: OpenRouter has no delete endpoint, so deletion is web-UI only."
         const val TOOLS_NOTE =
@@ -118,7 +116,6 @@ class PresetsSettingsPanel(
         setupList()
 
         val content = panel {
-            builtInGroup()
             yourPresetsGroup()
             detailGroup()
             editorGroup()
@@ -129,18 +126,6 @@ class PresetsSettingsPanel(
         render()
         if (state.isConfigured && autoLoad) loadPresets()
         return loadingPanel
-    }
-
-    private fun Panel.builtInGroup() {
-        group("Built-in Presets") {
-            row { comment(BUILT_IN_COMMENT) }
-            PresetsManager.BUILT_IN_PRESETS.forEach { preset ->
-                row {
-                    label(preset.id).bold()
-                    label(" - ${preset.description}")
-                }.topGap(TopGap.NONE)
-            }
-        }
     }
 
     private fun Panel.yourPresetsGroup() {
