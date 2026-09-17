@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### New Features
+
+#### 🧭 Routers Hub
+- **First-Class Routers** - OpenRouter's model-routing slugs (`openrouter/auto`, `openrouter/fusion`, `openrouter/pareto-code`, `openrouter/fusion-flash`, `openrouter/free`) are now treated as first-class **routers** driven by a single declarative `RouterCatalog` (slug, display name, plugin id, tunable param), so no router-specific branching leaks into the rest of the codebase
+- **Router Defaults Settings Page** - New `Tools → OpenRouter → Router Defaults` sub-page persists a per-router default parameter once (`RouterDefaultsManager` + `RouterDefaultsConfigurable`), stored in settings state
+- **Chat Router Picker** - The chat model dropdown groups **Routers / Your Presets / Favorites** with disabled separator headers, adds an editable "Router:" parameter control (seeded from Router Defaults, guarded against stray refreshes), and shows a "Routed to X" footnote under router replies
+- **Router Slugs Advertised** - The proxy `/v1/models` endpoint now advertises every router slug, with custom presets deduped against catalog slugs
+
+### Bug Fixes
+- **OkHttp Connection Leak on Non-Streaming Calls** - `Call.awaitWithBody()` now reads and closes the response body via `Response.use`, fixing potential connection-pool leaks on non-streaming proxy calls
+
+### Improvements
+- **Declarative Plugin Config Serialization** - New `PluginConfig { id, params }` model with a class-level `@JsonAdapter` serializer flattens params next to `id` (the shape OpenRouter expects) even under a bare `Gson()`
+- **Router Defaults Injection Invariant** - `RouterPluginsInjector` injects the saved default only when a request omits `plugins` and targets a known router; client-sent `plugins` blocks are left verbatim
+- **Presets No Longer Double-List Routers** - `openrouter/auto` and `openrouter/free` are no longer listed as built-in presets (they are routers now); the empty Built-in Presets group was dropped
+
+### Build & Tooling
+- **Sandbox Locale Pinned to en_US** - Silences an Elevation `MissingResourceException` on en_RU dev hosts
+- **Gradle Hardened for External Cache** - Disabled vfs-watch and the instrumentation agent to stop native file-locking failures on an external Gradle cache volume
+
+### Testing
+- **Routers Hub Suites** - New `RouterCatalogTest`, `RouterRequestBuilderTest`, `PluginConfigTest`, `RouterDefaultsManagerTest`, and `RouterPluginsInjectorTest`; full `./gradlew test` is green
+
+### Documentation
+- Defined **Router**, **RouterCatalog**, and **PluginConfig** terms in [`docs/agents/domain.md`](docs/agents/domain.md)
+
 ## [0.6.0] - 2026-09-15
 
 ### New Features
