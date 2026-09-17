@@ -13,8 +13,8 @@ import com.intellij.openapi.wm.StatusBar
 import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.impl.status.EditorBasedWidget
 import com.intellij.ui.awt.RelativePoint
-import com.intellij.util.Consumer
 import com.intellij.util.Alarm
+import com.intellij.util.Consumer
 import org.zhavoronkov.openrouter.listeners.OpenRouterSettingsListener
 import org.zhavoronkov.openrouter.listeners.OpenRouterStatsListener
 import org.zhavoronkov.openrouter.models.ActivityData
