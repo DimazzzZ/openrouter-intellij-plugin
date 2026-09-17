@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Router Slugs Advertised** - The proxy `/v1/models` endpoint now advertises every router slug, with custom presets deduped against catalog slugs
 
 ### Bug Fixes
+- **Status-Bar Widget ClassLoader Leak (#77)** - The status-bar auto-refresh ran in a detached `executeOnPooledThread` + `while (true) { Thread.sleep(...) }` loop that was never cancelled on widget dispose. On plugin reload/update the stale worker survived and re-resolved `OpenRouterSettingsService` through the *new* `PluginClassLoader`, colliding old and new copies of the same class (`ClassCastException: ... loaded by different PluginClassLoaders`). The loop is replaced with a `com.intellij.util.Alarm` parented to the widget (`EditorBasedWidget` is `Disposable`), so disposing the widget transitively disposes the alarm and cancels all pending ticks — no tick can outlive its classloader. As a bonus, `refreshInterval` changes now take effect on the next tick (previously captured once at loop start), and repeated project opens no longer leave orphan threads. Covered by a new `OpenRouterStatusBarWidgetDisposePlatformTest` asserting the alarm is disposed with zero pending requests after `Disposer.dispose(widget)`
 - **OkHttp Connection Leak on Non-Streaming Calls** - `Call.awaitWithBody()` now reads and closes the response body via `Response.use`, fixing potential connection-pool leaks on non-streaming proxy calls
 
 ### Improvements
