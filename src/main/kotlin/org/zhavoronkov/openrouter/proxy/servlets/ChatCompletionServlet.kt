@@ -11,6 +11,7 @@ import okhttp3.Request
 import okhttp3.Response
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
 import org.zhavoronkov.openrouter.proxy.routing.ProviderRoutingInjector
+import org.zhavoronkov.openrouter.proxy.routing.RouterPluginsInjector
 import org.zhavoronkov.openrouter.proxy.validation.MultimodalContentValidator
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.ErrorPatterns
@@ -417,6 +418,15 @@ class ChatCompletionServlet : HttpServlet() {
             ProviderRoutingInjector.inject(
                 rawJson = rawJson,
                 routing = settingsService.providerRoutingManager,
+                gson = gson,
+                requestId = requestId
+            )
+
+            // Inject the saved per-router default plugins block (invariant: only
+            // when the request omits `plugins` and targets a known router).
+            RouterPluginsInjector.inject(
+                rawJson = rawJson,
+                defaults = settingsService.routerDefaultsManager,
                 gson = gson,
                 requestId = requestId
             )

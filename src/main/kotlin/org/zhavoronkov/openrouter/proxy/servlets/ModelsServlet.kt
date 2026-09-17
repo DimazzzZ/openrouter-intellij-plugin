@@ -10,10 +10,10 @@ import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.proxy.models.OpenAIModel
 import org.zhavoronkov.openrouter.proxy.models.OpenAIModelsResponse
 import org.zhavoronkov.openrouter.proxy.models.OpenAIPermission
+import org.zhavoronkov.openrouter.proxy.routing.RouterCatalog
 import org.zhavoronkov.openrouter.proxy.translation.ResponseTranslator
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
-import org.zhavoronkov.openrouter.services.settings.PresetsManager
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.util.concurrent.ConcurrentHashMap
@@ -31,8 +31,15 @@ class ModelsServlet(
     },
     private val presetsProvider: () -> List<String> = {
         val settings = OpenRouterSettingsService.getInstance()
-        PresetsManager.BUILT_IN_PRESETS.map { it.id } +
-            settings.presetsManager.getCustomPresets().map { settings.presetsManager.getPresetModelId(it) }
+        // Advertise every first-class router slug from the single catalog so
+        // third-party clients hitting the proxy's /v1/models can pick the same
+        // routers the chat UI exposes. Custom presets follow, deduped against
+        // any slug the catalog already owns.
+        val routerSlugs = RouterCatalog.slugs
+        val customPresetIds = settings.presetsManager.getCustomPresets()
+            .map { settings.presetsManager.getPresetModelId(it) }
+            .filterNot { RouterCatalog.isRouter(it) }
+        routerSlugs + customPresetIds
     }
 ) : HttpServlet() {
 

@@ -34,6 +34,7 @@ import org.zhavoronkov.openrouter.utils.KeyValidator
 import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import org.zhavoronkov.openrouter.utils.await
+import org.zhavoronkov.openrouter.utils.awaitWithBody
 import org.zhavoronkov.openrouter.utils.toApiResult
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -160,8 +161,7 @@ open class OpenRouterService(
                     authToken = apiKey
                 )
 
-                val response = client.newCall(httpRequest).await()
-                val responseBody = response.body?.string().orEmpty()
+                val (response, responseBody) = client.newCall(httpRequest).awaitWithBody()
                 val durationMs = (System.nanoTime() - startNs) / OpenRouterConstants.NANOSECONDS_TO_MILLISECONDS
                 logIncomingResponse(response, responseBody, durationMs)
 
@@ -247,11 +247,10 @@ open class OpenRouterService(
                     authToken = apiKey
                 )
 
-                val response = client.newCall(request).await()
+                val (response, body) = client.newCall(request).awaitWithBody()
                 if (response.isSuccessful) {
                     ApiResult.Success(true, response.code)
                 } else {
-                    val body = response.body?.string() ?: ""
                     PluginLogger.Service.warn("API key validation failed: ${response.code} $body")
 
                     val errorMessage = try {
@@ -407,8 +406,7 @@ open class OpenRouterService(
                     authToken = provisioningKey
                 )
 
-                val response = client.newCall(request).await()
-                val responseBody = response.body?.string().orEmpty()
+                val (response, responseBody) = client.newCall(request).awaitWithBody()
                 PluginLogger.Service.debug("Create API key response code: ${response.code}")
                 PluginLogger.Service.debug("Create API key response: $responseBody")
 
@@ -452,8 +450,7 @@ open class OpenRouterService(
 
                 PluginLogger.Service.debug("Deleting API key with hash: $keyHash")
 
-                val response = client.newCall(request).await()
-                val responseBody = response.body?.string().orEmpty()
+                val (response, responseBody) = client.newCall(request).awaitWithBody()
                 PluginLogger.Service.debug("Delete API key response: $responseBody")
 
                 if (response.isSuccessful) {
@@ -503,8 +500,7 @@ open class OpenRouterService(
                     authToken = provisioningKey
                 )
 
-                val response = client.newCall(request).await()
-                val responseBody = response.body?.string().orEmpty()
+                val (response, responseBody) = client.newCall(request).awaitWithBody()
                 PluginLogger.Service.debug("Credits response: ${response.code} - $responseBody")
 
                 if (response.isSuccessful) {
@@ -554,8 +550,7 @@ open class OpenRouterService(
                     authToken = provisioningKey
                 )
 
-                val response = client.newCall(request).await()
-                val responseBody = response.body?.string().orEmpty()
+                val (response, responseBody) = client.newCall(request).awaitWithBody()
                 PluginLogger.Service.debug("Activity response: ${response.code} - $responseBody")
 
                 if (response.isSuccessful) {
@@ -646,8 +641,7 @@ open class OpenRouterService(
                     authType = OpenRouterRequestBuilder.AuthType.NONE
                 )
 
-                val response = client.newCall(request).await()
-                val responseBody = response.body?.string() ?: ""
+                val (response, responseBody) = client.newCall(request).awaitWithBody()
                 val responsePreview = responseBody.take(previewLength)
                 PluginLogger.Service.debug("$name response: ${response.code} - $responsePreview...")
 
@@ -698,8 +692,7 @@ open class OpenRouterService(
                 )
 
                 PluginLogger.Service.info("PKCE: Sending request...")
-                val response = client.newCall(request).await()
-                val responseBody = response.body?.string().orEmpty()
+                val (response, responseBody) = client.newCall(request).awaitWithBody()
                 PluginLogger.Service.info("PKCE: Response code: ${response.code}")
                 PluginLogger.Service.info("PKCE: Response body: $responseBody")
 
@@ -776,8 +769,7 @@ open class OpenRouterService(
                     authType = OpenRouterRequestBuilder.AuthType.API_KEY,
                     authToken = apiKey
                 )
-                val response = client.newCall(request).await()
-                val body = response.body?.string().orEmpty()
+                val (response, body) = client.newCall(request).awaitWithBody()
                 if (response.isSuccessful) {
                     ApiResult.Success(gson.fromJson(body, ListPresetsResponse::class.java), response.code)
                 } else {
@@ -810,8 +802,7 @@ open class OpenRouterService(
                     authType = OpenRouterRequestBuilder.AuthType.API_KEY,
                     authToken = apiKey
                 )
-                val response = client.newCall(request).await()
-                val body = response.body?.string().orEmpty()
+                val (response, body) = client.newCall(request).awaitWithBody()
                 if (response.isSuccessful) {
                     ApiResult.Success(gson.fromJson(body, GetPresetResponse::class.java), response.code)
                 } else {
@@ -858,8 +849,7 @@ open class OpenRouterService(
                     authType = OpenRouterRequestBuilder.AuthType.API_KEY,
                     authToken = apiKey
                 )
-                val response = client.newCall(request).await()
-                val body = response.body?.string().orEmpty()
+                val (response, body) = client.newCall(request).awaitWithBody()
                 if (response.isSuccessful) {
                     ApiResult.Success(gson.fromJson(body, GetPresetResponse::class.java), response.code)
                 } else {

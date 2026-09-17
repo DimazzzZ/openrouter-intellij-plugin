@@ -37,6 +37,29 @@ suspend fun Call.await(): Response = withContext(Dispatchers.IO) {
     }
 }
 
+/**
+ * Response paired with its already-read, already-closed body.
+ *
+ * The [Response] here has had its body fully consumed and closed, so callers
+ * may read metadata (code, headers, isSuccessful) freely without leaking the
+ * OkHttp connection. Use this for non-streaming calls; streaming callers must
+ * keep using [okhttp3.Response.use] and read the body incrementally.
+ */
+data class BufferedResponse(val response: Response, val body: String)
+
+/**
+ * Suspend variant of [await] that fully reads and closes the response body
+ * before returning, so no caller can leak the connection by taking an early
+ * return or throwing before consuming the body. [Response.use] guarantees the
+ * body is closed even if [okhttp3.ResponseBody.string] throws.
+ */
+suspend fun Call.awaitWithBody(): BufferedResponse {
+    val response = await()
+    return response.use { resp ->
+        BufferedResponse(resp, resp.body?.string().orEmpty())
+    }
+}
+
 inline fun <reified T> Response.toApiResult(gson: Gson): ApiResult<T> {
     return use { resp ->
         val bodyString = resp.body?.string().orEmpty()

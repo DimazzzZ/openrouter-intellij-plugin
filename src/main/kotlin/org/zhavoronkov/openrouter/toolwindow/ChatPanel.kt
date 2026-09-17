@@ -23,9 +23,10 @@ import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatMessage
 import org.zhavoronkov.openrouter.models.ReasoningConfig
+import org.zhavoronkov.openrouter.proxy.routing.RouterCatalog
+import org.zhavoronkov.openrouter.proxy.routing.RouterRequestBuilder
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
-import org.zhavoronkov.openrouter.services.settings.PresetsManager
 import org.zhavoronkov.openrouter.ui.ModelVariantChipRenderer
 import org.zhavoronkov.openrouter.utils.MarkdownRenderer
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
@@ -94,6 +95,11 @@ class ChatPanel(
         private const val MESSAGE_BORDER_H = 2
         private const val CELL_BORDER_V = 4
         private const val CELL_BORDER_H = 8
+
+        // Sentinel prefix for separator items inserted into the model dropdown
+        // to render labeled group headers (Routers / Your Presets / Favorites).
+        // Renderers detect this and draw a disabled caption line.
+        private const val SEPARATOR_PREFIX = "__SEP__"
     }
 
     private val mainPanel: JPanel
@@ -113,8 +119,30 @@ class ChatPanel(
     private val modelComboBox: ComboBox<String>
     private val reasoningComboBox: ComboBox<String>
     private val verbosityComboBox: ComboBox<String>
+    private val routerParamComboBox: ComboBox<String>
+    private lateinit var routerParamLabel: JBLabel
+    private lateinit var routerParamHelpLabel: JBLabel
+
+    // Remembers which router-param the combo box currently reflects, so
+    // non-selection-driven refresh paths (favorites reload, async init
+    // callback) do NOT rebuild the model and silently wipe the user's
+    // choice. Rebuild only when the effective param actually changes.
+    private var shownRouterParamKey: String? = null
     private val statusLabel: JBLabel
     private val inputTokensLabel: JBLabel
+
+    // Category for each item currently in the model dropdown, keyed by the exact
+    // string value. Drives the labeled section headers (Routers / Your Presets /
+    // Favorites) rendered via SimpleListCellRenderer.getSeparatorAbove, so users
+    // can see that the "lot of default entries" are routers, not presets.
+    private enum class ModelGroup(val caption: String) {
+        ROUTER("Routers"),
+        PRESET("Your Presets"),
+        FAVORITE("Favorites")
+    }
+    private val modelGroups = mutableMapOf<String, ModelGroup>()
+
+    private fun separatorKey(group: ModelGroup) = SEPARATOR_PREFIX + group.caption
 
     // Chat sessions
     private val chatSessions = mutableListOf<ChatSession>()
@@ -141,6 +169,12 @@ class ChatPanel(
                 hasFocus: Boolean
             ) {
                 if (value != null) {
+                    // Separator items are disabled, rendered as a gray caption line.
+                    if (value.startsWith(SEPARATOR_PREFIX)) {
+                        text = value.removePrefix(SEPARATOR_PREFIX)
+                        isEnabled = false
+                        return
+                    }
                     text = ModelVariantChipRenderer.renderRow(value)
                     toolTipText = ModelVariantChipRenderer.tooltipFor(value)
                 }
@@ -148,6 +182,8 @@ class ChatPanel(
         }
         reasoningComboBox = ComboBox<String>()
         verbosityComboBox = ComboBox<String>()
+        routerParamComboBox = ComboBox<String>()
+        routerParamComboBox.isEditable = true
         chatList = JBList(chatListModel)
 
         // Create main panel with CardLayout
@@ -184,6 +220,17 @@ class ChatPanel(
         // Save model selection when changed and update reasoning/verbosity visibility
         modelComboBox.addItemListener { e ->
             if (e.stateChange == ItemEvent.SELECTED) {
+                // Separator rows are visual-only; if the user lands on one
+                // (keyboard nav / click), jump to the next real item so the
+                // rest of the panel never sees a separator key.
+                val selected = modelComboBox.selectedItem as? String
+                if (selected != null && selected.startsWith(SEPARATOR_PREFIX)) {
+                    val next = firstRealModelAfter(modelComboBox.selectedIndex)
+                    if (next != null) {
+                        modelComboBox.selectedIndex = next
+                    }
+                    return@addItemListener
+                }
                 saveSelectedModel()
                 updateReasoningVerbosityState()
             }
@@ -273,6 +320,20 @@ class ChatPanel(
         reasoningVerbosityPanel.add(reasoningComboBox)
         reasoningVerbosityPanel.add(JBLabel("Verbosity:"))
         reasoningVerbosityPanel.add(verbosityComboBox)
+        routerParamLabel = JBLabel("Router:")
+        routerParamComboBox.preferredSize =
+            Dimension(SETTINGS_COMBO_BOX_WIDTH, routerParamComboBox.preferredSize.height)
+        routerParamComboBox.toolTipText = "Router parameter (for openrouter/* routers)"
+        reasoningVerbosityPanel.add(routerParamLabel)
+        reasoningVerbosityPanel.add(routerParamComboBox)
+        // Inline help text surfaces the accepted values that used to hide in the
+        // combo tooltip nobody hovers (e.g. "Suggested: general-fast (or type
+        // your own)"). Rendered as gray sub-label beside the control.
+        routerParamHelpLabel = JBLabel().apply {
+            foreground = com.intellij.util.ui.UIUtil.getContextHelpForeground()
+            isVisible = false
+        }
+        reasoningVerbosityPanel.add(routerParamHelpLabel)
         reasoningVerbosityPanel.isVisible = false
         topPanel.add(reasoningVerbosityPanel)
 
@@ -568,15 +629,34 @@ class ChatPanel(
         val favorites = settingsService.favoriteModelsManager.getFavoriteModels()
         val customPresets = settingsService.presetsManager.getCustomPresets()
         val model = DefaultComboBoxModel<String>()
+        modelGroups.clear()
 
-        // Add built-in presets/routers first
-        PresetsManager.BUILT_IN_PRESETS.forEach { preset ->
-            model.addElement(preset.id)
+        var lastGroup: ModelGroup? = null
+        fun addSeparatorIfNewGroup(group: ModelGroup) {
+            if (lastGroup != group) {
+                model.addElement(separatorKey(group))
+                lastGroup = group
+            }
         }
 
-        // Add custom presets (with @preset/ prefix)
+        // Add first-class routers first, sourced from the single catalog so every
+        // router slug (auto, fusion, fusion-flash, pareto-code, free) is selectable
+        // and its param panel becomes reachable. See RouterCatalog.
+        addSeparatorIfNewGroup(ModelGroup.ROUTER)
+        RouterCatalog.slugs.forEach { slug ->
+            model.addElement(slug)
+            modelGroups[slug] = ModelGroup.ROUTER
+        }
+
+        // Add custom presets (with @preset/ prefix), skipping any that collide
+        // with a catalog router slug.
         customPresets.forEach { presetSlug ->
-            model.addElement(settingsService.presetsManager.getPresetModelId(presetSlug))
+            val presetModelId = settingsService.presetsManager.getPresetModelId(presetSlug)
+            if (!RouterCatalog.isRouter(presetModelId)) {
+                addSeparatorIfNewGroup(ModelGroup.PRESET)
+                model.addElement(presetModelId)
+                modelGroups[presetModelId] = ModelGroup.PRESET
+            }
         }
 
         // Add separator if we have presets and favorites
@@ -585,14 +665,41 @@ class ChatPanel(
 
         // Add favorite models
         if (hasFavorites) {
-            favorites.forEach { model.addElement(it) }
+            favorites.forEach {
+                if (!RouterCatalog.isRouter(it) && !modelGroups.containsKey(it)) {
+                    addSeparatorIfNewGroup(ModelGroup.FAVORITE)
+                    model.addElement(it)
+                    modelGroups[it] = ModelGroup.FAVORITE
+                }
+            }
         } else if (!hasPresets) {
             // Fallback if no favorites and no presets configured
-            model.addElement("openai/gpt-4o")
-            model.addElement("anthropic/claude-3.5-sonnet")
+            listOf("openai/gpt-4o", "anthropic/claude-3.5-sonnet").forEach {
+                addSeparatorIfNewGroup(ModelGroup.FAVORITE)
+                model.addElement(it)
+                modelGroups[it] = ModelGroup.FAVORITE
+            }
         }
 
         modelComboBox.model = model
+        // Never leave a separator row selected as the default (index 0 is the
+        // "Routers" header). Land on the first real model instead.
+        val current = modelComboBox.selectedItem as? String
+        if (current == null || current.startsWith(SEPARATOR_PREFIX)) {
+            firstRealModelAfter(-1)?.let { modelComboBox.selectedIndex = it }
+        }
+    }
+
+    /**
+     * Index of the first non-separator item strictly after [index], or null if
+     * none. Used to skip the visual group-header rows in the model dropdown.
+     */
+    private fun firstRealModelAfter(index: Int): Int? {
+        for (i in (index + 1) until modelComboBox.itemCount) {
+            val v = modelComboBox.getItemAt(i)
+            if (v != null && !v.startsWith(SEPARATOR_PREFIX)) return i
+        }
+        return null
     }
 
     private fun getSettingsFile(): File {
@@ -606,6 +713,7 @@ class ChatPanel(
 
     private fun saveSelectedModel() {
         val selected = modelComboBox.selectedItem as? String ?: return
+        if (selected.startsWith(SEPARATOR_PREFIX)) return
         try {
             val settings = mutableMapOf<String, String>()
             settings["selectedModel"] = selected
@@ -645,6 +753,7 @@ class ChatPanel(
 
     private fun updateReasoningVerbosityState() {
         val selectedModel = modelComboBox.selectedItem as? String ?: return
+        if (selectedModel.startsWith(SEPARATOR_PREFIX)) return
 
         val favoriteModelsService = org.zhavoronkov.openrouter.services.FavoriteModelsService.getInstance()
         val modelInfo = favoriteModelsService.getModelById(selectedModel)
@@ -675,6 +784,43 @@ class ChatPanel(
 
         if (!supportsReasoning) reasoningComboBox.selectedIndex = 0
         if (!supportsVerbosity) verbosityComboBox.selectedIndex = 0
+
+        updateRouterParamState(selectedModel)
+    }
+
+    /**
+     * Show and populate the router-param control when [selectedModel] is a
+     * router that takes a parameter; hide it otherwise. All router knowledge
+     * comes from RouterCatalog — no per-router branching here.
+     */
+    private fun updateRouterParamState(selectedModel: String) {
+        val update = RouterRequestBuilder.paramControlUpdate(shownRouterParamKey, selectedModel)
+        routerParamLabel.isVisible = update.visible
+        routerParamComboBox.isVisible = update.visible
+        routerParamHelpLabel.isVisible = update.visible
+        shownRouterParamKey = update.paramKey
+        if (!update.visible || !update.rebuild) return
+        // The effective param changed, so (re)build the control. This resets
+        // the chosen value; the pure helper guarantees we only reach here on a
+        // real change, never on a stray refresh (see paramControlUpdate).
+        val param = RouterCatalog.find(selectedModel)?.param ?: return
+        // For free-type params, mark the label editable so the caret-editable
+        // field isn't mistaken for a closed dropdown.
+        val editableHint = if (param.freeText) " (editable)" else ""
+        routerParamLabel.text = param.label + editableHint + ":"
+        routerParamComboBox.toolTipText = param.description
+        // Surface the same description inline so it's actually seen.
+        routerParamHelpLabel.text = param.description
+        val model = DefaultComboBoxModel(param.suggestions.toTypedArray())
+        routerParamComboBox.model = model
+        // Editable enums and float ranges accept free text; closed enums do not.
+        routerParamComboBox.isEditable = param.freeText
+        // Seed the control with the user's persisted default for this router
+        // (Settings → OpenRouter → Router Defaults), falling back to blank when
+        // none is saved. Blank means "no selection → OpenRouter default". For a
+        // closed enum the blank first row is also how the user clears a choice.
+        val savedDefault = settingsService.routerDefaultsManager.get(selectedModel)
+        routerParamComboBox.selectedItem = savedDefault ?: ""
     }
 
     private fun showWelcomeMessage() {
@@ -689,7 +835,7 @@ class ChatPanel(
         if (userMessage.isEmpty()) return
 
         val selectedModel = modelComboBox.selectedItem as? String
-        if (selectedModel.isNullOrEmpty()) {
+        if (selectedModel.isNullOrEmpty() || selectedModel.startsWith(SEPARATOR_PREFIX)) {
             showError("Please select a model")
             return
         }
@@ -750,6 +896,9 @@ class ChatPanel(
                 else -> v.lowercase()
             }
 
+            val routerValue = routerParamComboBox.selectedItem as? String
+            val plugins = RouterRequestBuilder.buildPlugins(model, routerValue)
+
             val request = ChatCompletionRequest(
                 model = model,
                 messages = messages,
@@ -757,13 +906,14 @@ class ChatPanel(
                 temperature = TEMPERATURE,
                 stream = false,
                 reasoning = reasoningConfig,
-                verbosity = verbosityValue
+                verbosity = verbosityValue,
+                plugins = plugins
             )
 
             val result = openRouterService.createChatCompletion(request)
 
             SwingUtilities.invokeLater {
-                handleChatResponse(result, currentChat)
+                handleChatResponse(result, currentChat, model)
             }
         } catch (e: IOException) {
             SwingUtilities.invokeLater {
@@ -775,20 +925,22 @@ class ChatPanel(
 
     private fun handleChatResponse(
         result: ApiResult<org.zhavoronkov.openrouter.models.ChatCompletionResponse>,
-        currentChat: ChatSession?
+        currentChat: ChatSession?,
+        requestedModel: String
     ) {
         setLoading(false)
         inputArea.requestFocusInWindow()
 
         when (result) {
-            is ApiResult.Success -> handleSuccessResponse(result.data, currentChat)
+            is ApiResult.Success -> handleSuccessResponse(result.data, currentChat, requestedModel)
             is ApiResult.Error -> showError("Error: ${result.message}")
         }
     }
 
     private fun handleSuccessResponse(
         response: org.zhavoronkov.openrouter.models.ChatCompletionResponse,
-        currentChat: ChatSession?
+        currentChat: ChatSession?,
+        requestedModel: String
     ) {
         val assistantMessage = response.choices?.firstOrNull()?.message?.content
         if (assistantMessage == null) {
@@ -797,7 +949,10 @@ class ChatPanel(
         }
 
         val messageText = extractMessageText(assistantMessage)
-        addAssistantMessage(messageText)
+        // For routers, echo which underlying model OpenRouter resolved to as a
+        // small footnote attached under the reply (not a separate system line).
+        val routedFootnote = RouterRequestBuilder.resolvedModelLabel(requestedModel, response.model)
+        addAssistantMessage(messageText, footnote = routedFootnote)
         currentChat?.messages?.add(ChatMessageData("assistant", messageText))
 
         val usage = response.usage
@@ -830,7 +985,8 @@ class ChatPanel(
     }
 
     private fun addUserMessage(message: String) = addCompactMessage(message, isUser = true)
-    private fun addAssistantMessage(message: String) = addCompactMessage(message, isUser = false)
+    private fun addAssistantMessage(message: String, footnote: String? = null) =
+        addCompactMessage(message, isUser = false, footnote = footnote)
 
     private fun addSystemMessage(message: String) {
         val label = JBLabel("<html><i style='color: gray; font-size: 9px;'>$message</i></html>")
@@ -840,7 +996,7 @@ class ChatPanel(
         scrollToBottom()
     }
 
-    private fun addCompactMessage(message: String, isUser: Boolean) {
+    private fun addCompactMessage(message: String, isUser: Boolean, footnote: String? = null) {
         val rolePrefix = if (isUser) "You:" else "Assistant:"
         val roleColor = if (isUser) "#6B9BD2" else "#9B9BD2"
 
@@ -902,6 +1058,16 @@ class ChatPanel(
         }
 
         messagesPanel.add(messagePanel)
+        // Attach the router "Routed to X" footnote directly under the reply, so
+        // it reads as metadata on the message rather than a standalone system line.
+        if (!footnote.isNullOrBlank()) {
+            val footnoteLabel = JBLabel(
+                "<html><i style='color: gray; font-size: 9px;'>$footnote</i></html>"
+            )
+            footnoteLabel.border = JBUI.Borders.empty(0, MESSAGE_BORDER_H)
+            footnoteLabel.alignmentX = JBLabel.LEFT_ALIGNMENT
+            messagePanel.add(footnoteLabel, BorderLayout.SOUTH)
+        }
         messagesPanel.revalidate()
         messagesPanel.repaint()
         scrollToBottom()

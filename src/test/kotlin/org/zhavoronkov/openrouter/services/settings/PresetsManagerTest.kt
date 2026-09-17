@@ -29,17 +29,11 @@ class PresetsManagerTest {
     inner class BuiltInPresetsTests {
 
         @Test
-        fun `built-in presets contains auto router`() {
-            val autoPreset = PresetsManager.BUILT_IN_PRESETS.find { it.id == "openrouter/auto" }
-            assertTrue(autoPreset != null)
-            assertEquals("Auto Router", autoPreset?.name)
-        }
-
-        @Test
-        fun `built-in presets contains free models`() {
-            val freePreset = PresetsManager.BUILT_IN_PRESETS.find { it.id == "openrouter/free" }
-            assertTrue(freePreset != null)
-            assertEquals("Free Models", freePreset?.name)
+        fun `built-in presets is empty because routers are not presets`() {
+            // openrouter/auto and openrouter/free are routers, not @preset/
+            // server presets. They live in RouterCatalog and are configured
+            // under Router Defaults, so BUILT_IN_PRESETS no longer lists them.
+            assertTrue(PresetsManager.BUILT_IN_PRESETS.isEmpty())
         }
 
         @Test
