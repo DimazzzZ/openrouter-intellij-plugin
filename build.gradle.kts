@@ -279,6 +279,15 @@ tasks {
     named("check") {
         dependsOn("platformTest")
     }
+
+    // Normalize the sandbox IDE locale to en_US. Our host locale is en_RU,
+    // which makes the platform's Elevation service log a noisy
+    // MissingResourceException (messages.ElevationBundle has no en_RU bundle)
+    // every time Settings is opened. Pinning en_US silences that dev-only
+    // noise without affecting the shipped plugin.
+    runIde {
+        jvmArgs("-Duser.language=en", "-Duser.country=US")
+    }
 }
 
 intellijPlatformTesting {
