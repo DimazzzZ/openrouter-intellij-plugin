@@ -14,6 +14,7 @@ import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.impl.status.EditorBasedWidget
 import com.intellij.ui.awt.RelativePoint
 import com.intellij.util.Consumer
+import com.intellij.util.Alarm
 import org.zhavoronkov.openrouter.listeners.OpenRouterSettingsListener
 import org.zhavoronkov.openrouter.listeners.OpenRouterStatsListener
 import org.zhavoronkov.openrouter.models.ActivityData
@@ -68,6 +69,22 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         // Time conversion: milliseconds per second
         private const val MILLIS_PER_SECOND = 1000L
     }
+
+    /**
+     * Auto-refresh timer parented to this widget Disposable lifetime.
+     *
+     * Why an [Alarm] instead of an executeOnPooledThread loop: the previous
+     * while-true + Thread.sleep implementation was not tied to widget dispose, so on plugin
+     * reload/update the old worker thread survived, resolved [OpenRouterSettingsService] via the
+     * *new* PluginClassLoader, and produced a ClassCastException (X cannot be cast to X) when the
+     * two classloaders copies of the class met. Because [Alarm] is parented to this widget (an
+     * [EditorBasedWidget], which is [com.intellij.openapi.Disposable]), the platform cancels every
+     * pending request the moment the widget is disposed, so no stale tick can outlive the classloader.
+     */
+    private val refreshAlarm: Alarm by lazy { Alarm(Alarm.ThreadToUse.POOLED_THREAD, this) }
+
+    @Volatile
+    private var autoRefreshStarted = false
 
     override fun ID(): String = ID
 
@@ -374,33 +391,43 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         }
     }
 
+    /**
+     * Kick off the auto-refresh loop. Each tick reschedules itself, so disposing this widget
+     * (which transitively disposes [refreshAlarm]) stops the loop deterministically. Reading
+     * refreshInterval per tick means setting changes are picked up without restarting the widget.
+     */
     private fun startAutoRefresh() {
-        val refreshInterval = settingsService.uiPreferencesManager.refreshInterval
-        ApplicationManager.getApplication().executeOnPooledThread {
-            var shouldContinueRefresh = true
-            while (settingsService.uiPreferencesManager.autoRefresh && shouldContinueRefresh) {
-                try {
-                    Thread.sleep(refreshInterval * MILLIS_PER_SECOND)
-                    ApplicationManager.getApplication().invokeLater {
-                        updateQuotaInfo()
-                    }
-                } catch (_: InterruptedException) {
-                    Thread.currentThread().interrupt()
-                    shouldContinueRefresh = false
-                } catch (e: IllegalStateException) {
-                    // Log error but continue
-                    com.intellij.openapi.diagnostic.Logger.getInstance(OpenRouterStatusBarWidget::class.java)
-                        .warn("Error in auto-refresh loop", e)
-                    shouldContinueRefresh = false
-                } catch (e: SecurityException) {
-                    // Log error but continue
-                    com.intellij.openapi.diagnostic.Logger.getInstance(OpenRouterStatusBarWidget::class.java)
-                        .warn("Security error in auto-refresh loop", e)
-                    shouldContinueRefresh = false
-                }
-            }
-        }
+        if (autoRefreshStarted) return
+        autoRefreshStarted = true
+        scheduleNextRefresh()
     }
+
+    private fun scheduleNextRefresh() {
+        if (isDisposed || refreshAlarm.isDisposed) return
+        val intervalMillis = settingsService.uiPreferencesManager.refreshInterval * MILLIS_PER_SECOND
+        refreshAlarm.addRequest({ onRefreshTick() }, intervalMillis)
+    }
+
+    private fun onRefreshTick() {
+        if (isDisposed) return
+        if (!settingsService.uiPreferencesManager.autoRefresh) return
+        ApplicationManager.getApplication().invokeLater(
+            { if (!isDisposed) updateQuotaInfo() },
+            { isDisposed }
+        )
+        scheduleNextRefresh()
+    }
+
+    /**
+     * Test-only visibility into the auto-refresh timer lifecycle. Used by the dispose
+     * regression test to assert that no refresh request outlives the widget (which would
+     * reintroduce the cross-classloader ClassCastException on plugin reload).
+     */
+    @org.jetbrains.annotations.TestOnly
+    fun getPendingRefreshRequestCountForTest(): Int = refreshAlarm.activeRequestCount
+
+    @org.jetbrains.annotations.TestOnly
+    fun isRefreshAlarmDisposedForTest(): Boolean = refreshAlarm.isDisposed
 
     private fun formatStatusTextFromCredits(used: Double, total: Double): String {
         return StatusBarStatsFormatter.formatStatusTextFromCredits(
