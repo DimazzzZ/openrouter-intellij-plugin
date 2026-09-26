@@ -4,7 +4,6 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
 import java.awt.Component
 import java.awt.Font
-import java.util.Locale
 import javax.swing.BoxLayout
 import javax.swing.JComponent
 import javax.swing.JPanel
@@ -21,9 +20,12 @@ import javax.swing.JPanel
  * of which belongs to Task 11.
  *
  * A `null` `remaining`, a zero or absent `total`, or a `null` `perDay`, is a
- * genuinely unknown quantity, not zero: each renders as [NO_VALUE], and for
- * the days-left row - which would otherwise divide by an unknown or zero
- * rate - the whole row is hidden. Never a computed number that merely looks
+ * genuinely unknown quantity, not zero: each renders via [BalanceLineText], which keeps the row's
+ * own descriptor word ("remaining"/"total"/"burn rate") and substitutes only the FIGURE with an
+ * em dash - never the bare dash alone, which erases which row it even is (fix round: three such
+ * rows unknown at once used to render as three anonymous "—"s with no label left on any of them).
+ * For the days-left row - which would otherwise divide by an unknown or zero
+ * rate - the whole row is hidden instead. Never a computed number that merely looks
  * plausible, which is the "Infinity%" defect [StatusTabPanel.renderCredits]
  * used to have and the reason this whole redesign exists. `remaining` is
  * nullable for exactly this reason: before the shared cache has any data -
@@ -91,8 +93,8 @@ class BalanceBlock {
      *
      * @param remaining account credits left, `total - usage`, or null when there is no cached
      *   balance yet (loading, or not configured) - never fabricated as `0.0`
-     * @param total the balance's denominator; zero or absent renders [NO_VALUE]
-     *   instead of a share computed against an unknown or missing limit
+     * @param total the balance's denominator; zero or absent renders [BalanceLineText.total]'s
+     *   "of — total" instead of a share computed against an unknown or missing limit
      * @param perDay the recent burn rate, or null when it cannot be computed
      * @param series the spend sparkline's data, oldest first
      * @param seriesLabel what [series] measures - a different quantity in
@@ -117,15 +119,15 @@ class BalanceBlock {
         totalLabel.isVisible = true
         burnRateLabel.isVisible = true
 
-        remainingLabel.text = remaining?.let { "$${formatAmount(it)} remaining" } ?: NO_VALUE
-        totalLabel.text = if (total > 0.0) "of $${formatAmount(total)} total" else NO_VALUE
-        burnRateLabel.text = perDay?.let { "$${formatAmount(it)}/day burn rate" } ?: NO_VALUE
+        remainingLabel.text = BalanceLineText.remaining(remaining)
+        totalLabel.text = BalanceLineText.total(total)
+        burnRateLabel.text = BalanceLineText.burnRate(perDay)
 
         // Both an unknown remaining and an unknown/non-positive rate make the division
         // meaningless, so either one hides this row rather than rendering it against a guess.
         val daysLeft = remaining?.let { r -> perDay?.takeIf { it > 0.0 }?.let { r / it } }
         daysLeftLabel.isVisible = daysLeft != null
-        daysLeftLabel.text = daysLeft?.let { "${formatDays(it)} days left" }.orEmpty()
+        daysLeftLabel.text = BalanceLineText.daysLeft(daysLeft)
 
         seriesCaptionLabel.isVisible = seriesLabel.isNotBlank()
         sparklineComponent.isVisible = seriesLabel.isNotBlank()
@@ -144,7 +146,7 @@ class BalanceBlock {
      * an ordinary API key too, so [StatusTabPanel] now calls [update] with the real balance once
      * the shared cache has credits, and reserves this method for the narrower case that remains -
      * mid-refresh, or a refresh that failed, with no credits cached yet. There, [update]'s
-     * "unknown, not zero" [NO_VALUE] em dash would still be the wrong rendering: a dash in the
+     * "unknown, not zero" [BalanceLineText] em dash would still be the wrong rendering: a dash in the
      * headline row reads "your balance is unknown, permanently", when the true fact is "not loaded
      * yet". So this HIDES the remaining/total/burn-rate/days-left/last-updated rows entirely rather
      * than rendering them as unknown, and shows only what genuinely exists either way: the locally
@@ -163,12 +165,7 @@ class BalanceBlock {
         sparklineView.values = series
     }
 
-    private fun formatAmount(value: Double): String = String.format(Locale.US, "%.2f", value)
-
-    private fun formatDays(value: Double): String = String.format(Locale.US, "%.0f", value)
-
     private companion object {
-        const val NO_VALUE = "—" // em dash: rendered when a figure has no known value
         const val REMAINING_FONT_SIZE = 18f
         const val TIGHT_GAP = 2
         const val ROW_GAP = 8

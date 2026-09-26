@@ -101,7 +101,7 @@ class ComposerLayoutPlatformTest : BasePlatformTestCase() {
 
     /**
      * Width-then-height audit (see
-     * docs/superpowers/2026-09-18-visual-pass-fixes.md): the composer's input
+     * the visual-pass audit): the composer's input
      * area wraps its text, so a long draft's reported height depends on the
      * width it is finally laid out at, the same shape as the two bugs this
      * class of test now catches generically.
@@ -120,7 +120,7 @@ class ComposerLayoutPlatformTest : BasePlatformTestCase() {
     }
 
     /**
-     * Spacing pass (see docs/superpowers/2026-09-18-visual-pass-fixes.md,
+     * Spacing pass (see the visual-pass audit,
      * "Spacing pass"): the gear used to sit only [ComposerLayout]'s single
      * `gap` away from the model combo, same as every other pair in the row,
      * which read as visibly tighter than the rest of the row. Measured why:

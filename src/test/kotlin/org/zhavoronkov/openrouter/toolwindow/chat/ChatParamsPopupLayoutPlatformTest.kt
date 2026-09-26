@@ -220,7 +220,7 @@ class ChatParamsPopupLayoutPlatformTest : BasePlatformTestCase() {
     }
 
     /**
-     * Spacing pass (see docs/superpowers/2026-09-18-visual-pass-fixes.md,
+     * Spacing pass (see the visual-pass audit,
      * "Spacing pass"): the form used to have no border at all, so the
      * "Reasoning:" label sat flush against the popup's left edge and the
      * combos flush against the right. The form now gets

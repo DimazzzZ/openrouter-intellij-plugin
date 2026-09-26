@@ -16,7 +16,6 @@ import kotlinx.coroutines.launch
 import org.zhavoronkov.openrouter.listeners.OpenRouterStatsListener
 import org.zhavoronkov.openrouter.models.ActivityData
 import org.zhavoronkov.openrouter.models.ApiKeysListResponse
-import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.CreditsData
 import org.zhavoronkov.openrouter.services.AnalyticsService
 import org.zhavoronkov.openrouter.services.CreditUsageHistoryService
@@ -25,7 +24,6 @@ import org.zhavoronkov.openrouter.services.OpenRouterStatsCache
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.GridBagConstraints
-import java.awt.GridBagLayout
 import java.time.LocalDate
 import javax.swing.JButton
 import javax.swing.JComponent
@@ -186,6 +184,9 @@ class StatusTabPanel(
      * [applySpendSeriesResult]'s own KDoc) instead of [renderCredits] having to invent a fallback.
      * Start at the same "nothing known yet" placeholders [clearBalance] uses, so a state that has
      * never successfully queried analytics renders identically to one that explicitly has none. */
+    /** Runs the two analytics queries; see [BreakdownQueries] for why they left this class. */
+    private val breakdownQueries = BreakdownQueries(analyticsService)
+
     private var currentSpendSeries: List<Double> = NO_SERIES
     private var currentSpendPerDay: Double? = NO_PER_DAY_RATE
     private var currentSpendSeriesLabel: String = NO_SERIES_LABEL
@@ -264,7 +265,9 @@ class StatusTabPanel(
     }
 
     private fun createContentPanel(): JPanel {
-        val panel = JPanel(GridBagLayout())
+        // StatusContentPanel, not a bare JPanel(GridBagLayout()) (defect D): see its own KDoc for
+        // why this view must implement Scrollable to keep the breakdown's spend column on screen.
+        val panel = StatusContentPanel()
         val gbc = GridBagConstraints()
 
         gbc.anchor = GridBagConstraints.WEST
@@ -494,8 +497,28 @@ class StatusTabPanel(
     private fun breakdownStateAllowsQuery(state: StatusTabState.State): Boolean =
         state == StatusTabState.State.READY || state == StatusTabState.State.ERROR
 
+    /**
+     * The ONE place [statusLabel]'s text is ever set (defect B) - every `renderX()` below calls
+     * this instead of assigning `statusLabel.text` directly, so the bound this fixes cannot be
+     * bypassed by a future state gaining its own dynamic message and forgetting to apply it.
+     *
+     * Only [renderError] currently carries genuinely unbounded, server-supplied text (the other
+     * four states are short, fixed strings that never need shortening), but a fixed-string caller
+     * paying for a length check it can never trigger is cheaper than a second, unguarded call site
+     * silently reintroducing this defect the day its own text stops being fixed.
+     *
+     * [StatusLineText.truncate] shortens what is actually DISPLAYED; the untruncated [text] is set
+     * as the label's tooltip regardless, so hovering always reveals the whole sentence - nothing
+     * the server said is discarded, only deferred to a hover (see [StatusLineText]'s own KDoc for
+     * why truncation, not wrapping, and why the tail is dropped rather than the middle).
+     */
+    private fun setStatusText(text: String) {
+        statusLabel.text = StatusLineText.truncate(text)
+        statusLabel.toolTipText = text
+    }
+
     private fun renderNotConfigured() {
-        statusLabel.text = "Not configured"
+        setStatusText("Not configured")
         clearBalance()
         clearKeyLimit()
         // Not show(emptyList()) (fix round 3, finding 1 - the third state carrying the same
@@ -507,7 +530,7 @@ class StatusTabPanel(
     }
 
     private fun renderLoading() {
-        statusLabel.text = "Loading..."
+        setStatusText("Loading...")
         clearBalance()
         clearKeyLimit()
         // Not show(emptyList()) (fix round 1, finding 2): nothing has returned yet, so "no
@@ -534,12 +557,12 @@ class StatusTabPanel(
      * during an outage must not look as fresh as one from a second ago.
      */
     private fun renderError() {
-        statusLabel.text = "Couldn't refresh: ${statsCache.getLastError() ?: "Unknown error"}"
+        setStatusText("Couldn't refresh: ${statsCache.getLastError() ?: "Unknown error"}")
         renderAccountData()
     }
 
     private fun renderReady() {
-        statusLabel.text = "Ready"
+        setStatusText("Ready")
         renderAccountData()
     }
 
@@ -564,7 +587,7 @@ class StatusTabPanel(
      * [OpenRouterStatsCache] applies to its own service lookups.
      */
     private fun renderDegraded() {
-        statusLabel.text = "Limited"
+        setStatusText("Limited")
         // Not show(emptyList()) (fix round 1, finding 2): DEGRADED never queries the breakdown at
         // all, so "no activity in this period" would claim a real, checked answer of zero.
         breakdownBlock.showUnavailable()
@@ -715,153 +738,54 @@ class StatusTabPanel(
     }
 
     /**
-     * Runs one analytics query for [period]/[dimension] and applies its result to [breakdownBlock].
-     * Split out from [refreshBreakdown] so a test can await it directly via
-     * [applyAnalyticsResultForTest] instead of racing [coroutineScope]'s `Dispatchers.Main` launch.
+     * Applies one breakdown query's outcome to [breakdownBlock].
      *
-     * [dimension] (G6) is threaded straight into [AnalyticsBreakdown.requestFor]/
-     * [AnalyticsBreakdown.toModelSpend] - the ONE query this method ever issues asks for exactly
-     * the dimension currently selected, never both, which is what keeps a dimension switch to one
-     * additional request rather than one per dimension (see [refreshBreakdown]'s own KDoc for the
-     * budget this preserves).
-     *
-     * [checkAnalyticsMeta] is deliberately called LAZILY here, AFTER this query, and only when it
-     * came back with nothing useful (an error, or a success with zero rows) - never
-     * unconditionally before the query, which fix round 1 rejected: a live capture shows the
-     * check is a no-op today and will be a no-op almost always, so paying for its round trip on
-     * every refresh, before the user's first (and usual) view of real rows, is latency spent on a
-     * question the rows themselves already answer - rows that parsed under the names
-     * [AnalyticsBreakdown] asked for ARE proof those names are still valid. The only moments the
-     * check's answer can change anything are exactly the two branches below: nothing to show, and
-     * the user cannot tell why. A slow or unresponsive `/analytics/meta` can therefore now only
-     * ever add latency to an ALREADY-EMPTY or ALREADY-FAILED result, never to a normal one.
-     *
-     * Re-checks [breakdownStateAllowsQuery] AFTER the (suspending) query returns, not only at
-     * [refreshBreakdown]'s launch time (close-out round 2, Critical): this is asynchronous, so the
-     * panel can leave READY/ERROR - e.g. the provisioning key is removed, moving it to DEGRADED -
-     * while the request is still in flight. Without this second check, a late-arriving response
-     * would overwrite DEGRADED's/NOT_CONFIGURED's own placeholder with a real (or error) result
-     * from a query that state's own render path never asked for, mirroring the guard
-     * [applySpendSeriesResult] already applied to [balanceBlock] for the identical race. The SAME
-     * re-check is repeated after [checkAnalyticsMeta]'s own (suspending) call, for the identical
-     * reason - a second network round trip is a second window for the state to move on.
+     * The query itself, the row mapping and the "why did this come back empty" metadata check all
+     * live in [BreakdownQueries] now - this is only the rendering half. It re-checks
+     * [breakdownStateAllowsQuery] AFTER the suspending call, not only at [refreshBreakdown]'s
+     * launch time (close-out round 2, Critical): the panel can leave READY/ERROR while the request
+     * is in flight - the Management Key is removed, say - and a late answer must not overwrite the
+     * placeholder the new state's own render path put there.
      */
     private suspend fun applyAnalyticsResult(
         period: ActivityAggregator.Period,
         dimension: AnalyticsBreakdown.Dimension
     ) {
-        val request = AnalyticsBreakdown.requestFor(period, LocalDate.now(), dimension)
-        val result = analyticsService.query(request)
+        val outcome = breakdownQueries.breakdown(period, dimension, LocalDate.now())
         if (!breakdownStateAllowsQuery(currentState)) return
 
-        if (result is ApiResult.Success) {
-            val rows = AnalyticsBreakdown.toModelSpend(result.data.data, dimension)
-            if (rows.isNotEmpty()) {
-                breakdownBlock.show(rows, result.data.metadata?.truncated == true)
-                return
-            }
-        }
-
-        // Nothing useful came back - fall through to the check ONLY now (see this function's own
-        // KDoc). A server that no longer supports a requested metric/dimension may answer either
-        // shape - a 200 with zero rows, or an outright error (a 400, say) - so both branches below
-        // consult it, and a genuine miss is preferred over the generic error/empty-state text.
-        val metaCheck = checkAnalyticsMeta()
-        if (!breakdownStateAllowsQuery(currentState)) return
-
-        if (metaCheck is AnalyticsMetaCheck.Result.Missing) {
-            breakdownBlock.showMissingNames(metaCheck.missingNames)
-            return
-        }
-
-        when (result) {
-            is ApiResult.Success -> breakdownBlock.show(emptyList(), result.data.metadata?.truncated == true)
-            is ApiResult.Error -> breakdownBlock.showError()
+        when (outcome) {
+            is BreakdownQueries.Breakdown.Rows -> breakdownBlock.show(outcome.rows, outcome.truncated)
+            is BreakdownQueries.Breakdown.Empty -> breakdownBlock.show(emptyList(), outcome.truncated)
+            is BreakdownQueries.Breakdown.MissingNames -> breakdownBlock.showMissingNames(outcome.names)
+            BreakdownQueries.Breakdown.Failed -> breakdownBlock.showError()
         }
     }
 
     /**
-     * Runs [AnalyticsMetaCheck] against a fresh (or, after the first call this session,
-     * [AnalyticsService]-cached - see its own KDoc) `/analytics/meta` fetch.
+     * Applies one spend-series query to the balance block's chart, rate and days-left estimate.
      *
-     * A failed fetch becomes [AnalyticsMetaCheck.Result.CouldNotCheck] here, at the ONLY point
-     * that translation happens - never [AnalyticsMetaCheck.Result.Missing]. This is the ruling
-     * that matters most for this check: a `meta()` network error, a 403, a timeout, must never be
-     * read as "our names are wrong" - it means only that this particular check could not run, and
-     * [applyAnalyticsResult] must fall through to its own existing empty-state/[showError]
-     * rendering exactly as it did before this check existed. Conflating "could not check" with
-     * "checked and something is missing" would turn a transient metadata failure into a broken
-     * working feature, which is worse than no diagnostic at all.
-     */
-    private suspend fun checkAnalyticsMeta(): AnalyticsMetaCheck.Result =
-        when (val result = analyticsService.meta()) {
-            is ApiResult.Success -> AnalyticsMetaCheck.run(result.data)
-            is ApiResult.Error -> AnalyticsMetaCheck.Result.CouldNotCheck
-        }
-
-    /**
-     * Runs the account-wide daily-spend query for [period] (Task 13) and, on success, applies it
-     * to [balanceBlock] via [renderCredits] - the OTHER half of the gap this task exists to close:
-     * [renderCredits] used to pass [NO_SERIES]/[NO_PER_DAY_RATE] unconditionally, so READY's own
-     * best feature (the spec's D3/D4 sparkline) only ever appeared in DEGRADED, fed from local
-     * history instead. A DIFFERENT query shape from [applyAnalyticsResult]'s
-     * ([AnalyticsBreakdown.spendSeriesRequestFor] - total_usage only, no model dimension, day
-     * granularity) answering a different question ("how fast am I burning it", not "where does it
-     * go"), so it is split into its own function/coroutine rather than folded into
-     * [applyAnalyticsResult]: a failure in one query must never affect the other's display (D12).
-     *
-     * On success, [currentSpendSeries] is [AnalyticsBreakdown.toSpendSeries]'s output,
-     * [currentSpendPerDay] is [AnalyticsBreakdown.burnRatePerDay] of that SAME series and [period]
-     * (so the burn rate and the chart it is drawn from can never silently disagree, and so the
-     * still-filling final bucket is excluded from the RATE the same way it is drawn as part of
-     * the CHART - see that function's own KDoc), and [currentSpendSeriesLabel] names both the
-     * quantity and [period]'s window - blank (hiding the row, same as [NO_SERIES_LABEL]) when the
-     * series itself came back empty, so an empty chart is never captioned as if it measured
-     * something.
-     *
-     * [renderCredits] is re-run immediately so the new numbers actually reach [balanceBlock] -
-     * but ONLY while [breakdownStateAllowsQuery] of [currentState] still holds (fix round 2,
-     * finding 5; reads the shared predicate as of close-out round 2 rather than its own inline
-     * READY/ERROR check - see that function's own KDoc for why). This query
-     * is asynchronous; by the time it resolves, the panel may have moved to DEGRADED (provisioning
-     * key removed), NOT_CONFIGURED, or LOADING (a cache tick), each of which cleared or hid the
-     * balance rows for a reason of its own - [showLocalSeriesOnly] in DEGRADED's case, [clearBalance]
-     * in the others. Re-rendering the balance unconditionally here would silently undo that: a
-     * `"$X.XX/day"` figure and a "server-reported" caption appearing in a state whose own render
-     * method explicitly does not show them, from a request nobody watching that state asked for.
-     * When the guard blocks the call, the FIELDS are still updated above - only the redundant
-     * render is skipped - so the moment the panel legitimately returns to READY/ERROR, whichever
-     * render path gets there first already has the fresh numbers.
-     *
-     * On error, NONE of [currentSpendSeries]/[currentSpendPerDay]/[currentSpendSeriesLabel] are
-     * touched - not reset to unknown, and never backfilled from [ActivityAggregator] or
-     * [DegradedSpend]'s local numbers. Whatever was last successfully fetched (or the initial
-     * "nothing known yet" placeholders, if this has never once succeeded) stays exactly as it was:
-     * the same D12 discipline [applyAnalyticsResult] applies via [BreakdownBlock.showError] rather
-     * than a silent fallback, just with no dedicated error line to fill here, since neither an
-     * em-dash `perDay` nor an empty/hidden series is a fabricated answer either way.
+     * A null result is "we learned nothing", not "spend was zero", so it leaves whatever is
+     * already on screen rather than replacing a real series with an invented flat one. Same
+     * post-await state re-check as [applyAnalyticsResult], for the same race.
      */
     private suspend fun applySpendSeriesResult(period: ActivityAggregator.Period) {
-        val request = AnalyticsBreakdown.spendSeriesRequestFor(period, LocalDate.now())
-        when (val result = analyticsService.query(request)) {
-            is ApiResult.Success -> {
-                val series = AnalyticsBreakdown.toSpendSeries(result.data.data)
-                currentSpendSeries = series
-                currentSpendPerDay = AnalyticsBreakdown.burnRatePerDay(series, period)
-                currentSpendSeriesLabel = if (series.isEmpty()) {
-                    NO_SERIES_LABEL
-                } else {
-                    when (period) {
-                        ActivityAggregator.Period.DAY -> READY_SERIES_LABEL_DAY
-                        ActivityAggregator.Period.WEEK -> READY_SERIES_LABEL_WEEK
-                        ActivityAggregator.Period.MONTH -> READY_SERIES_LABEL_MONTH
-                    }
-                }
-                if (breakdownStateAllowsQuery(currentState)) {
-                    renderCredits(statsCache.getCachedCredits())
-                }
+        val result = breakdownQueries.spendSeries(period, LocalDate.now()) ?: return
+
+        currentSpendSeries = result.series
+        currentSpendPerDay = result.perDay
+        currentSpendSeriesLabel = if (result.series.isEmpty()) {
+            NO_SERIES_LABEL
+        } else {
+            when (period) {
+                ActivityAggregator.Period.DAY -> READY_SERIES_LABEL_DAY
+                ActivityAggregator.Period.WEEK -> READY_SERIES_LABEL_WEEK
+                ActivityAggregator.Period.MONTH -> READY_SERIES_LABEL_MONTH
             }
-            is ApiResult.Error -> Unit
+        }
+
+        if (breakdownStateAllowsQuery(currentState)) {
+            renderCredits(statsCache.getCachedCredits())
         }
     }
 

@@ -500,6 +500,14 @@ kover {
                     // (needs a platform runner for JBLabel/JBScrollPane/GridBagLayout wiring).
                     "org.zhavoronkov.openrouter.toolwindow.status.StatusTabPanel",
                     "org.zhavoronkov.openrouter.toolwindow.status.StatusTabPanel\$*",
+                    // Defect D fix: the Scrollable content view createContentPanel() wraps in a
+                    // JBScrollPane. Swing view (GridBagLayout/Scrollable wiring) - same reasoning
+                    // as org.zhavoronkov.openrouter.toolwindow.chat.MessagesPanel, its sibling on
+                    // the chat side of this repo. BreakdownColumnPolicy, the pure logic that
+                    // actually decides what fits once this panel hands rowsPanel a real width, is
+                    // NOT excluded - it runs under the fast :test task instead.
+                    "org.zhavoronkov.openrouter.toolwindow.status.StatusContentPanel",
+                    "org.zhavoronkov.openrouter.toolwindow.status.StatusContentPanel\$*",
                     // Task 8: the balance block and its spend sparkline. Swing views needing a
                     // platform runner for JBLabel/BoxLayout/custom-paint - same reasoning as
                     // every other Swing view in this package.

@@ -130,7 +130,7 @@ class CodeSegmentViewPlatformTest : BasePlatformTestCase() {
 
     /**
      * Width-then-height audit (see
-     * docs/superpowers/2026-09-18-visual-pass-fixes.md): `HorizontallyScrollingPane`'s
+     * the visual-pass audit): `HorizontallyScrollingPane`'s
      * `naturalSize` lambda is read lazily inside its own overridden
      * `getPreferredSize()`, at real layout time - not snapshotted eagerly the
      * way `ChatParamsPopup.buildForm()` briefly was - and the wrapped

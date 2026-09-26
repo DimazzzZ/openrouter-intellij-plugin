@@ -88,7 +88,7 @@ fun findBottomOverflowingDescendants(root: Container, containerHeight: Int = roo
 
 /**
  * The one assertion behind both width-then-height bugs this plugin has
- * shipped (see docs/superpowers/2026-09-18-visual-pass-fixes.md, "Width-then
+ * shipped (see the visual-pass audit, "Width-then
  * -height audit"): a component whose preferred HEIGHT depends on the WIDTH
  * it is given, measured before that width is applied, ends up clipping a
  * descendant against its container's bottom edge. Call this on any

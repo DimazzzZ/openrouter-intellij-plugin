@@ -117,6 +117,33 @@ open class OpenRouterService(
     }
 
     /**
+     * Extracts `error.message` from an OpenRouter-shaped non-2xx JSON body - the same extraction
+     * [org.zhavoronkov.openrouter.utils.toApiResult] already does for callers that hand it a raw,
+     * unconsumed [Response]. [getCredits] and [getActivity] cannot call that extension directly:
+     * both already hold a decoupled body string from [awaitWithBody] (read once, so the connection
+     * can be closed before parsing/logging), and [Response.toApiResult] reads the body itself from
+     * the [Response] it is given - a second read of an already-closed body would return nothing.
+     *
+     * Without this, a non-2xx body was passed straight through as the user-visible message
+     * verbatim - the literal JSON, e.g. `{"error":{"message":"Only management keys can fetch
+     * credits for an account","code":403}}`, shown character-for-character in the status tab
+     * instead of the one sentence a human asked the server for.
+     *
+     * Falls back to the raw body (never blank) when the body does not parse as an
+     * [OpenRouterResponse] or carries no `error.message` - matching [Response.toApiResult]'s own
+     * fallback order, since a body shaped some other way is still better shown as-is than replaced
+     * with a generic string that discards it entirely.
+     */
+    private fun extractErrorMessage(responseBody: String, fallback: String): String {
+        val parsed = try {
+            gson.fromJson(responseBody, OpenRouterResponse::class.java)?.error?.message
+        } catch (_: JsonSyntaxException) {
+            null
+        }
+        return parsed?.takeIf { it.isNotBlank() } ?: responseBody.ifBlank { fallback }
+    }
+
+    /**
      * Get usage statistics for a specific generation
      */
     @Suppress("unused") // Public API method
@@ -518,7 +545,7 @@ open class OpenRouterService(
                 } else {
                     PluginLogger.Service.warn("Failed to fetch credits: ${response.code} - $responseBody")
                     ApiResult.Error(
-                        message = responseBody.ifBlank { "Failed to fetch credits" },
+                        message = extractErrorMessage(responseBody, "Failed to fetch credits"),
                         statusCode = response.code
                     )
                 }
@@ -570,7 +597,7 @@ open class OpenRouterService(
                 } else {
                     PluginLogger.Service.warn("Failed to fetch activity: ${response.code} - $responseBody")
                     ApiResult.Error(
-                        message = responseBody.ifBlank { "Failed to fetch activity" },
+                        message = extractErrorMessage(responseBody, "Failed to fetch activity"),
                         statusCode = response.code
                     )
                 }

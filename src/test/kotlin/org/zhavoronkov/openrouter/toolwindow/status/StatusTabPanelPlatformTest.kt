@@ -25,9 +25,11 @@ import java.awt.Container
 import java.awt.GridBagLayout
 import java.awt.event.ComponentEvent
 import java.time.LocalDate
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.swing.JLabel
 import javax.swing.JPanel
+import javax.swing.JViewport
 
 private const val LAYOUT_WIDTH = 300
 private const val BREAKDOWN_LAYOUT_WIDTH = 280
@@ -107,8 +109,9 @@ class StatusTabPanelPlatformTest : BasePlatformTestCase() {
         val texts = collectLabelSnapshots(block.component).map { it.text }
 
         assertTrue(
-            "a zero total must render the em dash somewhere in the block, found: $texts",
-            texts.contains(EM_DASH)
+            "a zero total must still name its OWN row when the figure is unknown - 'of $EM_DASH " +
+                "total', never a bare em dash with the row's descriptor gone: $texts",
+            texts.contains("of $EM_DASH total")
         )
         assertFalse(
             "a zero total must never be paired with a fabricated total figure like " +
@@ -273,8 +276,9 @@ class StatusTabPanelPlatformTest : BasePlatformTestCase() {
             texts.any { it.contains(Regex("""\$[0-9]""")) }
         )
         assertTrue(
-            "the remaining row must render the em dash when remaining is unknown: $texts",
-            texts.contains(EM_DASH)
+            "the remaining row must still say 'remaining' when the figure is unknown - " +
+                "'$EM_DASH remaining', never a bare em dash with the descriptor gone: $texts",
+            texts.contains("$EM_DASH remaining")
         )
     }
 
@@ -3367,6 +3371,150 @@ class StatusTabPanelPlatformTest : BasePlatformTestCase() {
         field.set(OpenRouterStatsCache.getInstance(), message)
     }
 
+    // --- Defect D: the breakdown's spend column must never be pushed off-screen by an unbounded
+    // model column. The fix wraps createContentPanel()'s view in StatusContentPanel (Scrollable,
+    // getScrollableTracksViewportWidth() == true) so the whole GridBagLayout grid - and so
+    // BreakdownBlock's own rowsPanel - is laid out at the REAL viewport width, never at an
+    // arbitrarily wide preferred width driven by the longest model id. Driven through the real,
+    // live StatusTabPanel.component (header + the real JBScrollPane), not a bare BreakdownBlock,
+    // because the bug is specifically about what WIDTH that scroll pane hands its content - a
+    // bare BreakdownBlock test would only prove the ellipsis/column logic reacts correctly to
+    // whatever width it is given, never that it is given the RIGHT one in the first place.
+
+    /**
+     * Proves both halves of the fix at once: the model column must middle-ellipsise (never render
+     * the id verbatim), and the spend label - the answer this whole block exists to give - must
+     * lie ENTIRELY within the real viewport's bounds, not merely have the right text set. Before
+     * the fix, [StatusContentPanel] (nee a bare `JPanel(GridBagLayout())`) took its own preferred
+     * width - driven by this very long id - so the spend label was laid out far to the right of
+     * the visible viewport, exactly reproducing the screenshot this task responds to (`2423`,
+     * `1224`, `38`... with most rows showing no figure at all).
+     */
+    fun testAtANarrowWidthTheModelColumnEllipsisesAndTheSpendFigureStaysFullyVisibleInTheViewport() {
+        val settingsService = mock(OpenRouterSettingsService::class.java)
+        val sharedCache = OpenRouterStatsCache.getInstance()
+        `when`(settingsService.isConfigured()).thenReturn(false)
+        `when`(settingsService.getProvisioningKey()).thenReturn("")
+
+        val statusTab = StatusTabPanel(project, settingsService)
+        try {
+            val activityRow = ActivityData(
+                date = LocalDate.now().toString(),
+                model = DEFECT_D_MODEL_ID,
+                modelPermaslug = null,
+                endpointId = null,
+                providerName = null,
+                usage = DEFECT_D_SPEND,
+                byokUsageInference = null,
+                requests = DEFECT_D_REQUESTS,
+                promptTokens = null,
+                completionTokens = null,
+                reasoningTokens = null
+            )
+            sharedCache.updateFromPopup(
+                CreditsResponse(CreditsData(totalCredits = READY_TOTAL, totalUsage = READY_USAGE)),
+                ActivityResponse(data = listOf(activityRow)),
+                apiKeysWithARealCap()
+            )
+            `when`(settingsService.isConfigured()).thenReturn(true)
+            `when`(settingsService.getProvisioningKey()).thenReturn("a-provisioning-key")
+            statusTab.renderForTest()
+            assertEquals(StatusTabState.State.READY, statusTab.getStateForTest())
+
+            val panel = statusTab.component
+            panel.setSize(FLOOR_LAYOUT_WIDTH, panel.preferredSize.height)
+            layoutTreeRecursively(panel)
+            panel.setSize(FLOOR_LAYOUT_WIDTH, panel.preferredSize.height)
+            layoutTreeRecursively(panel)
+
+            val viewport = findViewport(panel)
+            val spendText = "$" + String.format(Locale.US, "%.4f", DEFECT_D_SPEND)
+            val spendLabel = findLabelByExactText(panel, spendText)
+            val modelLabel = findModelNameLabel(panel)
+
+            assertTrue(
+                "the model column must middle-ellipsise at this width, never render the full id " +
+                    "verbatim: '${modelLabel.text}'",
+                modelLabel.text != DEFECT_D_MODEL_ID && modelLabel.text.contains("…")
+            )
+            assertTrue(
+                "middle-ellipsis must keep the id's HEAD: '${modelLabel.text}'",
+                DEFECT_D_MODEL_ID.startsWith(modelLabel.text.substringBefore("…"))
+            )
+            assertTrue(
+                "middle-ellipsis must keep the id's TAIL: '${modelLabel.text}'",
+                DEFECT_D_MODEL_ID.endsWith(modelLabel.text.substringAfterLast("…"))
+            )
+
+            val spendOffsetInViewport = xOffsetRelativeTo(spendLabel, viewport)
+            assertTrue(
+                "the spend figure must be FULLY visible inside the real viewport (width=" +
+                    "${viewport.width}px) - got offset=$spendOffsetInViewport, " +
+                    "labelWidth=${spendLabel.width}, which is exactly the defect this test " +
+                    "guards: the spend column pushed off-screen by an unbounded model column",
+                spendOffsetInViewport >= 0 && spendOffsetInViewport + spendLabel.width <= viewport.width
+            )
+        } finally {
+            sharedCache.clearCache()
+            statusTab.dispose()
+        }
+    }
+
+    /** The one [JViewport] in [root]'s tree - [StatusTabPanel.createStatusPanel]'s own
+     * `JBScrollPane(contentPanel)`. */
+    private fun findViewport(root: Container): JViewport {
+        root.components.forEach { child ->
+            if (child is JViewport) return child
+            if (child is Container) {
+                val found = runCatching { findViewport(child) }.getOrNull()
+                if (found != null) return found
+            }
+        }
+        error("no JViewport found under $root")
+    }
+
+    /** A [JLabel] whose CURRENT text is an exact match - unlike [collectLabelSnapshots], this
+     * returns the real component so its laid-out bounds can be read. */
+    private fun findLabelByExactText(root: Container, text: String): JLabel {
+        root.components.forEach { child ->
+            if (child is JLabel && child.text == text) return child
+            if (child is Container) {
+                val found = runCatching { findLabelByExactText(child, text) }.getOrNull()
+                if (found != null) return found
+            }
+        }
+        error("no label with text '$text' found under $root")
+    }
+
+    /** [BreakdownBlock]'s private `ModelNameLabel` - identified structurally by its simple class
+     * name, since the type itself is private to that file. */
+    private fun findModelNameLabel(root: Container): JLabel {
+        root.components.forEach { child ->
+            if (child is JLabel && child.javaClass.simpleName == "ModelNameLabel") return child
+            if (child is Container) {
+                val found = runCatching { findModelNameLabel(child) }.getOrNull()
+                if (found != null) return found
+            }
+        }
+        error("no ModelNameLabel found under $root")
+    }
+
+    /** [component]'s x-offset relative to [ancestor]'s own coordinate space - summing each
+     * intermediate parent's own `x`, the same accumulation [findBottomOverflowingDescendants]
+     * does on the y-axis. Assumes [ancestor] (here, always a [JViewport]) has not been scrolled
+     * away from its default `viewPosition` of `(0, 0)` - true for every test in this file, none of
+     * which ever calls `JViewport.setViewPosition`. */
+    private fun xOffsetRelativeTo(component: Component, ancestor: Container): Int {
+        var offset = 0
+        var current: Component? = component
+        while (current != null && current !== ancestor) {
+            offset += current.x
+            current = current.parent
+        }
+        check(current === ancestor) { "$component is not a descendant of $ancestor" }
+        return offset
+    }
+
     /** Two layout passes at a realistic width - width applied before any height is read, the bug
      * class this branch has shipped twice - then the standard clipping floor check. */
     private fun layoutAtRealisticWidthAndAssertNotClipped(panel: Container) {
@@ -3392,3 +3540,11 @@ private const val KEY_USAGE_FOR_FLOOR_TEST = 5.0
 private const val FLOOR_TEST_REQUEST_COUNT = 31
 private const val DEGRADED_HISTORY_FIRST_TOTAL_USED = 10.0
 private const val DEGRADED_HISTORY_SECOND_TOTAL_USED = 12.5
+
+// Defect D: long enough that, at FLOOR_LAYOUT_WIDTH, an unbounded content view's preferred width
+// (the pre-fix bug) pushes the spend column well outside a 280px viewport - reproducing the
+// screenshot's clipped/absent spend figures.
+private const val DEFECT_D_MODEL_ID =
+    "anthropic/claude-3.7-sonnet-20250219-extended-thinking-with-an-extremely-long-suffix-appended"
+private const val DEFECT_D_SPEND = 42.1234
+private const val DEFECT_D_REQUESTS = 5

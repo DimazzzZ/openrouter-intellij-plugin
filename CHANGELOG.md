@@ -68,9 +68,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 - Defined **Router**, **RouterCatalog**, and **PluginConfig** terms in [`docs/agents/domain.md`](docs/agents/domain.md)
-- [`docs/superpowers/specs/2026-09-17-chat-ui-redesign.md`](docs/superpowers/specs/2026-09-17-chat-ui-redesign.md) — the twelve design decisions behind the chat rebuild, the root causes with their locations, and three recorded corrections where the spec's own reasoning turned out not to hold
-- [`docs/superpowers/2026-09-17-chat-ui-manual-checklist.md`](docs/superpowers/2026-09-17-chat-ui-manual-checklist.md) — the manual verification pass no automated check can perform, each item tied to the commit it guards
-- [`docs/superpowers/2026-09-18-visual-pass-fixes.md`](docs/superpowers/2026-09-18-visual-pass-fixes.md) — what the visual passes found, including the documented blind spot of the clipping assertion
 
 ## [0.6.0] - 2026-09-15
 

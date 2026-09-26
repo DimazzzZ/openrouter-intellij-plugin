@@ -51,7 +51,7 @@ import javax.swing.SwingUtilities
 // The views it used to contain now live in toolwindow/chat and toolwindow/composer.
 // Still over detekt's LargeClass/TooManyFunctions thresholds (883 lines, 40 functions).
 // Getting under them means extracting saveChats/loadChats and the send path, which is
-// a separate piece of work with its own risk - see docs/superpowers/plans.
+// a separate piece of work with its own risk - see the redesign plan.
 @Suppress("TooManyFunctions", "LargeClass")
 class ChatPanel(
     private val project: Project,

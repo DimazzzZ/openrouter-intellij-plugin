@@ -113,7 +113,7 @@ class CodeSegmentView(segment: MessageSegment.Code) {
  * **Width-then-height audit (2026-09-18):** [naturalSize] looks like the same
  * "read a width-dependent height too early" shape that bit [WrappingEditorPane]
  * and `ChatParamsPopup.buildForm()` (see
- * docs/superpowers/2026-09-18-visual-pass-fixes.md), but it is not, at either
+ * the visual-pass audit), but it is not, at either
  * call site:
  * - [getPreferredSize] calls [naturalSize] lazily, every time Swing itself
  *   asks for the preferred size during layout - never snapshotted once into a

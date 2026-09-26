@@ -134,7 +134,7 @@ class MessageViewLayoutPlatformTest : BasePlatformTestCase() {
     private fun leftEdgeOfText(view: MessageView): Int = leftEdgeAndTopOfText(view).x
 
     /**
-     * Spacing pass (see docs/superpowers/2026-09-18-visual-pass-fixes.md,
+     * Spacing pass (see the visual-pass audit,
      * "Spacing pass"): [testUserAndAssistantTextStartAtTheSameLeftEdge] above
      * only compares the prose pane's own component bounds, which is a
      * necessary but not sufficient check - a component can start at the
@@ -228,7 +228,7 @@ class MessageViewLayoutPlatformTest : BasePlatformTestCase() {
 
     // --- Width-then-height audit: no descendant clipped by the message's own
     // --- bottom edge, the shape both WrappingEditorPane and ChatParamsPopup
-    // --- shipped bugs shared. See docs/superpowers/2026-09-18-visual-pass-fixes.md.
+    // --- shipped bugs shared. See the visual-pass audit.
 
     fun testLongWrappedReplyIsNotClippedByBottomEdge() {
         val longReply = "pareto ".repeat(LONG_REPLY_WORD_COUNT).trim()

@@ -6,6 +6,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -104,5 +105,49 @@ class OpenRouterServiceUsageEndpointsTest {
         val success = result as ApiResult.Success
         assertEquals(1, success.data.data.size)
         assertEquals("openai/gpt-4", success.data.data.first().model)
+    }
+
+    // --- Defect A: a non-2xx body must surface the server's own sentence, never the raw JSON ----
+
+    @Test
+    fun `getCredits should surface the server's error message not the raw JSON body on a 403`() = runBlocking {
+        val body = """{"error":{"message":"Only management keys can fetch credits for an account","code":403}}"""
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(403)
+                .setHeader("Content-Type", "application/json")
+                .setBody(body)
+        )
+
+        val result = service.getCredits()
+
+        assertTrue(result is ApiResult.Error)
+        val error = result as ApiResult.Error
+        assertEquals("Only management keys can fetch credits for an account", error.message)
+        assertFalse(
+            error.message.contains("{"),
+            "the raw JSON body must never reach the user-visible message: ${error.message}"
+        )
+    }
+
+    @Test
+    fun `getActivity should surface the server's error message not the raw JSON body on a 403`() = runBlocking {
+        val body = """{"error":{"message":"Only management keys can fetch activity for an account","code":403}}"""
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(403)
+                .setHeader("Content-Type", "application/json")
+                .setBody(body)
+        )
+
+        val result = service.getActivity()
+
+        assertTrue(result is ApiResult.Error)
+        val error = result as ApiResult.Error
+        assertEquals("Only management keys can fetch activity for an account", error.message)
+        assertFalse(
+            error.message.contains("{"),
+            "the raw JSON body must never reach the user-visible message: ${error.message}"
+        )
     }
 }
