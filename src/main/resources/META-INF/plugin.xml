@@ -372,12 +372,19 @@
             id="org.zhavoronkov.openrouter.settings.PresetsConfigurable"
             displayName="Presets"/>
 
-        <!-- Provider Routing sub-page -->
+       <!-- Provider Routing sub-page -->
+       <applicationConfigurable
+           parentId="org.zhavoronkov.openrouter.settings.OpenRouterConfigurable"
+           instance="org.zhavoronkov.openrouter.settings.ProviderRoutingConfigurable"
+           id="org.zhavoronkov.openrouter.settings.ProviderRoutingConfigurable"
+           displayName="Provider Routing"/>
+
+        <!-- Router Defaults sub-page -->
         <applicationConfigurable
             parentId="org.zhavoronkov.openrouter.settings.OpenRouterConfigurable"
-            instance="org.zhavoronkov.openrouter.settings.ProviderRoutingConfigurable"
-            id="org.zhavoronkov.openrouter.settings.ProviderRoutingConfigurable"
-            displayName="Provider Routing"/>
+            instance="org.zhavoronkov.openrouter.settings.RouterDefaultsConfigurable"
+            id="org.zhavoronkov.openrouter.settings.RouterDefaultsConfigurable"
+            displayName="Router Defaults"/>
         
         <!-- Status bar widget -->
         <statusBarWidgetFactory

@@ -12,6 +12,17 @@ this file says.
   `Authorization: Bearer` on outbound OpenRouter requests.
 - **Model** — an OpenRouter model identifier (e.g. `openai/gpt-4o`,
   `anthropic/claude-3.5-sonnet`). Vendor-prefixed, always lowercase.
+- **Router** — an `openrouter/`-namespaced model slug that OpenRouter itself
+  resolves to an underlying model at request time (e.g. `openrouter/auto`,
+  `openrouter/fusion`, `openrouter/pareto-code`). A router may take one tunable
+  parameter carried in a `plugins[]` block.
+- **RouterCatalog** — the single declarative table (`proxy/routing`) of
+  supported routers. The chat model list, the proxy `/v1/models` listing and
+  the request builder all read from it; no router-specific branches live
+  anywhere else.
+- **PluginConfig** — the `{ id, params }` block attached to a request's
+  `plugins` field to pass a router's parameter (e.g. `auto-router` +
+  `cost_tier`). Emitted only when the user picks a valid value.
 - **Proxy Server** — local Jetty server that translates AI-Assistant-style
   OpenAI requests into OpenRouter requests. Runs on 127.0.0.1 only.
 - **AI Assistant** — JetBrains' built-in AI feature (`com.intellij.ml.llm`).

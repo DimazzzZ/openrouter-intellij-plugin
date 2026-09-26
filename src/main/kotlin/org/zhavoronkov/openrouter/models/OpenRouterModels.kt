@@ -1,6 +1,12 @@
 package org.zhavoronkov.openrouter.models
 
+import com.google.gson.JsonElement
+import com.google.gson.JsonObject
+import com.google.gson.JsonSerializationContext
+import com.google.gson.JsonSerializer
+import com.google.gson.annotations.JsonAdapter
 import com.google.gson.annotations.SerializedName
+import java.lang.reflect.Type
 
 /**
  * Data models for OpenRouter API responses
@@ -305,8 +311,49 @@ data class ChatCompletionRequest(
     val tools: List<ChatTool>? = null,
     @SerializedName("tool_choice") val toolChoice: ToolChoice? = null,
     val provider: ProviderRoutingPreferences? = null,
-    val models: List<String>? = null // Fallback model list
+    val models: List<String>? = null, // Fallback model list
+    val plugins: List<PluginConfig>? = null // OpenRouter model-routing plugins
 )
+
+/**
+ * A single element of the OpenRouter `plugins` array (model-routing plugins
+ * such as auto-router, fusion, pareto-router).
+ *
+ * OpenRouter expects the router's parameters at the SAME object level as
+ * `id` — e.g. {"id":"auto-router","cost_tier":"medium"} — not nested. We
+ * model that as an id plus a flat [params] map and flatten it during
+ * serialization via [PluginConfigJsonSerializer], registered with a
+ * class-level @JsonAdapter so any plain Gson() (the service uses a bare
+ * one) emits the correct shape. The map keys/types stay data-driven from
+ * RouterCatalog; no router-specific fields live here.
+ */
+@JsonAdapter(PluginConfigJsonSerializer::class)
+data class PluginConfig(
+    val id: String,
+    val params: Map<String, Any?> = emptyMap()
+)
+
+/**
+ * Flattens [PluginConfig.params] onto the top-level object next to `id`.
+ * Serialize-only: the plugin never deserializes router responses into this
+ * type, so a one-way serializer is sufficient and keeps the wrapper key
+ * (`params`) from ever leaking into the wire format.
+ */
+class PluginConfigJsonSerializer : JsonSerializer<PluginConfig> {
+    override fun serialize(
+        src: PluginConfig,
+        typeOfSrc: Type,
+        context: JsonSerializationContext
+    ): JsonElement {
+        val obj = JsonObject()
+        obj.addProperty("id", src.id)
+        for ((key, value) in src.params) {
+            if (value == null) continue
+            obj.add(key, context.serialize(value))
+        }
+        return obj
+    }
+}
 
 data class ReasoningConfig(
     val effort: String? = null,
@@ -438,6 +485,11 @@ data class OpenRouterSettings(
     var providerOnly: MutableList<String> = mutableListOf(),
     var providerIgnore: MutableList<String> = mutableListOf(),
     var fallbackModels: MutableList<String> = mutableListOf(), // Global default `models[]` fallback list
+    // Per-router default parameter values, keyed by router model slug (e.g.
+    // "openrouter/auto" -> "high"). The value is the raw param string exactly as
+    // the chat UI would produce it; RouterRequestBuilder validates/coerces it.
+    // Injected into proxy requests only when the request omits `plugins`.
+    var routerDefaults: MutableMap<String, String> = mutableMapOf(),
 )
 
 /**

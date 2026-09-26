@@ -11,6 +11,7 @@ import org.zhavoronkov.openrouter.services.settings.FavoriteModelsManager
 import org.zhavoronkov.openrouter.services.settings.PresetsManager
 import org.zhavoronkov.openrouter.services.settings.ProviderRoutingManager
 import org.zhavoronkov.openrouter.services.settings.ProxySettingsManager
+import org.zhavoronkov.openrouter.services.settings.RouterDefaultsManager
 import org.zhavoronkov.openrouter.services.settings.SetupStateManager
 import org.zhavoronkov.openrouter.services.settings.UIPreferencesManager
 import org.zhavoronkov.openrouter.utils.PluginLogger
@@ -42,6 +43,9 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
     lateinit var providerRoutingManager: ProviderRoutingManager
         private set
 
+    lateinit var routerDefaultsManager: RouterDefaultsManager
+        private set
+
     init {
         initializeManagers()
     }
@@ -54,6 +58,7 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
         favoriteModelsManager = FavoriteModelsManager(settings) { notifyStateChanged() }
         presetsManager = PresetsManager(settings) { notifyStateChanged() }
         providerRoutingManager = ProviderRoutingManager(settings) { notifyStateChanged() }
+        routerDefaultsManager = RouterDefaultsManager(settings) { notifyStateChanged() }
     }
 
     companion object {
