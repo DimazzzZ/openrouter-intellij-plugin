@@ -62,9 +62,23 @@ class AnalyticsModelsFixtureTest {
         )
     }
 
+    /**
+     * Weakened from the original "must be a Number, not a String" assertion (see git history):
+     * a live capture showed the server sends `total_usage` as a JSON number but `request_count`
+     * as a QUOTED string, in every row, for the same query - Gson decodes that quoted value as a
+     * plain Kotlin String, not a Number. The strict `is Number` check was therefore asserting an
+     * invariant the real server does not honour, and a fixture built to that invariant is exactly
+     * the "proves we read the documentation, not the wire" failure mode this file's own KDoc
+     * warns about. The invariant this test can actually stand behind is narrower: every metric
+     * value must be NUMERIC, whether typed as a JSON number or carried as a numeric string -
+     * never a non-numeric value like `"abc"` slipping through unnoticed.
+     */
+    private fun isNumeric(value: Any?): Boolean =
+        value is Number || (value is String && value.toDoubleOrNull() != null)
+
     @Test
-    @DisplayName("a metric value parses as a number, not as a string")
-    fun `a metric value parses as a number`() {
+    @DisplayName("a metric value is numeric, whether typed as a JSON number or carried as a numeric string")
+    fun `a metric value is numeric`() {
         val rows = parsed().data.data
 
         val withUsage = rows.filter { it.containsKey("total_usage") }
@@ -75,8 +89,9 @@ class AnalyticsModelsFixtureTest {
         withUsage.forEach { row ->
             val value = row["total_usage"]
             assertTrue(
-                value is Number,
-                "total_usage should be a Number, was ${value?.javaClass?.simpleName}"
+                isNumeric(value),
+                "total_usage should be numeric (a Number or a numeric String), " +
+                    "was ${value?.javaClass?.simpleName}: $value"
             )
         }
 
@@ -88,8 +103,9 @@ class AnalyticsModelsFixtureTest {
         withCount.forEach { row ->
             val value = row["request_count"]
             assertTrue(
-                value is Number,
-                "request_count should be a Number, was ${value?.javaClass?.simpleName}"
+                isNumeric(value),
+                "request_count should be numeric (a Number or a numeric String), " +
+                    "was ${value?.javaClass?.simpleName}: $value"
             )
         }
     }

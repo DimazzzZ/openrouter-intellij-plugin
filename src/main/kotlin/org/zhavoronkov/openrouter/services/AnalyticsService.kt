@@ -59,6 +59,15 @@ class AnalyticsService internal constructor(
     // precedent as OpenRouterProxyService's activeTasks map.
     private val queryCache = ConcurrentHashMap<AnalyticsQueryRequest, AnalyticsQueryPayload>()
 
+    // Deliberately separate from queryCache and NOT cleared by invalidate() - see meta()'s and
+    // invalidate()'s own KDocs. There is exactly one meta() call shape (no parameters), so a
+    // single nullable field is the whole cache; a Map would imply a key that does not exist.
+    // @Volatile, not a lock: the same benign put/put race queryCache's own KDoc accepts - two
+    // concurrent misses both fetch and both write the same server answer, which costs one extra
+    // request, never a corrupted read.
+    @Volatile
+    private var metaCache: AnalyticsMeta? = null
+
     private fun getBaseUrl(): String = baseUrlOverride ?: OpenRouterConstants.BASE_URL
     private fun getAnalyticsQueryEndpoint() = "${getBaseUrl()}/analytics/query"
     private fun getAnalyticsMetaEndpoint() = "${getBaseUrl()}/analytics/meta"
@@ -71,8 +80,14 @@ class AnalyticsService internal constructor(
     fun isAvailable(): Boolean = provisioningKeyProvider().isNotBlank()
 
     /**
-     * Clears the query cache. Called when the Status tab refreshes deliberately,
+     * Clears the query cache only. Called when the Status tab refreshes deliberately,
      * so a stale answer for a previously-seen period is never served silently.
+     *
+     * [metaCache] is deliberately NOT cleared here: [meta] is fetched once per SESSION, not once
+     * per refresh (this method is called on every deliberate refresh - see its callers) - the
+     * names an API build advertises do not change while the IDE is running, and re-fetching them
+     * on a timer-free tab that already minds its query budget (analytics queries spend the user's
+     * quota) would be spending it on a question already answered.
      */
     fun invalidate() {
         queryCache.clear()
@@ -115,6 +130,18 @@ class AnalyticsService internal constructor(
     /**
      * Discovers the metrics, dimensions and granularities the analytics query
      * endpoint currently supports.
+     *
+     * Consumed in production by `StatusTabPanel`'s meta-validation check (spec correction C3,
+     * scoped down from D6's literal "build queries from what the server discovers" reading - see
+     * `AnalyticsMetaCheck`'s own KDoc): the hard-coded names in `AnalyticsBreakdown` are checked
+     * against this response, not replaced by it. This method builds no query of its own from what
+     * it returns.
+     *
+     * Cached for the life of this instance after the first successful call - a real per-SESSION
+     * cache, unlike [queryCache], which [invalidate] clears on every deliberate refresh. See
+     * [invalidate]'s own KDoc for why a name check must not repeat on a timer-free tab that
+     * already minds its analytics query budget. Only a SUCCESS is cached; a failed call is
+     * retried the next time [meta] is called, exactly like a query cache miss.
      */
     suspend fun meta(): ApiResult<AnalyticsMeta> = withContext(Dispatchers.IO) {
         val provisioningKey = provisioningKeyProvider()
@@ -122,6 +149,8 @@ class AnalyticsService internal constructor(
             PluginLogger.Service.warn("No provisioning key available for analytics meta")
             return@withContext ApiResult.Error("No provisioning key configured")
         }
+
+        metaCache?.let { cached -> return@withContext ApiResult.Success(cached, HttpURLConnection.HTTP_OK) }
 
         try {
             val httpRequest = OpenRouterRequestBuilder.buildGetRequest(
@@ -132,6 +161,7 @@ class AnalyticsService internal constructor(
 
             val response = client.newCall(httpRequest).await()
             response.toApiResult<AnalyticsMetaResponse>(gson).map { it.data }
+                .onSuccess { meta -> metaCache = meta }
         } catch (e: IOException) {
             PluginLogger.Service.warn("Error fetching analytics meta: ${e.message}")
             ApiResult.Error(message = e.message ?: "Network error", throwable = e)

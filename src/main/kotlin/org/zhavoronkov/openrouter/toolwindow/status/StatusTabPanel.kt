@@ -27,7 +27,6 @@ import java.awt.BorderLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.time.LocalDate
-import java.util.Locale
 import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JPanel
@@ -59,6 +58,12 @@ class StatusTabPanel(
         // UI Dimensions
         private const val TITLE_FONT_SIZE = 16f
         private const val CONTENT_SPACING = 5
+
+        /** `GridBagConstraints.weightx` for every full-width row (the four blocks, the
+         * configuration panel, and the Status row's value column) - see [createContentPanel]'s own
+         * KDoc for why `weightx`, not `fill` alone, is what makes a row actually absorb the tool
+         * window's real width instead of centring at its preferred width. */
+        private const val FULL_WIDTH_WEIGHT = 1.0
         private const val LABEL_SPACING_LARGE = 20
         private const val CONFIGURATION_PANEL_BORDER = 10
 
@@ -67,9 +72,8 @@ class StatusTabPanel(
         private const val GRID_DEGRADED_ROW = 1
         private const val GRID_BALANCE_ROW = 2
         private const val GRID_KEY_LIMIT_ROW = 3
-        private const val GRID_ACTIVITY_ROW = 4
-        private const val GRID_BREAKDOWN_ROW = 5
-        private const val GRID_CONFIG_ROW = 6
+        private const val GRID_BREAKDOWN_ROW = 4
+        private const val GRID_CONFIG_ROW = 5
 
         /** [BreakdownBlock]'s own default period - see its "defaulting to 24 hours" contract. */
         private val DEFAULT_BREAKDOWN_PERIOD = ActivityAggregator.Period.DAY
@@ -82,19 +86,28 @@ class StatusTabPanel(
         private const val DEGRADED_SERIES_LABEL = "Locally observed spend (no provisioning key)"
 
         /** What READY/ERROR's sparkline measures (Task 13) - the analytics API's own account-wide
-         * daily total ([AnalyticsBreakdown.spendSeriesRequestFor]/[AnalyticsBreakdown.toSpendSeries]),
+         * spend total ([AnalyticsBreakdown.spendSeriesRequestFor]/[AnalyticsBreakdown.toSpendSeries]),
          * never [DEGRADED_SERIES_LABEL]'s locally-observed one. Each names both the QUANTITY
-         * ("Daily spend", "server-reported") and the WINDOW it covers (D12: two users comparing
-         * "the same chart" must get the same numbers, which starts with the caption saying what
-         * window it is) - and stays textually distinct from [DEGRADED_SERIES_LABEL] so neither can
+         * ("Hourly"/"Daily spend", "server-reported" - see [READY_SERIES_LABEL_DAY]'s own KDoc for
+         * why DAY's quantity word differs from WEEK/MONTH's) and the WINDOW it covers (D12: two
+         * users comparing "the same chart" must get the same numbers, which starts with the
+         * caption saying what window it is) - and stays textually distinct from
+         * [DEGRADED_SERIES_LABEL] so neither can
          * be mistaken for the other. Keyed by [ActivityAggregator.Period] rather than formatted
          * from it, matching [BreakdownBlock]'s own fixed "24 hours" / "7 days" / "30 days" wording -
          * except for DAY, where fix round 2 (finding 8) deliberately does NOT reuse that "24
          * hours" wording: [AnalyticsBreakdown.spendSeriesRequestFor]'s window for DAY is the
          * current CALENDAR day, not a rolling 24-hour one, and this caption sits directly above a
          * computed rate, so it has to say what the window actually is rather than borrow
-         * [BreakdownBlock]'s (different) window's name for a similar-sounding period. */
-        private const val READY_SERIES_LABEL_DAY = "Daily spend (server-reported), today so far"
+         * [BreakdownBlock]'s (different) window's name for a similar-sounding period.
+         *
+         * DAY's QUANTITY word is "Hourly", not "Daily" (fix round 3, finding 3): the request this
+         * caption sits above asks for [AnalyticsBreakdown.spendSeriesRequestFor]'s HOUR
+         * granularity for DAY - see its `GRANULARITY_HOUR` branch - so the points behind this
+         * caption are hourly amounts. "Daily spend" naming an hourly series is exactly the kind of
+         * quantity/caption mismatch D12 forbids, even though it happens to share a prefix with
+         * WEEK/MONTH's genuinely daily captions below. */
+        private const val READY_SERIES_LABEL_DAY = "Hourly spend (server-reported), today so far"
         private const val READY_SERIES_LABEL_WEEK = "Daily spend (server-reported), last 7 days"
         private const val READY_SERIES_LABEL_MONTH = "Daily spend (server-reported), last 30 days"
 
@@ -127,7 +140,6 @@ class StatusTabPanel(
     private val statusLabel = JBLabel("Loading...")
     private val balanceBlock = BalanceBlock()
     private val keyLimitBlock = KeyLimitBlock()
-    private val activityLabel = JBLabel("Recent Activity: N/A")
     private val breakdownBlock = BreakdownBlock()
 
     /** DEGRADED's explanatory banner - see its own KDoc for why this state needs one at all. */
@@ -239,68 +251,89 @@ class StatusTabPanel(
         gbc.anchor = GridBagConstraints.WEST
         gbc.insets = JBUI.insets(CONTENT_SPACING)
 
-        // Status
+        // Status: a label pair, not a block - the VALUE column (gridx = 1) is given the row's
+        // weightx, not the "Status:" label, so a wide tool window grows the space to the right of
+        // the value rather than pushing the fixed "Status:" label itself off-centre. `anchor =
+        // WEST` (set once, above) keeps statusLabel pinned to the LEFT of its now-wider cell -
+        // never floating toward the middle of the panel the way an unanchored fill would.
         gbc.gridx = 0
         gbc.gridy = GRID_STATUS_ROW
         panel.add(JBLabel("Status:"), gbc)
         gbc.gridx = 1
+        gbc.weightx = FULL_WIDTH_WEIGHT
         panel.add(statusLabel, gbc)
+        gbc.weightx = 0.0
 
         // Degraded notice: only visible in DEGRADED - see DegradedNoticeBlock. Spans both columns
         // and fills horizontally like the configuration panel below, since it is a banner rather
         // than a single label.
+        //
+        // `weightx` (not just `fill`) is what actually makes this stretch: `fill` only stretches a
+        // component WITHIN its cell, and with every column's weightx at zero `GridBagLayout` sizes
+        // the whole grid to its preferred width and centres that narrower block in the container -
+        // so `fill` alone never had any extra width to distribute. No `weighty` is added alongside
+        // it: that would let this (and every full-width row below) claim a share of any extra
+        // VERTICAL space too, pulling the content down away from the top of a tall tool window
+        // instead of leaving it exactly where the existing (unweighted) vertical packing puts it.
         gbc.gridx = 0
         gbc.gridy = GRID_DEGRADED_ROW
         gbc.gridwidth = 2
         gbc.fill = GridBagConstraints.HORIZONTAL
+        gbc.weightx = FULL_WIDTH_WEIGHT
         panel.add(degradedNoticeBlock.component, gbc)
         gbc.gridwidth = 1
         gbc.fill = GridBagConstraints.NONE
+        gbc.weightx = 0.0
 
         // Balance: remaining credits, total, burn rate, sparkline - see BalanceBlock. Spans both
         // columns and fills horizontally like the configuration panel below, since it is a whole
-        // block rather than a single label.
+        // block rather than a single label. See the degraded notice above for why `weightx` (not
+        // `weighty`) is what this row needs.
         gbc.gridx = 0
         gbc.gridy = GRID_BALANCE_ROW
         gbc.gridwidth = 2
         gbc.fill = GridBagConstraints.HORIZONTAL
+        gbc.weightx = FULL_WIDTH_WEIGHT
         panel.add(balanceBlock.component, gbc)
         gbc.gridwidth = 1
         gbc.fill = GridBagConstraints.NONE
+        gbc.weightx = 0.0
 
         // Key limit: the API key's own spend cap - see KeyLimitBlock. Hidden entirely when no
         // key carries one, so unlike the balance/breakdown blocks above it does not always
-        // occupy visible space. Spans both columns for the same reason as those blocks.
+        // occupy visible space. Spans both columns for the same reason as those blocks; see the
+        // degraded notice above for why `weightx` (not `weighty`) is what this row needs.
         gbc.gridx = 0
         gbc.gridy = GRID_KEY_LIMIT_ROW
         gbc.gridwidth = 2
         gbc.fill = GridBagConstraints.HORIZONTAL
+        gbc.weightx = FULL_WIDTH_WEIGHT
         panel.add(keyLimitBlock.component, gbc)
         gbc.gridwidth = 1
         gbc.fill = GridBagConstraints.NONE
-
-        // Activity
-        gbc.gridx = 0
-        gbc.gridy = GRID_ACTIVITY_ROW
-        panel.add(JBLabel("Activity:"), gbc)
-        gbc.gridx = 1
-        panel.add(activityLabel, gbc)
+        gbc.weightx = 0.0
 
         // Breakdown: per-model spend over a stated period - see BreakdownBlock. Spans both
-        // columns like the balance block above, since it is a whole block, not a single label.
+        // columns like the balance block above, since it is a whole block, not a single label; see
+        // the degraded notice above for why `weightx` (not `weighty`) is what this row needs.
         gbc.gridx = 0
         gbc.gridy = GRID_BREAKDOWN_ROW
         gbc.gridwidth = 2
         gbc.fill = GridBagConstraints.HORIZONTAL
+        gbc.weightx = FULL_WIDTH_WEIGHT
         panel.add(breakdownBlock.component, gbc)
         gbc.gridwidth = 1
         gbc.fill = GridBagConstraints.NONE
+        gbc.weightx = 0.0
 
-        // Configuration section (dynamic)
+        // Configuration section (dynamic); see the degraded notice above for why `weightx` (not
+        // `weighty`) is what this row needs - this is the last use of `gbc`, so it is not reset
+        // back to 0.0 afterward.
         gbc.gridx = 0
         gbc.gridy = GRID_CONFIG_ROW
         gbc.gridwidth = 2
         gbc.fill = GridBagConstraints.HORIZONTAL
+        gbc.weightx = FULL_WIDTH_WEIGHT
         gbc.insets = JBUI.insets(LABEL_SPACING_LARGE, CONTENT_SPACING, CONTENT_SPACING, CONTENT_SPACING)
 
         configurationPanel = createConfigurationPanel()
@@ -406,21 +439,55 @@ class StatusTabPanel(
             StatusTabState.State.DEGRADED -> renderDegraded()
             StatusTabState.State.READY -> renderReady()
         }
+
+        // The period selector is the only interactive control that can trigger a breakdown/
+        // spend-series mutation OUTSIDE this dispatch (via onPeriodChanged -> refreshBreakdown(),
+        // never through render() itself) - see refreshBreakdown()'s and applyAnalyticsResult()'s
+        // own KDoc for the guard that makes such a call inert in every other state. Disabling the
+        // control here as well (close-out round 2, Critical) is the cheap, honest half of that
+        // fix: a user should never be able to click a control that cannot answer, not merely have
+        // the click silently discarded after the fact.
+        breakdownBlock.setPeriodSelectorEnabled(breakdownStateAllowsQuery(state))
     }
+
+    /**
+     * Whether [state] is one where a breakdown/spend-series query means anything at all - READY
+     * and ERROR are the only two [StatusTabState.derive] outcomes reached with a provisioning key
+     * AND (for ERROR) previously-successful data on screen; NOT_CONFIGURED/DEGRADED/LOADING each
+     * have their own [BreakdownBlock] placeholder precisely because nothing has been (or can be)
+     * queried in them.
+     *
+     * The single choke point for this rule (close-out round 2, Critical): every place that can
+     * mutate [breakdownBlock] or [balanceBlock]'s account-data rows reads this ONE function before
+     * doing so - [refreshBreakdown] at entry, [applyAnalyticsResult] before touching
+     * [breakdownBlock], [applySpendSeriesResult] before touching [balanceBlock], and [render]
+     * itself (above) to decide whether the period selector should even be clickable. Before this
+     * round, [refreshBreakdown] and [applyAnalyticsResult] had NO check of their own - only
+     * [applySpendSeriesResult] guarded its own re-render, with its own private inline condition -
+     * so a state guard kept being added wherever a path was noticed rather than swept for as a
+     * class. A per-call-site check is exactly the shape that keeps missing the next call site (this
+     * was the fourth instance); reading [currentState] through one shared predicate at every
+     * mutation point is what keeps a fifth from being possible without also being obviously wrong.
+     */
+    private fun breakdownStateAllowsQuery(state: StatusTabState.State): Boolean =
+        state == StatusTabState.State.READY || state == StatusTabState.State.ERROR
 
     private fun renderNotConfigured() {
         statusLabel.text = "Not configured"
         clearBalance()
         clearKeyLimit()
-        activityLabel.text = "N/A"
-        breakdownBlock.show(emptyList())
+        // Not show(emptyList()) (fix round 3, finding 1 - the third state carrying the same
+        // defect already fixed for LOADING/DEGRADED below): NOT_CONFIGURED queries nothing at
+        // all, so "no activity in this period" would tell the user they spent nothing, which
+        // nobody checked. Not showUnavailable() either - that names a missing PROVISIONING key,
+        // which would misstate the actual problem (no API key at all).
+        breakdownBlock.showNotConfigured()
     }
 
     private fun renderLoading() {
         statusLabel.text = "Loading..."
         clearBalance()
         clearKeyLimit()
-        activityLabel.text = "Loading..."
         // Not show(emptyList()) (fix round 1, finding 2): nothing has returned yet, so "no
         // activity in this period" would claim an answer that has not arrived.
         breakdownBlock.showLoading()
@@ -439,19 +506,19 @@ class StatusTabPanel(
     private fun clearKeyLimit() = keyLimitBlock.update(used = 0.0, limit = NO_KEY_LIMIT)
 
     /**
-     * The last known numbers stay fully rendered - via [renderCreditsAndActivity], the same path
+     * The last known numbers stay fully rendered - via [renderAccountData], the same path
      * READY uses - beside a visible "couldn't refresh" line, never a blank panel. [renderCredits]
      * attaches [lastUpdatedText] to those numbers, which matters most here: an hour-old balance
      * during an outage must not look as fresh as one from a second ago.
      */
     private fun renderError() {
         statusLabel.text = "Couldn't refresh: ${statsCache.getLastError() ?: "Unknown error"}"
-        renderCreditsAndActivity()
+        renderAccountData()
     }
 
     private fun renderReady() {
         statusLabel.text = "Ready"
-        renderCreditsAndActivity()
+        renderAccountData()
     }
 
     /**
@@ -459,7 +526,7 @@ class StatusTabPanel(
      * that the tab falls back to `/credits` and `/activity` without a provisioning key does not
      * hold, so there is no account data to show at all here. [degradedNoticeBlock] (toggled
      * visible in [render]) states what is missing and why; this clears the account-data blocks
-     * like [renderNotConfigured]/[renderLoading] rather than reusing [renderCreditsAndActivity],
+     * like [renderNotConfigured]/[renderLoading] rather than reusing [renderAccountData],
      * feeding the sparkline from [CreditUsageHistoryService]'s local history instead - labelled as
      * a different quantity than READY's series (D12) so nobody mistakes one for the other. Falls
      * back to no history rather than throwing if the service is ever unavailable, the same
@@ -468,7 +535,6 @@ class StatusTabPanel(
     private fun renderDegraded() {
         statusLabel.text = "Degraded"
         clearKeyLimit()
-        activityLabel.text = "N/A"
         // Not show(emptyList()) (fix round 1, finding 2): DEGRADED never queries the breakdown at
         // all, so "no activity in this period" would claim a real, checked answer of zero.
         breakdownBlock.showUnavailable()
@@ -489,10 +555,20 @@ class StatusTabPanel(
         )
     }
 
-    private fun renderCreditsAndActivity() {
+    /**
+     * Renders the two account-data blocks that READY/ERROR share, then re-queries the breakdown.
+     *
+     * Used to also render an unstated-window "N requests, $X" summary line via `renderActivity` -
+     * deleted (fix round 3, finding 2; the spec's D5 named this root cause, and the pre-branch
+     * total it carried over verbatim summed every cached row with no window at all). The period
+     * selector below already answers the question that line was groping at, over a period the
+     * user actually chose - restating an unstated-window total next to a stated-window breakdown
+     * would only reintroduce the "two numbers, no way to tell why they differ" defect this whole
+     * plan exists to remove.
+     */
+    private fun renderAccountData() {
         renderCredits(statsCache.getCachedCredits())
         renderKeyLimit(statsCache.getCachedApiKeys())
-        renderActivity(statsCache.getCachedActivity())
         refreshBreakdown()
     }
 
@@ -533,8 +609,19 @@ class StatusTabPanel(
      * [currentSpendSeriesLabel] untouched rather than inventing a local-history stand-in under the
      * READY/ERROR label - that would be exactly the kind of silent substitution D12 forbids, just
      * in the other direction.
+     *
+     * Guarded by [breakdownStateAllowsQuery] at entry (close-out round 2, Critical) - this is
+     * called not only from [renderAccountData] (always safe: [render] sets [currentState] to
+     * READY/ERROR immediately before dispatching to it) but also directly from
+     * [breakdownBlock]'s `onPeriodChanged` callback, wired in `init`, which fires on a user's
+     * period selection in EVERY state, not only READY/ERROR. Without this guard, changing the
+     * period while NOT_CONFIGURED or DEGRADED would silently replace that state's own placeholder
+     * with a real (or empty) [ActivityAggregator] result built from whatever the shared cache
+     * still has cached - reintroducing, by a path nobody had swept for, the exact "claims a
+     * checked answer nobody checked" defect this whole plan exists to remove.
      */
     private fun refreshBreakdown() {
+        if (!breakdownStateAllowsQuery(currentState)) return
         val period = currentBreakdownPeriod
         if (!analyticsService.isAvailable()) {
             // The no-provisioning-key path: re-aggregate the shared cache's own activity locally.
@@ -543,6 +630,17 @@ class StatusTabPanel(
             return
         }
 
+        // Close-out round 3, Important A: this branch writes NOTHING synchronously - both calls
+        // below only launch coroutines - so whatever showX() call last ran stays on screen for the
+        // whole round trip. On the single most ordinary path into READY (the status-bar widget has
+        // already warmed the shared cache before the user ever opens the tab, so derive() returns
+        // READY immediately, with no LOADING state in between), that leftover render is still
+        // BreakdownBlock's own init-time show(emptyList()) - "No activity in this period", the
+        // string whose own KDoc means "queried successfully, found nothing" - shown before this
+        // query has even been sent, let alone answered. showLoading() here closes the fifth
+        // instance of the class of bug this whole plan exists to remove, on the happy path this
+        // time rather than a state transition.
+        breakdownBlock.showLoading()
         coroutineScope.launch { applyAnalyticsResult(period) }
         coroutineScope.launch { applySpendSeriesResult(period) }
     }
@@ -551,17 +649,77 @@ class StatusTabPanel(
      * Runs one analytics query for [period] and applies its result to [breakdownBlock]. Split out
      * from [refreshBreakdown] so a test can await it directly via [applyAnalyticsResultForTest]
      * instead of racing [coroutineScope]'s `Dispatchers.Main` launch.
+     *
+     * [checkAnalyticsMeta] is deliberately called LAZILY here, AFTER this query, and only when it
+     * came back with nothing useful (an error, or a success with zero rows) - never
+     * unconditionally before the query, which fix round 1 rejected: a live capture shows the
+     * check is a no-op today and will be a no-op almost always, so paying for its round trip on
+     * every refresh, before the user's first (and usual) view of real rows, is latency spent on a
+     * question the rows themselves already answer - rows that parsed under the names
+     * [AnalyticsBreakdown] asked for ARE proof those names are still valid. The only moments the
+     * check's answer can change anything are exactly the two branches below: nothing to show, and
+     * the user cannot tell why. A slow or unresponsive `/analytics/meta` can therefore now only
+     * ever add latency to an ALREADY-EMPTY or ALREADY-FAILED result, never to a normal one.
+     *
+     * Re-checks [breakdownStateAllowsQuery] AFTER the (suspending) query returns, not only at
+     * [refreshBreakdown]'s launch time (close-out round 2, Critical): this is asynchronous, so the
+     * panel can leave READY/ERROR - e.g. the provisioning key is removed, moving it to DEGRADED -
+     * while the request is still in flight. Without this second check, a late-arriving response
+     * would overwrite DEGRADED's/NOT_CONFIGURED's own placeholder with a real (or error) result
+     * from a query that state's own render path never asked for, mirroring the guard
+     * [applySpendSeriesResult] already applied to [balanceBlock] for the identical race. The SAME
+     * re-check is repeated after [checkAnalyticsMeta]'s own (suspending) call, for the identical
+     * reason - a second network round trip is a second window for the state to move on.
      */
     private suspend fun applyAnalyticsResult(period: ActivityAggregator.Period) {
         val request = AnalyticsBreakdown.requestFor(period, LocalDate.now())
-        when (val result = analyticsService.query(request)) {
-            is ApiResult.Success -> {
-                val payload = result.data
-                breakdownBlock.show(AnalyticsBreakdown.toModelSpend(payload.data), payload.metadata?.truncated == true)
+        val result = analyticsService.query(request)
+        if (!breakdownStateAllowsQuery(currentState)) return
+
+        if (result is ApiResult.Success) {
+            val rows = AnalyticsBreakdown.toModelSpend(result.data.data)
+            if (rows.isNotEmpty()) {
+                breakdownBlock.show(rows, result.data.metadata?.truncated == true)
+                return
             }
+        }
+
+        // Nothing useful came back - fall through to the check ONLY now (see this function's own
+        // KDoc). A server that no longer supports a requested metric/dimension may answer either
+        // shape - a 200 with zero rows, or an outright error (a 400, say) - so both branches below
+        // consult it, and a genuine miss is preferred over the generic error/empty-state text.
+        val metaCheck = checkAnalyticsMeta()
+        if (!breakdownStateAllowsQuery(currentState)) return
+
+        if (metaCheck is AnalyticsMetaCheck.Result.Missing) {
+            breakdownBlock.showMissingNames(metaCheck.missingNames)
+            return
+        }
+
+        when (result) {
+            is ApiResult.Success -> breakdownBlock.show(emptyList(), result.data.metadata?.truncated == true)
             is ApiResult.Error -> breakdownBlock.showError()
         }
     }
+
+    /**
+     * Runs [AnalyticsMetaCheck] against a fresh (or, after the first call this session,
+     * [AnalyticsService]-cached - see its own KDoc) `/analytics/meta` fetch.
+     *
+     * A failed fetch becomes [AnalyticsMetaCheck.Result.CouldNotCheck] here, at the ONLY point
+     * that translation happens - never [AnalyticsMetaCheck.Result.Missing]. This is the ruling
+     * that matters most for this check: a `meta()` network error, a 403, a timeout, must never be
+     * read as "our names are wrong" - it means only that this particular check could not run, and
+     * [applyAnalyticsResult] must fall through to its own existing empty-state/[showError]
+     * rendering exactly as it did before this check existed. Conflating "could not check" with
+     * "checked and something is missing" would turn a transient metadata failure into a broken
+     * working feature, which is worse than no diagnostic at all.
+     */
+    private suspend fun checkAnalyticsMeta(): AnalyticsMetaCheck.Result =
+        when (val result = analyticsService.meta()) {
+            is ApiResult.Success -> AnalyticsMetaCheck.run(result.data)
+            is ApiResult.Error -> AnalyticsMetaCheck.Result.CouldNotCheck
+        }
 
     /**
      * Runs the account-wide daily-spend query for [period] (Task 13) and, on success, applies it
@@ -584,7 +742,9 @@ class StatusTabPanel(
      * something.
      *
      * [renderCredits] is re-run immediately so the new numbers actually reach [balanceBlock] -
-     * but ONLY while [currentState] is still READY or ERROR (fix round 2, finding 5). This query
+     * but ONLY while [breakdownStateAllowsQuery] of [currentState] still holds (fix round 2,
+     * finding 5; reads the shared predicate as of close-out round 2 rather than its own inline
+     * READY/ERROR check - see that function's own KDoc for why). This query
      * is asynchronous; by the time it resolves, the panel may have moved to DEGRADED (provisioning
      * key removed), NOT_CONFIGURED, or LOADING (a cache tick), each of which cleared or hid the
      * balance rows for a reason of its own - [showLocalSeriesOnly] in DEGRADED's case, [clearBalance]
@@ -619,7 +779,7 @@ class StatusTabPanel(
                         ActivityAggregator.Period.MONTH -> READY_SERIES_LABEL_MONTH
                     }
                 }
-                if (currentState == StatusTabState.State.READY || currentState == StatusTabState.State.ERROR) {
+                if (breakdownStateAllowsQuery(currentState)) {
                     renderCredits(statsCache.getCachedCredits())
                 }
             }
@@ -659,7 +819,7 @@ class StatusTabPanel(
      * succeeded, those fields hold the same "nothing known yet" placeholders [clearBalance] uses,
      * so [BalanceBlock] renders them exactly as absent as it would have before this task.
      * [lastUpdatedText] (Task 11) is read here too, by both READY and ERROR (both reach this
-     * method through [renderCreditsAndActivity], and [applySpendSeriesResult] re-invokes it
+     * method through [renderAccountData], and [applySpendSeriesResult] re-invokes it
      * directly once its own query resolves) - it matters most in ERROR, where these are the last
      * known numbers, not fresh ones.
      */
@@ -694,18 +854,6 @@ class StatusTabPanel(
             if (timestamp <= 0L) return ""
             return "Updated ${DateFormatUtil.formatBetweenDates(timestamp, System.currentTimeMillis())}"
         }
-
-    private fun renderActivity(activity: List<ActivityData>?) {
-        activityLabel.text = if (activity.isNullOrEmpty()) {
-            "No recent activity"
-        } else {
-            val totalRequests = activity.sumOf { (it.requests ?: 0).toLong() }
-            val totalUsage = activity.sumOf { it.usage ?: 0.0 }
-            "$totalRequests requests, $${formatUsageAmount(totalUsage)}"
-        }
-    }
-
-    private fun formatUsageAmount(value: Double): String = String.format(Locale.US, "%.4f", value)
 
     override fun dispose() {
         coroutineScope.cancel()
@@ -744,6 +892,7 @@ class StatusTabPanel(
         TestComponent.KEY_LIMIT -> keyLimitBlock.component
         TestComponent.BREAKDOWN -> breakdownBlock.component
         TestComponent.DEGRADED_NOTICE -> degradedNoticeBlock.component
+        TestComponent.CONFIGURATION -> configurationPanel!!
     }
 
     /** [currentBreakdownPeriod] as the real period-selector ComboBox (inside [breakdownBlock])
@@ -774,4 +923,4 @@ class StatusTabPanel(
  * [StatusTabPanel]'s own implementation - it is the set of keys test code passes IN, independent
  * of where the class that consumes them happens to live.
  */
-internal enum class TestComponent { BALANCE, KEY_LIMIT, BREAKDOWN, DEGRADED_NOTICE }
+internal enum class TestComponent { BALANCE, KEY_LIMIT, BREAKDOWN, DEGRADED_NOTICE, CONFIGURATION }

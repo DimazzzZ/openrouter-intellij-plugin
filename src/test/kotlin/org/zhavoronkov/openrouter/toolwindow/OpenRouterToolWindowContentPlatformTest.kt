@@ -119,8 +119,8 @@ class OpenRouterToolWindowContentPlatformTest : BasePlatformTestCase() {
      */
     fun testSelectingTheStatusTabCallsOnActivatedButSelectingChatDoesNot() {
         val content = OpenRouterToolWindowContent(project)
+        val statusTab = content.getStatusTabForTest()
         try {
-            val statusTab = content.getStatusTabForTest()
             val tabbedPane = content.getTabbedPaneForTest()
 
             assertEquals(
@@ -146,5 +146,18 @@ class OpenRouterToolWindowContentPlatformTest : BasePlatformTestCase() {
         } finally {
             Disposer.dispose(content)
         }
+
+        // Close-out round 3, Important E: this must run OUTSIDE the `finally` above - a failure
+        // here would otherwise replace whatever the try block itself threw, masking the real
+        // cause. Closes the previously-parked ruling that this production wiring
+        // (`Disposer.register(this, statusTab)` in OpenRouterToolWindowContent's init) was
+        // unprovable without a real ChatPanel: this test builds exactly that, real services and
+        // all, so disposing the real `content` above must cascade all the way down to statusTab's
+        // own message-bus connection.
+        assertTrue(
+            "disposing the real OpenRouterToolWindowContent must cascade through to " +
+                "statusTab's own Disposer-parented message-bus connection",
+            statusTab.isStatsConnectionDisposedForTest()
+        )
     }
 }

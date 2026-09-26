@@ -47,6 +47,23 @@ object AnalyticsBreakdown {
     private const val GRANULARITY_DAY = "day"
     private const val GRANULARITY_HOUR = "hour"
 
+    /**
+     * The metric/dimension/granularity names this object hard-codes into [requestFor] and
+     * [spendSeriesRequestFor], grouped the same way `/analytics/meta` groups its own response
+     * ([org.zhavoronkov.openrouter.models.AnalyticsMeta] has separate `metrics`/`dimensions`/
+     * `granularities` lists) - so [AnalyticsMetaCheck] can check each hard-coded name against the
+     * ONE list the server would actually list it under, rather than one flat set checked against
+     * all three indiscriminately (a metric and a dimension can share a spelling by coincidence;
+     * checking a metric name against the dimensions list would be a false pass or false miss for
+     * the wrong reason). Exposed as `val`s DERIVED from the private consts above, not re-typed as
+     * fresh string literals - two lists of the same names, one hand-copied from the other, is
+     * exactly how they drift apart the day a name changes here and nobody remembers the second
+     * spot. [AnalyticsMetaCheck] reads these; it does not carry its own copy.
+     */
+    val REQUIRED_METRICS: Set<String> = setOf(METRIC_USAGE, METRIC_REQUESTS)
+    val REQUIRED_DIMENSIONS: Set<String> = setOf(DIMENSION_MODEL)
+    val REQUIRED_GRANULARITIES: Set<String> = setOf(GRANULARITY_DAY, GRANULARITY_HOUR)
+
     // The fixture buckets rows under "date__day" for a "day" granularity - the server names the
     // bucket key after whatever granularity was requested, not a single fixed literal. Matching by
     // PREFIX rather than hard-coding "date__day" is what lets toSpendSeries keep working if this
@@ -116,25 +133,26 @@ object AnalyticsBreakdown {
      * for a `granularity`: it deliberately omits one (see its KDoc), precisely so the endpoint
      * aggregates each model into a single row over the whole window. But if a `granularity` is
      * ever reintroduced - or a server-side default bucketing kicks in regardless - the endpoint
-     * would return one row PER MODEL PER TIME BUCKET, exactly as the fixture at
-     * src/test/resources/fixtures/analytics-query-response.json shows for
-     * `anthropic/claude-sonnet-4.5` (one row for 2026-09-18, another for 2026-09-19). Grouping
-     * here means that shape still renders as one summed entry per model instead of silently
-     * fragmenting into duplicates, at no cost when the server already returns one row per model.
+     * could return one row PER MODEL PER TIME BUCKET instead of one per model. Grouping here means
+     * that shape still renders as one summed entry per model instead of silently fragmenting into
+     * duplicates, at no cost when the server already returns one row per model (see "rows are read
+     * against the fixture's field names and grouped by model" in AnalyticsBreakdownTest for the
+     * multi-bucket-per-model case this guards against).
      *
-     * A row missing its `model` dimension, or carrying a non-numeric value
-     * where `total_usage`/`request_count` is present, is dropped rather than
-     * crashing the whole breakdown or being silently counted as zero - the
-     * same "one malformed row must not empty the whole breakdown" precedent
-     * [ActivityAggregator.byModel] applies to an unparseable date. A metric key
-     * that is simply ABSENT (as opposed to present-but-wrong-type) counts as
-     * zero, matching [ActivityAggregator.byModel]'s own treatment of a null
+     * A row missing its `model` dimension, or carrying a value where `total_usage`/`request_count`
+     * is present but is genuinely NOT numeric (`"abc"`, an object, a list), is dropped rather than
+     * crashing the whole breakdown or being silently counted as zero - the same "one malformed row
+     * must not empty the whole breakdown" precedent [ActivityAggregator.byModel] applies to an
+     * unparseable date. A metric key that is simply ABSENT (as opposed to present-but-wrong-type)
+     * counts as zero, matching [ActivityAggregator.byModel]'s own treatment of a null
      * `usage`/`requests` field.
      *
-     * Every number in [rows] arrives as a [Double] under Gson's `Any?` decoding,
-     * even a conceptually integral one like `request_count` - so this checks
-     * `is Number` and converts, and never `is Int`, which would silently drop
-     * every correctly-decoded row.
+     * The server is not consistent about which metrics it quotes as JSON strings versus numbers -
+     * a captured live response carried a numeric `total_usage` but a QUOTED `request_count`, in
+     * every row, for the same query. [numberOrZero] therefore accepts a [Number] under Gson's
+     * `Any?` decoding OR a [String] that itself parses as one; only a value that fails to parse
+     * either way is dropped as genuinely non-numeric. This checks `is Number`/`is String`, never
+     * `is Int`, which would silently drop every correctly-decoded typed row too.
      */
     fun toModelSpend(rows: List<Map<String, Any?>>): List<ActivityAggregator.ModelSpend> =
         rows.mapNotNull(::toRowSpend)
@@ -159,13 +177,25 @@ object AnalyticsBreakdown {
 
     /**
      * Reads a numeric field from a row: `0.0` when [key] is absent (matching
-     * [ActivityAggregator.byModel]'s null-counts-as-zero rule), the converted
-     * value when it is a [Number], or `null` - "skip this whole row" - when
-     * [key] is present with a non-numeric value.
+     * [ActivityAggregator.byModel]'s null-counts-as-zero rule), the converted value when it is a
+     * [Number] OR a [String] that itself parses as one, or `null` - "skip this whole row" - when
+     * [key] is present with a value that is genuinely not numeric either way.
+     *
+     * The live bug this guards against: the server is not consistent about which metrics it
+     * quotes - a captured response showed `total_usage` as a JSON number but `request_count` as a
+     * QUOTED string, in every row, for the same query. Gson decodes that quoted value as a plain
+     * Kotlin `String`, which the original `as? Number` cast rejected outright - dropping every
+     * row and rendering "No activity in this period" for an account with real activity. A quoted
+     * `"31"` is still the number 31; only a value that fails to parse EITHER way (`"abc"`, an
+     * object, a list) is the genuinely non-numeric case this function must still drop.
      */
     private fun numberOrZero(row: Map<String, Any?>, key: String): Double? {
         if (!row.containsKey(key)) return 0.0
-        return (row[key] as? Number)?.toDouble()
+        return when (val value = row[key]) {
+            is Number -> value.toDouble()
+            is String -> value.toDoubleOrNull()
+            else -> null
+        }
     }
 
     /**
@@ -244,11 +274,13 @@ object AnalyticsBreakdown {
      * chronologically, so a plain string sort is both correct and independent of the order the
      * server happened to return rows in.
      *
-     * A row missing the bucket key, or carrying a non-numeric [METRIC_USAGE], is dropped rather
-     * than emptying the whole series or being silently counted as zero and merged into a
-     * neighbouring bucket - the same "one malformed row must not empty the whole answer" rule
-     * [toModelSpend] and [ActivityAggregator.byModel] already apply. A row with the bucket key but
-     * no `total_usage` key AT ALL counts as zero for that bucket, matching [numberOrZero]'s
+     * A row missing the bucket key, or carrying a genuinely non-numeric [METRIC_USAGE] (not a
+     * [Number] and not a numeric [String] either - see [numberOrZero]), is dropped rather than
+     * emptying the whole series or being silently counted as zero and merged into a neighbouring
+     * bucket - the same "one malformed row must not empty the whole answer" rule [toModelSpend]
+     * and [ActivityAggregator.byModel] already apply. A quoted numeric `total_usage` (the server is
+     * not consistent about which metrics it quotes) still parses normally. A row with the bucket
+     * key but no `total_usage` key AT ALL counts as zero for that bucket, matching [numberOrZero]'s
      * existing absent-vs-wrong-type distinction.
      */
     fun toSpendSeries(rows: List<Map<String, Any?>>): List<Double> {

@@ -10,6 +10,7 @@ import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
 import org.zhavoronkov.openrouter.models.ActivityData
 import org.zhavoronkov.openrouter.models.ActivityResponse
+import org.zhavoronkov.openrouter.models.ApiKeyInfo
 import org.zhavoronkov.openrouter.models.ApiKeysListResponse
 import org.zhavoronkov.openrouter.models.CreditsData
 import org.zhavoronkov.openrouter.models.CreditsResponse
@@ -21,9 +22,12 @@ import org.zhavoronkov.openrouter.toolwindow.chat.assertNoDescendantClippedByBot
 import org.zhavoronkov.openrouter.toolwindow.chat.layoutTreeRecursively
 import java.awt.Component
 import java.awt.Container
+import java.awt.GridBagLayout
+import java.awt.event.ComponentEvent
 import java.time.LocalDate
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.swing.JLabel
+import javax.swing.JPanel
 
 private const val LAYOUT_WIDTH = 300
 private const val BREAKDOWN_LAYOUT_WIDTH = 280
@@ -31,7 +35,29 @@ private const val EM_DASH = "—"
 private const val NO_ACTIVITY_TEXT = "No activity in this period"
 private const val BREAKDOWN_ERROR_TEXT = "Couldn't load the breakdown"
 private const val LOADING_BREAKDOWN_TEXT = "Loading breakdown..."
+private const val MISSING_NAMES_TEXT = "Plugin is out of date with the API - missing: "
+
+/**
+ * A `/analytics/meta` response listing every name [AnalyticsBreakdown] hard-codes - Task 19's own
+ * "validated and fine" state, which must leave every EXISTING analytics-query test's behaviour
+ * unchanged. [StatusTabPanel.applyAnalyticsResult] now calls [AnalyticsService.meta] before the
+ * model-spend query it always called, so every test driving that query through a [MockWebServer]
+ * must enqueue THIS first - MockWebServer serves enqueued responses in strict FIFO order
+ * regardless of which endpoint asks for one, and a test with only its own query response queued
+ * would otherwise hand that response to the meta() call instead, then block the query call for a
+ * full read-timeout waiting on a response nobody queued.
+ */
+private const val VALID_META_BODY =
+    """{"data":{"metrics":[{"name":"total_usage"},{"name":"request_count"}],""" +
+        """"dimensions":[{"name":"model"}],"granularities":["hour","day"]}}"""
 private const val TRUNCATED_TEXT = "Showing a partial result - the server truncated this query"
+private const val WIDE_LAYOUT_WIDTH = 900
+private const val FLOOR_LAYOUT_WIDTH = 280
+
+/** 2 * the content panel's own row insets (`JBUI.insets(CONTENT_SPACING)`, 5px a side = 10px),
+ * plus a few px of GridBagLayout rounding slack - never enough to also pass for a block that
+ * merely centred at its own (far narrower) preferred width inside [WIDE_LAYOUT_WIDTH]. */
+private const val WIDTH_TOLERANCE_PX = 16
 
 /**
  * Platform test for [BalanceBlock]'s arithmetic surface, and for the fact
@@ -711,19 +737,34 @@ class StatusTabPanelPlatformTest : BasePlatformTestCase() {
         }
     }
 
-    fun testNotConfiguredStateRendersTheNoActivityLineInTheBreakdownBlock() {
+    /**
+     * Fix round 3, finding 1: the third state carrying the LOADING/DEGRADED defect - see the
+     * DEGRADED assertion below - that nobody had re-walked the full state set to find.
+     * `show(emptyList())` (what NOT_CONFIGURED used to call) renders [NO_ACTIVITY_TEXT], which
+     * [BreakdownBlock]'s own KDoc documents as "queried successfully, found nothing".
+     * NOT_CONFIGURED queries nothing at all - there is no API key, let alone a provisioning key -
+     * so that would tell the user they spent $0 when nobody checked.
+     */
+    fun testNotConfiguredStateDoesNotRenderTheNoActivityLineInTheBreakdownBlock() {
         val settingsService = mock(OpenRouterSettingsService::class.java)
         `when`(settingsService.isConfigured()).thenReturn(false)
         `when`(settingsService.getProvisioningKey()).thenReturn("")
 
         val statusTab = StatusTabPanel(project, settingsService)
         try {
-            val texts = collectLabelSnapshots(statusTab.componentForTest(TestComponent.BREAKDOWN)).map { it.text }
+            val breakdownLabels = collectLabelSnapshots(statusTab.componentForTest(TestComponent.BREAKDOWN))
+            val texts = breakdownLabels.map { it.text }
 
+            assertFalse(
+                "NOT_CONFIGURED must never claim the false-negative 'no activity in this period' " +
+                    "answer - nothing was queried: $texts",
+                breakdownLabels.any { it.visible && it.text == NO_ACTIVITY_TEXT }
+            )
             assertTrue(
-                "the not-configured state must render the explicit no-activity line, not an " +
-                    "empty box: $texts",
-                texts.contains(NO_ACTIVITY_TEXT)
+                "NOT_CONFIGURED's breakdown must name the real cause instead - no API key at " +
+                    "all, not merely a missing provisioning key (that is DEGRADED's own, more " +
+                    "specific problem): $texts",
+                breakdownLabels.any { it.visible && it.text.contains("API key", ignoreCase = true) }
             )
         } finally {
             statusTab.dispose()
@@ -789,25 +830,44 @@ class StatusTabPanelPlatformTest : BasePlatformTestCase() {
      * asserts the breakdown shows the explicit error line - never the empty-box "no activity"
      * line (which would look like a real, if boring, answer) and never any row that could have
      * come from [ActivityAggregator]'s degraded path.
+     *
+     * Built through [buildReadyStatusTab] rather than a bare unconfigured construction (close-out
+     * round 2, Critical): [applyAnalyticsResult] now also checks [StatusTabPanel]'s own state
+     * before writing to [BreakdownBlock] - the same guard [refreshBreakdown] applies at entry - so
+     * a state that never derives READY/ERROR would have this assertion pass for the WRONG reason
+     * (the guard, not the error handling, suppressing the write).
      */
     fun testAnalyticsErrorRendersExplicitErrorLineNotASilentActivityAggregatorFallback() = runBlocking {
         val server = MockWebServer()
         server.start()
         try {
+            // The QUERY response is enqueued first: fix round 1 moved the meta() check to run
+            // AFTER the query, and only when it comes back with nothing useful - see
+            // StatusTabPanel.applyAnalyticsResult's own KDoc. A 500 here is exactly that case, so
+            // a second (agreeing) meta response follows for the fallback check to consume.
             server.enqueue(
                 MockResponse().setResponseCode(500)
                     .setBody("""{"error":{"message":"boom"}}""")
             )
+            server.enqueue(MockResponse().setResponseCode(200).setBody(VALID_META_BODY))
+            // Blank until AFTER buildReadyStatusTab returns (same trick used throughout this file
+            // for a READY tab backed by a MockWebServer): buildReadyStatusTab's own renderForTest()
+            // call would otherwise immediately dispatch a REAL, asynchronous refreshBreakdown()
+            // against this exact server and consume the one enqueued response before this test's
+            // own explicit, synchronous call below gets to it.
+            var provisioningKeyForTest = ""
             val settingsService = mock(OpenRouterSettingsService::class.java)
-            `when`(settingsService.isConfigured()).thenReturn(false)
-            `when`(settingsService.getProvisioningKey()).thenReturn("")
             val analyticsService = AnalyticsService(
                 baseUrlOverride = server.url("/api/v1").toString(),
-                provisioningKeyProvider = { "test-key" }
+                provisioningKeyProvider = { provisioningKeyForTest }
             )
+            val sharedCache = OpenRouterStatsCache.getInstance()
 
-            val statusTab = StatusTabPanel(project, settingsService, analyticsService)
+            val statusTab = buildReadyStatusTab(settingsService, analyticsService, sharedCache)
             try {
+                assertEquals(StatusTabState.State.READY, statusTab.getStateForTest())
+                provisioningKeyForTest = "test-key"
+
                 statusTab.applyAnalyticsResultForTest(ActivityAggregator.Period.DAY)
 
                 val texts = collectLabelSnapshots(statusTab.componentForTest(TestComponent.BREAKDOWN)).map { it.text }
@@ -822,6 +882,7 @@ class StatusTabPanelPlatformTest : BasePlatformTestCase() {
                     texts.contains(NO_ACTIVITY_TEXT)
                 )
             } finally {
+                sharedCache.clearCache()
                 statusTab.dispose()
             }
         } finally {
@@ -834,27 +895,36 @@ class StatusTabPanelPlatformTest : BasePlatformTestCase() {
      * really drives a live analytics query end to end (not merely always showing the error line),
      * by pointing the same wiring at a SUCCESSFUL, truncated response and checking both the rows
      * AND the truncation notice (finding 2) actually reach [BreakdownBlock].
+     *
+     * Built through [buildReadyStatusTab] for the same reason as the test above.
      */
     fun testSuccessfulTruncatedAnalyticsResponseReachesTheBreakdownBlock() = runBlocking {
         val server = MockWebServer()
         server.start()
         try {
+            // A single response: a successful, non-empty query must never call /analytics/meta
+            // at all (fix round 1) - a second enqueue here would go unused if the fix holds, and
+            // would be silently consumed by a wrongly-reintroduced meta() call if it does not.
             server.enqueue(
                 MockResponse().setResponseCode(200).setBody(
                     """{"data":{"data":[{"model":"anthropic/claude-sonnet-4.5","total_usage":1.5,""" +
                         """"request_count":3}],"metadata":{"row_count":1,"truncated":true}}}"""
                 )
             )
+            // See the sibling error test above for why this starts blank.
+            var provisioningKeyForTest = ""
             val settingsService = mock(OpenRouterSettingsService::class.java)
-            `when`(settingsService.isConfigured()).thenReturn(false)
-            `when`(settingsService.getProvisioningKey()).thenReturn("")
             val analyticsService = AnalyticsService(
                 baseUrlOverride = server.url("/api/v1").toString(),
-                provisioningKeyProvider = { "test-key" }
+                provisioningKeyProvider = { provisioningKeyForTest }
             )
+            val sharedCache = OpenRouterStatsCache.getInstance()
 
-            val statusTab = StatusTabPanel(project, settingsService, analyticsService)
+            val statusTab = buildReadyStatusTab(settingsService, analyticsService, sharedCache)
             try {
+                assertEquals(StatusTabState.State.READY, statusTab.getStateForTest())
+                provisioningKeyForTest = "test-key"
+
                 statusTab.applyAnalyticsResultForTest(ActivityAggregator.Period.DAY)
 
                 val labels = collectLabelSnapshots(statusTab.componentForTest(TestComponent.BREAKDOWN))
@@ -871,6 +941,254 @@ class StatusTabPanelPlatformTest : BasePlatformTestCase() {
                     texts.contains(BREAKDOWN_ERROR_TEXT)
                 )
             } finally {
+                sharedCache.clearCache()
+                statusTab.dispose()
+            }
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    // --- Task 19 / G2, fix round 1: meta() runs LAZILY, after the query, only when it is needed -
+
+    private val missingTotalUsageMetaBody =
+        """{"data":{"metrics":[{"name":"request_count"}],""" +
+            """"dimensions":[{"name":"model"}],"granularities":["hour","day"]}}"""
+
+    private val emptyQueryBody = """{"data":{"data":[],"metadata":{"row_count":0,"truncated":false}}}"""
+
+    /**
+     * Fix round 1's own headline proof: a query that comes back with real rows must NEVER pay for
+     * a `/analytics/meta` round trip - the rows themselves are proof the hard-coded names are
+     * still valid, so checking again is pure added latency on the tab's most common path. Only
+     * ONE response is enqueued; a wrongly-reintroduced meta() call ahead of (or after) the query
+     * would starve MockWebServer's queue and hang for a full read timeout instead of failing fast
+     * - which is exactly why [server]'s own [MockWebServer.requestCount] is asserted directly
+     * rather than merely trusting the rows rendered.
+     */
+    fun testSuccessfulQueryWithRowsNeverCallsAnalyticsMetaAtAll() = runBlocking {
+        val server = MockWebServer()
+        server.start()
+        try {
+            server.enqueue(
+                MockResponse().setResponseCode(200).setBody(
+                    """{"data":{"data":[{"model":"anthropic/claude-sonnet-4.5","total_usage":1.5,""" +
+                        """"request_count":3}],"metadata":{"row_count":1,"truncated":false}}}"""
+                )
+            )
+            // See the sibling analytics-error test above for why this starts blank.
+            var provisioningKeyForTest = ""
+            val settingsService = mock(OpenRouterSettingsService::class.java)
+            val analyticsService = AnalyticsService(
+                baseUrlOverride = server.url("/api/v1").toString(),
+                provisioningKeyProvider = { provisioningKeyForTest }
+            )
+            val sharedCache = OpenRouterStatsCache.getInstance()
+
+            val statusTab = buildReadyStatusTab(settingsService, analyticsService, sharedCache)
+            try {
+                assertEquals(StatusTabState.State.READY, statusTab.getStateForTest())
+                provisioningKeyForTest = "test-key"
+
+                statusTab.applyAnalyticsResultForTest(ActivityAggregator.Period.DAY)
+
+                val texts = collectLabelSnapshots(statusTab.componentForTest(TestComponent.BREAKDOWN)).map { it.text }
+                assertTrue("the queried model must be rendered: $texts", texts.contains("anthropic/claude-sonnet-4.5"))
+                assertEquals(
+                    "a successful, non-empty query must issue exactly ONE request - the query " +
+                        "itself - and never also call /analytics/meta",
+                    1,
+                    server.requestCount
+                )
+            } finally {
+                sharedCache.clearCache()
+                statusTab.dispose()
+            }
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    /**
+     * An empty (but successful) result with a name missing from `/analytics/meta` renders the
+     * explicit missing-names line, not "No activity in this period" - the false-negative this
+     * whole task exists to replace with a named cause.
+     */
+    fun testEmptySuccessWithMissingMetaNameShowsTheMissingNamesLine() = runBlocking {
+        val server = MockWebServer()
+        server.start()
+        try {
+            server.enqueue(MockResponse().setResponseCode(200).setBody(emptyQueryBody))
+            server.enqueue(MockResponse().setResponseCode(200).setBody(missingTotalUsageMetaBody))
+            // See the sibling analytics-error test above for why this starts blank.
+            var provisioningKeyForTest = ""
+            val settingsService = mock(OpenRouterSettingsService::class.java)
+            val analyticsService = AnalyticsService(
+                baseUrlOverride = server.url("/api/v1").toString(),
+                provisioningKeyProvider = { provisioningKeyForTest }
+            )
+            val sharedCache = OpenRouterStatsCache.getInstance()
+
+            val statusTab = buildReadyStatusTab(settingsService, analyticsService, sharedCache)
+            try {
+                assertEquals(StatusTabState.State.READY, statusTab.getStateForTest())
+                provisioningKeyForTest = "test-key"
+
+                statusTab.applyAnalyticsResultForTest(ActivityAggregator.Period.DAY)
+
+                val texts = collectLabelSnapshots(statusTab.componentForTest(TestComponent.BREAKDOWN)).map { it.text }
+                assertTrue(
+                    "an empty result whose metadata is missing 'total_usage' must render a " +
+                        "VISIBLE line naming it, found: $texts",
+                    texts.contains("${MISSING_NAMES_TEXT}total_usage")
+                )
+                assertFalse(
+                    "the missing-name state must not be confused with the ordinary empty state: $texts",
+                    texts.contains(NO_ACTIVITY_TEXT)
+                )
+            } finally {
+                sharedCache.clearCache()
+                statusTab.dispose()
+            }
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    /**
+     * Positive control for the test above: an empty result whose metadata agrees with every
+     * hard-coded name renders the ordinary "No activity in this period" line - proving the check
+     * does not manufacture a missing-names line out of an empty result on its own.
+     */
+    fun testEmptySuccessWithFullyAgreeingMetaShowsNoActivityLine() = runBlocking {
+        val server = MockWebServer()
+        server.start()
+        try {
+            server.enqueue(MockResponse().setResponseCode(200).setBody(emptyQueryBody))
+            server.enqueue(MockResponse().setResponseCode(200).setBody(VALID_META_BODY))
+            // See the sibling analytics-error test above for why this starts blank.
+            var provisioningKeyForTest = ""
+            val settingsService = mock(OpenRouterSettingsService::class.java)
+            val analyticsService = AnalyticsService(
+                baseUrlOverride = server.url("/api/v1").toString(),
+                provisioningKeyProvider = { provisioningKeyForTest }
+            )
+            val sharedCache = OpenRouterStatsCache.getInstance()
+
+            val statusTab = buildReadyStatusTab(settingsService, analyticsService, sharedCache)
+            try {
+                assertEquals(StatusTabState.State.READY, statusTab.getStateForTest())
+                provisioningKeyForTest = "test-key"
+
+                statusTab.applyAnalyticsResultForTest(ActivityAggregator.Period.DAY)
+
+                val texts = collectLabelSnapshots(statusTab.componentForTest(TestComponent.BREAKDOWN)).map { it.text }
+                assertTrue(
+                    "an empty result with a fully agreeing meta() must render the ordinary " +
+                        "empty-state line: $texts",
+                    texts.contains(NO_ACTIVITY_TEXT)
+                )
+                assertFalse(
+                    "a fully agreeing meta() must never render the missing-names line: $texts",
+                    texts.any { it.startsWith(MISSING_NAMES_TEXT) }
+                )
+            } finally {
+                sharedCache.clearCache()
+                statusTab.dispose()
+            }
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    /**
+     * A failed query with a name missing from `/analytics/meta` prefers the missing-names line
+     * over the generic "Couldn't load the breakdown" - a server that no longer supports a
+     * requested metric/dimension may answer with an outright error rather than a 200-with-nothing,
+     * so this path needs the same check the empty-success path gets.
+     */
+    fun testFailedQueryWithMissingMetaNamePrefersTheMissingNamesLineOverTheGenericError() = runBlocking {
+        val server = MockWebServer()
+        server.start()
+        try {
+            server.enqueue(MockResponse().setResponseCode(500).setBody("""{"error":{"message":"boom"}}"""))
+            server.enqueue(MockResponse().setResponseCode(200).setBody(missingTotalUsageMetaBody))
+            // See the sibling analytics-error test above for why this starts blank.
+            var provisioningKeyForTest = ""
+            val settingsService = mock(OpenRouterSettingsService::class.java)
+            val analyticsService = AnalyticsService(
+                baseUrlOverride = server.url("/api/v1").toString(),
+                provisioningKeyProvider = { provisioningKeyForTest }
+            )
+            val sharedCache = OpenRouterStatsCache.getInstance()
+
+            val statusTab = buildReadyStatusTab(settingsService, analyticsService, sharedCache)
+            try {
+                assertEquals(StatusTabState.State.READY, statusTab.getStateForTest())
+                provisioningKeyForTest = "test-key"
+
+                statusTab.applyAnalyticsResultForTest(ActivityAggregator.Period.DAY)
+
+                val texts = collectLabelSnapshots(statusTab.componentForTest(TestComponent.BREAKDOWN)).map { it.text }
+                assertTrue(
+                    "a failed query whose metadata is missing 'total_usage' must render the " +
+                        "missing-names line, PREFERRED over the generic failure: $texts",
+                    texts.contains("${MISSING_NAMES_TEXT}total_usage")
+                )
+                assertFalse(
+                    "the generic error line must not also render once the real cause is known: $texts",
+                    texts.contains(BREAKDOWN_ERROR_TEXT)
+                )
+            } finally {
+                sharedCache.clearCache()
+                statusTab.dispose()
+            }
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    /**
+     * A failed query where the follow-up check ITSELF cannot run (here, `meta()` also fails)
+     * must still fall back to the ordinary, generic error line - the ruling that matters most,
+     * now exercised on the lazy path: an unrelated metadata outage must never leave the breakdown
+     * stuck with neither a real answer nor an explicit failure.
+     */
+    fun testFailedQueryWithMetaUnavailableStillShowsTheGenericError() = runBlocking {
+        val server = MockWebServer()
+        server.start()
+        try {
+            server.enqueue(MockResponse().setResponseCode(500).setBody("""{"error":{"message":"boom"}}"""))
+            server.enqueue(MockResponse().setResponseCode(500).setBody("""{"error":{"message":"meta boom"}}"""))
+            // See the sibling analytics-error test above for why this starts blank.
+            var provisioningKeyForTest = ""
+            val settingsService = mock(OpenRouterSettingsService::class.java)
+            val analyticsService = AnalyticsService(
+                baseUrlOverride = server.url("/api/v1").toString(),
+                provisioningKeyProvider = { provisioningKeyForTest }
+            )
+            val sharedCache = OpenRouterStatsCache.getInstance()
+
+            val statusTab = buildReadyStatusTab(settingsService, analyticsService, sharedCache)
+            try {
+                assertEquals(StatusTabState.State.READY, statusTab.getStateForTest())
+                provisioningKeyForTest = "test-key"
+
+                statusTab.applyAnalyticsResultForTest(ActivityAggregator.Period.DAY)
+
+                val texts = collectLabelSnapshots(statusTab.componentForTest(TestComponent.BREAKDOWN)).map { it.text }
+                assertTrue(
+                    "a failed query whose follow-up meta() check ALSO fails must still render " +
+                        "the generic error line - could-not-check must never leave the breakdown " +
+                        "with no answer at all: $texts",
+                    texts.contains(BREAKDOWN_ERROR_TEXT)
+                )
+                assertFalse(
+                    "a could-not-check result must never fabricate a missing-names line: $texts",
+                    texts.any { it.startsWith(MISSING_NAMES_TEXT) }
+                )
+            } finally {
+                sharedCache.clearCache()
                 statusTab.dispose()
             }
         } finally {
@@ -945,6 +1263,427 @@ class StatusTabPanelPlatformTest : BasePlatformTestCase() {
         )
     }
 
+    // --- G1: request_count surfaced via the row's tooltip, not a third column -------------------
+
+    /**
+     * The model label's tooltip already existed (fix round 1, finding 4's own [ModelNameLabel])
+     * to keep the full id readable once middle-ellipsised. This proves G1 EXTENDED that tooltip
+     * with the request count rather than replacing it with count-only text or adding a second
+     * tooltip nobody would see (Swing shows only one tooltip per component, and a component has
+     * only one `toolTipText` at a time - so "added a second" would really mean "silently
+     * overwrote the first").
+     */
+    fun testBreakdownRowTooltipCarriesBothTheFullModelIdAndTheRequestCount() {
+        val longId = "anthropic/claude-3.7-sonnet-20250219-extended-thinking-preview-variant"
+        val block = BreakdownBlock()
+        block.show(listOf(ActivityAggregator.ModelSpend(longId, 12.3456, 31L)))
+
+        val panel = block.component
+        panel.setSize(BREAKDOWN_LAYOUT_WIDTH, panel.preferredSize.height)
+        layoutTreeRecursively(panel)
+        panel.setSize(BREAKDOWN_LAYOUT_WIDTH, panel.preferredSize.height)
+        layoutTreeRecursively(panel)
+
+        val labels = collectLabelSnapshots(panel)
+        val modelLabel = checkNotNull(labels.firstOrNull { it.text != longId && it.text.contains("…") }) {
+            "expected a middle-ellipsised model label in the tree, found: $labels"
+        }
+
+        assertEquals(
+            "the tooltip must be BreakdownRowTooltip's own combined text, not the bare model id " +
+                "and not a count-only string: got '${modelLabel.toolTip}'",
+            BreakdownRowTooltip.forRow(longId, 31L),
+            modelLabel.toolTip
+        )
+        assertTrue(
+            "the full, un-ellipsised model id must still be recoverable from the tooltip even " +
+                "though the DISPLAYED text ('${modelLabel.text}') is truncated - that recoverability " +
+                "is the entire reason this tooltip existed before G1: '${modelLabel.toolTip}'",
+            modelLabel.toolTip.orEmpty().startsWith(longId)
+        )
+    }
+
+    /**
+     * Positive control for the test above: a row with exactly one request must read "1 request",
+     * singular - proves the platform-rendered tooltip (not just the pure [BreakdownRowTooltip]
+     * unit test) actually reaches the label with the right wording, in case some intermediate
+     * step round-tripped through a hard-coded "requests".
+     */
+    fun testBreakdownRowTooltipIsSingularForExactlyOneRequest() {
+        val block = BreakdownBlock()
+        block.show(listOf(ActivityAggregator.ModelSpend("m", 0.01, 1L)))
+
+        val labels = collectLabelSnapshots(block.component)
+
+        assertTrue(
+            "a row with exactly one request must show '1 request' (singular) in its tooltip, " +
+                "found tooltips: ${labels.map { it.toolTip }}",
+            labels.any { it.toolTip == "m — 1 request" }
+        )
+    }
+
+    /**
+     * The spend label sits right beside the model label on the same row (G1's own decision:
+     * consistent wherever the pointer lands), so it must carry the IDENTICAL tooltip string, not
+     * merely a non-null one - a stray "spend tooltip" that duplicated the model id without the
+     * count, or vice versa, would still pass a weaker "is not null" check.
+     */
+    fun testSpendLabelSharesTheExactSameTooltipAsTheModelLabel() {
+        val block = BreakdownBlock()
+        block.show(listOf(ActivityAggregator.ModelSpend("openai/gpt-4o-mini", 0.0221, 12L)))
+
+        val labels = collectLabelSnapshots(block.component)
+        val expected = BreakdownRowTooltip.forRow("openai/gpt-4o-mini", 12L)
+        val matching = labels.filter { it.toolTip == expected }
+
+        assertEquals(
+            "both the model label and the spend label must carry this row's SAME combined " +
+                "tooltip; found labels: $labels",
+            2,
+            matching.size
+        )
+    }
+
+    // --- Task 18: the requests column is width-gated, not tooltip-only in every case ------------
+    //
+    // These three tests share one row set - a "heavy" model with a wide count/spend
+    // (999999 requests, $99999.9999) and a "modest" one (7 requests, $3.2100) - so the same
+    // numbers prove both "the widest of EACH column governs the whole row set" (BreakdownBlock's
+    // own per-set, not per-row, decision) and give BreakdownColumnPolicy's arithmetic enough width
+    // to clear at a real width and refuse to clear at the tab's own 280px floor. Real
+    // FontMetrics-measured widths at this test's own font (via a quick platform probe): "999999"
+    // and "$99999.9999" together with the 140px model floor and two 12px gaps sum to 295px -
+    // comfortably past the 280px floor, comfortably short of WIDE_LAYOUT_WIDTH (900px).
+    //
+    // Width-then-height in every test below (this bug class has shipped on this branch twice):
+    // width is applied, in two full layout passes, before any height is read. The resize listener
+    // itself is exercised by manually dispatching a synthetic `COMPONENT_RESIZED` `ComponentEvent`
+    // to the requests/spend grid panel found by [findBreakdownRowsPanel] - `Component.setBounds`
+    // POSTS this event to the real AWT event queue rather than firing it synchronously, and this
+    // headless test process runs no event-dispatch loop to ever deliver a posted event, so a resize
+    // that relied on that delivery would silently never re-evaluate the column here. Dispatching it
+    // directly invokes the exact same `ComponentListener.componentResized` callback production
+    // code registers - it is the real listener under test, not a stand-in for it.
+
+    private val heavySpend = ActivityAggregator.ModelSpend("openai/gpt-4o", 99999.9999, 999_999L)
+    private val modestSpend = ActivityAggregator.ModelSpend("anthropic/claude-3.5-haiku", 3.21, 7L)
+
+    /** The one `GridBagLayout` panel inside a bare [BreakdownBlock]'s own component tree - its
+     * row grid, private to [BreakdownBlock] itself, found structurally rather than exposed as a
+     * test seam: [BreakdownBlock]'s selector row uses `FlowLayout` and its own top-level component
+     * and list panel both use `BorderLayout`, so the row grid is the only `GridBagLayout` present
+     * when [root] is a bare `BreakdownBlock().component` (as every test below constructs it). */
+    private fun findBreakdownRowsPanel(root: Container): JPanel {
+        root.components.forEach { child ->
+            if (child is JPanel && child.layout is GridBagLayout) return child
+            if (child is Container) {
+                val found = runCatching { findBreakdownRowsPanel(child) }.getOrNull()
+                if (found != null) return found
+            }
+        }
+        error("no GridBagLayout row panel found under $root")
+    }
+
+    private fun layoutTwicePasses(panel: Container, width: Int) {
+        panel.setSize(width, panel.preferredSize.height)
+        layoutTreeRecursively(panel)
+        panel.setSize(width, panel.preferredSize.height)
+        layoutTreeRecursively(panel)
+    }
+
+    /** Resizes [panel] to [width] (width-then-height, two passes - see this section's own class
+     * comment) and then dispatches the synthetic resize event [findBreakdownRowsPanel]'s own KDoc
+     * explains, so [BreakdownBlock]'s resize listener actually re-evaluates the column before this
+     * returns. */
+    private fun resizeBreakdownPanelTo(panel: Container, rowsPanel: JPanel, width: Int) {
+        layoutTwicePasses(panel, width)
+        rowsPanel.dispatchEvent(ComponentEvent(rowsPanel, ComponentEvent.COMPONENT_RESIZED))
+        layoutTwicePasses(panel, width)
+    }
+
+    fun testRequestsColumnAppearsAtAWideWidthWithTheRightCounts() {
+        val block = BreakdownBlock()
+        block.show(listOf(heavySpend, modestSpend))
+
+        val panel = block.component
+        val rowsPanel = findBreakdownRowsPanel(panel)
+        resizeBreakdownPanelTo(panel, rowsPanel, WIDE_LAYOUT_WIDTH)
+
+        val texts = collectLabelSnapshots(panel).map { it.text }
+
+        assertTrue(
+            "the heavy row's own request count must be shown as its own column: $texts",
+            texts.contains("999999")
+        )
+        assertTrue(
+            "the modest row's own request count must be shown as its own column: $texts",
+            texts.contains("7")
+        )
+        assertTrue(
+            "the spend figure must still be shown in full beside the new column: $texts",
+            texts.contains("\$99999.9999") && texts.contains("\$3.2100")
+        )
+        assertNoDescendantClippedByBottomEdge(panel)
+    }
+
+    /**
+     * Positive control's mirror: the same two rows, at the tab's own 280px floor, must NOT show
+     * the column - proving [BreakdownColumnPolicy] is actually consulted (a column that is ALWAYS
+     * shown would pass the wide-width test above) - and the count must still be readable via the
+     * row's tooltip, which [BreakdownRowTooltip] carries regardless of the column's own presence.
+     */
+    fun testRequestsColumnAbsentAtThe280pxFloorWithTheTooltipStillCarryingTheCount() {
+        val block = BreakdownBlock()
+        block.show(listOf(heavySpend, modestSpend))
+
+        val panel = block.component
+        val rowsPanel = findBreakdownRowsPanel(panel)
+        resizeBreakdownPanelTo(panel, rowsPanel, FLOOR_LAYOUT_WIDTH)
+
+        val labels = collectLabelSnapshots(panel)
+        val texts = labels.map { it.text }
+
+        assertFalse("the requests column must be absent at the 280px floor: $texts", texts.contains("999999"))
+        assertFalse("the requests column must be absent at the 280px floor: $texts", texts.contains("7"))
+        assertTrue(
+            "the spend figure must still be shown in FULL even with the column absent - it must " +
+                "never truncate to make room: $texts",
+            texts.contains("\$99999.9999") && texts.contains("\$3.2100")
+        )
+        assertTrue(
+            "the heavy row's tooltip must still carry its request count even though no column " +
+                "shows it, found tooltips: ${labels.map { it.toolTip }}",
+            labels.any { it.toolTip == BreakdownRowTooltip.forRow(heavySpend.model, heavySpend.requests) }
+        )
+        assertNoDescendantClippedByBottomEdge(panel)
+    }
+
+    /**
+     * The same block instance, resized across the threshold in BOTH directions - proving this is a
+     * genuine re-evaluation on resize, not a decision latched once at [BreakdownBlock.show] time
+     * (which would only ever reflect whatever width happened to be current when the rows first
+     * arrived, e.g. the tool window's width at initial load, never a width the user drags to
+     * afterward).
+     */
+    fun testResizingAcrossTheThresholdFlipsTheRequestsColumnInBothDirections() {
+        val block = BreakdownBlock()
+        block.show(listOf(heavySpend, modestSpend))
+
+        val panel = block.component
+        val rowsPanel = findBreakdownRowsPanel(panel)
+
+        resizeBreakdownPanelTo(panel, rowsPanel, WIDE_LAYOUT_WIDTH)
+        assertTrue(
+            "the column must be present at a wide width",
+            collectLabelSnapshots(panel).map { it.text }.contains("999999")
+        )
+
+        resizeBreakdownPanelTo(panel, rowsPanel, FLOOR_LAYOUT_WIDTH)
+        assertFalse(
+            "shrinking past the threshold must remove the column",
+            collectLabelSnapshots(panel).map { it.text }.contains("999999")
+        )
+
+        resizeBreakdownPanelTo(panel, rowsPanel, WIDE_LAYOUT_WIDTH)
+        assertTrue(
+            "growing back past the threshold must restore the column",
+            collectLabelSnapshots(panel).map { it.text }.contains("999999")
+        )
+    }
+
+    // --- Task 17: the four full-width blocks and the configuration panel must actually occupy --
+    // --- the tool window's real width, not merely sit at their own preferred width, centred in --
+    // --- the extra space - see StatusTabPanel.createContentPanel()'s own KDoc for why `fill` ----
+    // --- alone (already correct) cannot do this without a `weightx` on the same constraints. ---
+
+    /**
+     * At a WIDE tool-window width, every full-width block and the configuration panel must
+     * actually occupy (close to) the container's width - not their own, far narrower, preferred
+     * width centred inside it, which is what `fill = HORIZONTAL` alone produces when every
+     * column's `weightx` is zero (`GridBagLayout` then sizes the grid to its preferred width and
+     * centres THAT within the container, so `fill` never has any extra width to work with).
+     *
+     * Width-then-height (this class of bug has shipped on this branch twice): the width is
+     * applied, in two full layout passes, before any component's width is read below.
+     *
+     * [WIDTH_TOLERANCE_PX] is the only slack allowed - see its own KDoc for what it accounts for.
+     *
+     * Driven through THREE separate states/panels, not one: a component's own top-level
+     * `.component` gets `width = 0` from `GridBagLayout` while `isVisible == false`, so asserting
+     * a hidden block's width would either false-fail or (worse) false-pass for the wrong reason.
+     * Each state below is the one place a given block is guaranteed visible:
+     * [TestComponent.CONFIGURATION] only in NOT_CONFIGURED, [TestComponent.DEGRADED_NOTICE] only
+     * in DEGRADED, [TestComponent.KEY_LIMIT] only once a real cap exists (READY, here). BALANCE
+     * and BREAKDOWN's own top-level components are never hidden by any state, so both are
+     * re-checked in every one of the three as an extra belt-and-braces pass - DEGRADED seeds two
+     * [CreditUsageHistoryService] snapshots first so [BalanceBlock]'s sparkline actually has a
+     * series to draw: with none at all, every one of its child labels/the sparkline hide
+     * themselves (an unrelated, pre-existing `BoxLayout`-all-children-hidden edge case - see the
+     * task report), which is not the shape this test exists to prove.
+     */
+    fun testFullWidthBlocksAndConfigurationPanelStretchToTheContainerWidthAtAWideToolWindowWidth() {
+        val notConfiguredSettings = mock(OpenRouterSettingsService::class.java)
+        `when`(notConfiguredSettings.isConfigured()).thenReturn(false)
+        `when`(notConfiguredSettings.getProvisioningKey()).thenReturn("")
+        val notConfiguredTab = StatusTabPanel(project, notConfiguredSettings)
+        try {
+            assertEquals(StatusTabState.State.NOT_CONFIGURED, notConfiguredTab.getStateForTest())
+            assertBlocksStretchToTheContainerWidth(
+                notConfiguredTab,
+                TestComponent.CONFIGURATION,
+                TestComponent.BALANCE,
+                TestComponent.BREAKDOWN
+            )
+        } finally {
+            notConfiguredTab.dispose()
+        }
+
+        val historyService = CreditUsageHistoryService.getInstance()
+        val degradedSettings = mock(OpenRouterSettingsService::class.java)
+        `when`(degradedSettings.isConfigured()).thenReturn(true)
+        `when`(degradedSettings.getProvisioningKey()).thenReturn("")
+        historyService.recordSnapshot(DEGRADED_HISTORY_FIRST_TOTAL_USED)
+        historyService.recordSnapshot(DEGRADED_HISTORY_SECOND_TOTAL_USED)
+        val degradedTab = StatusTabPanel(project, degradedSettings)
+        try {
+            assertEquals(StatusTabState.State.DEGRADED, degradedTab.getStateForTest())
+            assertBlocksStretchToTheContainerWidth(
+                degradedTab,
+                TestComponent.DEGRADED_NOTICE,
+                TestComponent.BALANCE,
+                TestComponent.BREAKDOWN
+            )
+        } finally {
+            historyService.clearSnapshots()
+            degradedTab.dispose()
+        }
+
+        val sharedCache = OpenRouterStatsCache.getInstance()
+        val readySettings = mock(OpenRouterSettingsService::class.java)
+        `when`(readySettings.isConfigured()).thenReturn(false)
+        `when`(readySettings.getProvisioningKey()).thenReturn("")
+        val readyTab = StatusTabPanel(project, readySettings)
+        try {
+            sharedCache.updateFromPopup(
+                CreditsResponse(CreditsData(totalCredits = READY_TOTAL, totalUsage = READY_USAGE)),
+                null,
+                apiKeysWithARealCap()
+            )
+            `when`(readySettings.isConfigured()).thenReturn(true)
+            `when`(readySettings.getProvisioningKey()).thenReturn("a-provisioning-key")
+            readyTab.renderForTest()
+            assertEquals(StatusTabState.State.READY, readyTab.getStateForTest())
+            assertBlocksStretchToTheContainerWidth(
+                readyTab,
+                TestComponent.KEY_LIMIT,
+                TestComponent.BALANCE,
+                TestComponent.BREAKDOWN
+            )
+        } finally {
+            sharedCache.clearCache()
+            readyTab.dispose()
+        }
+    }
+
+    /** [ApiKeysListResponse] carrying exactly one key with a real, positive cap - the shape
+     * [KeyLimitBlock] needs to show itself at all (a null/zero limit hides the whole block, per
+     * [KeyLimitTest] and the platform tests above), shared by every test in this file that needs
+     * KeyLimitBlock actually visible rather than hidden. */
+    private fun apiKeysWithARealCap() = ApiKeysListResponse(
+        data = listOf(
+            ApiKeyInfo(
+                name = "key",
+                label = "key",
+                limit = KEY_LIMIT_FOR_FLOOR_TEST,
+                usage = KEY_USAGE_FOR_FLOOR_TEST,
+                disabled = false,
+                createdAt = "",
+                updatedAt = null,
+                hash = "h"
+            )
+        )
+    )
+
+    /** Two layout passes at [WIDE_LAYOUT_WIDTH] - width before height, see the class KDoc above -
+     * then asserts each of [components] stretches to (close to) that width. */
+    private fun assertBlocksStretchToTheContainerWidth(statusTab: StatusTabPanel, vararg components: TestComponent) {
+        val panel = statusTab.component
+        panel.setSize(WIDE_LAYOUT_WIDTH, panel.preferredSize.height)
+        layoutTreeRecursively(panel)
+        panel.setSize(WIDE_LAYOUT_WIDTH, panel.preferredSize.height)
+        layoutTreeRecursively(panel)
+
+        components.forEach { component ->
+            val width = statusTab.componentForTest(component).width
+            assertTrue(
+                "$component must stretch to (close to) the container's width at a wide tool " +
+                    "window ($WIDE_LAYOUT_WIDTH px) - got ${width}px, allowing only " +
+                    "$WIDTH_TOLERANCE_PX px of slack, not merely sit at its own preferred width " +
+                    "centred in the extra space",
+                width >= WIDE_LAYOUT_WIDTH - WIDTH_TOLERANCE_PX
+            )
+        }
+    }
+
+    /**
+     * The 280px floor (the narrowest a real tool window can go) must stay legible and unclipped
+     * with the [WIDTH_TOLERANCE_PX] fix in place - driven through a READY tab with real content in
+     * every block (balance figures, a burn rate/sparkline, a key limit and a non-empty breakdown)
+     * so this actually exercises the tallest, most crowded shape each block can render, not an
+     * empty placeholder that would trivially fit.
+     */
+    fun testAssembledPanelIsNotClippedAtThe280pxFloorWithRealContentInEveryBlock() {
+        val settingsService = mock(OpenRouterSettingsService::class.java)
+        val sharedCache = OpenRouterStatsCache.getInstance()
+        `when`(settingsService.isConfigured()).thenReturn(false)
+        `when`(settingsService.getProvisioningKey()).thenReturn("")
+
+        val statusTab = StatusTabPanel(project, settingsService)
+        try {
+            val todayActivityRow = ActivityData(
+                date = LocalDate.now().toString(),
+                model = "anthropic/claude-3.7-sonnet-20250219-extended-thinking",
+                modelPermaslug = null,
+                endpointId = null,
+                providerName = null,
+                usage = READY_USAGE,
+                byokUsageInference = null,
+                requests = FLOOR_TEST_REQUEST_COUNT,
+                promptTokens = null,
+                completionTokens = null,
+                reasoningTokens = null
+            )
+            sharedCache.updateFromPopup(
+                CreditsResponse(CreditsData(totalCredits = READY_TOTAL, totalUsage = READY_USAGE)),
+                ActivityResponse(data = listOf(todayActivityRow)),
+                apiKeysWithARealCap()
+            )
+            `when`(settingsService.isConfigured()).thenReturn(true)
+            `when`(settingsService.getProvisioningKey()).thenReturn("a-provisioning-key")
+            // The MOCKED settingsService's own provisioning key (set non-blank just above) is
+            // what StatusTabState.derive reads for `hasProvisioningKey`, keeping this READY rather
+            // than DEGRADED. The DIFFERENT provisioning key that decides AnalyticsService
+            // .isAvailable() - and so which breakdown path refreshBreakdown() takes - is the REAL,
+            // process-wide OpenRouterSettingsService singleton's own (see buildReadyStatusTab's own
+            // KDoc), which stays unconfigured in this test sandbox: refreshBreakdown() therefore
+            // takes the local ActivityAggregator path against the activity row seeded above, with
+            // no network involved.
+            statusTab.renderForTest()
+            assertEquals(StatusTabState.State.READY, statusTab.getStateForTest())
+
+            val panel = statusTab.component
+            panel.setSize(FLOOR_LAYOUT_WIDTH, panel.preferredSize.height)
+            layoutTreeRecursively(panel)
+            panel.setSize(FLOOR_LAYOUT_WIDTH, panel.preferredSize.height)
+            layoutTreeRecursively(panel)
+
+            assertNoDescendantClippedByBottomEdge(panel)
+        } finally {
+            sharedCache.clearCache()
+            statusTab.dispose()
+        }
+    }
+
     /**
      * A [ComboBox]'s own `selectedItem` accessors are untyped - `getSelectedItem`/
      * `setSelectedItem` both take/return plain `Object` at the Swing level - so a wildcard-typed
@@ -961,7 +1700,7 @@ class StatusTabPanelPlatformTest : BasePlatformTestCase() {
         return checkNotNull(walk(root)) { "no period ComboBox found in the component tree" }
     }
 
-    private data class LabelSnapshot(val text: String, val visible: Boolean)
+    private data class LabelSnapshot(val text: String, val visible: Boolean, val toolTip: String? = null)
 
     /**
      * `visible` on the returned snapshot is EFFECTIVE visibility - a label's own `isVisible` AND
@@ -977,7 +1716,9 @@ class StatusTabPanelPlatformTest : BasePlatformTestCase() {
         fun walk(container: Container, ancestorsVisible: Boolean) {
             container.components.forEach { child ->
                 val effectiveVisible = ancestorsVisible && child.isVisible
-                if (child is JLabel) result += LabelSnapshot(child.text.orEmpty(), effectiveVisible)
+                if (child is JLabel) {
+                    result += LabelSnapshot(child.text.orEmpty(), effectiveVisible, child.toolTipText)
+                }
                 if (child is Container) walk(child, effectiveVisible)
             }
         }
@@ -1468,6 +2209,140 @@ class StatusTabPanelPlatformTest : BasePlatformTestCase() {
     }
 
     /**
+     * Close-out round 2, Critical: [BreakdownBlock.onPeriodChanged] called
+     * [StatusTabPanel.refreshBreakdown] with NO state check of its own, and `refreshBreakdown()`
+     * had none either - so a real user click on the period selector while NOT_CONFIGURED replaced
+     * its own "needs an API key" placeholder with a real [ActivityAggregator] result built from
+     * whatever the shared cache still had cached (here, from before the API key was ever removed).
+     * Seeds that cached activity, drives the SAME action a click performs (`combo.selectedItem =`,
+     * which fires the identical `ItemEvent` a real selection would), and proves neither a real
+     * model row nor the false-negative "no activity" line leaks through.
+     */
+    fun testChangingThePeriodWhileNotConfiguredDoesNotLeakCachedActivityIntoTheBreakdown() {
+        val settingsService = mock(OpenRouterSettingsService::class.java)
+        `when`(settingsService.isConfigured()).thenReturn(false)
+        `when`(settingsService.getProvisioningKey()).thenReturn("")
+
+        val sharedCache = OpenRouterStatsCache.getInstance()
+        try {
+            sharedCache.updateFromPopup(
+                CreditsResponse(CreditsData(totalCredits = READY_TOTAL, totalUsage = READY_USAGE)),
+                ActivityResponse(
+                    listOf(
+                        ActivityData(
+                            date = LocalDate.now().toString(),
+                            model = LEAKED_MODEL_NAME,
+                            modelPermaslug = null,
+                            endpointId = null,
+                            providerName = null,
+                            usage = 1.23,
+                            byokUsageInference = null,
+                            requests = 3,
+                            promptTokens = null,
+                            completionTokens = null,
+                            reasoningTokens = null
+                        )
+                    )
+                ),
+                ApiKeysListResponse(data = emptyList())
+            )
+
+            val statusTab = StatusTabPanel(project, settingsService)
+            try {
+                assertEquals(StatusTabState.State.NOT_CONFIGURED, statusTab.getStateForTest())
+
+                val combo = findPeriodCombo(statusTab.component)
+                combo.selectedItem = ActivityAggregator.Period.WEEK
+
+                val breakdownLabels = collectLabelSnapshots(statusTab.componentForTest(TestComponent.BREAKDOWN))
+                assertFalse(
+                    "changing the period while NOT_CONFIGURED must not leak a real model row " +
+                        "built from cached activity: $breakdownLabels",
+                    breakdownLabels.any { it.visible && it.text == LEAKED_MODEL_NAME }
+                )
+                assertFalse(
+                    "...must not claim the false-negative 'no activity in this period' answer " +
+                        "either - nothing was queried: $breakdownLabels",
+                    breakdownLabels.any { it.visible && it.text == NO_ACTIVITY_TEXT }
+                )
+                assertTrue(
+                    "NOT_CONFIGURED's own placeholder must still be shown after the period " +
+                        "change: $breakdownLabels",
+                    breakdownLabels.any { it.visible && it.text.contains("API key", ignoreCase = true) }
+                )
+            } finally {
+                statusTab.dispose()
+            }
+        } finally {
+            sharedCache.clearCache()
+        }
+    }
+
+    /**
+     * Close-out round 2, Critical (DEGRADED half): the same missing guard, driven through the same
+     * user action, for the state where the substitution is more dangerous than NOT_CONFIGURED's -
+     * the rows this would show are computed from REAL cached activity, not an empty result, so
+     * nothing about them LOOKS wrong to a user with no way to know DEGRADED never queries anything.
+     * This is the exact D12 "silent substitution" the analytics-error path was already guarded
+     * against; the period selector was simply a path nobody had swept for.
+     */
+    fun testChangingThePeriodWhileDegradedDoesNotLeakCachedActivityIntoTheBreakdown() {
+        val settingsService = mock(OpenRouterSettingsService::class.java)
+        `when`(settingsService.isConfigured()).thenReturn(true)
+        `when`(settingsService.getProvisioningKey()).thenReturn("")
+
+        val sharedCache = OpenRouterStatsCache.getInstance()
+        try {
+            sharedCache.updateFromPopup(
+                CreditsResponse(CreditsData(totalCredits = READY_TOTAL, totalUsage = READY_USAGE)),
+                ActivityResponse(
+                    listOf(
+                        ActivityData(
+                            date = LocalDate.now().toString(),
+                            model = LEAKED_MODEL_NAME,
+                            modelPermaslug = null,
+                            endpointId = null,
+                            providerName = null,
+                            usage = 1.23,
+                            byokUsageInference = null,
+                            requests = 3,
+                            promptTokens = null,
+                            completionTokens = null,
+                            reasoningTokens = null
+                        )
+                    )
+                ),
+                ApiKeysListResponse(data = emptyList())
+            )
+
+            val statusTab = StatusTabPanel(project, settingsService)
+            try {
+                assertEquals(StatusTabState.State.DEGRADED, statusTab.getStateForTest())
+
+                val combo = findPeriodCombo(statusTab.component)
+                combo.selectedItem = ActivityAggregator.Period.WEEK
+
+                val breakdownLabels = collectLabelSnapshots(statusTab.componentForTest(TestComponent.BREAKDOWN))
+                assertFalse(
+                    "changing the period while DEGRADED must not substitute a real, locally-" +
+                        "aggregated model row under the READY-shaped list - D12 forbids exactly " +
+                        "this kind of silent substitution: $breakdownLabels",
+                    breakdownLabels.any { it.visible && it.text == LEAKED_MODEL_NAME }
+                )
+                assertTrue(
+                    "DEGRADED's own 'needs a provisioning key' line must still be shown after " +
+                        "the period change: $breakdownLabels",
+                    breakdownLabels.any { it.visible && it.text.contains("provisioning key", ignoreCase = true) }
+                )
+            } finally {
+                statusTab.dispose()
+            }
+        } finally {
+            sharedCache.clearCache()
+        }
+    }
+
+    /**
      * Fix round 1, finding 8: an untested guard is not a real guard. Without
      * `if (timestamp <= 0L) return ""` in [StatusTabPanel]'s `lastUpdatedText`, a zero/absent
      * timestamp (the shared cache's own "never updated" sentinel) would flow straight into
@@ -1721,23 +2596,98 @@ class StatusTabPanelPlatformTest : BasePlatformTestCase() {
                 provisioningKeyForTest = "test-key"
 
                 statusTab.applySpendSeriesResultForTest(ActivityAggregator.Period.WEEK)
-                val afterSuccess = collectLabelSnapshots(
+                val afterSuccessLabels = collectLabelSnapshots(
                     statusTab.componentForTest(TestComponent.BALANCE)
-                ).map { it.text }
+                )
+                val afterSuccess = afterSuccessLabels.map { it.text }
                 assertTrue(
                     "sanity check: 6 completed days at \$4.00 each (today's \$500.00 dropped) " +
                         "must render \$4.00/day: $afterSuccess",
-                    afterSuccess.any { it == "\$4.00/day burn rate" }
+                    afterSuccessLabels.any { it.visible && it.text == "\$4.00/day burn rate" }
                 )
 
                 statusTab.applySpendSeriesResultForTest(ActivityAggregator.Period.MONTH)
-                val afterError = collectLabelSnapshots(
+                val afterErrorLabels = collectLabelSnapshots(
                     statusTab.componentForTest(TestComponent.BALANCE)
-                ).map { it.text }
+                )
+                val afterError = afterErrorLabels.map { it.text }
                 assertTrue(
                     "a failed query must leave the LAST KNOWN GOOD reading in place, not blank it " +
                         "or fabricate a new one: $afterError",
-                    afterError.any { it == "\$4.00/day burn rate" }
+                    afterErrorLabels.any { it.visible && it.text == "\$4.00/day burn rate" }
+                )
+            } finally {
+                sharedCache.clearCache()
+                statusTab.dispose()
+            }
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    /**
+     * The [applyAnalyticsResult] twin of
+     * [testLateSpendSeriesSuccessDoesNotReshowTheBalanceAfterLeavingReadyOrError] - close-out
+     * round 3, Important B: close-out round 2 added a `breakdownStateAllowsQuery` re-check to
+     * [StatusTabPanel.applyAnalyticsResultForTest]'s production counterpart for exactly this race
+     * (a breakdown query resolving after the panel has already left READY/ERROR), but shipped with
+     * no test of its own - the [balanceBlock] half of the identical race had one, the
+     * [breakdownBlock] half did not. Drives a genuinely READY panel into NOT_CONFIGURED (whose own
+     * render path already replaced the breakdown with [BreakdownBlock.showNotConfigured]), THEN
+     * resolves a real, successful analytics query against it, and proves the late result does not
+     * re-show a model row - or the error line, equally wrong here - over NOT_CONFIGURED's own
+     * placeholder.
+     */
+    fun testLateAnalyticsResultSuccessDoesNotReshowTheBreakdownAfterLeavingReadyOrError() = runBlocking {
+        val server = MockWebServer()
+        server.start()
+        try {
+            // A single response: a successful, non-empty query must never call /analytics/meta
+            // at all (fix round 1) - see the sibling truncated-success test above for why this is
+            // deliberately not two enqueues.
+            server.enqueue(
+                MockResponse().setResponseCode(200).setBody(
+                    """{"data":{"data":[{"model":"anthropic/claude-sonnet-4.5","total_usage":1.5,""" +
+                        """"request_count":3}],"metadata":{"row_count":1,"truncated":false}}}"""
+                )
+            )
+            var provisioningKeyForTest = ""
+            val settingsService = mock(OpenRouterSettingsService::class.java)
+            val analyticsService = AnalyticsService(
+                baseUrlOverride = server.url("/api/v1").toString(),
+                provisioningKeyProvider = { provisioningKeyForTest }
+            )
+            val sharedCache = OpenRouterStatsCache.getInstance()
+
+            val statusTab = buildReadyStatusTab(settingsService, analyticsService, sharedCache)
+            try {
+                assertEquals(StatusTabState.State.READY, statusTab.getStateForTest())
+
+                // Simulate the provisioning key being removed while the query above is
+                // conceptually "in flight" - the panel leaves READY for NOT_CONFIGURED, whose own
+                // render path replaces the breakdown with showNotConfigured().
+                `when`(settingsService.isConfigured()).thenReturn(false)
+                statusTab.renderForTest()
+                assertEquals(StatusTabState.State.NOT_CONFIGURED, statusTab.getStateForTest())
+
+                provisioningKeyForTest = "test-key"
+                statusTab.applyAnalyticsResultForTest(ActivityAggregator.Period.WEEK)
+
+                val breakdownLabels = collectLabelSnapshots(statusTab.componentForTest(TestComponent.BREAKDOWN))
+                val texts = breakdownLabels.map { it.text }
+                assertFalse(
+                    "an analytics result resolving after the panel left READY must not re-show a " +
+                        "model row NOT_CONFIGURED's own render path just replaced: $texts",
+                    breakdownLabels.any { it.visible && it.text == "anthropic/claude-sonnet-4.5" }
+                )
+                assertFalse(
+                    "...nor the error line either - equally wrong here, since no query was ever " +
+                        "attempted by NOT_CONFIGURED's own render path: $texts",
+                    breakdownLabels.any { it.visible && it.text == BREAKDOWN_ERROR_TEXT }
+                )
+                assertTrue(
+                    "NOT_CONFIGURED's own placeholder must still be shown: $texts",
+                    breakdownLabels.any { it.visible && it.text.contains("API key", ignoreCase = true) }
                 )
             } finally {
                 sharedCache.clearCache()
@@ -1818,22 +2768,82 @@ class StatusTabPanelPlatformTest : BasePlatformTestCase() {
                 provisioningKeyForTest = "test-key"
 
                 statusTab.applySpendSeriesResultForTest(ActivityAggregator.Period.MONTH)
-                val monthTexts = collectLabelSnapshots(
+                val monthLabels = collectLabelSnapshots(
                     statusTab.componentForTest(TestComponent.BALANCE)
-                ).map { it.text }
+                )
+                val monthTexts = monthLabels.map { it.text }
                 assertTrue(
                     "querying MONTH must render MONTH's own caption ('last 30 days'): $monthTexts",
-                    monthTexts.any { it == "Daily spend (server-reported), last 30 days" }
+                    monthLabels.any { it.visible && it.text == "Daily spend (server-reported), last 30 days" }
                 )
 
                 statusTab.applySpendSeriesResultForTest(ActivityAggregator.Period.DAY)
-                val dayTexts = collectLabelSnapshots(
+                val dayLabels = collectLabelSnapshots(
                     statusTab.componentForTest(TestComponent.BALANCE)
-                ).map { it.text }
+                )
+                val dayTexts = dayLabels.map { it.text }
                 assertTrue(
                     "querying DAY afterwards must render DAY's own caption ('today so far'), " +
                         "proving the function is not stuck on whichever period it saw first: $dayTexts",
-                    dayTexts.any { it == "Daily spend (server-reported), today so far" }
+                    dayLabels.any { it.visible && it.text == "Hourly spend (server-reported), today so far" }
+                )
+            } finally {
+                sharedCache.clearCache()
+                statusTab.dispose()
+            }
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    /**
+     * Close-out round 3, Important A: [StatusTabPanel.refreshBreakdown]'s analytics branch writes
+     * NOTHING synchronously - both calls only launch coroutines - so whatever [BreakdownBlock]
+     * last rendered stays on screen for the whole round trip. On the single most ordinary path
+     * into READY - the status-bar widget has already warmed the shared cache before the tool
+     * window is ever opened, so [StatusTabState.derive] returns READY on the very FIRST render,
+     * with no LOADING state in between - that leftover render used to be [BreakdownBlock]'s own
+     * init-time `show(emptyList())`: "No activity in this period", the string whose own KDoc means
+     * "queried successfully, found nothing", shown before this query had even been sent. No
+     * response is enqueued on [server] here on purpose: the assertions run BEFORE anything could
+     * resolve (no event-queue pump happens), proving what is on screen the instant
+     * [StatusTabPanel.renderForTest] returns, not after the round trip completes.
+     */
+    fun testWarmCacheReadyPathShowsLoadingNotNoActivityBeforeTheBreakdownQueryResolves() {
+        val server = MockWebServer()
+        server.start()
+        try {
+            val sharedCache = OpenRouterStatsCache.getInstance()
+            // Simulates the status-bar widget having already warmed the shared cache BEFORE the
+            // tool window is ever opened - hasData is true from the very first render this panel
+            // ever does, so the real global settings singleton's own "Not configured" precondition
+            // (see the class-level note on why NOT_CONFIGURED/DEGRADED are safe to construct
+            // directly) is what keeps this construction from reaching a real network call, exactly
+            // as it does for every other direct construction in this file.
+            setCachedCredits(CreditsData(totalCredits = READY_TOTAL, totalUsage = READY_USAGE))
+            val settingsService = mock(OpenRouterSettingsService::class.java)
+            `when`(settingsService.isConfigured()).thenReturn(true)
+            `when`(settingsService.getProvisioningKey()).thenReturn("a-provisioning-key")
+            val analyticsService = AnalyticsService(
+                baseUrlOverride = server.url("/api/v1").toString(),
+                provisioningKeyProvider = { "a-provisioning-key" }
+            )
+
+            val statusTab = StatusTabPanel(project, settingsService, analyticsService)
+            try {
+                assertEquals(StatusTabState.State.READY, statusTab.getStateForTest())
+
+                val breakdownLabels = collectLabelSnapshots(statusTab.componentForTest(TestComponent.BREAKDOWN))
+                assertTrue(
+                    "READY on the very first render (a warm cache, no LOADING state in between) " +
+                        "must show the loading placeholder while the breakdown query is still in " +
+                        "flight: $breakdownLabels",
+                    breakdownLabels.any { it.visible && it.text == LOADING_BREAKDOWN_TEXT }
+                )
+                assertFalse(
+                    "must NOT claim the false-negative 'no activity in this period' answer before " +
+                        "the query has even been sent, let alone answered: $breakdownLabels",
+                    breakdownLabels.any { it.visible && it.text == NO_ACTIVITY_TEXT }
                 )
             } finally {
                 sharedCache.clearCache()
@@ -1974,3 +2984,8 @@ private const val ERROR_USAGE = 30.0
 private const val LEAKED_MODEL_NAME = "anthropic/claude-sonnet-4.5"
 private const val DEGRADED_CAPTION = "Locally observed spend (no provisioning key)"
 private const val AWAIT_TIMEOUT_SECONDS = 10
+private const val KEY_LIMIT_FOR_FLOOR_TEST = 25.0
+private const val KEY_USAGE_FOR_FLOOR_TEST = 5.0
+private const val FLOOR_TEST_REQUEST_COUNT = 31
+private const val DEGRADED_HISTORY_FIRST_TOTAL_USED = 10.0
+private const val DEGRADED_HISTORY_SECOND_TOTAL_USED = 12.5

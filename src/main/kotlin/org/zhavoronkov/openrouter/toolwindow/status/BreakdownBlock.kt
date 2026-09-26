@@ -10,6 +10,8 @@ import java.awt.Component
 import java.awt.FlowLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
+import java.awt.event.ComponentAdapter
+import java.awt.event.ComponentEvent
 import java.awt.event.ItemEvent
 import java.util.Locale
 import javax.swing.JComponent
@@ -18,8 +20,8 @@ import javax.swing.JPanel
 
 /**
  * The per-model spend breakdown: a period selector (24 hours / 7 days / 30
- * days, defaulting to 24 hours) above a two-column list of model name and
- * spend for that STATED period.
+ * days, defaulting to 24 hours) above a list of model name, an optional
+ * request count, and spend for that STATED period.
  *
  * This answers the other question the status tab exists for - where the
  * money actually goes - which the old "Recent Activity" total could not
@@ -37,16 +39,27 @@ import javax.swing.JPanel
  * degraded (no-key) path's numbers under the same-looking list - that would
  * let two users asking "how much on this model this week" see different
  * figures with no visible sign anything was substituted (see the status tab
- * redesign spec's D12). [show], [showError], [showLoading] and [showUnavailable]
- * are the only ways this block is ever updated - each states a different fact
- * ("here are the rows", "the query failed", "nothing has been queried yet",
- * "nothing CAN be queried") and none of them may stand in for another.
+ * redesign spec's D12). [show], [showError], [showLoading], [showUnavailable],
+ * [showNotConfigured] and [showMissingNames] are the only ways this block is ever updated - each
+ * states a different fact ("here are the rows", "the query failed", "nothing
+ * has been queried yet", "nothing CAN be queried without a provisioning key",
+ * "nothing CAN be queried because there is no API key at all", "the server no
+ * longer has a name this build relies on") and none of them may stand in for another.
  *
- * Two columns only - model name (left, middle-ellipsised via [MiddleEllipsis]
- * when it does not fit - see [ModelNameLabel]) and spend (right, NEVER
- * truncated: the number is the answer). At the roughly 280px this tab
- * affords, a model id already wants about 150px, so a third column has
- * nowhere honest to go.
+ * Two OR three columns - model name (left, middle-ellipsised via [MiddleEllipsis]
+ * when it does not fit - see [ModelNameLabel]), an OPTIONAL request count, and
+ * spend (right, NEVER truncated: the number is the answer, pinned to the same
+ * right edge regardless of whether the middle column is present). Which shape
+ * applies is [BreakdownColumnPolicy]'s call, not a hard-coded width: this was
+ * shipped once as a tooltip-only count (see [BreakdownRowTooltip]) on the
+ * reasoning that the roughly 280px this tab's floor affords is the tab's
+ * design width - it is only the FLOOR. [BreakdownColumnPolicy.MODEL_MIN_WIDTH]
+ * is the floor below which the model column is never squeezed just to fit the
+ * requests column; below that width the column drops and the count is
+ * available only via the tooltip, which is why the tooltip carries it in
+ * EVERY case, column or no column (see [BreakdownRowTooltip] and
+ * [addRow]'s own KDoc for why the tooltip is not narrowed to "column absent"
+ * only).
  */
 class BreakdownBlock {
 
@@ -98,7 +111,27 @@ class BreakdownBlock {
         add(listPanel, BorderLayout.CENTER)
     }
 
+    /**
+     * The rows [show] last rendered, kept so [renderRows] can be replayed on a resize without the
+     * caller having to call [show] again. Reset to empty by every placeholder (`showX()` below),
+     * not just by an empty [show] result, so a resize arriving while a placeholder - which has no
+     * requests/spend columns to re-decide at all - is on screen is a no-op rather than replaying a
+     * stale row set from before the state changed.
+     */
+    private var lastRows: List<ActivityAggregator.ModelSpend> = emptyList()
+
     init {
+        // A resize, not a viewport/scroll listener: `rowsPanel`'s own bounds only change when the
+        // tool window is actually resized (Swing fires `componentResized` exactly then, never on a
+        // scroll tick), which is the one signal `BreakdownColumnPolicy`'s answer can change on. A
+        // scroll/viewport-change listener was tried and rejected once already on the chat side of
+        // this repo for firing on every scroll tick and recomputing needlessly - see
+        // `ChatConversationView`'s own resize wiring for the precedent this follows instead.
+        rowsPanel.addComponentListener(object : ComponentAdapter() {
+            override fun componentResized(e: ComponentEvent) {
+                if (lastRows.isNotEmpty()) renderRows()
+            }
+        })
         // ComboBox's own default selection is PERIODS[0] (DAY / "24 hours"), which satisfies
         // "defaulting to 24 hours" without an explicit setSelectedItem call here - one that
         // would otherwise risk firing onPeriodChanged for a selection nobody chose. The listener
@@ -112,10 +145,24 @@ class BreakdownBlock {
     }
 
     /**
-     * Renders [rows] as the two-column list, or - when [rows] is empty - an explicit
-     * "no activity in this period" line. Never an empty box: an empty box is
-     * indistinguishable from a broken panel, which is exactly the ambiguity a stated period
-     * exists to remove.
+     * Enables or disables the period selector - the ONLY control on this block a user can
+     * interact with. Disabled by the caller ([StatusTabPanel.render], close-out round 2, Critical)
+     * in every state where a period change cannot answer anything (NOT_CONFIGURED, DEGRADED,
+     * LOADING): a control the user can click but that silently does nothing (or, before that
+     * round's fix, silently substituted a wrong answer) is confusing in a way a greyed-out one
+     * is not. Swing's own `JComboBox.isEnabled = false` already blocks user interaction and greys
+     * the control out with no extra styling needed here, and does not prevent a TEST from still
+     * driving it programmatically via `combo.selectedItem = ...` - only real mouse/keyboard input
+     * is blocked, which is exactly what should differ between a test and a user.
+     */
+    fun setPeriodSelectorEnabled(enabled: Boolean) {
+        periodSelector.isEnabled = enabled
+    }
+
+    /**
+     * Renders [rows] as the list, or - when [rows] is empty - an explicit "no activity in this
+     * period" line. Never an empty box: an empty box is indistinguishable from a broken panel,
+     * which is exactly the ambiguity a stated period exists to remove.
      *
      * @param truncated whether the query that produced [rows] reported
      *   `AnalyticsQueryPayload.metadata.truncated == true` - i.e. the server had more rows than
@@ -123,17 +170,52 @@ class BreakdownBlock {
      *   renders an explicit notice rather than being discarded, as it previously was.
      */
     fun show(rows: List<ActivityAggregator.ModelSpend>, truncated: Boolean = false) {
+        lastRows = rows
         truncatedLabel.isVisible = truncated
+        renderRows()
+    }
 
+    /**
+     * (Re)renders [lastRows] into [rowsPanel] - the body [show] runs, and the body the resize
+     * listener above replays when [lastRows] is non-empty. Split out from [show] so a resize can
+     * redo exactly this work without touching [truncatedLabel] (whose visibility depends only on
+     * the last query's own `truncated` flag, never on width) or reassigning [lastRows] itself.
+     */
+    private fun renderRows() {
         rowsPanel.removeAll()
-        if (rows.isEmpty()) {
+        if (lastRows.isEmpty()) {
             rowsPanel.add(JBLabel(NO_ACTIVITY_TEXT), emptyStateConstraints())
         } else {
-            rows.forEachIndexed { index, spend -> addRow(spend, index) }
+            val showRequestsColumn = showsRequestsColumn(lastRows)
+            lastRows.forEachIndexed { index, spend -> addRow(spend, index, showRequestsColumn) }
         }
 
         rowsPanel.revalidate()
         rowsPanel.repaint()
+    }
+
+    /**
+     * Measures this row set's own widest request count and widest spend figure, then asks
+     * [BreakdownColumnPolicy] whether the requests column fits beside them at [rowsPanel]'s
+     * CURRENT width - re-measured on every call (including every resize), never cached, since
+     * both the available width and (on a period change) the rows themselves can change out from
+     * under a stale answer.
+     *
+     * One decision for the WHOLE row set, not per row: [rowsPanel] is one `GridBagLayout` grid, so
+     * either every row gets a requests column or none do - there is no per-row answer to give.
+     * Measuring the widest of each rather than each row's own keeps that one decision honest: a
+     * requests column sized to a SHORT row's own count would clip a longer row's count sitting in
+     * the same column.
+     */
+    private fun showsRequestsColumn(rows: List<ActivityAggregator.ModelSpend>): Boolean {
+        val metrics = rowsPanel.getFontMetrics(rowsPanel.font)
+        return BreakdownColumnPolicy.showsRequestsColumn(
+            availableWidth = rowsPanel.width,
+            modelMinWidth = JBUI.scale(BreakdownColumnPolicy.MODEL_MIN_WIDTH),
+            requestsWidth = rows.maxOf { metrics.stringWidth(formatCount(it.requests)) },
+            spendWidth = rows.maxOf { metrics.stringWidth(formatSpend(it.usage)) },
+            gap = JBUI.scale(ROW_GAP_BETWEEN_COLUMNS)
+        )
     }
 
     /**
@@ -165,7 +247,43 @@ class BreakdownBlock {
      */
     fun showUnavailable() = renderPlaceholder(UNAVAILABLE_TEXT)
 
+    /**
+     * Renders an explicit "needs an API key" line for NOT_CONFIGURED.
+     *
+     * Deliberately NOT [showUnavailable]: that line names a missing PROVISIONING key, which
+     * implies an API key is already present - true in DEGRADED, false here. NOT_CONFIGURED has
+     * no API key at all, so naming the provisioning key specifically would send the user to fix
+     * the wrong thing first. Also deliberately NOT [show] with an empty list, for the same reason
+     * [showUnavailable] is not: nothing has been queried, so "no activity in this period" would
+     * tell the user they spent nothing, which nobody checked.
+     */
+    fun showNotConfigured() = renderPlaceholder(NOT_CONFIGURED_TEXT)
+
+    /**
+     * Renders an explicit line naming exactly which hard-coded metric/dimension/granularity
+     * name(s) [AnalyticsMetaCheck] found missing from the server's own `/analytics/meta`
+     * response, for [G2][AnalyticsMetaCheck]'s "validated and something is missing" state - the
+     * ONLY one of its three states allowed to change what this block shows (see that object's own
+     * KDoc; "validated and fine" and "could not check" both leave the ordinary query/[show]/
+     * [showError] path untouched).
+     *
+     * Deliberately NOT [showError]: nothing failed to reach the server - it answered, and the
+     * answer is that one of our own assumptions is now wrong. Deliberately NOT [show] with an
+     * empty list: an empty list here would be [AnalyticsBreakdown]'s query silently coming back
+     * with no rows because it asked for a name the server no longer has - exactly the "renders a
+     * breakdown that silently came back empty" failure this check exists to replace with a named
+     * cause. The actionable read is "this plugin build is out of date against the API", not "wait"
+     * ([showLoading]) or "add/fix a key" ([showUnavailable]/[showNotConfigured]) - a different
+     * fact from every other placeholder, so it gets its own line rather than reusing one of theirs.
+     */
+    fun showMissingNames(missingNames: List<String>) =
+        renderPlaceholder("$MISSING_NAMES_TEXT${missingNames.joinToString(", ")}")
+
     private fun renderPlaceholder(text: String) {
+        // Reset, not merely left stale: a resize arriving while a placeholder is on screen must
+        // be a no-op (see the resize listener's own KDoc above) - not a replay of whatever rows
+        // were on screen before the state changed to this placeholder.
+        lastRows = emptyList()
         truncatedLabel.isVisible = false
 
         rowsPanel.removeAll()
@@ -182,29 +300,61 @@ class BreakdownBlock {
         insets = JBUI.insets(ROW_VERTICAL_GAP, 0)
     }
 
-    private fun addRow(spend: ActivityAggregator.ModelSpend, rowIndex: Int) {
+    private fun addRow(spend: ActivityAggregator.ModelSpend, rowIndex: Int, showRequestsColumn: Boolean) {
+        // Every label on the row shares ONE tooltip - see [ModelNameLabel]'s own KDoc for why this
+        // extends its existing tooltip rather than adding a second one, and [BreakdownRowTooltip]
+        // for the wording. This does NOT change when the requests count is also visible as its own
+        // column: repeating it in the tooltip is not obviously wrong (the model id can still be
+        // middle-ellipsised regardless of whether the column fits, so the row must stay readable
+        // by hover in every width, column or no column), and a tooltip that read differently
+        // depending on the column's own presence would be one more state for a reader to track for
+        // no benefit - the count is a single word restated, not new information invented for the
+        // hover case.
+        val tooltip = BreakdownRowTooltip.forRow(spend.model, spend.requests)
+
         val modelConstraints = GridBagConstraints().apply {
-            gridx = 0
+            gridx = MODEL_COLUMN
             gridy = rowIndex
             weightx = 1.0
             fill = GridBagConstraints.HORIZONTAL
             anchor = GridBagConstraints.WEST
             insets = JBUI.insets(ROW_VERTICAL_GAP, 0, ROW_VERTICAL_GAP, ROW_GAP_BETWEEN_COLUMNS)
         }
-        rowsPanel.add(ModelNameLabel(spend.model), modelConstraints)
+        rowsPanel.add(ModelNameLabel(spend.model, tooltip), modelConstraints)
+
+        // The requests column sits BETWEEN model and spend, never after it: spend stays pinned to
+        // the row's own right edge - the same column index it already occupies with this column
+        // absent - so the existing visual does not shift when this column is absent (see this
+        // class's own KDoc for why that edge must not move).
+        if (showRequestsColumn) {
+            val requestsConstraints = GridBagConstraints().apply {
+                gridx = REQUESTS_COLUMN
+                gridy = rowIndex
+                weightx = 0.0
+                fill = GridBagConstraints.NONE
+                anchor = GridBagConstraints.EAST
+                insets = JBUI.insets(ROW_VERTICAL_GAP, 0, ROW_VERTICAL_GAP, ROW_GAP_BETWEEN_COLUMNS)
+            }
+            rowsPanel.add(JBLabel(formatCount(spend.requests)).apply { toolTipText = tooltip }, requestsConstraints)
+        }
 
         val spendConstraints = GridBagConstraints().apply {
-            gridx = 1
+            gridx = if (showRequestsColumn) SPEND_COLUMN_WITH_REQUESTS else SPEND_COLUMN_WITHOUT_REQUESTS
             gridy = rowIndex
             weightx = 0.0
             fill = GridBagConstraints.NONE
             anchor = GridBagConstraints.EAST
             insets = JBUI.insets(ROW_VERTICAL_GAP, 0)
         }
-        rowsPanel.add(JBLabel(formatSpend(spend.usage)), spendConstraints)
+        rowsPanel.add(JBLabel(formatSpend(spend.usage)).apply { toolTipText = tooltip }, spendConstraints)
     }
 
     private fun formatSpend(usage: Double): String = "$${String.format(Locale.US, "%.4f", usage)}"
+
+    /** Plain, unformatted - matching [BreakdownRowTooltip]'s own bare `$requests`, so the column
+     * and the tooltip never disagree about how the same count is written (e.g. one adding
+     * thousands separators the other omits). */
+    private fun formatCount(requests: Long): String = requests.toString()
 
     private fun periodLabel(period: ActivityAggregator.Period): String = when (period) {
         ActivityAggregator.Period.DAY -> "24 hours"
@@ -213,9 +363,12 @@ class BreakdownBlock {
     }
 
     /**
-     * A [JBLabel] that keeps [fullText] as its underlying identity (the tooltip, and what is
-     * reported if never laid out) but DISPLAYS a middle-ellipsised fit to whatever width the
-     * layout manager actually allocates it, recomputed on every [setBounds].
+     * A [JBLabel] that keeps [fullText] as its underlying identity (what is reported if never
+     * laid out) but DISPLAYS a middle-ellipsised fit to whatever width the layout manager
+     * actually allocates it, recomputed on every [setBounds]. Its `toolTipText` is [tooltip], not
+     * [fullText] directly - see [BreakdownRowTooltip] - but [tooltip] itself always starts with
+     * [fullText] verbatim, so the full id this tooltip originally existed to preserve is still
+     * recoverable from it.
      *
      * A plain [JBLabel]'s own built-in end-clipping was rejected: OpenRouter model ids share
      * their vendor prefix and differ at the tail
@@ -230,9 +383,9 @@ class BreakdownBlock {
      * clipping, which exposes nothing a test can read - is also what makes the truncation
      * assertable at all.
      */
-    private class ModelNameLabel(private val fullText: String) : JBLabel(fullText) {
+    private class ModelNameLabel(private val fullText: String, tooltip: String) : JBLabel(fullText) {
         init {
-            toolTipText = fullText
+            toolTipText = tooltip
         }
 
         override fun setBounds(x: Int, y: Int, width: Int, height: Int) {
@@ -253,8 +406,18 @@ class BreakdownBlock {
         const val ERROR_TEXT = "Couldn't load the breakdown"
         const val LOADING_TEXT = "Loading breakdown..."
         const val UNAVAILABLE_TEXT = "Needs a provisioning key"
+        const val NOT_CONFIGURED_TEXT = "Needs an API key"
+        const val MISSING_NAMES_TEXT = "Plugin is out of date with the API - missing: "
         const val TRUNCATED_TEXT = "Showing a partial result - the server truncated this query"
         const val ROW_VERTICAL_GAP = 2
         const val ROW_GAP_BETWEEN_COLUMNS = 12
+
+        // GridBagLayout column indices. The requests column sits strictly BETWEEN model and
+        // spend, never after it, so spend's own index shifts by exactly one (1 -> 2) depending on
+        // whether the requests column is present - never a fixed, always-last index of its own.
+        const val MODEL_COLUMN = 0
+        const val REQUESTS_COLUMN = 1
+        const val SPEND_COLUMN_WITH_REQUESTS = 2
+        const val SPEND_COLUMN_WITHOUT_REQUESTS = 1
     }
 }

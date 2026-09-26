@@ -86,9 +86,10 @@ class OpenRouterToolWindowContent(
         // Select Chat tab by default
         tabbedPane.selectedIndex = 1
 
-        // Refresh-on-activation (Task 11): fires on every selection change including this one,
-        // but the listener itself checks which tab is now selected, so this initial event (still
-        // selecting Chat) is a no-op.
+        // Refresh-on-activation (Task 11): the listener is added AFTER `selectedIndex = 1` above,
+        // so Swing's own initial-selection bookkeeping has already happened by the time it is
+        // attached - no ChangeEvent fires for this line at all, let alone one the listener would
+        // need to no-op on. It only ever fires for a later, real selection change.
         tabbedPane.addChangeListener(statusTabActivationListener)
 
         mainPanel.add(tabbedPane, BorderLayout.CENTER)

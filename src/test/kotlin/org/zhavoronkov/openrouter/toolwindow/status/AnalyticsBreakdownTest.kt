@@ -201,6 +201,42 @@ class AnalyticsBreakdownTest {
     }
 
     @Test
+    @DisplayName(
+        "the live bug: a QUOTED numeric request_count (the real server's actual shape) still " +
+            "produces a non-empty breakdown with the right counts, instead of dropping every row"
+    )
+    fun `a quoted numeric request_count still parses`() {
+        val result = AnalyticsBreakdown.toModelSpend(
+            listOf(
+                mapOf("model" to "anthropic/claude-sonnet-4.5", "total_usage" to 0.5123, "request_count" to "31"),
+                mapOf("model" to "openai/gpt-4o-mini", "total_usage" to 0.0221, "request_count" to "12")
+            )
+        )
+
+        // Before the fix, numberOrZero's strict `as? Number` rejects a String outright - every
+        // row above is dropped and this comes back empty, exactly the live "No activity in this
+        // period" bug. It must come back with both rows, and the quoted count must convert to
+        // the SAME Long a typed 31.0/12.0 would - not zero, not the row dropped.
+        assertEquals(2, result.size)
+        assertEquals("anthropic/claude-sonnet-4.5", result[0].model)
+        assertEquals(31L, result[0].requests)
+        assertEquals("openai/gpt-4o-mini", result[1].model)
+        assertEquals(12L, result[1].requests)
+    }
+
+    @Test
+    @DisplayName("a quoted numeric total_usage (server not consistent about which metric it quotes) still parses")
+    fun `a quoted numeric total_usage still parses`() {
+        val result = AnalyticsBreakdown.toModelSpend(
+            listOf(mapOf("model" to "m", "total_usage" to "0.75", "request_count" to 4.0))
+        )
+
+        assertEquals(1, result.size)
+        assertEquals(0.75, result[0].usage, 1e-9)
+        assertEquals(4L, result[0].requests)
+    }
+
+    @Test
     @DisplayName("a missing total_usage key counts as zero rather than dropping the row")
     fun `a missing total_usage key counts as zero`() {
         val result = AnalyticsBreakdown.toModelSpend(
@@ -232,13 +268,18 @@ class AnalyticsBreakdownTest {
 
     @Test
     @DisplayName(
-        "rows are read against the analytics-query-response fixture's own field names, " +
-            "and per-model rows across time buckets are summed into one"
+        "rows are read against the server's own field names, and per-model rows across time " +
+            "buckets are summed into one - the defensive shape toModelSpend's own KDoc describes " +
+            "in case a granularity is ever reintroduced (the checked-in fixture itself is now " +
+            "one row per model, matching requestFor's actual granularity-less query)"
     )
-    fun `rows are read against the fixture's field names and grouped by model`() {
-        // Mirrors the shape of src/test/resources/fixtures/analytics-query-response.json
-        // exactly: two rows for the SAME model on two different date__day buckets - the shape
-        // a granularity finer than the whole period produces - plus one row for a second model.
+    fun `rows are read against the server's field names and grouped by model`() {
+        // A synthetic multi-bucket-per-model shape - NOT what the checked-in fixture carries any
+        // more (that now mirrors the real, granularity-less per-model query exactly: one row per
+        // model, no date__day key). Kept here to pin the defensive re-grouping toModelSpend's own
+        // KDoc still promises if a granularity/server-side bucketing default ever comes back: two
+        // rows for the SAME model on two different date__day buckets, plus one row for a second
+        // model.
         val result = AnalyticsBreakdown.toModelSpend(
             listOf(
                 mapOf(
@@ -501,6 +542,19 @@ class AnalyticsBreakdownTest {
         )
 
         assertEquals(listOf(0.0), result)
+    }
+
+    @Test
+    @DisplayName(
+        "a QUOTED numeric total_usage still parses into that bucket's reading, instead of " +
+            "being dropped - the server is not consistent about which metric it quotes"
+    )
+    fun `toSpendSeries reads a quoted numeric total_usage`() {
+        val result = AnalyticsBreakdown.toSpendSeries(
+            listOf(mapOf("date__day" to "2026-09-18T00:00:00.000Z", "total_usage" to "1.5"))
+        )
+
+        assertEquals(listOf(1.5), result)
     }
 
     // --- burnRatePerDay (fix round 2, findings 1 and 2) --------------------------------------

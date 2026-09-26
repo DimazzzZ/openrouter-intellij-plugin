@@ -216,4 +216,77 @@ class AnalyticsServiceTest {
         assertTrue(service.meta() is ApiResult.Error)
         assertEquals(0, server.requestCount)
     }
+
+    @Test
+    @DisplayName("a repeated meta() call is served from cache and hits the server once")
+    fun `a repeated meta call hits the cache`() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"data":{"metrics":[{"name":"total_usage"}],"dimensions":[],"granularities":["day"]}}"""
+            )
+        )
+        val service = AnalyticsService(
+            baseUrlOverride = server.url("/api/v1").toString(),
+            provisioningKeyProvider = { "k" }
+        )
+
+        val first = service.meta()
+        val second = service.meta()
+
+        assertTrue(first is ApiResult.Success, "expected first to succeed, got $first")
+        assertTrue(second is ApiResult.Success, "expected second to succeed, got $second")
+        assertEquals(
+            1,
+            server.requestCount,
+            "meta() must be fetched once per session, not once per call - a second call must be " +
+                "served from the cache instead of spending another request against the user's quota"
+        )
+    }
+
+    @Test
+    @DisplayName("invalidate() does not clear the meta() cache - it is per-session, not per-refresh")
+    fun `invalidate does not clear the meta cache`() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"data":{"metrics":[{"name":"total_usage"}],"dimensions":[],"granularities":["day"]}}"""
+            )
+        )
+        val service = AnalyticsService(
+            baseUrlOverride = server.url("/api/v1").toString(),
+            provisioningKeyProvider = { "k" }
+        )
+
+        service.meta()
+        service.invalidate()
+        service.meta()
+
+        assertEquals(
+            1,
+            server.requestCount,
+            "invalidate() clears the query cache only - a deliberate Status tab refresh must not " +
+                "re-fetch metadata that has not changed since the session started"
+        )
+    }
+
+    @Test
+    @DisplayName("a failed meta() call is not cached and is retried on the next call")
+    fun `a failed meta call is retried`() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(500).setBody("""{"error":{"message":"boom"}}"""))
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"data":{"metrics":[{"name":"total_usage"}],"dimensions":[],"granularities":["day"]}}"""
+            )
+        )
+        val service = AnalyticsService(
+            baseUrlOverride = server.url("/api/v1").toString(),
+            provisioningKeyProvider = { "k" }
+        )
+
+        val first = service.meta()
+        val second = service.meta()
+
+        assertTrue(first is ApiResult.Error, "expected the first call to fail, got $first")
+        assertTrue(second is ApiResult.Success, "a failed meta() must not be cached: got $second")
+        assertEquals(2, server.requestCount)
+    }
 }

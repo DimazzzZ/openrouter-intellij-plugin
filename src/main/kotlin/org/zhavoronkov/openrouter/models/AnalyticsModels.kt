@@ -31,7 +31,13 @@ data class AnalyticsQueryRequest(
 )
 
 data class AnalyticsMetadata(
-    @SerializedName("query_time_ms") val queryTimeMs: Long?,
+    /**
+     * The server's own count of [AnalyticsQueryPayload.data]'s rows. Exists as a shape
+     * invariant to check against, not a value any production code reads: `AnalyticsModelsFixtureTest`
+     * asserts `rowCount == data.size` against the response fixture, so a server response that
+     * disagrees with its own row count fails a test instead of passing silently. No renderer
+     * consumes it - `truncated` is what tells the UI a result is partial.
+     */
     @SerializedName("row_count") val rowCount: Int?,
     val truncated: Boolean?
 )

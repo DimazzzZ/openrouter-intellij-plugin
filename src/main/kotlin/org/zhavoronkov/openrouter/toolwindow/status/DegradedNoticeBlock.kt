@@ -45,8 +45,8 @@ class DegradedNoticeBlock(onConfigure: () -> Unit) {
         const val BORDER_SIZE = 10
         const val TITLE = "Limited: no provisioning key"
         const val MESSAGE = "Account balance, activity and API key limits need a provisioning " +
-            "key, which is not set. Add one to see them - the chart below shows only locally " +
-            "observed spend recorded while the IDE was running instead."
+            "key, which is not set. Add one to see them - locally observed spend recorded " +
+            "while the IDE was running is shown below instead, when there is enough of it to plot."
         const val BUTTON_TEXT = "Add Provisioning Key"
     }
 }
