@@ -25,6 +25,20 @@ object ActivityAggregator {
         MONTH(30)
     }
 
+    /**
+     * One row of [BreakdownBlock]'s list: a name, its spend and its request count over the
+     * block's own stated period.
+     *
+     * [model] is [byModel]'s own grouping key, and stays that name here (G6, the key-spend
+     * breakdown) even though [AnalyticsBreakdown.toModelSpend] now also produces this same shape
+     * for the `api_key_id` dimension, where [model] actually holds a key's own name (e.g. `n8n`),
+     * never a model id. Renaming the type/field to something dimension-neutral was considered and
+     * rejected: [BreakdownBlock] renders exactly one list either way and never needs to tell the
+     * two apart at the field level, so the only real payoff would be the name itself - not worth
+     * the ripple through [byModel], [BreakdownBlock], [BreakdownRowTooltip], [StatusTabPanel] and
+     * every existing test that already reads `.model`, this late on this branch, for a purely
+     * cosmetic gain. This KDoc is the trade instead.
+     */
     data class ModelSpend(val model: String, val usage: Double, val requests: Long)
 
     /**

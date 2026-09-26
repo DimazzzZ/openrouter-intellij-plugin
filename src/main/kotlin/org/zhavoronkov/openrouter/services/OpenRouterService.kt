@@ -287,7 +287,7 @@ open class OpenRouterService(
             try {
                 if (provisioningKey.isBlank()) {
                     PluginLogger.Service.warn("Provisioning key is blank - cannot fetch API keys list")
-                    return@withContext ApiResult.Error("Provisioning key is required")
+                    return@withContext ApiResult.Error("Management key is required")
                 }
 
                 val keyPreview = KeyValidator.maskApiKey(provisioningKey)
@@ -317,7 +317,7 @@ open class OpenRouterService(
         val provisioningKey = settingsService.getProvisioningKey()
         if (provisioningKey.isBlank()) {
             PluginLogger.Service.warn("No provisioning key available for quota info")
-            return ApiResult.Error("No provisioning key configured")
+            return ApiResult.Error("No management key configured")
         }
 
         return runCatching { getApiKeysList(provisioningKey) }
@@ -475,29 +475,32 @@ open class OpenRouterService(
         }
 
     /**
-     * Get credits information from OpenRouter
-     * NOTE: This endpoint requires Provisioning Key authentication, not API Key
+     * Get credits information from OpenRouter.
+     *
+     * Measured against the live API (2026-09-21): `/credits` answers for an ordinary API key
+     * exactly as it does for a management key - it is account-scoped, not key-scoped, so any
+     * configured API key can read it. It is authenticated with [OpenRouterConstants]'
+     * [OpenRouterRequestBuilder.AuthType.API_KEY], never the management key.
      */
     suspend fun getCredits(): ApiResult<CreditsResponse> =
         withContext(Dispatchers.IO) {
             try {
-                // Credits endpoint requires provisioning key, not API key
-                val provisioningKey = settingsService.getProvisioningKey()
-                if (provisioningKey.isBlank()) {
-                    PluginLogger.Service.warn("No provisioning key available for credits endpoint")
-                    return@withContext ApiResult.Error("No provisioning key configured")
+                val apiKey = settingsService.getApiKey()
+                if (apiKey.isBlank()) {
+                    PluginLogger.Service.warn("No API key available for credits endpoint")
+                    return@withContext ApiResult.Error("No API key configured")
                 }
 
-                val keyPreview = provisioningKey.take(OpenRouterConstants.STRING_TRUNCATE_LENGTH)
+                val keyPreview = apiKey.take(OpenRouterConstants.STRING_TRUNCATE_LENGTH)
                 PluginLogger.Service.debug(
-                    "Fetching credits from OpenRouter with provisioning key: $keyPreview..."
+                    "Fetching credits from OpenRouter with API key: $keyPreview..."
                 )
                 PluginLogger.Service.debug("Making request to: ${getCreditsEndpoint()}")
 
                 val request = OpenRouterRequestBuilder.buildGetRequest(
                     url = getCreditsEndpoint(),
-                    authType = OpenRouterRequestBuilder.AuthType.PROVISIONING_KEY,
-                    authToken = provisioningKey
+                    authType = OpenRouterRequestBuilder.AuthType.API_KEY,
+                    authToken = apiKey
                 )
 
                 val (response, responseBody) = client.newCall(request).awaitWithBody()
@@ -535,7 +538,7 @@ open class OpenRouterService(
                 val provisioningKey = settingsService.getProvisioningKey()
                 if (provisioningKey.isBlank()) {
                     PluginLogger.Service.warn("No provisioning key available for activity endpoint")
-                    return@withContext ApiResult.Error("No provisioning key configured")
+                    return@withContext ApiResult.Error("No management key configured")
                 }
 
                 val keyPreview = provisioningKey.take(OpenRouterConstants.STRING_TRUNCATE_LENGTH)

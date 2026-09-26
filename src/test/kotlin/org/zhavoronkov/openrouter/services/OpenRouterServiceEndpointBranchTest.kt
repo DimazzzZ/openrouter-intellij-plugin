@@ -70,11 +70,11 @@ class OpenRouterServiceEndpointBranchTest {
     }
 
     @Test
-    @DisplayName("getApiKeysList returns Error when provisioning key is blank, without a request")
+    @DisplayName("getApiKeysList returns Error when management key is blank, without a request")
     fun apiKeysListBlankKey() = runBlocking {
         val result = service.getApiKeysList("")
         assertTrue(result is ApiResult.Error)
-        assertEquals("Provisioning key is required", (result as ApiResult.Error).message)
+        assertEquals("Management key is required", (result as ApiResult.Error).message)
         assertEquals(0, mockWebServer.requestCount)
     }
 
@@ -96,12 +96,12 @@ class OpenRouterServiceEndpointBranchTest {
     }
 
     @Test
-    @DisplayName("getQuotaInfo returns Error when no provisioning key is configured")
+    @DisplayName("getQuotaInfo returns Error when no management key is configured")
     fun quotaInfoBlankKey() = runBlocking {
         blankKey()
         val result = service.getQuotaInfo()
         assertTrue(result is ApiResult.Error)
-        assertEquals("No provisioning key configured", (result as ApiResult.Error).message)
+        assertEquals("No management key configured", (result as ApiResult.Error).message)
     }
 
     @Test
@@ -247,12 +247,15 @@ class OpenRouterServiceEndpointBranchTest {
     }
 
     @Test
-    @DisplayName("getCredits returns Error when no provisioning key configured, without a request")
+    @DisplayName("getCredits returns Error when no API key configured, without a request")
     fun creditsBlankKey() = runBlocking {
-        blankKey()
+        // Measured against the live API (2026-09-21): /credits is account-scoped, answering for
+        // an ordinary API key exactly as it does for a management key, so getCredits() is gated
+        // on the API key, not the (still-present) management key configured in setUp().
+        `when`(mockSettingsService.getApiKey()).thenReturn("")
         val result = service.getCredits()
         assertTrue(result is ApiResult.Error)
-        assertEquals("No provisioning key configured", (result as ApiResult.Error).message)
+        assertEquals("No API key configured", (result as ApiResult.Error).message)
         assertEquals(0, mockWebServer.requestCount)
     }
 
@@ -285,12 +288,12 @@ class OpenRouterServiceEndpointBranchTest {
     }
 
     @Test
-    @DisplayName("getActivity returns Error when no provisioning key configured, without a request")
+    @DisplayName("getActivity returns Error when no management key configured, without a request")
     fun activityBlankKey() = runBlocking {
         blankKey()
         val result = service.getActivity()
         assertTrue(result is ApiResult.Error)
-        assertEquals("No provisioning key configured", (result as ApiResult.Error).message)
+        assertEquals("No management key configured", (result as ApiResult.Error).message)
         assertEquals(0, mockWebServer.requestCount)
     }
 

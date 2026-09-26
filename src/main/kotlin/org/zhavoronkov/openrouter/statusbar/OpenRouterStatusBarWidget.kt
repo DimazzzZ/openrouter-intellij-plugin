@@ -326,7 +326,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
         currentText = "Status: ${connectionStatus.displayName}"
         val isRegular = settingsService.apiKeyManager.authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR
-        val scopeText = if (isRegular) "Regular Key" else "Provisioning Key"
+        val scopeText = if (isRegular) "Regular Key" else "Management Key"
         val monitoringText = if (isRegular) "<i>Disabled</i>" else "Enabled"
 
         currentTooltip = """
@@ -453,13 +453,15 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
             null
         }
 
+        val isRegular = settingsService.apiKeyManager.authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR
         return StatusBarStatsFormatter.formatStatusTooltipFromCredits(
             connectionStatus.displayName,
             used,
             total,
             activityList,
             trackingService,
-            creditsData
+            creditsData,
+            authLabel = if (isRegular) "Regular Key" else "Management Key"
         )
     }
 }

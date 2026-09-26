@@ -20,7 +20,7 @@ object SetupWizardErrorHandler {
                 "Invalid key format or type"
 
             result.message.contains("Invalid provisioningkey", ignoreCase = true) ->
-                "Invalid provisioning key"
+                "Invalid Management key"
 
             result.message.contains("No cookie auth", ignoreCase = true) ||
                 result.message.contains("Authentication failed", ignoreCase = true) ->

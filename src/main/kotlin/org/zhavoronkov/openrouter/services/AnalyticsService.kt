@@ -102,7 +102,7 @@ class AnalyticsService internal constructor(
             val provisioningKey = provisioningKeyProvider()
             if (provisioningKey.isBlank()) {
                 PluginLogger.Service.warn("No provisioning key available for analytics query")
-                return@withContext ApiResult.Error("No provisioning key configured")
+                return@withContext ApiResult.Error("No management key configured")
             }
 
             queryCache[request]?.let { cached ->
@@ -147,7 +147,7 @@ class AnalyticsService internal constructor(
         val provisioningKey = provisioningKeyProvider()
         if (provisioningKey.isBlank()) {
             PluginLogger.Service.warn("No provisioning key available for analytics meta")
-            return@withContext ApiResult.Error("No provisioning key configured")
+            return@withContext ApiResult.Error("No management key configured")
         }
 
         metaCache?.let { cached -> return@withContext ApiResult.Success(cached, HttpURLConnection.HTTP_OK) }

@@ -36,6 +36,7 @@ private const val NO_ACTIVITY_TEXT = "No activity in this period"
 private const val BREAKDOWN_ERROR_TEXT = "Couldn't load the breakdown"
 private const val LOADING_BREAKDOWN_TEXT = "Loading breakdown..."
 private const val MISSING_NAMES_TEXT = "Plugin is out of date with the API - missing: "
+private const val UNAVAILABLE_TEXT = "Needs a Management Key"
 
 /**
  * A `/analytics/meta` response listing every name [AnalyticsBreakdown] hard-codes - Task 19's own
@@ -658,6 +659,72 @@ class StatusTabPanelPlatformTest : BasePlatformTestCase() {
         )
     }
 
+    // --- G6: the dimension selector beside the period selector - default, change wiring ---------
+
+    fun testDimensionSelectorDefaultsToByModel() {
+        val block = BreakdownBlock()
+
+        val combo = findDimensionCombo(block.component)
+
+        assertEquals(
+            "the dimension selector must default to the model dimension",
+            AnalyticsBreakdown.Dimension.MODEL,
+            combo.selectedItem
+        )
+    }
+
+    fun testChangingDimensionSelectorFiresOnDimensionChangedExactlyOnceWithTheRightValue() {
+        val block = BreakdownBlock()
+        val received = mutableListOf<AnalyticsBreakdown.Dimension>()
+        block.onDimensionChanged = { received.add(it) }
+
+        val combo = findDimensionCombo(block.component)
+        combo.selectedItem = AnalyticsBreakdown.Dimension.KEY
+
+        assertEquals(
+            "changing the dimension selector must fire onDimensionChanged exactly once, got $received",
+            listOf(AnalyticsBreakdown.Dimension.KEY),
+            received
+        )
+    }
+
+    /**
+     * Positive/negative control for the test above, mirroring
+     * [testReselectingTheSamePeriodDoesNotFireOnPeriodChangedAgain] for this second control.
+     */
+    fun testReselectingTheSameDimensionDoesNotFireOnDimensionChangedAgain() {
+        val block = BreakdownBlock()
+        val received = mutableListOf<AnalyticsBreakdown.Dimension>()
+        block.onDimensionChanged = { received.add(it) }
+
+        val combo = findDimensionCombo(block.component)
+        combo.selectedItem = AnalyticsBreakdown.Dimension.MODEL
+
+        assertTrue(
+            "re-selecting the already-selected default must not fire onDimensionChanged: $received",
+            received.isEmpty()
+        )
+    }
+
+    /**
+     * Proves the two selectors are genuinely independent controls: picking a period must never
+     * also fire onDimensionChanged, and vice versa - otherwise the two would silently behave as
+     * one combined control rather than the two axes G6's own design calls for.
+     */
+    fun testChangingThePeriodSelectorDoesNotFireOnDimensionChanged() {
+        val block = BreakdownBlock()
+        val received = mutableListOf<AnalyticsBreakdown.Dimension>()
+        block.onDimensionChanged = { received.add(it) }
+
+        val periodCombo = findPeriodCombo(block.component)
+        periodCombo.selectedItem = ActivityAggregator.Period.WEEK
+
+        assertTrue(
+            "changing the period selector must never fire onDimensionChanged: $received",
+            received.isEmpty()
+        )
+    }
+
     fun testEmptyBreakdownRendersExplicitNoActivityLineNotAnEmptyBox() {
         val block = BreakdownBlock()
 
@@ -946,6 +1013,288 @@ class StatusTabPanelPlatformTest : BasePlatformTestCase() {
             }
         } finally {
             server.shutdown()
+        }
+    }
+
+    // --- G6: the KEY-dimension breakdown query, through the real StatusTabPanel wiring ----------
+
+    /**
+     * The live shape confirmed against a real query with `dimensions: ["api_key_id"]`: the key's
+     * own human-readable name (never a hash to resolve against `GET /keys`) and a quoted
+     * `request_count`, exactly like the model query's own live bug (see the sibling model-
+     * dimension test above and `AnalyticsBreakdownTest`'s "toModelSpend reads api_key_id..."
+     * fixture-level test for the pure-function half of this same proof).
+     */
+    fun testKeyDimensionQueryReachesTheBreakdownBlockWithTheRightNameAndFigures() = runBlocking {
+        val server = MockWebServer()
+        server.start()
+        try {
+            server.enqueue(
+                MockResponse().setResponseCode(200).setBody(
+                    """{"data":{"data":[{"api_key_id":"n8n","total_usage":0.42,""" +
+                        """"request_count":"11"}],"metadata":{"row_count":1,"truncated":false}}}"""
+                )
+            )
+            // See the sibling analytics-error test above for why this starts blank.
+            var provisioningKeyForTest = ""
+            val settingsService = mock(OpenRouterSettingsService::class.java)
+            val analyticsService = AnalyticsService(
+                baseUrlOverride = server.url("/api/v1").toString(),
+                provisioningKeyProvider = { provisioningKeyForTest }
+            )
+            val sharedCache = OpenRouterStatsCache.getInstance()
+
+            val statusTab = buildReadyStatusTab(settingsService, analyticsService, sharedCache)
+            try {
+                assertEquals(StatusTabState.State.READY, statusTab.getStateForTest())
+                provisioningKeyForTest = "test-key"
+
+                statusTab.applyAnalyticsResultForTest(ActivityAggregator.Period.DAY, AnalyticsBreakdown.Dimension.KEY)
+
+                val texts = collectLabelSnapshots(statusTab.componentForTest(TestComponent.BREAKDOWN)).map { it.text }
+                assertTrue("the queried key's name must be rendered: $texts", texts.contains("n8n"))
+                assertTrue(
+                    "the key's spend must be rendered as a dollar figure: $texts",
+                    texts.any { it.contains("0.4200") }
+                )
+                assertFalse(
+                    "the KEY-dimension query must not render a stale/empty breakdown: $texts",
+                    texts.contains(NO_ACTIVITY_TEXT)
+                )
+            } finally {
+                sharedCache.clearCache()
+                statusTab.dispose()
+            }
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    /**
+     * An empty (but successful) KEY-dimension result must render the same "no activity" line the
+     * model dimension already does - never an empty box, and never a false "couldn't load" either.
+     */
+    fun testEmptyKeyDimensionResultRendersNoActivityLine() = runBlocking {
+        val server = MockWebServer()
+        server.start()
+        try {
+            server.enqueue(
+                MockResponse().setResponseCode(200)
+                    .setBody("""{"data":{"data":[],"metadata":{"row_count":0,"truncated":false}}}""")
+            )
+            server.enqueue(MockResponse().setResponseCode(200).setBody(VALID_META_BODY))
+            var provisioningKeyForTest = ""
+            val settingsService = mock(OpenRouterSettingsService::class.java)
+            val analyticsService = AnalyticsService(
+                baseUrlOverride = server.url("/api/v1").toString(),
+                provisioningKeyProvider = { provisioningKeyForTest }
+            )
+            val sharedCache = OpenRouterStatsCache.getInstance()
+
+            val statusTab = buildReadyStatusTab(settingsService, analyticsService, sharedCache)
+            try {
+                assertEquals(StatusTabState.State.READY, statusTab.getStateForTest())
+                provisioningKeyForTest = "test-key"
+
+                statusTab.applyAnalyticsResultForTest(ActivityAggregator.Period.DAY, AnalyticsBreakdown.Dimension.KEY)
+
+                val texts = collectLabelSnapshots(statusTab.componentForTest(TestComponent.BREAKDOWN)).map { it.text }
+                assertTrue(
+                    "an empty KEY-dimension result must render the ordinary empty-state line, " +
+                        "not an empty box: $texts",
+                    texts.contains(NO_ACTIVITY_TEXT)
+                )
+            } finally {
+                sharedCache.clearCache()
+                statusTab.dispose()
+            }
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    /**
+     * The design's own headline invariant: switching dimensions costs exactly one request PER
+     * switch, never a second one for the dimension not shown. Two sequential dimension queries -
+     * MODEL then KEY - must leave [MockWebServer.requestCount] at exactly 2, not 3 or 4: a broken
+     * implementation that queried "both dimensions, just in case" on either call would inflate
+     * this count in a way a rows-only assertion could not catch (both responses below carry real,
+     * differently-named rows, so a mixed-up dimension would also render the wrong name - checked
+     * too, but the request count is what proves no EXTRA request happened at all).
+     */
+    fun testSwitchingDimensionsIssuesExactlyOneRequestPerSwitchNeverBoth() = runBlocking {
+        val server = MockWebServer()
+        server.start()
+        try {
+            server.enqueue(
+                MockResponse().setResponseCode(200).setBody(
+                    """{"data":{"data":[{"model":"anthropic/claude-sonnet-4.5","total_usage":1.5,""" +
+                        """"request_count":3}],"metadata":{"row_count":1,"truncated":false}}}"""
+                )
+            )
+            server.enqueue(
+                MockResponse().setResponseCode(200).setBody(
+                    """{"data":{"data":[{"api_key_id":"n8n","total_usage":0.42,""" +
+                        """"request_count":"11"}],"metadata":{"row_count":1,"truncated":false}}}"""
+                )
+            )
+            var provisioningKeyForTest = ""
+            val settingsService = mock(OpenRouterSettingsService::class.java)
+            val analyticsService = AnalyticsService(
+                baseUrlOverride = server.url("/api/v1").toString(),
+                provisioningKeyProvider = { provisioningKeyForTest }
+            )
+            val sharedCache = OpenRouterStatsCache.getInstance()
+
+            val statusTab = buildReadyStatusTab(settingsService, analyticsService, sharedCache)
+            try {
+                assertEquals(StatusTabState.State.READY, statusTab.getStateForTest())
+                provisioningKeyForTest = "test-key"
+
+                statusTab.applyAnalyticsResultForTest(
+                    ActivityAggregator.Period.DAY,
+                    AnalyticsBreakdown.Dimension.MODEL
+                )
+                assertEquals(
+                    "the MODEL-dimension call must issue exactly one request",
+                    1,
+                    server.requestCount
+                )
+                val modelBreakdown = statusTab.componentForTest(TestComponent.BREAKDOWN)
+                val modelTexts = collectLabelSnapshots(modelBreakdown).map { it.text }
+                assertTrue(
+                    "the model row must be rendered: $modelTexts",
+                    modelTexts.contains("anthropic/claude-sonnet-4.5")
+                )
+
+                statusTab.applyAnalyticsResultForTest(
+                    ActivityAggregator.Period.DAY,
+                    AnalyticsBreakdown.Dimension.KEY
+                )
+                assertEquals(
+                    "switching to the KEY dimension must issue exactly ONE more request (never a " +
+                        "second query for the MODEL dimension not shown), for a running total of 2",
+                    2,
+                    server.requestCount
+                )
+                val keyBreakdown = statusTab.componentForTest(TestComponent.BREAKDOWN)
+                val keyTexts = collectLabelSnapshots(keyBreakdown).map { it.text }
+                assertTrue("the key row must be rendered: $keyTexts", keyTexts.contains("n8n"))
+                assertFalse(
+                    "the stale model row must not still be on screen after the dimension switch: $keyTexts",
+                    keyTexts.contains("anthropic/claude-sonnet-4.5")
+                )
+            } finally {
+                sharedCache.clearCache()
+                statusTab.dispose()
+            }
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    // --- G6: the key dimension is management-only - degraded/no-analytics handling --------------
+
+    /**
+     * Direct proof of the design decision: unlike the model dimension (which has a local,
+     * no-analytics fallback via [ActivityAggregator.byModel]), the key dimension has NO local
+     * equivalent - [org.zhavoronkov.openrouter.models.ActivityData] carries no `api_key_id` field
+     * at all - so [StatusTabPanel.refreshBreakdown] must render the explicit "needs a management
+     * key" placeholder for KEY when analytics is unavailable, never an empty/wrong local result.
+     *
+     * Reached with a REAL, live [StatusTabPanel] rather than [buildReadyStatusTab]'s
+     * MockWebServer-backed READY state: [analyticsService] here is never pointed at a server at
+     * all, so `isAvailable()` reflects a genuinely blank provisioning key throughout - the
+     * no-provisioning-key branch [refreshBreakdown] itself takes on the ordinary, synchronous
+     * READY path, not the asynchronous one the other tests in this class exercise.
+     */
+    fun testKeyDimensionWithoutAnalyticsShowsUnavailableNotALocalFallback() {
+        // settingsService (which StatusTabState.derive reads) reports a provisioning key, so the
+        // panel is genuinely READY - but analyticsService's OWN provisioningKeyProvider (a
+        // separate lambda, deliberately never wired to settingsService here) always reports
+        // blank, so isAvailable() is false throughout. This is the same decoupling
+        // buildReadyStatusTab uses to reach the no-provisioning-key branch of refreshBreakdown()
+        // safely - here it stays permanently false rather than being flipped on later, so the
+        // KEY dimension's own branch of that same no-analytics path can be driven synchronously.
+        val settingsService = mock(OpenRouterSettingsService::class.java)
+        `when`(settingsService.isConfigured()).thenReturn(true)
+        `when`(settingsService.getProvisioningKey()).thenReturn("a-provisioning-key")
+        val analyticsService = AnalyticsService(baseUrlOverride = null, provisioningKeyProvider = { "" })
+        val sharedCache = OpenRouterStatsCache.getInstance()
+        sharedCache.updateFromPopup(
+            CreditsResponse(CreditsData(totalCredits = READY_TOTAL, totalUsage = READY_USAGE)),
+            null,
+            ApiKeysListResponse(data = emptyList())
+        )
+
+        val statusTab = StatusTabPanel(project, settingsService, analyticsService)
+        try {
+            assertEquals(StatusTabState.State.READY, statusTab.getStateForTest())
+
+            // Selecting KEY fires onDimensionChanged -> refreshBreakdown(), which (analyticsService
+            // unavailable, dimension == KEY) must show the management-key placeholder synchronously
+            // - never an empty/local ActivityAggregator.byModel result, which has no api_key_id to
+            // read at all.
+            val dimensionCombo = findDimensionCombo(statusTab.componentForTest(TestComponent.BREAKDOWN))
+            dimensionCombo.selectedItem = AnalyticsBreakdown.Dimension.KEY
+
+            val texts = collectLabelSnapshots(statusTab.componentForTest(TestComponent.BREAKDOWN)).map { it.text }
+            assertTrue(
+                "the KEY dimension without analytics must render the management-key placeholder: $texts",
+                texts.contains(UNAVAILABLE_TEXT)
+            )
+            assertFalse(
+                "the KEY dimension without analytics must NOT render the ordinary empty-state " +
+                    "line - that would claim a real, checked answer of zero: $texts",
+                texts.contains(NO_ACTIVITY_TEXT)
+            )
+        } finally {
+            sharedCache.clearCache()
+            statusTab.dispose()
+        }
+    }
+
+    /**
+     * Positive control for the test above: switching BACK to MODEL while analytics is still
+     * unavailable must restore the ordinary local [ActivityAggregator.byModel] rendering (here, an
+     * empty cache's own "no activity" line) - proving the KEY-dimension placeholder above is a
+     * real, dimension-conditional branch, not a state the panel is simply stuck in regardless of
+     * which dimension is selected.
+     */
+    fun testSwitchingBackToModelWithoutAnalyticsRestoresTheLocalFallback() {
+        val settingsService = mock(OpenRouterSettingsService::class.java)
+        `when`(settingsService.isConfigured()).thenReturn(true)
+        `when`(settingsService.getProvisioningKey()).thenReturn("a-provisioning-key")
+        val analyticsService = AnalyticsService(baseUrlOverride = null, provisioningKeyProvider = { "" })
+        val sharedCache = OpenRouterStatsCache.getInstance()
+        sharedCache.updateFromPopup(
+            CreditsResponse(CreditsData(totalCredits = READY_TOTAL, totalUsage = READY_USAGE)),
+            null,
+            ApiKeysListResponse(data = emptyList())
+        )
+
+        val statusTab = StatusTabPanel(project, settingsService, analyticsService)
+        try {
+            assertEquals(StatusTabState.State.READY, statusTab.getStateForTest())
+
+            val dimensionCombo = findDimensionCombo(statusTab.componentForTest(TestComponent.BREAKDOWN))
+            dimensionCombo.selectedItem = AnalyticsBreakdown.Dimension.KEY
+            dimensionCombo.selectedItem = AnalyticsBreakdown.Dimension.MODEL
+
+            val texts = collectLabelSnapshots(statusTab.componentForTest(TestComponent.BREAKDOWN)).map { it.text }
+            assertTrue(
+                "switching back to MODEL without analytics must restore the local fallback's " +
+                    "own empty-state line, not leave the KEY placeholder on screen: $texts",
+                texts.contains(NO_ACTIVITY_TEXT)
+            )
+            assertFalse(
+                "the management-key placeholder must not still be showing once MODEL is " +
+                    "selected again: $texts",
+                texts.contains(UNAVAILABLE_TEXT)
+            )
+        } finally {
+            sharedCache.clearCache()
+            statusTab.dispose()
         }
     }
 
@@ -1688,16 +2037,34 @@ class StatusTabPanelPlatformTest : BasePlatformTestCase() {
      * A [ComboBox]'s own `selectedItem` accessors are untyped - `getSelectedItem`/
      * `setSelectedItem` both take/return plain `Object` at the Swing level - so a wildcard-typed
      * reference is enough here - reading and writing it needs no generic cast.
+     *
+     * G6 added a second [ComboBox] ([findDimensionCombo]'s own dimension selector) as a sibling
+     * of this one inside [BreakdownBlock]'s `selectorRow`, so this is now identified by its own
+     * selection's TYPE rather than merely "the first ComboBox found" - a check that would
+     * otherwise silently start returning the wrong control the day either combo's position in
+     * that row changes, with no compile error to catch it.
      */
     private fun findPeriodCombo(root: Container): ComboBox<*> {
         fun walk(container: Container): ComboBox<*>? {
             container.components.forEach { child ->
-                if (child is ComboBox<*>) return child
+                if (child is ComboBox<*> && child.selectedItem is ActivityAggregator.Period) return child
                 if (child is Container) walk(child)?.let { return it }
             }
             return null
         }
         return checkNotNull(walk(root)) { "no period ComboBox found in the component tree" }
+    }
+
+    /** G6's dimension-selector counterpart of [findPeriodCombo] - see its own KDoc. */
+    private fun findDimensionCombo(root: Container): ComboBox<*> {
+        fun walk(container: Container): ComboBox<*>? {
+            container.components.forEach { child ->
+                if (child is ComboBox<*> && child.selectedItem is AnalyticsBreakdown.Dimension) return child
+                if (child is Container) walk(child)?.let { return it }
+            }
+            return null
+        }
+        return checkNotNull(walk(root)) { "no dimension ComboBox found in the component tree" }
     }
 
     private data class LabelSnapshot(val text: String, val visible: Boolean, val toolTip: String? = null)
@@ -1747,14 +2114,18 @@ class StatusTabPanelPlatformTest : BasePlatformTestCase() {
     // OpenRouterStatsCache.refresh()'s own precondition check reads OpenRouterSettingsService
     // .getInstance() - the REAL, process-wide settings singleton - not the mock passed to this
     // test's StatusTabPanel. In this test sandbox that real singleton is unconfigured, so
-    // validateRefreshPreconditions() bails on its FIRST check ("Not configured",
-    // OpenRouterStatsCache.kt around its isConfigured() check) before ever reaching the
-    // provisioning-key branch - the same reason NOT_CONFIGURED is safe, reached through a
-    // different settings instance. This is why DEGRADED is stable rather than merely "currently
-    // passing": it does not depend on the real singleton ever having had a provisioning key: it
-    // depends on the real singleton having no API key at all, which is also this sandbox's
-    // default state for every other test in this class. LOADING, READY and ERROR
-    // all require BOTH a config key AND a provisioning key to be present in currentInputs(), and
+    // validateRefreshPreconditions() bails on its ONLY remaining check ("Not configured",
+    // OpenRouterStatsCache.kt's own isConfigured() check) - the same reason NOT_CONFIGURED is
+    // safe, reached through a different settings instance. Task 20 removed the second
+    // (management-key) check this comment used to describe: `/credits` is account-scoped and
+    // answers for an ordinary API key too, so a blank management key alone no longer blocks a
+    // refresh. This is why DEGRADED is stable rather than merely "currently passing": it does not
+    // depend on the real singleton ever having had a management key: it depends on the real
+    // singleton having no API key at all, which is also this sandbox's default state for every
+    // other test in this class. Where a DEGRADED test needs real credits on screen, it seeds them
+    // directly via `OpenRouterStatsCache.updateFromPopup()` (cache-only, no network) rather than
+    // by making the real singleton "configured". LOADING, READY and ERROR
+    // all require BOTH a config key AND a management key to be present in currentInputs(), and
     // at that combination OpenRouterStatsCache.refresh() unconditionally launches a REAL
     // coroutine against the live OpenRouter API - there is no way to reach those three states
     // through a normal `StatusTabPanel(...)` construction without doing that. Those three are
@@ -1783,11 +2154,13 @@ class StatusTabPanelPlatformTest : BasePlatformTestCase() {
         }
     }
 
-    fun testDegradedStateNamesTheMissingProvisioningKeyAndShowsNoAccountData() {
+    fun testDegradedStateNamesTheMissingManagementKeyButStillShowsTheRealAccountBalance() {
         val settingsService = mock(OpenRouterSettingsService::class.java)
         `when`(settingsService.isConfigured()).thenReturn(true)
         `when`(settingsService.getProvisioningKey()).thenReturn("")
 
+        val sharedCache = OpenRouterStatsCache.getInstance()
+        sharedCache.clearCache()
         val statusTab = StatusTabPanel(project, settingsService)
         try {
             assertEquals(StatusTabState.State.DEGRADED, statusTab.getStateForTest())
@@ -1800,29 +2173,59 @@ class StatusTabPanelPlatformTest : BasePlatformTestCase() {
                 statusTab.componentForTest(TestComponent.DEGRADED_NOTICE)
             ).map { it.text }
             assertTrue(
-                "the banner must name the actual cause - a missing provisioning key - not a " +
+                "the banner must name the actual cause - a missing Management Key - not a " +
                     "generic 'something is wrong' line: $bannerTexts",
-                bannerTexts.any { it.contains("provisioning key", ignoreCase = true) }
+                bannerTexts.any { it.contains("Management Key", ignoreCase = true) }
             )
 
-            val balanceLabels = collectLabelSnapshots(statusTab.componentForTest(TestComponent.BALANCE))
+            // Before credits have ever loaded (mid-refresh, or the refresh itself failed) there
+            // is genuinely nothing to show yet - never a fabricated $0.00, and never [update]'s
+            // "unknown, not zero" em dash either (fix round 1, finding 1's original point: a dash
+            // says "unknown", the true fact here is "not loaded yet") - showLocalSeriesOnly()
+            // must still hide those rows entirely, exactly as it did before this task.
+            val balanceLabelsBeforeCredits = collectLabelSnapshots(statusTab.componentForTest(TestComponent.BALANCE))
             assertFalse(
-                "DEGRADED must never render a dollar figure - the spec's D6 fallback to " +
-                    "/credits does not exist, so there is no account data at all: $balanceLabels",
+                "DEGRADED must not invent a dollar figure before credits have ever loaded: " +
+                    "$balanceLabelsBeforeCredits",
+                balanceLabelsBeforeCredits.any { it.text.contains(Regex("""\$[0-9]""")) }
+            )
+            assertFalse(
+                "DEGRADED must not render the em dash in any VISIBLE row before credits have " +
+                    "loaded either - those rows must be HIDDEN, not shown as an unknown value: " +
+                    "$balanceLabelsBeforeCredits",
+                balanceLabelsBeforeCredits.any { it.visible && it.text == EM_DASH }
+            )
+
+            // Measured against the live API (2026-09-21, correction C1): /credits answers for an
+            // ordinary API key exactly as it does for a management key - it is account-scoped,
+            // not key-scoped - so once the shared cache has real credits, DEGRADED must show
+            // them. Withholding a real balance is the same class of defect as inventing one.
+            sharedCache.updateFromPopup(
+                CreditsResponse(CreditsData(totalCredits = READY_TOTAL, totalUsage = READY_USAGE)),
+                null,
+                apiKeysWithARealCap()
+            )
+            statusTab.renderForTest()
+
+            val balanceLabels = collectLabelSnapshots(statusTab.componentForTest(TestComponent.BALANCE))
+            assertTrue(
+                "DEGRADED must render the real account balance once the shared cache has " +
+                    "credits - an ordinary API key can read /credits: $balanceLabels",
                 balanceLabels.any { it.text.contains(Regex("""\$[0-9]""")) }
             )
-            // Fix round 1, finding 1: update()'s "unknown, not zero" em dash is the WRONG
-            // rendering here - a dash says "your balance is unknown", but the true fact (already
-            // stated by the banner above) is "this needs a provisioning key you have not set".
-            // Checking only for an absent dollar figure let the em-dash rows through uncaught.
-            assertFalse(
-                "DEGRADED must not render the em dash in any VISIBLE row either - the balance " +
-                    "rows must be HIDDEN entirely, not shown as an unknown value: $balanceLabels",
-                balanceLabels.any { it.visible && it.text == EM_DASH }
-            )
-            assertFalse(
-                "DEGRADED must not show the key-limit block either - no account data at all",
+
+            // What genuinely still needs a Management Key - the key spend cap (GET /keys is 401
+            // for an ordinary API key) - must say so explicitly, never silently hide as if no cap
+            // were configured (that would be [update]'s "no cap" fact, which was never checked).
+            assertTrue(
+                "DEGRADED must show the key-limit block with an explicit Management-Key notice, " +
+                    "not hide it as if there were simply no cap",
                 statusTab.componentForTest(TestComponent.KEY_LIMIT).isVisible
+            )
+            val keyLimitLabels = collectLabelSnapshots(statusTab.componentForTest(TestComponent.KEY_LIMIT))
+            assertTrue(
+                "the key-limit block's own text must name the cause: $keyLimitLabels",
+                keyLimitLabels.any { it.text.contains("Management Key", ignoreCase = true) }
             )
 
             // Fix round 1, finding 2: show(emptyList()) - what DEGRADED used to call - renders
@@ -1836,14 +2239,14 @@ class StatusTabPanelPlatformTest : BasePlatformTestCase() {
                 breakdownLabels.any { it.visible && it.text == NO_ACTIVITY_TEXT }
             )
             assertTrue(
-                "DEGRADED's breakdown must name the real cause instead - a missing provisioning " +
-                    "key: $breakdownLabels",
-                breakdownLabels.any { it.visible && it.text.contains("provisioning key", ignoreCase = true) }
+                "DEGRADED's breakdown must name the real cause instead - a missing Management " +
+                    "Key: $breakdownLabels",
+                breakdownLabels.any { it.visible && it.text.contains("Management Key", ignoreCase = true) }
             )
 
             layoutAtRealisticWidthAndAssertNotClipped(statusTab.component)
         } finally {
-            OpenRouterStatsCache.getInstance().clearCache()
+            sharedCache.clearCache()
             statusTab.dispose()
         }
     }
@@ -2197,8 +2600,8 @@ class StatusTabPanelPlatformTest : BasePlatformTestCase() {
                     breakdownLabels.any { it.visible && it.text == LEAKED_MODEL_NAME }
                 )
                 assertTrue(
-                    "onActivated() must keep DEGRADED's own 'needs a provisioning key' line: $breakdownLabels",
-                    breakdownLabels.any { it.visible && it.text.contains("provisioning key", ignoreCase = true) }
+                    "onActivated() must keep DEGRADED's own 'needs a Management Key' line: $breakdownLabels",
+                    breakdownLabels.any { it.visible && it.text.contains("Management Key", ignoreCase = true) }
                 )
             } finally {
                 statusTab.dispose()
@@ -2330,9 +2733,9 @@ class StatusTabPanelPlatformTest : BasePlatformTestCase() {
                     breakdownLabels.any { it.visible && it.text == LEAKED_MODEL_NAME }
                 )
                 assertTrue(
-                    "DEGRADED's own 'needs a provisioning key' line must still be shown after " +
+                    "DEGRADED's own 'needs a Management Key' line must still be shown after " +
                         "the period change: $breakdownLabels",
-                    breakdownLabels.any { it.visible && it.text.contains("provisioning key", ignoreCase = true) }
+                    breakdownLabels.any { it.visible && it.text.contains("Management Key", ignoreCase = true) }
                 )
             } finally {
                 statusTab.dispose()
@@ -2982,7 +3385,7 @@ private const val READY_USAGE = 12.5
 private const val ERROR_TOTAL = 80.0
 private const val ERROR_USAGE = 30.0
 private const val LEAKED_MODEL_NAME = "anthropic/claude-sonnet-4.5"
-private const val DEGRADED_CAPTION = "Locally observed spend (no provisioning key)"
+private const val DEGRADED_CAPTION = "Locally observed spend (no management key)"
 private const val AWAIT_TIMEOUT_SECONDS = 10
 private const val KEY_LIMIT_FOR_FLOOR_TEST = 25.0
 private const val KEY_USAGE_FOR_FLOOR_TEST = 5.0

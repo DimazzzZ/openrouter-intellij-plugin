@@ -78,12 +78,15 @@ class StatusTabPanel(
         /** [BreakdownBlock]'s own default period - see its "defaulting to 24 hours" contract. */
         private val DEFAULT_BREAKDOWN_PERIOD = ActivityAggregator.Period.DAY
 
+        /** [BreakdownBlock]'s own default dimension (G6) - see its "defaulting to by model" contract. */
+        private val DEFAULT_BREAKDOWN_DIMENSION = AnalyticsBreakdown.Dimension.MODEL
+
         /** What DEGRADED's sparkline measures - a DIFFERENT quantity than READY's (D12): locally
          * observed spend from [CreditUsageHistoryService], not the analytics API's server-side
          * usage. Labelling the two identically would let two users compare "the same chart" and
          * get different numbers. Blank (like [NO_SERIES_LABEL]) when there is no local history to
          * plot, so the caption/sparkline pair hides itself exactly as it does everywhere else. */
-        private const val DEGRADED_SERIES_LABEL = "Locally observed spend (no provisioning key)"
+        private const val DEGRADED_SERIES_LABEL = "Locally observed spend (no management key)"
 
         /** What READY/ERROR's sparkline measures (Task 13) - the analytics API's own account-wide
          * spend total ([AnalyticsBreakdown.spendSeriesRequestFor]/[AnalyticsBreakdown.toSpendSeries]),
@@ -171,6 +174,12 @@ class StatusTabPanel(
      * never leave the sparkline showing a different window. */
     private var currentBreakdownPeriod: ActivityAggregator.Period = DEFAULT_BREAKDOWN_PERIOD
 
+    /** The dimension [breakdownBlock] currently groups by (G6) - [AnalyticsBreakdown.Dimension.MODEL]
+     * by [DEFAULT_BREAKDOWN_DIMENSION], matching [BreakdownBlock]'s own default selection. Read
+     * once by [refreshBreakdown], the same way [currentBreakdownPeriod] already is, so a period
+     * change can never silently reset a dimension the user picked, and vice versa. */
+    private var currentBreakdownDimension: AnalyticsBreakdown.Dimension = DEFAULT_BREAKDOWN_DIMENSION
+
     /** The account-wide daily spend series/burn rate/label [renderCredits] feeds to [balanceBlock]
      * in READY/ERROR - populated by [applySpendSeriesResult], never computed inline in
      * [renderCredits] itself, so an analytics error can leave them exactly as they were (D12; see
@@ -198,6 +207,16 @@ class StatusTabPanel(
 
         breakdownBlock.onPeriodChanged = { period ->
             currentBreakdownPeriod = period
+            refreshBreakdown()
+        }
+        // G6: reuses refreshBreakdown() verbatim rather than a dimension-only variant - it already
+        // issues exactly one breakdown query (for whichever dimension currentBreakdownDimension
+        // now names) plus the one, dimension-independent spend-series query, so a dimension
+        // switch costs the SAME two requests a period switch already does - never a third, and
+        // never a query for the dimension not shown (AnalyticsBreakdown.requestFor only ever
+        // builds one dimension's query at a time - see its own KDoc).
+        breakdownBlock.onDimensionChanged = { dimension ->
+            currentBreakdownDimension = dimension
             refreshBreakdown()
         }
 
@@ -448,6 +467,9 @@ class StatusTabPanel(
         // fix: a user should never be able to click a control that cannot answer, not merely have
         // the click silently discarded after the fact.
         breakdownBlock.setPeriodSelectorEnabled(breakdownStateAllowsQuery(state))
+        // G6: the dimension selector is gated by the exact same predicate, for the exact same
+        // reason - see BreakdownBlock.setDimensionSelectorEnabled's own KDoc.
+        breakdownBlock.setDimensionSelectorEnabled(breakdownStateAllowsQuery(state))
     }
 
     /**
@@ -522,22 +544,33 @@ class StatusTabPanel(
     }
 
     /**
-     * DEGRADED is not a thinner READY with blanks where numbers would go: the spec's D6 claim
-     * that the tab falls back to `/credits` and `/activity` without a provisioning key does not
-     * hold, so there is no account data to show at all here. [degradedNoticeBlock] (toggled
-     * visible in [render]) states what is missing and why; this clears the account-data blocks
-     * like [renderNotConfigured]/[renderLoading] rather than reusing [renderAccountData],
-     * feeding the sparkline from [CreditUsageHistoryService]'s local history instead - labelled as
-     * a different quantity than READY's series (D12) so nobody mistakes one for the other. Falls
-     * back to no history rather than throwing if the service is ever unavailable, the same
-     * defensiveness [OpenRouterStatsCache] applies to its own service lookups.
+     * DEGRADED is no longer "no account data at all". Measured against the live API
+     * (2026-09-21, correction C1): `/credits` answers for an ordinary API key exactly as it does
+     * for a management key - it is account-scoped, not key-scoped - so the spec's D6 claim that
+     * the tab falls back to `/credits` without one is, for credits specifically, now TRUE, even
+     * though it never was for `/activity`, `/analytics/query`, `/analytics/meta` or `/keys` (all
+     * still 403/401 for an API key). So this renders the real balance via
+     * [renderCredits]/[balanceBlock] exactly like
+     * READY does, but layers [DegradedSpend]'s locally-observed sparkline in alongside it (a
+     * DIFFERENT quantity than READY's server-reported spend series, D12) since the analytics
+     * query that would populate [currentSpendSeries] is never issued here - [refreshBreakdown]
+     * (and so [applySpendSeriesResult]) is gated to READY/ERROR only, and DEGRADED must not
+     * pretend to a burn rate or spend series it cannot check. [degradedNoticeBlock] (toggled
+     * visible in [render]) states which three things genuinely still need a management key -
+     * the breakdown, activity and the key spend cap - all three of which fail closed to an
+     * explicit notice here ([breakdownBlock.showUnavailable]/[keyLimitBlock.showUnavailable]),
+     * never a silent empty state. Falls back to no local history rather than throwing if
+     * [CreditUsageHistoryService] is ever unavailable, the same defensiveness
+     * [OpenRouterStatsCache] applies to its own service lookups.
      */
     private fun renderDegraded() {
-        statusLabel.text = "Degraded"
-        clearKeyLimit()
+        statusLabel.text = "Limited"
         // Not show(emptyList()) (fix round 1, finding 2): DEGRADED never queries the breakdown at
         // all, so "no activity in this period" would claim a real, checked answer of zero.
         breakdownBlock.showUnavailable()
+        // GET /keys is 401 for an ordinary API key - nothing was checked, so this is not the
+        // same "no cap configured" fact keyLimitBlock.update(limit = null) would report.
+        keyLimitBlock.showUnavailable()
 
         val snapshots = try {
             CreditUsageHistoryService.getInstance().getState().snapshots.map { it.timestampUtc to it.totalUsed }
@@ -546,12 +579,31 @@ class StatusTabPanel(
             emptyList()
         }
         val series = DegradedSpend.spendSeries(snapshots)
-        // Not update() (fix round 1, finding 1): update()'s em-dash rows would say "balance
-        // unknown" when the true fact - already stated by degradedNoticeBlock - is "this needs a
-        // provisioning key you have not set". showLocalSeriesOnly() hides those rows entirely.
-        balanceBlock.showLocalSeriesOnly(
+        val seriesLabel = if (series.isEmpty()) NO_SERIES_LABEL else DEGRADED_SERIES_LABEL
+
+        val credits = statsCache.getCachedCredits()
+        if (credits == null) {
+            // Nothing has loaded yet (mid-refresh, or the refresh itself failed) - there is
+            // genuinely no balance to report, so this stays the "unknown, not zero" rendering
+            // rather than a fabricated $0.00. Not update() (fix round 1, finding 1): update()'s
+            // em-dash rows would say "balance unknown" when the true fact would be "this needs a
+            // management key you have not set" - wrong here, since a management key is not what
+            // is missing; showLocalSeriesOnly() hides those rows entirely instead.
+            balanceBlock.showLocalSeriesOnly(series = series, seriesLabel = seriesLabel)
+            return
+        }
+
+        // The real balance IS available from the API key alone - withholding it here would be
+        // the same class of defect as inventing one. No burn rate/spend-series (perDay/series
+        // beyond the local one above) is claimed: those come only from the analytics query
+        // [applySpendSeriesResult] issues for READY/ERROR, never run in DEGRADED.
+        balanceBlock.update(
+            remaining = credits.totalCredits - credits.totalUsage,
+            total = credits.totalCredits,
+            perDay = NO_PER_DAY_RATE,
             series = series,
-            seriesLabel = if (series.isEmpty()) NO_SERIES_LABEL else DEGRADED_SERIES_LABEL
+            seriesLabel = seriesLabel,
+            lastUpdatedText = lastUpdatedText
         )
     }
 
@@ -613,17 +665,34 @@ class StatusTabPanel(
      * Guarded by [breakdownStateAllowsQuery] at entry (close-out round 2, Critical) - this is
      * called not only from [renderAccountData] (always safe: [render] sets [currentState] to
      * READY/ERROR immediately before dispatching to it) but also directly from
-     * [breakdownBlock]'s `onPeriodChanged` callback, wired in `init`, which fires on a user's
-     * period selection in EVERY state, not only READY/ERROR. Without this guard, changing the
-     * period while NOT_CONFIGURED or DEGRADED would silently replace that state's own placeholder
-     * with a real (or empty) [ActivityAggregator] result built from whatever the shared cache
-     * still has cached - reintroducing, by a path nobody had swept for, the exact "claims a
-     * checked answer nobody checked" defect this whole plan exists to remove.
+     * [breakdownBlock]'s `onPeriodChanged`/`onDimensionChanged` callbacks, wired in `init`, which
+     * fire on a user's period/dimension selection in EVERY state, not only READY/ERROR. Without
+     * this guard, changing the period while NOT_CONFIGURED or DEGRADED would silently replace
+     * that state's own placeholder with a real (or empty) [ActivityAggregator] result built from
+     * whatever the shared cache still has cached - reintroducing, by a path nobody had swept for,
+     * the exact "claims a checked answer nobody checked" defect this whole plan exists to remove.
+     *
+     * [currentBreakdownDimension] (G6) is read into `dimension` the same way [period] is read
+     * from [currentBreakdownPeriod] - once, for both the no-provisioning-key branch below and
+     * [applyAnalyticsResult]. The no-provisioning-key branch, though, answers
+     * [AnalyticsBreakdown.Dimension.KEY] differently than [AnalyticsBreakdown.Dimension.MODEL]:
+     * [ActivityAggregator.byModel] re-aggregates
+     * [org.zhavoronkov.openrouter.models.ActivityData], which carries no `api_key_id` field at
+     * all - there is no local equivalent to fall back to for the key dimension, unlike model.
+     * Rendering [BreakdownBlock.showUnavailable] here is therefore not this method treating KEY as
+     * MORE restricted than MODEL by policy; it is the honest answer to a query this path genuinely
+     * cannot run - the same "say so, never guess or fabricate" rule every other placeholder in
+     * this class already follows.
      */
     private fun refreshBreakdown() {
         if (!breakdownStateAllowsQuery(currentState)) return
         val period = currentBreakdownPeriod
+        val dimension = currentBreakdownDimension
         if (!analyticsService.isAvailable()) {
+            if (dimension == AnalyticsBreakdown.Dimension.KEY) {
+                breakdownBlock.showUnavailable()
+                return
+            }
             // The no-provisioning-key path: re-aggregate the shared cache's own activity locally.
             val activity = statsCache.getCachedActivity().orEmpty()
             breakdownBlock.show(ActivityAggregator.byModel(activity, period, LocalDate.now()))
@@ -641,14 +710,20 @@ class StatusTabPanel(
         // instance of the class of bug this whole plan exists to remove, on the happy path this
         // time rather than a state transition.
         breakdownBlock.showLoading()
-        coroutineScope.launch { applyAnalyticsResult(period) }
+        coroutineScope.launch { applyAnalyticsResult(period, dimension) }
         coroutineScope.launch { applySpendSeriesResult(period) }
     }
 
     /**
-     * Runs one analytics query for [period] and applies its result to [breakdownBlock]. Split out
-     * from [refreshBreakdown] so a test can await it directly via [applyAnalyticsResultForTest]
-     * instead of racing [coroutineScope]'s `Dispatchers.Main` launch.
+     * Runs one analytics query for [period]/[dimension] and applies its result to [breakdownBlock].
+     * Split out from [refreshBreakdown] so a test can await it directly via
+     * [applyAnalyticsResultForTest] instead of racing [coroutineScope]'s `Dispatchers.Main` launch.
+     *
+     * [dimension] (G6) is threaded straight into [AnalyticsBreakdown.requestFor]/
+     * [AnalyticsBreakdown.toModelSpend] - the ONE query this method ever issues asks for exactly
+     * the dimension currently selected, never both, which is what keeps a dimension switch to one
+     * additional request rather than one per dimension (see [refreshBreakdown]'s own KDoc for the
+     * budget this preserves).
      *
      * [checkAnalyticsMeta] is deliberately called LAZILY here, AFTER this query, and only when it
      * came back with nothing useful (an error, or a success with zero rows) - never
@@ -671,13 +746,16 @@ class StatusTabPanel(
      * re-check is repeated after [checkAnalyticsMeta]'s own (suspending) call, for the identical
      * reason - a second network round trip is a second window for the state to move on.
      */
-    private suspend fun applyAnalyticsResult(period: ActivityAggregator.Period) {
-        val request = AnalyticsBreakdown.requestFor(period, LocalDate.now())
+    private suspend fun applyAnalyticsResult(
+        period: ActivityAggregator.Period,
+        dimension: AnalyticsBreakdown.Dimension
+    ) {
+        val request = AnalyticsBreakdown.requestFor(period, LocalDate.now(), dimension)
         val result = analyticsService.query(request)
         if (!breakdownStateAllowsQuery(currentState)) return
 
         if (result is ApiResult.Success) {
-            val rows = AnalyticsBreakdown.toModelSpend(result.data.data)
+            val rows = AnalyticsBreakdown.toModelSpend(result.data.data, dimension)
             if (rows.isNotEmpty()) {
                 breakdownBlock.show(rows, result.data.metadata?.truncated == true)
                 return
@@ -792,9 +870,15 @@ class StatusTabPanel(
      * `Dispatchers.Main` launch so a test can `runBlocking { }` it directly against an injected
      * [analyticsService] (e.g. pointed at a [okhttp3.mockwebserver.MockWebServer]) without
      * needing to pump an IDE event queue.
+     *
+     * @param dimension defaults to [AnalyticsBreakdown.Dimension.MODEL] (G6) so every existing
+     *   caller of this seam - written before the dimension toggle existed - keeps testing the
+     *   model dimension unchanged; a KEY-dimension test passes it explicitly.
      */
-    internal suspend fun applyAnalyticsResultForTest(period: ActivityAggregator.Period) =
-        applyAnalyticsResult(period)
+    internal suspend fun applyAnalyticsResultForTest(
+        period: ActivityAggregator.Period,
+        dimension: AnalyticsBreakdown.Dimension = AnalyticsBreakdown.Dimension.MODEL
+    ) = applyAnalyticsResult(period, dimension)
 
     /**
      * Test-only entry point for [applySpendSeriesResult], the same seam [applyAnalyticsResultForTest]

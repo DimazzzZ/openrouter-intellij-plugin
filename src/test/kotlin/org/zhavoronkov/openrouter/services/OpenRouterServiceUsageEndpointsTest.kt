@@ -31,6 +31,9 @@ class OpenRouterServiceUsageEndpointsTest {
 
         mockSettingsService = mock(OpenRouterSettingsService::class.java)
         `when`(mockSettingsService.getProvisioningKey()).thenReturn("pk-test")
+        // getCredits() is gated on the API key, not the management key, since 2026-09-21:
+        // /credits is account-scoped and answers for an ordinary API key too.
+        `when`(mockSettingsService.getApiKey()).thenReturn("sk-or-test")
 
         service = OpenRouterService(
             gson = Gson(),

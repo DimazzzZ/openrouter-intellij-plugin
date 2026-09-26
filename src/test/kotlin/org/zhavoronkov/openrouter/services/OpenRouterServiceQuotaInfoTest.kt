@@ -32,7 +32,7 @@ class OpenRouterServiceQuotaInfoTest {
 
         assertTrue(result is ApiResult.Error)
         val error = result as ApiResult.Error
-        assertEquals("No provisioning key configured", error.message)
+        assertEquals("No management key configured", error.message)
     }
 
     @Test

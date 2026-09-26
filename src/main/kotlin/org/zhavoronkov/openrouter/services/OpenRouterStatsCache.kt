@@ -110,6 +110,16 @@ class OpenRouterStatsCache : Disposable {
         }
     }
 
+    /**
+     * Guards [refresh] on configuration alone, not on capability.
+     *
+     * Measured against the live API (2026-09-21): `/credits` answers for an ordinary API key,
+     * so refusing to refresh at all without a management key would withhold a balance the key
+     * in hand can actually read. `isConfigured()` (an API key is present) is the only precondition
+     * now; which of credits/activity/keys a refresh can actually fetch is decided per-endpoint by
+     * [fetchAndProcessData]/[processResults] below, each of which already treats its own result as
+     * optional rather than failing the whole refresh.
+     */
     @Suppress("ReturnCount")
     private fun validateRefreshPreconditions(): String? {
         val settingsService = getSettingsServiceSafely()
@@ -119,12 +129,6 @@ class OpenRouterStatsCache : Disposable {
             PluginLogger.Service.debug("Stats cache: Not configured, skipping refresh")
             lastError = "Not configured"
             return "Not configured"
-        }
-
-        if (settingsService.getProvisioningKey().isBlank()) {
-            PluginLogger.Service.debug("Stats cache: No provisioning key, skipping refresh")
-            lastError = "Provisioning key required"
-            return "Provisioning key required"
         }
 
         return null

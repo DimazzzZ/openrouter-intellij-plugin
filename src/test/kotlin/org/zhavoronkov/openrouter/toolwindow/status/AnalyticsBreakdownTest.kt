@@ -120,6 +120,118 @@ class AnalyticsBreakdownTest {
         assertEquals("desc", request.orderBy?.direction)
     }
 
+    // --- Dimension (G6): requestFor/toModelSpend thread a dimension rather than acquiring a -----
+    // --- second, parallel query-building path ---------------------------------------------------
+
+    @Test
+    @DisplayName("requestFor defaults to the model dimension when none is passed, unchanged from before G6")
+    fun `requestFor defaults to the model dimension`() {
+        val request = AnalyticsBreakdown.requestFor(ActivityAggregator.Period.WEEK, today)
+
+        assertEquals(listOf("model"), request.dimensions)
+    }
+
+    @Test
+    @DisplayName("requestFor asks for api_key_id, not model, when the KEY dimension is selected")
+    fun `requestFor asks for api_key_id for the KEY dimension`() {
+        val request = AnalyticsBreakdown.requestFor(
+            ActivityAggregator.Period.WEEK,
+            today,
+            AnalyticsBreakdown.Dimension.KEY
+        )
+
+        assertEquals(listOf("api_key_id"), request.dimensions)
+    }
+
+    @Test
+    @DisplayName(
+        "requestFor's window is identical for both dimensions, for every period - the model and " +
+            "key breakdowns must never silently cover different windows for the same period, the " +
+            "same rule requestFor already keeps against byModel"
+    )
+    fun `requestFor's window agrees across dimensions`() {
+        ActivityAggregator.Period.values().forEach { period ->
+            val modelRequest = AnalyticsBreakdown.requestFor(period, today, AnalyticsBreakdown.Dimension.MODEL)
+            val keyRequest = AnalyticsBreakdown.requestFor(period, today, AnalyticsBreakdown.Dimension.KEY)
+
+            assertEquals(
+                modelRequest.timeRange,
+                keyRequest.timeRange,
+                "for $period, the MODEL and KEY dimension queries must share the exact same " +
+                    "time_range - found ${modelRequest.timeRange} vs ${keyRequest.timeRange}"
+            )
+        }
+    }
+
+    @Test
+    @DisplayName(
+        "toModelSpend reads api_key_id (already human-readable) for the KEY dimension, with a quoted request_count"
+    )
+    fun `toModelSpend reads api_key_id for the KEY dimension`() {
+        // The live shape confirmed against a real query with dimensions: ["api_key_id"]: a plain
+        // display name (not a hash/UUID), and request_count quoted exactly like the model query.
+        val result = AnalyticsBreakdown.toModelSpend(
+            listOf(mapOf("api_key_id" to "n8n", "total_usage" to 0.42, "request_count" to "5")),
+            AnalyticsBreakdown.Dimension.KEY
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("n8n", result[0].model)
+        assertEquals(0.42, result[0].usage, 1e-9)
+        assertEquals(5L, result[0].requests)
+    }
+
+    @Test
+    @DisplayName(
+        "a row missing api_key_id is dropped for the KEY dimension, even if it carries an unrelated model field"
+    )
+    fun `a row missing api_key_id is dropped for the KEY dimension`() {
+        val result = AnalyticsBreakdown.toModelSpend(
+            listOf(mapOf("model" to "anthropic/claude-sonnet-4.5", "total_usage" to 1.0, "request_count" to 1.0)),
+            AnalyticsBreakdown.Dimension.KEY
+        )
+
+        assertTrue(
+            result.isEmpty(),
+            "a row with no api_key_id field must be dropped for the KEY dimension, not read " +
+                "under its unrelated model field"
+        )
+    }
+
+    @Test
+    @DisplayName("KEY-dimension rows are sorted descending by spend, same as the model dimension")
+    fun `KEY dimension rows sort descending by spend`() {
+        val result = AnalyticsBreakdown.toModelSpend(
+            listOf(
+                mapOf("api_key_id" to "cheap-key", "total_usage" to 0.01, "request_count" to "1"),
+                mapOf("api_key_id" to "expensive-key", "total_usage" to 5.0, "request_count" to "1")
+            ),
+            AnalyticsBreakdown.Dimension.KEY
+        )
+
+        assertEquals(listOf("expensive-key", "cheap-key"), result.map { it.model })
+    }
+
+    @Test
+    @DisplayName("a non-numeric total_usage drops the row for the KEY dimension too, rather than counting it as zero")
+    fun `a non-numeric total_usage drops the row for the KEY dimension`() {
+        val result = AnalyticsBreakdown.toModelSpend(
+            listOf(
+                mapOf("api_key_id" to "corrupt", "total_usage" to "not-a-number", "request_count" to "1"),
+                mapOf("api_key_id" to "good", "total_usage" to 1.0, "request_count" to "1")
+            ),
+            AnalyticsBreakdown.Dimension.KEY
+        )
+
+        assertEquals(listOf("good"), result.map { it.model })
+    }
+
+    @Test
+    @DisplayName("an empty row list yields an empty result for the KEY dimension too")
+    fun `an empty row list yields an empty result for the KEY dimension`() {
+        assertTrue(AnalyticsBreakdown.toModelSpend(emptyList(), AnalyticsBreakdown.Dimension.KEY).isEmpty())
+    }
+
     // --- toModelSpend -------------------------------------------------------------------------
 
     @Test

@@ -28,6 +28,15 @@ object StatusTabState {
 
     enum class State {
         NOT_CONFIGURED,
+
+        /**
+         * An API key is present but a management key is not. Measured against the live API
+         * (2026-09-21, correction C1): this does NOT mean "no account data" - `/credits` answers
+         * for an ordinary API key too, so `hasData` can genuinely be `true` here. It means
+         * "reduced capability": the balance is real and shown, while the per-model breakdown,
+         * activity and the API key spend cap - all still management-key-only - say so explicitly
+         * rather than rendering as if nothing were configured.
+         */
         DEGRADED,
         LOADING,
         READY,

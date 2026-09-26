@@ -516,19 +516,19 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
     }
 
     private fun showProvisioningKeyError() {
-        tierLabel.text = "Account: Provisioning Key Required"
-        totalCreditsLabel.text = "Total Credits: Configure provisioning key in settings"
-        creditsUsageLabel.text = "Credits Used: Configure provisioning key in settings"
-        creditsRemainingLabel.text = "Credits Remaining: Configure provisioning key in settings"
-        activity24hLabel.text = "Last 24 hours: Configure provisioning key in settings"
-        activityWeekLabel.text = "Last week: Configure provisioning key in settings"
+        tierLabel.text = "Account: Management Key Required"
+        totalCreditsLabel.text = "Total Credits: Configure Management Key in settings"
+        creditsUsageLabel.text = "Credits Used: Configure Management Key in settings"
+        creditsRemainingLabel.text = "Credits Remaining: Configure Management Key in settings"
+        activity24hLabel.text = "Last 24 hours: Configure Management Key in settings"
+        activityWeekLabel.text = "Last week: Configure Management Key in settings"
         activityModelsLabel.text = buildString {
             append("<html>Recent Models:<br/>")
             append("• Go to Settings → OpenRouter<br/>")
-            append("• Add your Provisioning Key<br/>")
+            append("• Add your Management Key<br/>")
             append("• Get it from openrouter.ai/keys</html>")
         }
-        setProgressBarState(text = "Provisioning Key Required - Click Settings")
+        setProgressBarState(text = "Management Key Required - Click Settings")
     }
 
     private fun openSettings() {

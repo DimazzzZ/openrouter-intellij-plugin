@@ -180,7 +180,7 @@ class OpenRouterSmartChatEndpointProvider internal constructor(
         return when {
             !settingsService.isConfigured() -> ValidationResult(
                 isValid = false,
-                message = "OpenRouter is not configured. Please set your provisioning key in " +
+                message = "OpenRouter is not configured. Please set your API key in " +
                     "Settings → Tools → OpenRouter.",
                 details = mapOf("needsSetup" to true)
             )

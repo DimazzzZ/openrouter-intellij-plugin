@@ -137,15 +137,18 @@ class BalanceBlock {
     }
 
     /**
-     * DEGRADED's rendering (fix round 1, finding 1): there is no account balance to report at
-     * all - the spec's D6 claim of a fallback to `/credits`/`/activity` without a provisioning key
-     * does not exist (correction C1), so [update]'s "unknown, not zero" [NO_VALUE] em dash is the
-     * WRONG rendering here. A dash in the headline row reads "your balance is unknown"; the true
-     * fact is "this needs a provisioning key you have not set" - a different claim, already stated
-     * by the caller's own banner ([StatusTabPanel]'s `degradedNoticeBlock]`). So unlike [update],
-     * this HIDES the remaining/total/burn-rate/days-left/last-updated rows entirely rather than
-     * rendering them as unknown, and shows only what genuinely exists without a provisioning key:
-     * the locally observed spend sparkline (and its caption, gated exactly like [update]'s).
+     * DEGRADED's rendering for the moment there is genuinely no balance to show yet - originally
+     * (fix round 1, finding 1) this was DEGRADED's ENTIRE rendering, on the spec's D6 claim of a
+     * fallback to `/credits`/`/activity` without a management key. Measured against the live API
+     * (2026-09-21, correction C1's amendment), that claim was wrong for `/credits`: it answers for
+     * an ordinary API key too, so [StatusTabPanel] now calls [update] with the real balance once
+     * the shared cache has credits, and reserves this method for the narrower case that remains -
+     * mid-refresh, or a refresh that failed, with no credits cached yet. There, [update]'s
+     * "unknown, not zero" [NO_VALUE] em dash would still be the wrong rendering: a dash in the
+     * headline row reads "your balance is unknown, permanently", when the true fact is "not loaded
+     * yet". So this HIDES the remaining/total/burn-rate/days-left/last-updated rows entirely rather
+     * than rendering them as unknown, and shows only what genuinely exists either way: the locally
+     * observed spend sparkline (and its caption, gated exactly like [update]'s).
      */
     fun showLocalSeriesOnly(series: List<Double>, seriesLabel: String) {
         remainingLabel.isVisible = false

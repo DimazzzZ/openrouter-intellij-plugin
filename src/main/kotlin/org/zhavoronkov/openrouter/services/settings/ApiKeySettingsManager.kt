@@ -254,7 +254,7 @@ class ApiKeySettingsManager(
             AuthScope.EXTENDED -> {
                 val provKey = getProvisioningKey()
                 if (provKey.isBlank()) {
-                    "Provisioning key is not configured"
+                    "Management key is not configured"
                 } else {
                     val validationResult = KeyValidator.validateProvisioningKey(provKey)
                     if (KeyValidator.isError(validationResult)) {

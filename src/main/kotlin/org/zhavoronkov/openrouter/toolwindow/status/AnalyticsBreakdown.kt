@@ -33,6 +33,13 @@ import java.time.format.DateTimeFormatter
  * object anyway - and the naming already signals the relationship: [spendSeriesRequestFor] and
  * [toSpendSeries] are qualified with "spend series" precisely to read as a second, distinguishable
  * pair beside [requestFor]/[toModelSpend], not a replacement for them.
+ *
+ * G6 adds a second axis to [requestFor]/[toModelSpend] rather than a third pair of functions:
+ * "where does the money go" can group by [Dimension.MODEL] (unchanged) or [Dimension.KEY] - which
+ * API key spent it - but the window arithmetic, metrics, ordering and malformed-row handling are
+ * identical either way, so threading a [Dimension] parameter through the existing pair is what
+ * keeps the two grouping choices from acquiring two independently-drifting notions of the same
+ * query. See [Dimension]'s own KDoc for why the two are never requested together.
  */
 object AnalyticsBreakdown {
 
@@ -43,9 +50,39 @@ object AnalyticsBreakdown {
     private const val METRIC_USAGE = "total_usage"
     private const val METRIC_REQUESTS = "request_count"
     private const val DIMENSION_MODEL = "model"
+
+    // G6: the second dimension `requestFor`/`toModelSpend` can be asked for - which key spent
+    // it, not which model it went to. Confirmed against a live query with `dimensions:
+    // ["api_key_id"]`: the field is already the key's own human-readable name (e.g. "n8n"), never
+    // a hash or a `/keys` id to resolve - see [Dimension.KEY]'s own KDoc for why no join happens.
+    private const val DIMENSION_API_KEY_ID = "api_key_id"
     private const val ORDER_DIRECTION_DESC = "desc"
     private const val GRANULARITY_DAY = "day"
     private const val GRANULARITY_HOUR = "hour"
+
+    /**
+     * Which column [requestFor] groups by and [toModelSpend] reads rows against - the ONE
+     * difference between the per-model and per-key breakdown, everything else (window
+     * arithmetic, metrics, ordering, malformed-row handling) is shared. Never both dimensions in
+     * the same query: the server allows up to two, but asking for `["model", "api_key_id"]`
+     * together would return one row PER (model, key) PAIR, which is not what a single-dimension
+     * list ([BreakdownBlock]) can render and would multiply rows against [ROW_LIMIT] for no
+     * reason - [BreakdownBlock]'s own dimension control shows one dimension at a time, by design.
+     */
+    enum class Dimension(internal val fieldName: String) {
+        MODEL(DIMENSION_MODEL),
+
+        /**
+         * Deliberately NOT resolved against `GET /keys`: a live capture showed `api_key_id` is
+         * already the key's own display name, and one of 11 rows named a key analytics still
+         * remembers the spend of but that no longer exists in `/keys` - joining would DROP that
+         * history, not enrich it, and `/keys` itself answers 401 for an ordinary API key, which
+         * would make this dimension management-only for a second, unrelated reason on top of the
+         * one it already has (see [StatusTabPanel]'s own handling of this dimension without an
+         * analytics key).
+         */
+        KEY(DIMENSION_API_KEY_ID)
+    }
 
     /**
      * The metric/dimension/granularity names this object hard-codes into [requestFor] and
@@ -107,15 +144,24 @@ object AnalyticsBreakdown {
      * it asks the server to aggregate the whole window into one row per model directly.
      * [toModelSpend]'s grouping step is kept regardless, in case a live account ever proves a
      * granularity is required after all and it has to come back.
+     *
+     * @param dimension which column to group by - [Dimension.MODEL] (the default, and
+     *   [BreakdownBlock]'s own default view) or [Dimension.KEY] (G6). The window, metrics and
+     *   ordering are identical either way - see [Dimension]'s own KDoc for why only ONE dimension
+     *   is ever requested at a time.
      */
-    fun requestFor(period: ActivityAggregator.Period, today: LocalDate): AnalyticsQueryRequest {
+    fun requestFor(
+        period: ActivityAggregator.Period,
+        today: LocalDate,
+        dimension: Dimension = Dimension.MODEL
+    ): AnalyticsQueryRequest {
         val earliest = today.minusDays(period.days.toLong() - 1)
         val start = earliest.atStartOfDay().format(TIME_RANGE_FORMAT)
         val end = today.plusDays(1).atStartOfDay().format(TIME_RANGE_FORMAT)
 
         return AnalyticsQueryRequest(
             metrics = listOf(METRIC_USAGE, METRIC_REQUESTS),
-            dimensions = listOf(DIMENSION_MODEL),
+            dimensions = listOf(dimension.fieldName),
             granularity = null,
             timeRange = AnalyticsTimeRange(start = start, end = end),
             limit = ROW_LIMIT,
@@ -153,26 +199,36 @@ object AnalyticsBreakdown {
      * `Any?` decoding OR a [String] that itself parses as one; only a value that fails to parse
      * either way is dropped as genuinely non-numeric. This checks `is Number`/`is String`, never
      * `is Int`, which would silently drop every correctly-decoded typed row too.
+     *
+     * @param dimension which field to read each row's name from - [Dimension.MODEL] (the
+     *   default) reads `model`, [Dimension.KEY] (G6) reads `api_key_id`. Every other rule above -
+     *   grouping, sorting, dropping a malformed row, absent-counts-as-zero - applies identically
+     *   to both; only the field name being read differs. Confirmed against a live `api_key_id`
+     *   query: `request_count` arrives as a quoted string there too, which the existing
+     *   [numberOrZero] already covers with no change needed.
      */
-    fun toModelSpend(rows: List<Map<String, Any?>>): List<ActivityAggregator.ModelSpend> =
-        rows.mapNotNull(::toRowSpend)
+    fun toModelSpend(
+        rows: List<Map<String, Any?>>,
+        dimension: Dimension = Dimension.MODEL
+    ): List<ActivityAggregator.ModelSpend> =
+        rows.mapNotNull { toRowSpend(it, dimension) }
             .groupBy { it.model }
-            .map { (model, group) ->
+            .map { (name, group) ->
                 ActivityAggregator.ModelSpend(
-                    model = model,
+                    model = name,
                     usage = group.sumOf { it.usage },
                     requests = group.sumOf { it.requests }
                 )
             }
             .sortedByDescending { it.usage }
 
-    /** One row's own model/usage/requests, before grouping - see [toModelSpend]. */
-    private fun toRowSpend(row: Map<String, Any?>): ActivityAggregator.ModelSpend? {
-        val model = (row[DIMENSION_MODEL] as? String)?.takeIf { it.isNotBlank() } ?: return null
+    /** One row's own name/usage/requests, before grouping - see [toModelSpend]. */
+    private fun toRowSpend(row: Map<String, Any?>, dimension: Dimension): ActivityAggregator.ModelSpend? {
+        val name = (row[dimension.fieldName] as? String)?.takeIf { it.isNotBlank() } ?: return null
         val usage = numberOrZero(row, METRIC_USAGE) ?: return null
         val requests = numberOrZero(row, METRIC_REQUESTS) ?: return null
 
-        return ActivityAggregator.ModelSpend(model = model, usage = usage, requests = requests.toLong())
+        return ActivityAggregator.ModelSpend(model = name, usage = usage, requests = requests.toLong())
     }
 
     /**

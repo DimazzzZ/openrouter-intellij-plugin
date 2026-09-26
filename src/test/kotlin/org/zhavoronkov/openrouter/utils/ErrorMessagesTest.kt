@@ -25,17 +25,17 @@ class ErrorMessagesTest {
     }
 
     @Test
-    @DisplayName("Should return correct provisioning key required message")
+    @DisplayName("Should return correct management key required message")
     fun testProvisioningKeyRequired() {
         val message = ErrorMessages.provisioningKeyRequired()
-        assertEquals("[OpenRouter] Provisioning key is required", message)
+        assertEquals("[OpenRouter] Management key is required", message)
     }
 
     @Test
-    @DisplayName("Should return correct provisioning key invalid message")
+    @DisplayName("Should return correct management key invalid message")
     fun testProvisioningKeyInvalid() {
         val message = ErrorMessages.provisioningKeyInvalid()
-        assertEquals("[OpenRouter] Invalid provisioning key", message)
+        assertEquals("[OpenRouter] Invalid Management key", message)
     }
 
     @Test

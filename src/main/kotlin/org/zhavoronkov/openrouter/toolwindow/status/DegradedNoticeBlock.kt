@@ -10,11 +10,13 @@ import javax.swing.JPanel
 /**
  * The DEGRADED state's explanatory banner.
  *
- * The spec's D6 claimed that without a provisioning key the tab falls back to `/credits` and
- * `/activity`. That fallback does not exist - both endpoints require the provisioning key
- * themselves, and so does listing API keys - so DEGRADED is not a thinner READY with blanks where
- * numbers would go. It is a genuinely different surface: no account data at all, and a line
- * explaining exactly what is missing (a provisioning key) and how to add one, never a silent gap.
+ * The spec's D6 claimed that without a management key the tab falls back to `/credits` and
+ * `/activity`. Measured against the live API (2026-09-21), that is half true: `/credits` answers
+ * for an ordinary API key too (it is account-scoped, not key-scoped), but `/activity`,
+ * `/analytics/query`, `/analytics/meta` and `/keys` all still require a management key. So
+ * DEGRADED is not "no account data at all" any more - it is "the balance is real, the rest needs
+ * a management key" - and this banner states exactly that, rather than implying nothing on the
+ * tab can be trusted.
  *
  * Shaped like [StatusTabPanel]'s "not configured" panel - a bordered message plus an action
  * button - but built as its own component in the same family as [BalanceBlock]/[KeyLimitBlock]/
@@ -43,10 +45,10 @@ class DegradedNoticeBlock(onConfigure: () -> Unit) {
 
     private companion object {
         const val BORDER_SIZE = 10
-        const val TITLE = "Limited: no provisioning key"
-        const val MESSAGE = "Account balance, activity and API key limits need a provisioning " +
-            "key, which is not set. Add one to see them - locally observed spend recorded " +
-            "while the IDE was running is shown below instead, when there is enough of it to plot."
-        const val BUTTON_TEXT = "Add Provisioning Key"
+        const val TITLE = "Limited: Management Key needed for full details"
+        const val MESSAGE = "The per-model breakdown, activity history and the API key spend " +
+            "cap need a Management Key, which is not set. The account balance below already " +
+            "works from the API key alone."
+        const val BUTTON_TEXT = "Add Management Key"
     }
 }

@@ -59,10 +59,26 @@ class KeyLimitBlock {
         }
     }
 
+    /**
+     * Renders an explicit "needs a Management Key" line instead of hiding the block.
+     *
+     * Unlike a `null` [limit] passed to [update] - which means "this key genuinely carries no
+     * cap", a fact [update] is entitled to report by hiding the block - DEGRADED cannot tell
+     * either way: `GET /keys` itself answers 401 for an ordinary API key, so nothing was checked
+     * at all. Hiding the block here would silently claim the same "no cap" fact [update] reports
+     * for a real, checked answer, which is exactly the kind of unearned claim this whole plan
+     * exists to remove.
+     */
+    fun showUnavailable() {
+        component.isVisible = true
+        amountLabel.text = UNAVAILABLE_TEXT
+    }
+
     private fun formatAmount(value: Double): String = String.format(Locale.US, "%.2f", value)
 
     private companion object {
         const val HEADING_TEXT = "API Key Spend Cap"
+        const val UNAVAILABLE_TEXT = "Needs a Management Key"
         const val TIGHT_GAP = 2
     }
 }

@@ -34,7 +34,8 @@ object StatusBarStatsFormatter {
         val total: Double,
         val activityList: List<ActivityData>? = null,
         val trackingService: OpenRouterGenerationTrackingService? = null,
-        val creditsData: CreditsData? = null
+        val creditsData: CreditsData? = null,
+        val authLabel: String = "Management Key"
     )
 
     fun formatStatusTextFromCredits(used: Double, total: Double, showCosts: Boolean): String {
@@ -59,9 +60,10 @@ object StatusBarStatsFormatter {
         total: Double,
         activityList: List<ActivityData>? = null,
         trackingService: OpenRouterGenerationTrackingService? = null,
-        creditsData: CreditsData? = null
+        creditsData: CreditsData? = null,
+        authLabel: String = "Management Key"
     ): String {
-        val params = TooltipParams(statusText, used, total, activityList, trackingService, creditsData)
+        val params = TooltipParams(statusText, used, total, activityList, trackingService, creditsData, authLabel)
         return formatStatusTooltip(params)
     }
 
@@ -91,7 +93,7 @@ object StatusBarStatsFormatter {
               <tr><td colspan='2'><b>Connection</b></td></tr>
               <tr height='2'><td></td></tr>
               <tr><td>Status:</td><td align='right' style='padding-left: 30px;'>${params.statusText}</td></tr>
-              <tr><td>Auth:</td><td align='right' style='padding-left: 30px;'>Provisioning Key</td></tr>
+              <tr><td>Auth:</td><td align='right' style='padding-left: 30px;'>${params.authLabel}</td></tr>
               <tr height='8'><td></td></tr>
               <tr><td colspan='2'><b>Credits</b></td></tr>
               <tr height='2'><td></td></tr>

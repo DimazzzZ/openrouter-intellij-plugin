@@ -19,9 +19,10 @@ import javax.swing.JList
 import javax.swing.JPanel
 
 /**
- * The per-model spend breakdown: a period selector (24 hours / 7 days / 30
- * days, defaulting to 24 hours) above a list of model name, an optional
- * request count, and spend for that STATED period.
+ * The spend breakdown: a period selector (24 hours / 7 days / 30 days,
+ * defaulting to 24 hours) and a dimension selector (by model / by key - G6,
+ * defaulting to by model) above a list of a name, an optional request count,
+ * and spend for that STATED period.
  *
  * This answers the other question the status tab exists for - where the
  * money actually goes - which the old "Recent Activity" total could not
@@ -29,10 +30,20 @@ import javax.swing.JPanel
  * endpoint happened to return and never said what that window was. Naming
  * the period is not decoration here; it is the fix.
  *
- * Owns no fetching of its own: [onPeriodChanged] fires when the user picks a
- * different period, and the caller ([StatusTabPanel]) decides - depending on
+ * G6 (which API key spent it) is a DIMENSION TOGGLE on this same block, not a
+ * fifth one: the tab already carries four other blocks against a 280px floor,
+ * so a second per-key panel would crowd a view most users want only
+ * occasionally, and a toggle shows exactly one dimension at a time anyway -
+ * matching the one query [StatusTabPanel] ever issues for this list, never
+ * both. See [onDimensionChanged] and [setDimensionSelectorEnabled], the exact
+ * counterparts of [onPeriodChanged]/[setPeriodSelectorEnabled] for this axis.
+ *
+ * Owns no fetching of its own: [onPeriodChanged]/[onDimensionChanged] fire
+ * when the user picks a different period/dimension, and the caller
+ * ([StatusTabPanel]) decides - depending on
  * whether an [org.zhavoronkov.openrouter.services.AnalyticsService] is
- * available - whether that means a fresh analytics query or a re-run of
+ * available - whether that means a fresh analytics query or (MODEL only; see
+ * [StatusTabPanel]'s own handling of KEY without an analytics key) a re-run of
  * [ActivityAggregator.byModel] against the cached activity it already has.
  * The two paths are NOT interchangeable on failure: [showError] exists
  * because an analytics query error must never be quietly answered with the
@@ -42,7 +53,7 @@ import javax.swing.JPanel
  * redesign spec's D12). [show], [showError], [showLoading], [showUnavailable],
  * [showNotConfigured] and [showMissingNames] are the only ways this block is ever updated - each
  * states a different fact ("here are the rows", "the query failed", "nothing
- * has been queried yet", "nothing CAN be queried without a provisioning key",
+ * has been queried yet", "nothing CAN be queried without a management key",
  * "nothing CAN be queried because there is no API key at all", "the server no
  * longer has a name this build relies on") and none of them may stand in for another.
  *
@@ -66,6 +77,14 @@ class BreakdownBlock {
     /** Fired once per user-driven period change, never for the initial default selection. */
     var onPeriodChanged: (ActivityAggregator.Period) -> Unit = {}
 
+    /**
+     * Fired once per user-driven dimension change, never for the initial default selection - the
+     * G6 counterpart of [onPeriodChanged]. The caller ([StatusTabPanel]) decides what re-querying
+     * a dimension change means, exactly as it already does for a period change: this block owns
+     * no fetching of its own either way.
+     */
+    var onDimensionChanged: (AnalyticsBreakdown.Dimension) -> Unit = {}
+
     private val periodSelector = ComboBox(PERIODS).apply {
         renderer = object : SimpleListCellRenderer<ActivityAggregator.Period>() {
             override fun customize(
@@ -80,10 +99,34 @@ class BreakdownBlock {
         }
     }
 
-    private val selectorRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
+    /**
+     * G6: which column the list groups by - [AnalyticsBreakdown.Dimension.MODEL] (this combo's
+     * own default selection, matching [BreakdownBlock]'s existing "by model" behaviour) or
+     * [AnalyticsBreakdown.Dimension.KEY]. A dimension TOGGLE beside the existing period selector,
+     * not a fifth block: the tab already carries five blocks against a 280px floor, and a second
+     * per-key panel would crowd a view most users want only occasionally, while a toggle costs no
+     * extra vertical space and still shows exactly one dimension - the one currently selected -
+     * at a time, matching the one query [StatusTabPanel] ever issues for this list.
+     */
+    private val dimensionSelector = ComboBox(DIMENSIONS).apply {
+        renderer = object : SimpleListCellRenderer<AnalyticsBreakdown.Dimension>() {
+            override fun customize(
+                list: JList<out AnalyticsBreakdown.Dimension>,
+                value: AnalyticsBreakdown.Dimension?,
+                index: Int,
+                selected: Boolean,
+                hasFocus: Boolean
+            ) {
+                text = value?.let(::dimensionLabel).orEmpty()
+            }
+        }
+    }
+
+    private val selectorRow = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(ROW_GAP_BETWEEN_COLUMNS), 0)).apply {
         isOpaque = false
         alignmentX = Component.LEFT_ALIGNMENT
         add(periodSelector)
+        add(dimensionSelector)
     }
 
     /** Shown above [rowsPanel] only when the last successful query reported truncation. */
@@ -141,12 +184,22 @@ class BreakdownBlock {
                 onPeriodChanged(event.item as ActivityAggregator.Period)
             }
         }
+        // Same "default is DIMENSIONS[0] (MODEL), listener attached only after" shape as
+        // periodSelector above - "the default is still by model" must hold without an explicit
+        // setSelectedItem call here, which would otherwise risk firing onDimensionChanged for a
+        // selection nobody chose.
+        dimensionSelector.addItemListener { event ->
+            if (event.stateChange == ItemEvent.SELECTED) {
+                onDimensionChanged(event.item as AnalyticsBreakdown.Dimension)
+            }
+        }
         show(emptyList())
     }
 
     /**
-     * Enables or disables the period selector - the ONLY control on this block a user can
-     * interact with. Disabled by the caller ([StatusTabPanel.render], close-out round 2, Critical)
+     * Enables or disables the period selector - one of the two controls on this block a user can
+     * interact with, the other being [setDimensionSelectorEnabled]. Disabled by the caller
+     * ([StatusTabPanel.render], close-out round 2, Critical)
      * in every state where a period change cannot answer anything (NOT_CONFIGURED, DEGRADED,
      * LOADING): a control the user can click but that silently does nothing (or, before that
      * round's fix, silently substituted a wrong answer) is confusing in a way a greyed-out one
@@ -157,6 +210,17 @@ class BreakdownBlock {
      */
     fun setPeriodSelectorEnabled(enabled: Boolean) {
         periodSelector.isEnabled = enabled
+    }
+
+    /**
+     * Enables or disables the dimension selector (G6) - gated by the exact same condition as
+     * [setPeriodSelectorEnabled], and always called alongside it by [StatusTabPanel.render]: a
+     * state where a period change cannot answer anything cannot answer a dimension change either,
+     * KEY least of all - see [StatusTabPanel]'s own handling of KEY without an analytics key for
+     * why that dimension is management-only even more strictly than MODEL.
+     */
+    fun setDimensionSelectorEnabled(enabled: Boolean) {
+        dimensionSelector.isEnabled = enabled
     }
 
     /**
@@ -236,10 +300,10 @@ class BreakdownBlock {
     fun showLoading() = renderPlaceholder(LOADING_TEXT)
 
     /**
-     * Renders an explicit "needs a provisioning key" line for DEGRADED (fix round 1, finding 2).
+     * Renders an explicit "needs a Management Key" line for DEGRADED (fix round 1, finding 2).
      *
      * Deliberately NOT [show] with an empty list: DEGRADED never queries anything - there is no
-     * analytics endpoint reachable without a provisioning key at all - so "no activity in this
+     * analytics endpoint reachable without a management key at all - so "no activity in this
      * period" would tell the user "you spent nothing", which nobody checked. Also deliberately NOT
      * [showError]: no query was attempted, so nothing failed either. Conflating any of these three
      * lets the tab present a claim nobody verified as if it had been - exactly the defect class
@@ -250,9 +314,9 @@ class BreakdownBlock {
     /**
      * Renders an explicit "needs an API key" line for NOT_CONFIGURED.
      *
-     * Deliberately NOT [showUnavailable]: that line names a missing PROVISIONING key, which
+     * Deliberately NOT [showUnavailable]: that line names a missing MANAGEMENT key, which
      * implies an API key is already present - true in DEGRADED, false here. NOT_CONFIGURED has
-     * no API key at all, so naming the provisioning key specifically would send the user to fix
+     * no API key at all, so naming the management key specifically would send the user to fix
      * the wrong thing first. Also deliberately NOT [show] with an empty list, for the same reason
      * [showUnavailable] is not: nothing has been queried, so "no activity in this period" would
      * tell the user they spent nothing, which nobody checked.
@@ -362,6 +426,11 @@ class BreakdownBlock {
         ActivityAggregator.Period.MONTH -> "30 days"
     }
 
+    private fun dimensionLabel(dimension: AnalyticsBreakdown.Dimension): String = when (dimension) {
+        AnalyticsBreakdown.Dimension.MODEL -> "By model"
+        AnalyticsBreakdown.Dimension.KEY -> "By key"
+    }
+
     /**
      * A [JBLabel] that keeps [fullText] as its underlying identity (what is reported if never
      * laid out) but DISPLAYS a middle-ellipsised fit to whatever width the layout manager
@@ -402,10 +471,17 @@ class BreakdownBlock {
             ActivityAggregator.Period.WEEK,
             ActivityAggregator.Period.MONTH
         )
+
+        /** MODEL first - the ComboBox's own default selection - so "the default is still by
+         * model" holds without an explicit setSelectedItem call, same as [PERIODS] above. */
+        val DIMENSIONS = arrayOf(
+            AnalyticsBreakdown.Dimension.MODEL,
+            AnalyticsBreakdown.Dimension.KEY
+        )
         const val NO_ACTIVITY_TEXT = "No activity in this period"
         const val ERROR_TEXT = "Couldn't load the breakdown"
         const val LOADING_TEXT = "Loading breakdown..."
-        const val UNAVAILABLE_TEXT = "Needs a provisioning key"
+        const val UNAVAILABLE_TEXT = "Needs a Management Key"
         const val NOT_CONFIGURED_TEXT = "Needs an API key"
         const val MISSING_NAMES_TEXT = "Plugin is out of date with the API - missing: "
         const val TRUNCATED_TEXT = "Showing a partial result - the server truncated this query"
