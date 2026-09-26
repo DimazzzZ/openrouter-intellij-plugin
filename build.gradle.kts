@@ -494,7 +494,12 @@ kover {
                     // other Swing view in this package.
                     "org.zhavoronkov.openrouter.toolwindow.chat.HorizontallyScrollingPane",
                     "org.zhavoronkov.openrouter.toolwindow.chat.HorizontallyScrollingPane\$*",
-                    "org.zhavoronkov.openrouter.toolwindow.chat.CodeSegmentViewKt"
+                    "org.zhavoronkov.openrouter.toolwindow.chat.CodeSegmentViewKt",
+                    // Status tab panel: Swing view extracted from OpenRouterToolWindowContent
+                    // in the status tab redesign. Not unit-testable under the fast :test task
+                    // (needs a platform runner for JBLabel/JBScrollPane/GridBagLayout wiring).
+                    "org.zhavoronkov.openrouter.toolwindow.status.StatusTabPanel",
+                    "org.zhavoronkov.openrouter.toolwindow.status.StatusTabPanel\$*"
                 )
             }
         }

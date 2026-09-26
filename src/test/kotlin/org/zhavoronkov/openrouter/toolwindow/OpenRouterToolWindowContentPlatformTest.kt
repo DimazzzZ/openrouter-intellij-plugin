@@ -5,18 +5,14 @@ import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
-import org.zhavoronkov.openrouter.services.settings.FavoriteModelsManager
-import org.zhavoronkov.openrouter.services.settings.PresetsManager
-import org.zhavoronkov.openrouter.services.settings.RouterDefaultsManager
+import org.zhavoronkov.openrouter.toolwindow.status.StatusTabPanel
 
 /**
- * Platform test for [OpenRouterToolWindowContent].
+ * Platform test for [StatusTabPanel].
  *
  * Extends [BasePlatformTestCase] so a real IntelliJ [com.intellij.openapi.project.Project]
- * (with services such as PropertiesComponent registered) is available. The content builds
- * a [ChatPanel] during construction, which reads project-level platform services; a mocked
- * project cannot satisfy those, so the fixture's real project is used instead. The
- * OpenRouter services are still mocked to drive the unconfigured state.
+ * is available for the panel's "Configure" button, which opens the settings dialog for
+ * that project. The OpenRouter services are still mocked to drive the unconfigured state.
  */
 class OpenRouterToolWindowContentPlatformTest : BasePlatformTestCase() {
 
@@ -25,31 +21,14 @@ class OpenRouterToolWindowContentPlatformTest : BasePlatformTestCase() {
         val openRouterService = mock(OpenRouterService::class.java)
         `when`(settingsService.isConfigured()).thenReturn(false)
 
-        // ChatPanel (built transitively by OpenRouterToolWindowContent) reads the
-        // favorite-models and presets managers during construction. Stub them so
-        // panel init does not NPE on the mocked settings service.
-        val favoriteModelsManager = mock(FavoriteModelsManager::class.java)
-        `when`(favoriteModelsManager.getFavoriteModels()).thenReturn(emptyList())
-        `when`(settingsService.favoriteModelsManager).thenReturn(favoriteModelsManager)
-
-        val presetsManager = mock(PresetsManager::class.java)
-        `when`(presetsManager.getCustomPresets()).thenReturn(emptyList())
-        `when`(settingsService.presetsManager).thenReturn(presetsManager)
-
-        val routerDefaultsManager = mock(RouterDefaultsManager::class.java)
-        // Stub get() to return null (no saved default). The mock will default to returning null
-        // for unstubbed method calls, but we make it explicit to avoid NPE during async
-        // coroutine resolution when ChatPanel.init launches an unawaited task.
-        `when`(settingsService.routerDefaultsManager).thenReturn(routerDefaultsManager)
-
-        val content = OpenRouterToolWindowContent(project, settingsService, openRouterService)
+        val statusTab = StatusTabPanel(project, settingsService, openRouterService)
         try {
-            assertEquals("Not configured", content.getStatusTextForTest())
-            assertEquals("N/A", content.getQuotaTextForTest())
-            assertEquals("N/A", content.getUsageTextForTest())
-            assertEquals("N/A", content.getActivityTextForTest())
+            assertEquals("Not configured", statusTab.getStatusTextForTest())
+            assertEquals("N/A", statusTab.getQuotaTextForTest())
+            assertEquals("N/A", statusTab.getUsageTextForTest())
+            assertEquals("N/A", statusTab.getActivityTextForTest())
         } finally {
-            content.dispose()
+            statusTab.dispose()
         }
     }
 }

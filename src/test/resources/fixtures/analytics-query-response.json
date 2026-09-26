@@ -1,0 +1,29 @@
+{
+  "data": {
+    "data": [
+      {
+        "date__day": "2026-09-18T00:00:00.000Z",
+        "model": "anthropic/claude-sonnet-4.5",
+        "total_usage": 0.5123,
+        "request_count": 31
+      },
+      {
+        "date__day": "2026-09-18T00:00:00.000Z",
+        "model": "openai/gpt-4o-mini",
+        "total_usage": 0.0221,
+        "request_count": 12
+      },
+      {
+        "date__day": "2026-09-19T00:00:00.000Z",
+        "model": "anthropic/claude-sonnet-4.5",
+        "total_usage": 0.3010,
+        "request_count": 18
+      }
+    ],
+    "metadata": {
+      "query_time_ms": 42,
+      "row_count": 3,
+      "truncated": false
+    }
+  }
+}
