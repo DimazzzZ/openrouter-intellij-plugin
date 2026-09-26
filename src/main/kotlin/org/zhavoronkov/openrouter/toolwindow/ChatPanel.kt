@@ -8,11 +8,6 @@ import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
-import com.intellij.ui.ColorUtil
-import com.intellij.ui.components.JBLabel
-import com.intellij.ui.components.JBList
-import com.intellij.ui.components.JBScrollPane
-import com.intellij.ui.components.JBTextArea
 import com.intellij.util.ui.JBUI
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,45 +22,36 @@ import org.zhavoronkov.openrouter.proxy.routing.RouterCatalog
 import org.zhavoronkov.openrouter.proxy.routing.RouterRequestBuilder
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.toolwindow.chat.ChatComposer
+import org.zhavoronkov.openrouter.toolwindow.chat.ChatConversationView
+import org.zhavoronkov.openrouter.toolwindow.chat.ChatListView
+import org.zhavoronkov.openrouter.toolwindow.chat.ChatParamsPopup
+import org.zhavoronkov.openrouter.toolwindow.chat.ChatToolbar
 import org.zhavoronkov.openrouter.ui.ModelVariantChipRenderer
-import org.zhavoronkov.openrouter.utils.MarkdownRenderer
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.CardLayout
-import java.awt.Component
-import java.awt.Dimension
-import java.awt.FlowLayout
 import java.awt.event.ItemEvent
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
-import java.awt.event.MouseAdapter
-import java.awt.event.MouseEvent
 import java.io.File
 import java.io.IOException
 import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.UUID
-import javax.swing.Box
-import javax.swing.BoxLayout
 import javax.swing.DefaultComboBoxModel
-import javax.swing.DefaultListCellRenderer
-import javax.swing.DefaultListModel
-import javax.swing.JButton
-import javax.swing.JEditorPane
-import javax.swing.JList
-import javax.swing.JMenuItem
 import javax.swing.JOptionPane
 import javax.swing.JPanel
-import javax.swing.JPopupMenu
-import javax.swing.JScrollBar
 import javax.swing.SwingUtilities
-import javax.swing.event.DocumentEvent
-import javax.swing.event.DocumentListener
 
 /**
  * Chat panel for interacting with OpenRouter models with multiple chat support
  */
+// ChatPanel is the coordinator: session state, persistence and the send path.
+// The views it used to contain now live in toolwindow/chat and toolwindow/composer.
+// Still over detekt's LargeClass/TooManyFunctions thresholds (883 lines, 40 functions).
+// Getting under them means extracting saveChats/loadChats and the send path, which is
+// a separate piece of work with its own risk - see docs/superpowers/plans.
 @Suppress("TooManyFunctions", "LargeClass")
 class ChatPanel(
     private val project: Project,
@@ -75,8 +61,6 @@ class ChatPanel(
 
     companion object {
         private const val PANEL_BORDER = 4
-        private const val INPUT_ROWS = 2
-        private const val INPUT_COLUMNS = 30
         private const val MAX_TOKENS = 4096
         private const val TEMPERATURE = 0.7
         private const val ACTIVE_CHAT_KEY = "openrouter.chat.activeSession"
@@ -85,51 +69,43 @@ class ChatPanel(
         private const val CHARS_PER_TOKEN = 4.0
         private const val CARD_LIST = "list"
         private const val CARD_CHAT = "chat"
-        private const val MIN_TEXT_AREA_WIDTH = 100
-        private const val HEADER_FONT_SIZE_INCREASE = 2f
-        private const val FLOW_LAYOUT_GAP = 4
-        private const val COMBO_BOX_WIDTH = 180
-        private const val SETTINGS_COMBO_BOX_WIDTH = 90
         private const val TITLE_MAX_LENGTH = 50
-        private const val MESSAGE_BORDER_V = 1
-        private const val MESSAGE_BORDER_H = 2
-        private const val CELL_BORDER_V = 4
-        private const val CELL_BORDER_H = 8
 
         // Sentinel prefix for separator items inserted into the model dropdown
         // to render labeled group headers (Routers / Your Presets / Favorites).
         // Renderers detect this and draw a disabled caption line.
         private const val SEPARATOR_PREFIX = "__SEP__"
+
+        // The gear popup's own comment for a disabled reasoning/verbosity
+        // control (ChatParamsPopup.setReasoningSupport/setVerbositySupport).
+        // The model name is left out on purpose: it is already visible right
+        // next to the gear in the composer's model combo, and repeating it
+        // was a major height driver in the popup's two-column layout (see
+        // ChatParamsPopup.FORM_WIDTH's doc). The combo's own tooltip
+        // (below) keeps the model-specific wording for anyone who hovers.
+        private const val PARAM_NOT_SUPPORTED_REASON = "Not supported by this model"
     }
 
     private val mainPanel: JPanel
     private val cardLayout: CardLayout
     private val contentPanel: JPanel
 
-    // Chat list view
-    private val chatListModel = DefaultListModel<ChatSession>()
-    private val chatList: JBList<ChatSession>
-
     // Chat view
-    private lateinit var messagesPanel: JPanel
-    private lateinit var messagesScrollPane: JBScrollPane
-    private lateinit var reasoningVerbosityPanel: JPanel
-    private val inputArea: JBTextArea
-    private val sendButton: JButton
     private val modelComboBox: ComboBox<String>
     private val reasoningComboBox: ComboBox<String>
     private val verbosityComboBox: ComboBox<String>
     private val routerParamComboBox: ComboBox<String>
-    private lateinit var routerParamLabel: JBLabel
-    private lateinit var routerParamHelpLabel: JBLabel
+
+    // The send parameters (reasoning, verbosity, router param), in a popup off
+    // the composer's gear button (Task 10). Owns no state of its own beyond
+    // what these three combo boxes already hold.
+    private lateinit var paramsPopup: ChatParamsPopup
 
     // Remembers which router-param the combo box currently reflects, so
     // non-selection-driven refresh paths (favorites reload, async init
     // callback) do NOT rebuild the model and silently wipe the user's
     // choice. Rebuild only when the effective param actually changes.
     private var shownRouterParamKey: String? = null
-    private val statusLabel: JBLabel
-    private val inputTokensLabel: JBLabel
 
     // Category for each item currently in the model dropdown, keyed by the exact
     // string value. Drives the labeled section headers (Routers / Your Presets /
@@ -153,12 +129,27 @@ class ChatPanel(
     private val gson = Gson()
     private val dateFormat = SimpleDateFormat("dd.MM.yyyy, HH:mm")
 
+    private val chatListView = ChatListView(dateFormat).apply {
+        onOpen = { openChat(it.id) }
+        onDelete = { confirmAndDeleteChat(it.id, it.title) }
+        onRename = { session, title -> renameChat(session, title) }
+    }
+
+    private val composer = ChatComposer().apply {
+        onSend = { sendMessage() }
+        onTextChanged = { updateInputTokenEstimate(it) }
+    }
+
+    private val conversationView = ChatConversationView()
+
+    private val toolbar = ChatToolbar("OpenRouterChatToolbar").apply {
+        onBack = { showChatList() }
+        onNewChat = { createNewChat() }
+        onCopyConversation = { copyConversationToClipboard() }
+    }
+
     init {
         // Initialize components
-        statusLabel = JBLabel("")
-        inputTokensLabel = JBLabel("~0 tokens")
-        inputArea = JBTextArea(INPUT_ROWS, INPUT_COLUMNS)
-        sendButton = JButton("Send")
         modelComboBox = ComboBox<String>()
         modelComboBox.renderer = object : com.intellij.ui.SimpleListCellRenderer<String>() {
             override fun customize(
@@ -184,7 +175,17 @@ class ChatPanel(
         verbosityComboBox = ComboBox<String>()
         routerParamComboBox = ComboBox<String>()
         routerParamComboBox.isEditable = true
-        chatList = JBList(chatListModel)
+
+        paramsPopup = ChatParamsPopup(reasoningComboBox, verbosityComboBox, routerParamComboBox)
+        composer.onSettingsClick = { paramsPopup.show(composer.settingsComponent()) }
+        // Any selection change on a send parameter can flip whether it is
+        // "non-default", so the gear badge/tooltip has to be recomputed from
+        // each combo's own change event, not only from the model-capability
+        // refresh path (updateReasoningVerbosityState already covers that one
+        // via refreshParamsBadge() at its end).
+        reasoningComboBox.addActionListener { refreshParamsBadge() }
+        verbosityComboBox.addActionListener { refreshParamsBadge() }
+        routerParamComboBox.addActionListener { refreshParamsBadge() }
 
         // Create main panel with CardLayout
         cardLayout = CardLayout()
@@ -193,13 +194,11 @@ class ChatPanel(
         mainPanel = JPanel(BorderLayout())
         mainPanel.border = JBUI.Borders.empty(PANEL_BORDER)
 
-        // Create header
-        val headerPanel = createHeaderPanel()
-        mainPanel.add(headerPanel, BorderLayout.NORTH)
+        // Toolbar strip above the conversation
+        mainPanel.add(toolbar.component, BorderLayout.NORTH)
 
         // Create chat list view
-        val listView = createChatListView()
-        contentPanel.add(listView, CARD_LIST)
+        contentPanel.add(chatListView.component, CARD_LIST)
 
         // Create chat view
         val chatView = createChatView()
@@ -209,9 +208,6 @@ class ChatPanel(
 
         // Setup input area
         setupInputArea()
-
-        // Setup chat list
-        setupChatList()
 
         // Load models and restore selection
         loadFavoriteModels()
@@ -251,204 +247,44 @@ class ChatPanel(
         loadChats()
     }
 
-    private fun createHeaderPanel(): JPanel {
-        val panel = JPanel(BorderLayout())
-        panel.border = JBUI.Borders.emptyBottom(FLOW_LAYOUT_GAP)
-
-        // Left: title
-        val titleLabel = JBLabel("AI Chat")
-        titleLabel.font = titleLabel.font.deriveFont(titleLabel.font.size + HEADER_FONT_SIZE_INCREASE)
-        panel.add(titleLabel, BorderLayout.WEST)
-
-        // Right: buttons
-        val buttonsPanel = JPanel(FlowLayout(FlowLayout.RIGHT, FLOW_LAYOUT_GAP, 0))
-
-        val newChatButton = JButton("+ New Chat")
-        newChatButton.addActionListener { createNewChat() }
-        buttonsPanel.add(newChatButton)
-
-        panel.add(buttonsPanel, BorderLayout.EAST)
-
-        return panel
-    }
-
-    private fun createChatListView(): JPanel {
-        val panel = JPanel(BorderLayout())
-
-        chatList.cellRenderer = ChatListCellRenderer()
-        val listScrollPane = JBScrollPane(chatList)
-        listScrollPane.border = JBUI.Borders.empty()
-        panel.add(listScrollPane, BorderLayout.CENTER)
-
-        return panel
-    }
-
     private fun createChatView(): JPanel {
         val panel = JPanel(BorderLayout())
 
-        // Top panel with two rows
-        val topPanel = JPanel()
-        topPanel.layout = BoxLayout(topPanel, BoxLayout.Y_AXIS)
-        topPanel.border = JBUI.Borders.emptyBottom(FLOW_LAYOUT_GAP)
-
-        // Row 1: Back button (left) + Model selector (right)
-        val row1 = JPanel(BorderLayout())
-        val backButton = JButton("← Back")
-        backButton.addActionListener { showChatList() }
-        row1.add(backButton, BorderLayout.WEST)
-
-        val modelPanel = JPanel(FlowLayout(FlowLayout.RIGHT, FLOW_LAYOUT_GAP, 0))
-        modelPanel.add(JBLabel("Model:"))
-        modelComboBox.preferredSize = Dimension(COMBO_BOX_WIDTH, modelComboBox.preferredSize.height)
-        modelPanel.add(modelComboBox)
-        row1.add(modelPanel, BorderLayout.EAST)
-        topPanel.add(row1)
-
-        // Row 2: Reasoning + Verbosity (right-aligned, initially hidden)
+        // Reasoning / Verbosity / router-param combos no longer sit in a row
+        // in this panel — Task 10 moved them into ChatParamsPopup, opened from
+        // the composer's gear button. ChatPanel still owns the combo boxes
+        // (their model, enabled state and selection feed sendChatRequest), it
+        // just no longer places them directly.
         val reasoningOptions = arrayOf("Default", "None", "Minimal", "Low", "Medium", "High", "XHigh")
         reasoningComboBox.model = DefaultComboBoxModel(reasoningOptions)
-        reasoningComboBox.preferredSize = Dimension(SETTINGS_COMBO_BOX_WIDTH, reasoningComboBox.preferredSize.height)
         reasoningComboBox.toolTipText = "Reasoning effort (for supported models)"
 
         val verbosityOptions = arrayOf("Default", "Low", "Medium", "High", "XHigh", "Max")
         verbosityComboBox.model = DefaultComboBoxModel(verbosityOptions)
-        verbosityComboBox.preferredSize = Dimension(SETTINGS_COMBO_BOX_WIDTH, verbosityComboBox.preferredSize.height)
         verbosityComboBox.toolTipText = "Response verbosity (for supported models)"
 
-        reasoningVerbosityPanel = JPanel(FlowLayout(FlowLayout.RIGHT, FLOW_LAYOUT_GAP, 0))
-        reasoningVerbosityPanel.add(JBLabel("Reasoning:"))
-        reasoningVerbosityPanel.add(reasoningComboBox)
-        reasoningVerbosityPanel.add(JBLabel("Verbosity:"))
-        reasoningVerbosityPanel.add(verbosityComboBox)
-        routerParamLabel = JBLabel("Router:")
-        routerParamComboBox.preferredSize =
-            Dimension(SETTINGS_COMBO_BOX_WIDTH, routerParamComboBox.preferredSize.height)
         routerParamComboBox.toolTipText = "Router parameter (for openrouter/* routers)"
-        reasoningVerbosityPanel.add(routerParamLabel)
-        reasoningVerbosityPanel.add(routerParamComboBox)
-        // Inline help text surfaces the accepted values that used to hide in the
-        // combo tooltip nobody hovers (e.g. "Suggested: general-fast (or type
-        // your own)"). Rendered as gray sub-label beside the control.
-        routerParamHelpLabel = JBLabel().apply {
-            foreground = com.intellij.util.ui.UIUtil.getContextHelpForeground()
-            isVisible = false
-        }
-        reasoningVerbosityPanel.add(routerParamHelpLabel)
-        reasoningVerbosityPanel.isVisible = false
-        topPanel.add(reasoningVerbosityPanel)
-
-        topPanel.add(Box.createVerticalStrut(0)) // spacer
-        panel.add(topPanel, BorderLayout.NORTH)
 
         // Messages area
-        messagesPanel = JPanel()
-        messagesPanel.layout = BoxLayout(messagesPanel, BoxLayout.Y_AXIS)
-        messagesPanel.background = JBUI.CurrentTheme.ToolWindow.background()
+        panel.add(conversationView.component, BorderLayout.CENTER)
 
-        messagesScrollPane = JBScrollPane(messagesPanel)
-        messagesScrollPane.verticalScrollBarPolicy = JBScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
-        messagesScrollPane.horizontalScrollBarPolicy = JBScrollPane.HORIZONTAL_SCROLLBAR_NEVER
-        messagesScrollPane.border = JBUI.Borders.empty()
-        panel.add(messagesScrollPane, BorderLayout.CENTER)
-
-        // Bottom panel with input
-        val bottomPanel = createBottomPanel()
-        panel.add(bottomPanel, BorderLayout.SOUTH)
+        // Bottom panel with input. The model combo moves into the composer's
+        // own control row here; its model, renderer content and ItemListener
+        // stay in ChatPanel, only the placement changes.
+        composer.attachModelCombo(modelComboBox)
+        panel.add(composer.component, BorderLayout.SOUTH)
 
         return panel
-    }
-
-    private fun createBottomPanel(): JPanel {
-        val panel = JPanel(BorderLayout())
-        panel.border = JBUI.Borders.emptyTop(FLOW_LAYOUT_GAP)
-
-        // Input area
-        inputArea.lineWrap = true
-        inputArea.wrapStyleWord = true
-        inputArea.border = JBUI.Borders.empty(FLOW_LAYOUT_GAP)
-
-        val inputScrollPane = JBScrollPane(inputArea)
-        inputScrollPane.verticalScrollBarPolicy = JBScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
-        panel.add(inputScrollPane, BorderLayout.CENTER)
-
-        // Bottom row with token info and send button
-        val bottomRow = JPanel(BorderLayout())
-
-        // Left side: input token estimation
-        inputTokensLabel.foreground = JBUI.CurrentTheme.Label.disabledForeground()
-        bottomRow.add(inputTokensLabel, BorderLayout.WEST)
-
-        // Right side: total tokens and send button
-        val rightPanel = JPanel(FlowLayout(FlowLayout.RIGHT, FLOW_LAYOUT_GAP, 0))
-        rightPanel.add(statusLabel)
-        sendButton.addActionListener { sendMessage() }
-        rightPanel.add(sendButton)
-        bottomRow.add(rightPanel, BorderLayout.EAST)
-
-        panel.add(bottomRow, BorderLayout.SOUTH)
-
-        return panel
-    }
-
-    private fun setupChatList() {
-        // Double-click to open chat
-        chatList.addMouseListener(object : MouseAdapter() {
-            override fun mouseClicked(e: MouseEvent) {
-                if (e.clickCount == 2) {
-                    val selected = chatList.selectedValue
-                    if (selected != null) {
-                        openChat(selected.id)
-                    }
-                }
-            }
-
-            override fun mousePressed(e: MouseEvent) = showPopupIfNeeded(e)
-            override fun mouseReleased(e: MouseEvent) = showPopupIfNeeded(e)
-
-            private fun showPopupIfNeeded(e: MouseEvent) {
-                if (e.isPopupTrigger) {
-                    val index = chatList.locationToIndex(e.point)
-                    if (index >= 0) {
-                        chatList.selectedIndex = index
-                        showChatContextMenu(e.x, e.y)
-                    }
-                }
-            }
-        })
-    }
-
-    private fun showChatContextMenu(x: Int, y: Int) {
-        val popup = JPopupMenu()
-
-        val openItem = JMenuItem("Open")
-        openItem.addActionListener {
-            val selected = chatList.selectedValue
-            if (selected != null) {
-                openChat(selected.id)
-            }
-        }
-        popup.add(openItem)
-
-        val deleteItem = JMenuItem("Delete")
-        deleteItem.addActionListener {
-            val selected = chatList.selectedValue
-            if (selected != null) {
-                confirmAndDeleteChat(selected.id, selected.title)
-            }
-        }
-        popup.add(deleteItem)
-
-        popup.show(chatList, x, y)
     }
 
     private fun setupInputArea() {
-        inputArea.addKeyListener(object : KeyAdapter() {
+        composer.inputComponent().addKeyListener(object : KeyAdapter() {
             override fun keyPressed(e: KeyEvent) {
                 when {
                     e.keyCode == KeyEvent.VK_ENTER && (e.isControlDown || e.isMetaDown) -> {
                         e.consume()
-                        val caretPos = inputArea.caretPosition
-                        inputArea.insert("\n", caretPos)
+                        val caretPos = composer.inputComponent().caretPosition
+                        composer.inputComponent().insert("\n", caretPos)
                     }
                     e.keyCode == KeyEvent.VK_ENTER && !e.isShiftDown && !e.isControlDown && !e.isMetaDown -> {
                         e.consume()
@@ -457,15 +293,11 @@ class ChatPanel(
                 }
             }
         })
-
-        inputArea.document.addDocumentListener(object : DocumentListener {
-            override fun insertUpdate(e: DocumentEvent) = updateInputTokenEstimate()
-            override fun removeUpdate(e: DocumentEvent) = updateInputTokenEstimate()
-            override fun changedUpdate(e: DocumentEvent) = updateInputTokenEstimate()
-        })
     }
 
     private fun showChatList() {
+        toolbar.setInConversation(false)
+        toolbar.setTitle("Chats")
         cardLayout.show(contentPanel, CARD_LIST)
         updateChatList()
     }
@@ -487,7 +319,10 @@ class ChatPanel(
         activeChatId = chatId
         val chat = chatSessions.find { it.id == chatId }
 
-        messagesPanel.removeAll()
+        toolbar.setInConversation(true)
+        toolbar.setTitle(chat?.title ?: "Chat")
+
+        conversationView.clear()
 
         if (chat != null) {
             displayChatMessages(chat)
@@ -496,13 +331,11 @@ class ChatPanel(
             showWelcomeMessage()
         }
 
-        messagesPanel.revalidate()
-        messagesPanel.repaint()
-        scrollToBottom()
+        conversationView.refreshAfterDisplay()
 
         saveActiveChat()
         cardLayout.show(contentPanel, CARD_CHAT)
-        inputArea.requestFocusInWindow()
+        composer.requestFocusInInput()
     }
 
     private fun displayChatMessages(chat: ChatSession) {
@@ -512,9 +345,9 @@ class ChatPanel(
         }
         for (msg in chat.messages) {
             when (msg.role) {
-                "user" -> addCompactMessage(msg.content, isUser = true)
-                "assistant" -> addCompactMessage(msg.content, isUser = false)
-                "system" -> addSystemMessage(msg.content)
+                "user" -> conversationView.addMessage(msg.content, isUser = true)
+                "assistant" -> conversationView.addMessage(msg.content, isUser = false)
+                "system" -> conversationView.addSystemMessage(msg.content)
             }
         }
     }
@@ -540,9 +373,20 @@ class ChatPanel(
     }
 
     private fun updateChatList() {
-        chatListModel.clear()
-        for (chat in chatSessions) {
-            chatListModel.addElement(chat)
+        chatListView.setSessions(chatSessions)
+    }
+
+    private fun renameChat(session: ChatSession, title: String) {
+        session.title = title
+        saveChats()
+        updateChatList()
+        // The chat-list card (where rename is reachable) and the conversation
+        // card (where the toolbar shows a per-chat title) are mutually
+        // exclusive under the CardLayout in `contentPanel` — renaming the
+        // active chat cannot happen while its title is on screen. This guard
+        // is defensive only, in case that invariant ever changes.
+        if (session.id == activeChatId) {
+            toolbar.setTitle(title)
         }
     }
 
@@ -598,18 +442,17 @@ class ChatPanel(
         }
     }
 
-    private fun updateInputTokenEstimate() {
-        val text = inputArea.text
+    private fun updateInputTokenEstimate(text: String) {
         val estimatedTokens = if (text.isEmpty()) {
             0
         } else {
             (text.length / CHARS_PER_TOKEN).toInt().coerceAtLeast(1)
         }
-        inputTokensLabel.text = "~$estimatedTokens tokens"
+        composer.setInputTokens("~$estimatedTokens tokens")
     }
 
     private fun updateTokenDisplay(tokens: Int = 0) {
-        statusLabel.text = if (tokens > 0) "Total: $tokens" else ""
+        composer.setStatus(if (tokens > 0) "Total: $tokens" else "")
     }
 
     fun refreshModels() {
@@ -766,16 +609,15 @@ class ChatPanel(
             ModelProviderUtils.hasCapability(it, ModelProviderUtils.Capability.VERBOSITY)
         } ?: false
 
-        reasoningVerbosityPanel.isVisible = true
+        paramsPopup.setReasoningSupport(supportsReasoning, PARAM_NOT_SUPPORTED_REASON)
+        paramsPopup.setVerbositySupport(supportsVerbosity, PARAM_NOT_SUPPORTED_REASON)
 
-        reasoningComboBox.isEnabled = supportsReasoning
         reasoningComboBox.toolTipText = if (supportsReasoning) {
             "Reasoning effort"
         } else {
             "$selectedModel does not support reasoning"
         }
 
-        verbosityComboBox.isEnabled = supportsVerbosity
         verbosityComboBox.toolTipText = if (supportsVerbosity) {
             "Response verbosity"
         } else {
@@ -785,7 +627,16 @@ class ChatPanel(
         if (!supportsReasoning) reasoningComboBox.selectedIndex = 0
         if (!supportsVerbosity) verbosityComboBox.selectedIndex = 0
 
+        // updateRouterParamState refreshes the gear badge itself (it always
+        // runs, so it's the single place that has to cover both this method's
+        // reasoning/verbosity changes and its own router-param change).
         updateRouterParamState(selectedModel)
+    }
+
+    /** Recomputes the gear badge/tooltip from the current combo selections (spec D7). */
+    private fun refreshParamsBadge() {
+        composer.setSettingsBadge(paramsPopup.hasNonDefaultSelection())
+        composer.setSettingsTooltip(paramsPopup.activeSummary())
     }
 
     /**
@@ -795,26 +646,31 @@ class ChatPanel(
      */
     private fun updateRouterParamState(selectedModel: String) {
         val update = RouterRequestBuilder.paramControlUpdate(shownRouterParamKey, selectedModel)
-        routerParamLabel.isVisible = update.visible
-        routerParamComboBox.isVisible = update.visible
-        routerParamHelpLabel.isVisible = update.visible
         shownRouterParamKey = update.paramKey
+
+        // Visible only when selectedModel is a router with a param (see
+        // paramControlUpdate); null otherwise, including the not-visible case.
+        val param = if (update.visible) RouterCatalog.find(selectedModel)?.param else null
+        // For free-type params, flag the label editable so the caret-editable
+        // field isn't mistaken for a closed dropdown.
+        val editableHint = if (param?.freeText == true) " (editable)" else ""
+        paramsPopup.setRouterParam(
+            label = param?.label?.plus(editableHint),
+            description = param?.description,
+            visible = update.visible
+        )
+        refreshParamsBadge()
+
         if (!update.visible || !update.rebuild) return
         // The effective param changed, so (re)build the control. This resets
         // the chosen value; the pure helper guarantees we only reach here on a
         // real change, never on a stray refresh (see paramControlUpdate).
-        val param = RouterCatalog.find(selectedModel)?.param ?: return
-        // For free-type params, mark the label editable so the caret-editable
-        // field isn't mistaken for a closed dropdown.
-        val editableHint = if (param.freeText) " (editable)" else ""
-        routerParamLabel.text = param.label + editableHint + ":"
-        routerParamComboBox.toolTipText = param.description
-        // Surface the same description inline so it's actually seen.
-        routerParamHelpLabel.text = param.description
-        val model = DefaultComboBoxModel(param.suggestions.toTypedArray())
+        val effectiveParam = param ?: return
+        routerParamComboBox.toolTipText = effectiveParam.description
+        val model = DefaultComboBoxModel(effectiveParam.suggestions.toTypedArray())
         routerParamComboBox.model = model
         // Editable enums and float ranges accept free text; closed enums do not.
-        routerParamComboBox.isEditable = param.freeText
+        routerParamComboBox.isEditable = effectiveParam.freeText
         // Seed the control with the user's persisted default for this router
         // (Settings → OpenRouter → Router Defaults), falling back to blank when
         // none is saved. Blank means "no selection → OpenRouter default". For a
@@ -824,29 +680,29 @@ class ChatPanel(
     }
 
     private fun showWelcomeMessage() {
-        addSystemMessage("Welcome! Press Enter to send, Cmd+Enter for new line.")
+        conversationView.addSystemMessage("Welcome! Press Enter to send, Cmd+Enter for new line.")
     }
 
     @Suppress("ReturnCount")
     private fun sendMessage() {
         if (isLoading) return
 
-        val userMessage = inputArea.text.trim()
+        val userMessage = composer.text.trim()
         if (userMessage.isEmpty()) return
 
         val selectedModel = modelComboBox.selectedItem as? String
         if (selectedModel.isNullOrEmpty() || selectedModel.startsWith(SEPARATOR_PREFIX)) {
-            showError("Please select a model")
+            conversationView.showError("Please select a model")
             return
         }
 
         if (!settingsService.isConfigured()) {
-            showError("OpenRouter is not configured. Please set your API key in settings.")
+            conversationView.showError("OpenRouter is not configured. Please set your API key in settings.")
             return
         }
 
-        inputArea.text = ""
-        inputArea.requestFocusInWindow()
+        composer.text = ""
+        composer.requestFocusInInput()
 
         addUserMessage(userMessage)
 
@@ -856,6 +712,7 @@ class ChatPanel(
         // Update chat title if first message
         if (currentChat != null && currentChat.messages.size == 1) {
             currentChat.title = generateChatTitle(userMessage)
+            toolbar.setTitle(currentChat.title)
             updateChatList()
         }
 
@@ -917,7 +774,7 @@ class ChatPanel(
             }
         } catch (e: IOException) {
             SwingUtilities.invokeLater {
-                showError("Network error: ${e.message}")
+                conversationView.showError("Network error: ${e.message}")
                 setLoading(false)
             }
         }
@@ -929,11 +786,11 @@ class ChatPanel(
         requestedModel: String
     ) {
         setLoading(false)
-        inputArea.requestFocusInWindow()
+        composer.requestFocusInInput()
 
         when (result) {
             is ApiResult.Success -> handleSuccessResponse(result.data, currentChat, requestedModel)
-            is ApiResult.Error -> showError("Error: ${result.message}")
+            is ApiResult.Error -> conversationView.showError("Error: ${result.message}")
         }
     }
 
@@ -944,7 +801,7 @@ class ChatPanel(
     ) {
         val assistantMessage = response.choices?.firstOrNull()?.message?.content
         if (assistantMessage == null) {
-            showError("No response from model")
+            conversationView.showError("No response from model")
             return
         }
 
@@ -984,132 +841,36 @@ class ChatPanel(
         }
     }
 
-    private fun addUserMessage(message: String) = addCompactMessage(message, isUser = true)
+    private fun addUserMessage(message: String) = conversationView.addMessage(message, isUser = true)
     private fun addAssistantMessage(message: String, footnote: String? = null) =
-        addCompactMessage(message, isUser = false, footnote = footnote)
-
-    private fun addSystemMessage(message: String) {
-        val label = JBLabel("<html><i style='color: gray; font-size: 9px;'>$message</i></html>")
-        label.border = JBUI.Borders.empty(MESSAGE_BORDER_V, MESSAGE_BORDER_H)
-        label.alignmentX = JBLabel.LEFT_ALIGNMENT
-        messagesPanel.add(label)
-        scrollToBottom()
-    }
-
-    private fun addCompactMessage(message: String, isUser: Boolean, footnote: String? = null) {
-        val rolePrefix = if (isUser) "You:" else "Assistant:"
-        val roleColor = if (isUser) "#6B9BD2" else "#9B9BD2"
-
-        // Use a JPanel with role label and selectable text area
-        val messagePanel = JPanel(BorderLayout())
-        messagePanel.border = JBUI.Borders.empty(MESSAGE_BORDER_V, MESSAGE_BORDER_H)
-        messagePanel.alignmentX = JPanel.LEFT_ALIGNMENT
-        messagePanel.background = JBUI.CurrentTheme.ToolWindow.background()
-
-        // Role label (non-selectable prefix)
-        val roleLabel = JBLabel(rolePrefix)
-        roleLabel.foreground = ColorUtil.fromHex(roleColor)
-        roleLabel.border = JBUI.Borders.emptyRight(FLOW_LAYOUT_GAP)
-        roleLabel.verticalAlignment = JBLabel.TOP
-
-        // Use same UI font for both message types to avoid font mismatch
-        val uiFont = inputArea.font ?: JBLabel().font
-        val uiForeground = JBUI.CurrentTheme.Label.foreground()
-        val uiBackground = JBUI.CurrentTheme.ToolWindow.background()
-
-        if (!isUser) {
-            // Assistant: render Markdown to HTML using JEditorPane
-            // Use role prefix inside HTML to ensure inline rendering with colored label
-            val htmlContent = MarkdownRenderer.wrapInHtmlDocumentWithRolePrefix(
-                bodyHtml = MarkdownRenderer.renderToHtml(message),
-                rolePrefix = rolePrefix,
-                roleColorHex = roleColor,
-                fontFamily = uiFont.family,
-                fontSizePx = uiFont.size,
-                contentColorHex = ColorUtil.toHex(uiForeground)
-            )
-            val textPane = JEditorPane("text/html", htmlContent)
-            textPane.isEditable = false
-            textPane.border = null
-            textPane.margin = JBUI.emptyInsets()
-            textPane.background = uiBackground
-            textPane.font = uiFont
-            textPane.foreground = uiForeground
-            // Force JEditorPane to honor display properties for HTML content
-            textPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, true)
-            textPane.putClientProperty(JEditorPane.W3C_LENGTH_UNITS, true)
-            messagePanel.add(textPane, BorderLayout.CENTER)
-        } else {
-            // User: plain text in JBTextArea
-            val textArea = JBTextArea(message)
-            textArea.isEditable = false
-            textArea.lineWrap = true
-            textArea.wrapStyleWord = true
-            textArea.border = null
-            textArea.background = uiBackground
-            textArea.foreground = uiForeground
-            textArea.font = uiFont
-            textArea.caret = javax.swing.text.DefaultCaret()
-            textArea.putClientProperty("caretWidth", 2)
-            // Set minimum height to at least fit one line
-            textArea.minimumSize = Dimension(MIN_TEXT_AREA_WIDTH, textArea.preferredSize.height)
-            messagePanel.add(roleLabel, BorderLayout.WEST)
-            messagePanel.add(textArea, BorderLayout.CENTER)
-        }
-
-        messagesPanel.add(messagePanel)
-        // Attach the router "Routed to X" footnote directly under the reply, so
-        // it reads as metadata on the message rather than a standalone system line.
-        if (!footnote.isNullOrBlank()) {
-            val footnoteLabel = JBLabel(
-                "<html><i style='color: gray; font-size: 9px;'>$footnote</i></html>"
-            )
-            footnoteLabel.border = JBUI.Borders.empty(0, MESSAGE_BORDER_H)
-            footnoteLabel.alignmentX = JBLabel.LEFT_ALIGNMENT
-            messagePanel.add(footnoteLabel, BorderLayout.SOUTH)
-        }
-        messagesPanel.revalidate()
-        messagesPanel.repaint()
-        scrollToBottom()
-    }
-
-    private fun scrollToBottom() {
-        SwingUtilities.invokeLater {
-            val scrollBar: JScrollBar = messagesScrollPane.verticalScrollBar
-            scrollBar.value = scrollBar.maximum
-        }
-    }
+        conversationView.addMessage(message, isUser = false, footnote = footnote)
 
     private fun setLoading(loading: Boolean) {
         isLoading = loading
-        sendButton.isEnabled = !loading
-        inputArea.isEnabled = !loading
+        composer.setBusy(loading)
         modelComboBox.isEnabled = !loading
 
         if (loading) {
-            statusLabel.text = "Thinking..."
-            val label = JBLabel("<html><i style='color: gray;'>...</i></html>")
-            label.name = "loadingLabel"
-            label.border = JBUI.Borders.empty(MESSAGE_BORDER_V, MESSAGE_BORDER_H)
-            label.alignmentX = JBLabel.LEFT_ALIGNMENT
-            messagesPanel.add(label)
-            messagesPanel.revalidate()
-            scrollToBottom()
+            composer.setStatus("Thinking...")
+            conversationView.showLoading()
+        } else {
+            // Clearing the status is not optional: only the success path with
+            // usage data overwrites it (via updateTokenDisplay, which runs after
+            // this). Every error path - ApiResult.Error, the IOException catch,
+            // "No response from model" - and a success with no usage block would
+            // otherwise leave "Thinking..." sitting next to the model name for
+            // the rest of the session.
+            composer.setStatus("")
+            conversationView.hideLoading()
         }
     }
 
-    private fun showError(message: String) {
-        // Remove loading indicator
-        messagesPanel.components.filterIsInstance<JBLabel>()
-            .find { it.name == "loadingLabel" }
-            ?.let { messagesPanel.remove(it) }
-
-        val label = JBLabel("<html><span style='color: #FF6B6B;'>⚠ $message</span></html>")
-        label.border = JBUI.Borders.empty(MESSAGE_BORDER_V, MESSAGE_BORDER_H)
-        label.alignmentX = JBLabel.LEFT_ALIGNMENT
-        messagesPanel.add(label)
-        messagesPanel.revalidate()
-        scrollToBottom()
+    private fun copyConversationToClipboard() {
+        val chat = chatSessions.find { it.id == activeChatId } ?: return
+        val text = chat.messages.joinToString("\n\n") { "${it.role}: ${it.content}" }
+        java.awt.datatransfer.StringSelection(text).let {
+            java.awt.Toolkit.getDefaultToolkit().systemClipboard.setContents(it, it)
+        }
     }
 
     fun getPanel(): JPanel = mainPanel
@@ -1128,33 +889,4 @@ class ChatPanel(
         var totalTokens: Int,
         val createdAt: Long
     )
-
-    /**
-     * Chat list cell renderer with title and date
-     */
-    private inner class ChatListCellRenderer : DefaultListCellRenderer() {
-        override fun getListCellRendererComponent(
-            list: JList<*>?,
-            value: Any?,
-            index: Int,
-            isSelected: Boolean,
-            cellHasFocus: Boolean
-        ): Component {
-            super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
-
-            val chat = value as? ChatSession
-            if (chat != null) {
-                val date = dateFormat.format(Date(chat.createdAt))
-                text = "<html><div style='width: 100%;'>" +
-                    "<span>${chat.title}</span>" +
-                    "<span style='color: gray; float: right;'>$date</span>" +
-                    "</div></html>"
-                toolTipText = chat.title
-            }
-
-            border = JBUI.Borders.empty(CELL_BORDER_V, CELL_BORDER_H)
-
-            return this
-        }
-    }
 }

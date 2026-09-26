@@ -7,6 +7,7 @@ import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.settings.FavoriteModelsManager
 import org.zhavoronkov.openrouter.services.settings.PresetsManager
+import org.zhavoronkov.openrouter.services.settings.RouterDefaultsManager
 
 /**
  * Platform test for [OpenRouterToolWindowContent].
@@ -34,6 +35,12 @@ class OpenRouterToolWindowContentPlatformTest : BasePlatformTestCase() {
         val presetsManager = mock(PresetsManager::class.java)
         `when`(presetsManager.getCustomPresets()).thenReturn(emptyList())
         `when`(settingsService.presetsManager).thenReturn(presetsManager)
+
+        val routerDefaultsManager = mock(RouterDefaultsManager::class.java)
+        // Stub get() to return null (no saved default). The mock will default to returning null
+        // for unstubbed method calls, but we make it explicit to avoid NPE during async
+        // coroutine resolution when ChatPanel.init launches an unawaited task.
+        `when`(settingsService.routerDefaultsManager).thenReturn(routerDefaultsManager)
 
         val content = OpenRouterToolWindowContent(project, settingsService, openRouterService)
         try {

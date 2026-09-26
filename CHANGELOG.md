@@ -12,17 +12,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### 🧭 Routers Hub
 - **First-Class Routers** - OpenRouter's model-routing slugs (`openrouter/auto`, `openrouter/fusion`, `openrouter/pareto-code`, `openrouter/fusion-flash`, `openrouter/free`) are now treated as first-class **routers** driven by a single declarative `RouterCatalog` (slug, display name, plugin id, tunable param), so no router-specific branching leaks into the rest of the codebase
 - **Router Defaults Settings Page** - New `Tools → OpenRouter → Router Defaults` sub-page persists a per-router default parameter once (`RouterDefaultsManager` + `RouterDefaultsConfigurable`), stored in settings state
-- **Chat Router Picker** - The chat model dropdown groups **Routers / Your Presets / Favorites** with disabled separator headers, adds an editable "Router:" parameter control (seeded from Router Defaults, guarded against stray refreshes), and shows a "Routed to X" footnote under router replies
+- **Chat Router Picker** - The chat model dropdown groups **Routers / Your Presets / Favorites** with disabled separator headers, adds an editable router parameter control (seeded from Router Defaults, guarded against stray refreshes — it lives in the composer's gear popup after the Chat UI Redesign below), and shows a "Routed to X" footnote under router replies
 - **Router Slugs Advertised** - The proxy `/v1/models` endpoint now advertises every router slug, with custom presets deduped against catalog slugs
 
 ### Bug Fixes
 - **Status-Bar Widget ClassLoader Leak (#77)** - The status-bar auto-refresh ran in a detached `executeOnPooledThread` + `while (true) { Thread.sleep(...) }` loop that was never cancelled on widget dispose. On plugin reload/update the stale worker survived and re-resolved `OpenRouterSettingsService` through the *new* `PluginClassLoader`, colliding old and new copies of the same class (`ClassCastException: ... loaded by different PluginClassLoaders`). The loop is replaced with a `com.intellij.util.Alarm` parented to the widget (`EditorBasedWidget` is `Disposable`), so disposing the widget transitively disposes the alarm and cancels all pending ticks — no tick can outlive its classloader. As a bonus, `refreshInterval` changes now take effect on the next tick (previously captured once at loop start), and repeated project opens no longer leave orphan threads. Covered by a new `OpenRouterStatusBarWidgetDisposePlatformTest` asserting the alarm is disposed with zero pending requests after `Disposer.dispose(widget)`
 - **OkHttp Connection Leak on Non-Streaming Calls** - `Call.awaitWithBody()` now reads and closes the response body via `Response.use`, fixing potential connection-pool leaks on non-streaming proxy calls
 
+#### 💬 Chat UI Redesign
+- **Controls No Longer Vanish When Narrowed** - The header's controls overlapped and clipped instead of reflowing, and the send-parameter row disappeared entirely ("Verbosity:" with no combo beside it, "Cost tier" gone). That row was a wrapping `FlowLayout` nested in a `BoxLayout`, which asks for its preferred height at its preferred width — one row — so wrapped controls fell outside the height they were granted. The composer now collapses by a tested policy down to a 280px floor
+- **Long Replies No Longer Clipped** - The messages panel did not implement `Scrollable`, so nothing told a `JEditorPane` the width its height depends on. Heights are now measured at the viewport width, with a deferred second pass once the real width is assigned
+- **Model Name Readable When Truncated** - The selector truncated from the *head* (`enrouter/auto`), losing the provider prefix that distinguishes `anthropic/` from `openai/`. It now ellipsises from the middle, and is wide enough that a medium-length model id is not truncated at all
+- **Stray Loading Indicator** - The "…" row was removed only on the error path, so it survived above every successful reply until the chat was reopened. The composer's "Thinking…" status had the same defect on every error path and on a success without usage data
+- **Theme-Aware Colours** - Chat message and list colours came from hard-coded hex that was wrong in the light theme and in every custom theme; they now follow the active theme
+- **Chat List Row Layout** - The row was laid out as HTML with `float: right` inside a `JLabel`; Swing barely supports `float` and `width: 100%` does not track list width, so the date drifted and clipped
+
 ### Improvements
 - **Declarative Plugin Config Serialization** - New `PluginConfig { id, params }` model with a class-level `@JsonAdapter` serializer flattens params next to `id` (the shape OpenRouter expects) even under a bare `Gson()`
 - **Router Defaults Injection Invariant** - `RouterPluginsInjector` injects the saved default only when a request omits `plugins` and targets a known router; client-sent `plugins` blocks are left verbatim
 - **Presets No Longer Double-List Routers** - `openrouter/auto` and `openrouter/free` are no longer listed as built-in presets (they are routers now); the empty Built-in Presets group was dropped
+
+#### 💬 Chat UI Redesign
+- **Single-Row Chrome** - Title + New Chat, Back + model selector, and the parameter row consumed half the height of a 300px tool window before the first message. Navigation is now one toolbar strip; the model selector and send parameters moved down beside the input, where they belong as properties of the message being sent
+- **Send Parameters in a Gear Popup** - Reasoning, Verbosity and the router parameter live in a popup form whose width is independent of the tool window, so labels can no longer be truncated to "Cost tier: medi…" and the inline help text has a place instead of being squeezed out first. Unsupported parameters stay visible but disabled with the reason shown rather than hidden in a tooltip, and a dot on the gear marks any non-default value
+- **Predictable Collapse to a 280px Floor** - Token counters drop first, then Send compacts to an icon, then the model selector shrinks toward its floor; Send and the model selector never disappear. Below 280px no usable layout is promised
+- **Messages Rendered as Segments** - Prose wraps, and a fenced code block outside a list or blockquote becomes its own segment that keeps its indentation, scrolls horizontally on its own, and carries a copy button. A code block or wide table nested inside a list or blockquote is *not* split out — extracting it would destroy the list's numbering — so it stays in the surrounding prose and that whole container scrolls as a unit
+- **Tinted User Messages** - User and assistant messages are distinguished by a tinted block that hugs its content rather than by a `You:` / `Assistant:` prefix, which spent roughly a quarter of the row on a label at narrow widths
+- **Chat List Affordances** - Single click opens a chat (double-click was undiscoverable in a tool-window list), F2 renames, and a hover ✕ deletes through the same confirmation the context menu uses
+- **Copying** - Each message carries a copy button on hover, and the toolbar can copy the whole conversation — both added because every message is now its own component, which costs cross-message text selection
+- **Auto-Growing Input** - The input grows from one row to six and re-measures when the composer's width changes, not only when the text changes
 
 ### Build & Tooling
 - **Sandbox Locale Pinned to en_US** - Silences an Elevation `MissingResourceException` on en_RU dev hosts
@@ -30,9 +48,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Testing
 - **Routers Hub Suites** - New `RouterCatalogTest`, `RouterRequestBuilderTest`, `PluginConfigTest`, `RouterDefaultsManagerTest`, and `RouterPluginsInjectorTest`; full `./gradlew test` is green
+- **Chat Layout Made Testable** - The chat's layout decisions were moved out of Swing into pure modules with no platform imports, so they run in the fast headless task instead of needing a running IDE: `ComposerLayoutPolicy` (what collapses first as the panel narrows), `MiddleEllipsis` (how a model name is shortened), `ChatParamsState` (whether the gear badge is lit), and `MessageSegmenter` (where a message's segment boundaries fall). The old behaviour rotted precisely because resize was only ever checked by eye
+- **Chat Platform Suites** - New `*PlatformTest` coverage for the list renderer and its gestures, the composer's layout and gear button, the params popup's form and anchor, message layout and wide-content scrolling, plus a shared assertion that no descendant is clipped by its container's bottom edge — the check that caught a real clipping bug after two shipped instances of the same width-then-height mistake
+- **De-Flaked `platformTest`** - An unstubbed mock surfaced an NPE through an unawaited coroutine and attached it to whichever test happened to be running. Pre-existing and reproducible on the base branch; a gate that fails at random certifies nothing
 
 ### Documentation
 - Defined **Router**, **RouterCatalog**, and **PluginConfig** terms in [`docs/agents/domain.md`](docs/agents/domain.md)
+- [`docs/superpowers/specs/2026-09-17-chat-ui-redesign.md`](docs/superpowers/specs/2026-09-17-chat-ui-redesign.md) — the twelve design decisions behind the chat rebuild, the root causes with their locations, and three recorded corrections where the spec's own reasoning turned out not to hold
+- [`docs/superpowers/2026-09-17-chat-ui-manual-checklist.md`](docs/superpowers/2026-09-17-chat-ui-manual-checklist.md) — the manual verification pass no automated check can perform, each item tied to the commit it guards
+- [`docs/superpowers/2026-09-18-visual-pass-fixes.md`](docs/superpowers/2026-09-18-visual-pass-fixes.md) — what the visual passes found, including the documented blind spot of the clipping assertion
 
 ## [0.6.0] - 2026-09-15
 

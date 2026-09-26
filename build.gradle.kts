@@ -427,7 +427,74 @@ kover {
                     // parsing, token estimation, streaming flag, not-configured short-circuits) is
                     // covered by OpenRouterChatModelProviderTest + OpenRouterChatModelProviderLogicTest.
                     "org.zhavoronkov.openrouter.aiassistant.OpenRouterChatModelProvider",
-                    "org.zhavoronkov.openrouter.aiassistant.OpenRouterChatModelProvider\$*"
+                    "org.zhavoronkov.openrouter.aiassistant.OpenRouterChatModelProvider\$*",
+                    // Chat list view: Swing list/scroll-pane/popup-menu wiring extracted from
+                    // ChatPanel in the chat UI redesign seams ticket. Not unit-testable under
+                    // the fast :test task (needs a platform runner for JBList/JBScrollPane).
+                    "org.zhavoronkov.openrouter.toolwindow.chat.ChatListView",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.ChatListView\$*",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.ChatListCellRenderer",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.ChatListCellRenderer\$*",
+                    // Chat composer: Swing input/token-counter/Send wiring extracted from
+                    // ChatPanel in the chat UI redesign seams ticket. Not unit-testable under
+                    // the fast :test task (needs a platform runner for JBTextArea/JBScrollPane).
+                    "org.zhavoronkov.openrouter.toolwindow.chat.ChatComposer",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.ChatComposer\$*",
+                    // ComposerLayout: Swing LayoutManager that measures real components and
+                    // places them via ComposerLayoutPolicy, plus the combo renderer that
+                    // delegates to it. Not unit-testable under the fast :test task (needs a
+                    // platform runner for JComponent/ComboBox). ComposerLayoutPolicy and
+                    // MiddleEllipsis, the pure logic these consult, are NOT excluded here.
+                    "org.zhavoronkov.openrouter.toolwindow.composer.ComposerLayout",
+                    "org.zhavoronkov.openrouter.toolwindow.composer.ComposerLayout\$*",
+                    "org.zhavoronkov.openrouter.toolwindow.composer.MiddleEllipsisComboRenderer",
+                    "org.zhavoronkov.openrouter.toolwindow.composer.MiddleEllipsisComboRenderer\$*",
+                    // Chat conversation view: Swing messages-area/loading-indicator wiring
+                    // extracted from ChatPanel in the chat UI redesign seams ticket. Not
+                    // unit-testable under the fast :test task (needs a platform runner for
+                    // JBScrollPane/JEditorPane).
+                    "org.zhavoronkov.openrouter.toolwindow.chat.ChatConversationView",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.ChatConversationView\$*",
+                    // Chat toolbar: single ActionToolbar strip replacing the three-row
+                    // header/back/model chrome, added in the chat UI redesign. Not
+                    // unit-testable under the fast :test task (needs a platform runner
+                    // for ActionManager/ActionToolbar).
+                    "org.zhavoronkov.openrouter.toolwindow.chat.ChatToolbar",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.ChatToolbar\$*",
+                    // Send-parameters popup: UI DSL v2 form built from JBPopupFactory,
+                    // added in Task 10 of the chat UI redesign to replace the
+                    // FlowLayout-in-BoxLayout row that silently clipped wrapped
+                    // controls. Not unit-testable under the fast :test task (needs a
+                    // platform runner for ComboBox/JBPopupFactory).
+                    "org.zhavoronkov.openrouter.toolwindow.chat.ChatParamsPopup",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.ChatParamsPopup\$*",
+                    // Message rendering: Swing views added in Task 12 of the chat UI
+                    // redesign to measure message heights at the real viewport width
+                    // and replace the role-prefix rows with the D6 visuals. Not
+                    // unit-testable under the fast :test task (needs a platform
+                    // runner for JEditorPane/JScrollPane/Scrollable). MessageSegment
+                    // and MessageSegmenter, the pure logic these consume, are NOT
+                    // excluded here.
+                    "org.zhavoronkov.openrouter.toolwindow.chat.MessagesPanel",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.MessagesPanel\$*",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.WrappingEditorPane",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.WrappingEditorPane\$*",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.MessageView",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.MessageView\$*",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.CodeSegmentView",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.CodeSegmentView\$*",
+                    // Task 13: code/table segments scroll horizontally inside their
+                    // own segment instead of clipping. HorizontallyScrollingPane and
+                    // the wheel-forwarding helper are top-level declarations in
+                    // CodeSegmentView.kt (the existing CodeSegmentView$* wildcard
+                    // above only covers nested classes of CodeSegmentView itself, not
+                    // separate top-level ones), and CodeSegmentViewKt is the facade
+                    // class Kotlin generates for that file's top-level function. Same
+                    // "needs a platform runner for JBScrollPane" reasoning as every
+                    // other Swing view in this package.
+                    "org.zhavoronkov.openrouter.toolwindow.chat.HorizontallyScrollingPane",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.HorizontallyScrollingPane\$*",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.CodeSegmentViewKt"
                 )
             }
         }

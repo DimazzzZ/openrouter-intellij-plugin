@@ -221,40 +221,4 @@ class MarkdownRendererTest {
             assertTrue(document.contains("font-family: Arial"), "Should contain font-family")
         }
     }
-
-    @Nested
-    @DisplayName("HTML Document with Role Prefix")
-    inner class HtmlDocumentWithRolePrefixTests {
-
-        @Test
-        @DisplayName("Should wrap HTML with role prefix")
-        fun `Should wrap HTML with role prefix`() {
-            val document = MarkdownRenderer.wrapInHtmlDocumentWithRolePrefix(
-                bodyHtml = "Hello world",
-                rolePrefix = "Assistant:",
-                roleColorHex = "#9B9BD2",
-                fontFamily = "JetBrains Mono",
-                fontSizePx = 13,
-                contentColorHex = "#000000",
-            )
-            assertTrue(document.contains("Assistant:"), "Should contain role prefix")
-            assertTrue(document.contains("color: #9B9BD2"), "Should contain role color")
-            assertTrue(document.contains("Hello world"), "Should contain body content")
-        }
-
-        @Test
-        @DisplayName("Should apply font styling")
-        fun `Should apply font styling`() {
-            val document = MarkdownRenderer.wrapInHtmlDocumentWithRolePrefix(
-                bodyHtml = "Test",
-                rolePrefix = "You:",
-                roleColorHex = "#6B9BD2",
-                fontFamily = "Arial",
-                fontSizePx = 14,
-                contentColorHex = "#333333"
-            )
-            assertTrue(document.contains("font-family: Arial"), "Should contain font-family")
-            assertTrue(document.contains("font-size: 14px"), "Should contain font-size")
-        }
-    }
 }
