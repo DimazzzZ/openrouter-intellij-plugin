@@ -171,7 +171,7 @@ The plugin includes a comprehensive multi-step setup wizard that requires manual
 **Wizard Components to Test**:
 - **Welcome Notification**: Appears on first project open with "Quick Setup" button
 - **Step 0**: Introduction screen with proper formatting and icons
-- **Step 1**: Provisioning key validation with visual feedback (spinner → checkmark/error)
+- **Step 1**: Management Key validation with visual feedback (spinner → checkmark/error)
 - **Step 2**: Model selection with checkboxes, search, and real-time filtering
 - **Step 3**: Completion screen with proxy URL copy functionality
 
@@ -383,7 +383,7 @@ BUILD SUCCESSFUL in 15s
 ### Request Builder Tests (12 Tests) - **NEW**
 - **GET Requests**: All authentication types (NONE, API_KEY, PROVISIONING_KEY)
 - **POST Requests**: JSON body with authentication
-- **DELETE Requests**: Provisioning key authentication
+- **DELETE Requests**: Management Key authentication
 - **Header Validation**: X-Title, HTTP-Referer, Content-Type, Authorization
 - **Configuration Access**: Centralized header management
 
@@ -558,7 +558,7 @@ The plugin includes a comprehensive first-run experience (Phase 3) that requires
 
 #### 2. Setup Wizard
 - **Step 0 (Welcome)**: Introduction with proper bullet formatting and icons
-- **Step 1 (Provisioning Key)**:
+- **Step 1 (Management Key)**:
   - Automatic validation with visual feedback (spinner → checkmark/error)
   - "Next" button disabled until valid key entered
   - Key encrypted and saved after validation

@@ -604,30 +604,12 @@ class StatusTabPanel(
         val series = DegradedSpend.spendSeries(snapshots)
         val seriesLabel = if (series.isEmpty()) NO_SERIES_LABEL else DEGRADED_SERIES_LABEL
 
-        val credits = statsCache.getCachedCredits()
-        if (credits == null) {
-            // Nothing has loaded yet (mid-refresh, or the refresh itself failed) - there is
-            // genuinely no balance to report, so this stays the "unknown, not zero" rendering
-            // rather than a fabricated $0.00. Not update() (fix round 1, finding 1): update()'s
-            // em-dash rows would say "balance unknown" when the true fact would be "this needs a
-            // management key you have not set" - wrong here, since a management key is not what
-            // is missing; showLocalSeriesOnly() hides those rows entirely instead.
-            balanceBlock.showLocalSeriesOnly(series = series, seriesLabel = seriesLabel)
-            return
-        }
-
-        // The real balance IS available from the API key alone - withholding it here would be
-        // the same class of defect as inventing one. No burn rate/spend-series (perDay/series
-        // beyond the local one above) is claimed: those come only from the analytics query
-        // [applySpendSeriesResult] issues for READY/ERROR, never run in DEGRADED.
-        balanceBlock.update(
-            remaining = credits.totalCredits - credits.totalUsage,
-            total = credits.totalCredits,
-            perDay = NO_PER_DAY_RATE,
-            series = series,
-            seriesLabel = seriesLabel,
-            lastUpdatedText = lastUpdatedText
-        )
+        // No balance here, deliberately. /credits is Management-Key-only, so in this state there
+        // is nothing to show: an earlier build rendered a real balance on the strength of one
+        // dashboard-created key that answered 200, which turned out to be an inconsistency on
+        // OpenRouter's side rather than a capability - see getCredits' own note. All this state
+        // can honestly offer is the spend the plugin recorded locally while the IDE was running.
+        balanceBlock.showLocalSeriesOnly(series = series, seriesLabel = seriesLabel)
     }
 
     /**

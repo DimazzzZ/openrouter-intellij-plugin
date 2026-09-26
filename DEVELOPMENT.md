@@ -17,7 +17,7 @@ This guide covers development setup, building, testing, and contributing to the 
 
 ### OpenRouter Account
 - **Free Account** - Sign up at [OpenRouter.ai](https://openrouter.ai)
-- **Provisioning Key** - Get from [Provisioning Keys](https://openrouter.ai/settings/provisioning-keys)
+- **Management Key** - Get from [Management Keys](https://openrouter.ai/settings/provisioning-keys)
 - **API Documentation** - Familiarize with [OpenRouter API](https://openrouter.ai/docs)
 
 ## 🚀 Quick Start
@@ -201,7 +201,7 @@ export JAVA_HOME=$(/usr/libexec/java_home -v 21)
 
 #### API Key Issues
 - **401 Errors**: Ensure API key is configured in settings, not relying on Authorization headers
-- **Invalid Keys**: Use provisioning keys for quota data, API keys for chat completions
+- **Invalid Keys**: Use Management Keys for quota data, API keys for chat completions
 - **Security**: Never commit real API keys - use placeholder values in tests and documentation
 
 #### Proxy Server Issues
@@ -298,7 +298,7 @@ openrouter-intellij-plugin/
 ### 🏢 Core Services (Application-Level)
 - **OpenRouterService** - Central API communication hub
   - Handles all OpenRouter API endpoints (`/keys`, `/credits`, `/activity`)
-  - Manages authentication patterns (provisioning keys vs API keys)
+  - Manages authentication patterns (Management Keys vs API keys)
   - Provides async operations with CompletableFuture
   - Includes connection testing and error handling
 
@@ -328,7 +328,7 @@ openrouter-intellij-plugin/
   - Minimal footprint similar to GitHub Copilot
 
 - **OpenRouterSettingsPanel** - Configuration interface
-  - Provisioning key and API key management
+  - Management Key and API key management
   - API key creation and validation
   - Settings testing and verification
   - User-friendly error messages and guidance
@@ -432,7 +432,7 @@ curl -X POST http://localhost:8880/v1/chat/completions \
 ### Setup Wizard Architecture
 - **SetupWizardDialog.kt** - Multi-step onboarding dialog with embedded model selection
 - **CardLayout Navigation** - Step-by-step flow with validation
-- **Validation System** - Real-time provisioning key validation with visual feedback
+- **Validation System** - Real-time Management Key validation with visual feedback
 - **Model Selection** - Embedded table with search, filtering, and checkbox selection
 - **Configuration Saving** - Automatic settings persistence and completion tracking
 

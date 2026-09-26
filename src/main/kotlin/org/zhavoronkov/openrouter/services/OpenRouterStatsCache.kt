@@ -131,6 +131,16 @@ class OpenRouterStatsCache : Disposable {
             return "Not configured"
         }
 
+        // Everything this cache fetches - credits, activity, the key list - is Management-Key-only,
+        // so without one there is nothing to go and get. Refusing here is not a restriction, it is
+        // the honest answer: firing three requests that can only answer 403 would spend the user's
+        // rate limit to learn what the missing key already told us.
+        if (settingsService.getProvisioningKey().isBlank()) {
+            PluginLogger.Service.debug("Stats cache: No Management Key, skipping refresh")
+            lastError = "Management Key required"
+            return "Management Key required"
+        }
+
         return null
     }
 

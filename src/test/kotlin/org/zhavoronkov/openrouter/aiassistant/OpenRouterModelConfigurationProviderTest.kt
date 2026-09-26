@@ -142,7 +142,7 @@ class OpenRouterModelConfigurationProviderTest {
         @Test
         fun `instructions contain provisioning guidance`() {
             val instructions = provider().getConfigurationInstructions()
-            assertTrue(instructions.contains("Provisioning Key"))
+            assertTrue(instructions.contains("Management Key"))
             assertTrue(instructions.contains("openrouter.ai"))
             assertTrue(instructions.contains("Settings"))
         }

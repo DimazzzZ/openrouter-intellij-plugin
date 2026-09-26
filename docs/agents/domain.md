@@ -6,10 +6,21 @@ this file says.
 
 ## Core concepts
 
-- **Provisioning Key** — long-lived OpenRouter admin key (`sk-or-v1-...`),
-  scoped to a user account. Used to mint short-lived API keys programmatically.
-- **API Key** — short-lived key minted from a provisioning key. Sent as
-  `Authorization: Bearer` on outbound OpenRouter requests.
+- **Management Key** — long-lived OpenRouter admin key (`sk-or-v1-...`),
+  scoped to a user account. Used to mint short-lived API keys programmatically,
+  and the only key that may read account-level data: `/credits`, `/activity`,
+  `/keys` and `/analytics/*` all reject an ordinary API key. OpenRouter used to
+  call this a *provisioning key*; the name in the product is now **Management
+  Key**, but the settings page still lives at
+  `openrouter.ai/settings/provisioning-keys`. Say "Management Key" in code,
+  docs and UI copy; keep the old word only where it is a URL or a stored
+  identifier (`provisioningKey`, `AuthType.PROVISIONING_KEY`).
+- **API Key** — short-lived key minted from a Management Key. Sent as
+  `Authorization: Bearer` on outbound OpenRouter requests. It can spend
+  (`/chat/completions`) but cannot read the account: anything the user's
+  balance or history is derived from needs the Management Key instead. Both key
+  types share the `sk-or-v1-` prefix, so a key's scope is discoverable only by
+  calling a Management-only endpoint and seeing whether it answers.
 - **Model** — an OpenRouter model identifier (e.g. `openai/gpt-4o`,
   `anthropic/claude-3.5-sonnet`). Vendor-prefixed, always lowercase.
 - **Router** — an `openrouter/`-namespaced model slug that OpenRouter itself

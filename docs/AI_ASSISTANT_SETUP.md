@@ -9,22 +9,24 @@ Before you begin, ensure you have:
 1. **IntelliJ IDEA** (or any JetBrains IDE) version 2025.3 or later (this plugin's minimum; older IDEs are not supported)
 2. **OpenRouter Plugin** installed and configured
 3. **JetBrains AI Assistant Plugin** installed ([Get it here](https://plugins.jetbrains.com/plugin/22282-jetbrains-ai-assistant))
-4. **OpenRouter Account** with a Provisioning Key ([Sign up here](https://openrouter.ai))
+4. **OpenRouter Account** with a Management Key ([Sign up here](https://openrouter.ai))
 
 ## 🚀 Quick Start
 
 ### Step 1: Configure OpenRouter Plugin
 
 1. Open **Settings** → **Tools** → **OpenRouter**
-2. Enter your **Provisioning Key** from [OpenRouter Provisioning Keys](https://openrouter.ai/settings/provisioning-keys)
+2. Enter your **Management Key** from [OpenRouter Management Keys](https://openrouter.ai/settings/provisioning-keys)
+   - OpenRouter's settings page is still titled "Provisioning Keys" - same key, older name.
+   - An ordinary API key (`sk-or-v1-...` from the "API Keys" page) will not do: it can spend, but it cannot read your balance or usage, which the Status tab needs.
 3. Click **Apply** and **OK**
 
 ![OpenRouter Settings](images/openrouter-settings.png)
-<p style="text-align:center;font-style: italic">OpenRouter settings panel with provisioning key field</p>
+<p style="text-align:center;font-style: italic">OpenRouter settings panel with Management Key field</p>
 
 ### Step 2: Start the Proxy Server
 
-The proxy server should start automatically when you configure your Provisioning Key. You can verify it's running:
+The proxy server should start automatically when you configure your Management Key. You can verify it's running:
 
 1. Open **Settings** → **Tools** → **OpenRouter**
 2. Look for the **Proxy Server** section
@@ -172,7 +174,7 @@ You can manually control the proxy server:
 
 - **Start Server**: Click **Start Server** button in settings
 - **Stop Server**: Click **Stop Server** button in settings
-- **Auto-start**: The server starts automatically when you configure a Provisioning Key
+- **Auto-start**: The server starts automatically when you configure a Management Key
 - **Status**: Check the status indicator in the OpenRouter status bar widget
 
 ## 🐛 Troubleshooting
@@ -182,7 +184,7 @@ You can manually control the proxy server:
 **Problem**: Server status shows "Stopped" or error message
 
 **Solutions**:
-1. Verify your Provisioning Key is valid in OpenRouter settings
+1. Verify your Management Key is valid in OpenRouter settings
 2. Check if ports 8880-8899 are available (close other applications using these ports)
 3. Check IDE logs: **Help** → **Show Log in Finder/Explorer**
 4. Look for errors containing "OpenRouter" or "proxy"
@@ -228,9 +230,9 @@ shows JetBrains' own models. You can't pick any OpenRouter model.
 **Problem**: 401 Unauthorized or authentication errors
 
 **Solutions**:
-1. Verify your Provisioning Key is valid at [OpenRouter Settings](https://openrouter.ai/settings/provisioning-keys)
+1. Verify your Management Key is valid at [OpenRouter Settings](https://openrouter.ai/settings/provisioning-keys)
 2. Check that the key has sufficient credits
-3. Re-enter the Provisioning Key in OpenRouter plugin settings
+3. Re-enter the Management Key in OpenRouter plugin settings
 4. Click **Test Connection** to verify
 
 ## 📚 Additional Resources
@@ -251,7 +253,7 @@ shows JetBrains' own models. You can't pick any OpenRouter model.
 ## 🔐 Security & Privacy
 
 - **Local Proxy**: The proxy server runs only on `127.0.0.1` (localhost) - no external access
-- **Encrypted Storage**: Your Provisioning Key is encrypted using IntelliJ's secure credential storage
+- **Encrypted Storage**: Your Management Key is encrypted using IntelliJ's secure credential storage
 - **No Data Collection**: The plugin doesn't collect or transmit any usage data
 - **Direct Connection**: All API calls go directly from your machine to OpenRouter's servers
 

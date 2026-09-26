@@ -123,9 +123,9 @@ object OpenRouterRequestBuilder {
 
             // Mask the token for logging using centralized utility
             val maskedToken = KeyValidator.maskApiKey(authToken)
-            PluginLogger.Service.debug("[OpenRouter] Request: $method $url, Auth: Bearer $maskedToken")
+            PluginLogger.Service.debug("Request: $method $url, Auth: Bearer $maskedToken")
         } else {
-            PluginLogger.Service.debug("[OpenRouter] Request: $method $url, Auth: NONE")
+            PluginLogger.Service.debug("Request: $method $url, Auth: NONE")
         }
 
         // Set HTTP method and body

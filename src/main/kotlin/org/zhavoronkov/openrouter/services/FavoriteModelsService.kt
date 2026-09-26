@@ -52,7 +52,7 @@ class FavoriteModelsService(
             return cachedModels
         }
 
-        PluginLogger.Service.debug("[OpenRouter] Fetching models from API (forceRefresh: $forceRefresh)")
+        PluginLogger.Service.debug("Fetching models from API (forceRefresh: $forceRefresh)")
         return try {
             withTimeout(OpenRouterConstants.API_TIMEOUT_MS.milliseconds) {
                 val result = routerService.getModels()
@@ -61,11 +61,11 @@ class FavoriteModelsService(
                         val response = result.data
                         cachedModels = response.data
                         cacheTimestamp = System.currentTimeMillis()
-                        PluginLogger.Service.info("[OpenRouter] Successfully cached ${cachedModels?.size} models")
+                        PluginLogger.Service.info("Successfully cached ${cachedModels?.size} models")
                         cachedModels
                     }
                     is ApiResult.Error -> {
-                        PluginLogger.Service.warn("[OpenRouter] Failed to fetch models: ${result.message}")
+                        PluginLogger.Service.warn("Failed to fetch models: ${result.message}")
                         null
                     }
                 }
@@ -74,14 +74,14 @@ class FavoriteModelsService(
             // Coroutine was cancelled (e.g., timeout or parent job cancelled) - must rethrow
             throw e
         } catch (e: java.util.concurrent.TimeoutException) {
-            PluginLogger.Service.warn("[OpenRouter] Model fetch timed out", e)
-            PluginLogger.Service.error("[OpenRouter] Timeout details", e)
+            PluginLogger.Service.warn("Model fetch timed out", e)
+            PluginLogger.Service.error("Timeout details", e)
             null
         } catch (e: java.io.IOException) {
-            PluginLogger.Service.error("[OpenRouter] Error fetching models from API", e)
+            PluginLogger.Service.error("Error fetching models from API", e)
             null
         } catch (e: IllegalStateException) {
-            PluginLogger.Service.error("[OpenRouter] Error fetching models from API", e)
+            PluginLogger.Service.error("Error fetching models from API", e)
             null
         }
     }

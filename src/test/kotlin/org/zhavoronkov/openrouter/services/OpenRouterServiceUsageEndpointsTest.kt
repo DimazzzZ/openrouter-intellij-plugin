@@ -32,8 +32,8 @@ class OpenRouterServiceUsageEndpointsTest {
 
         mockSettingsService = mock(OpenRouterSettingsService::class.java)
         `when`(mockSettingsService.getProvisioningKey()).thenReturn("pk-test")
-        // getCredits() is gated on the API key, not the management key, since 2026-09-21:
-        // /credits is account-scoped and answers for an ordinary API key too.
+        // Both are stubbed because getCredits() prefers the Management Key and falls back to the
+        // API key - see the two tests pinning that order.
         `when`(mockSettingsService.getApiKey()).thenReturn("sk-or-test")
 
         service = OpenRouterService(
@@ -149,5 +149,42 @@ class OpenRouterServiceUsageEndpointsTest {
             error.message.contains("{"),
             "the raw JSON body must never reach the user-visible message: ${error.message}"
         )
+    }
+
+    @Test
+    @DisplayName("getCredits authenticates with the Management Key when one is configured")
+    fun `getCredits prefers the management key`() = runBlocking {
+        mockWebServer.enqueue(
+            MockResponse().setResponseCode(200)
+                .setBody("""{"data":{"total_credits":10.0,"total_usage":1.0}}""")
+        )
+
+        service.getCredits()
+
+        // Regression (2026-09-25): a live account answered 200 for one ordinary API key and 403
+        // "Only management keys can fetch credits for an account" for another, so which ordinary
+        // keys qualify is not knowable here. Sending the API key first broke the balance for every
+        // existing user who had configured a Management Key - the key that always works.
+        assertEquals(
+            "Bearer pk-test",
+            mockWebServer.takeRequest().getHeader("Authorization"),
+            "credits must authenticate with the Management Key when one is configured"
+        )
+    }
+
+    @Test
+    @DisplayName("getCredits does not fall back to the API key when no Management Key is set")
+    fun `getCredits does not fall back to the api key`() = runBlocking {
+        `when`(mockSettingsService.getProvisioningKey()).thenReturn("")
+
+        val result = service.getCredits()
+
+        // A fallback to the ordinary API key was shipped and then removed. /credits is
+        // Management-Key-only; a dashboard-created key was measured answering 200, but a key
+        // minted through POST /keys answers 403 and the two cannot be told apart through the API.
+        // A fallback that works for a minority, silently, makes the same plugin behave differently
+        // for two users who configured it identically - so it must not reach the network at all.
+        assertEquals(0, mockWebServer.requestCount, "no request may be made without a Management Key")
+        assertTrue(result is ApiResult.Error, "expected an error, got $result")
     }
 }

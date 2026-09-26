@@ -445,7 +445,7 @@ data class ExchangeAuthCodeResponse(
  */
 enum class AuthScope {
     REGULAR, // Regular API Key (no monitoring)
-    EXTENDED // Provisioning Key (full monitoring)
+    EXTENDED // Management Key (full monitoring)
 }
 
 /**

@@ -286,7 +286,10 @@ tasks {
     // every time Settings is opened. Pinning en_US silences that dev-only
     // noise without affecting the shipped plugin.
     runIde {
-        jvmArgs("-Duser.language=en", "-Duser.country=US")
+        // `openrouter.debug` turns on PluginLogger.Service.debug, which logs which key each
+        // endpoint actually authenticates with (truncated preview only, never the whole key).
+        // Off in a released build; on here because runIde is the diagnostic surface.
+        jvmArgs("-Duser.language=en", "-Duser.country=US", "-Dopenrouter.debug=true")
     }
 }
 

@@ -51,14 +51,15 @@ An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.
 
 When you first install the plugin, a **welcome notification** will appear with a "Quick Setup" button. The wizard guides you through:
 
-1. **Authentication** - Choose OAuth/PKCE (one-click) or Provisioning Key
+1. **Authentication** - Choose OAuth/PKCE (one-click) or Management Key
 2. **Favorite Models** - Select your preferred models with search and filtering
 3. **Proxy Setup** - Configure AI Assistant integration
 
 ### Manual Setup
 
 1. **Open Settings**: `Settings` → `Tools` → `OpenRouter`
-2. **Authenticate**: Click "Connect to OpenRouter" for OAuth/PKCE, or paste a [Provisioning Key](https://openrouter.ai/settings/provisioning-keys)
+2. **Authenticate**: Click "Connect to OpenRouter" for OAuth/PKCE, or paste a [Management Key](https://openrouter.ai/settings/provisioning-keys)
+   - A **Management Key** (OpenRouter's own page still titles it "Provisioning Keys") is what lets the plugin read your account: the balance, spend history and per-model breakdown in the Status tab. An ordinary API key can send chat requests but cannot read any of that, so those parts of the tab stay empty and say so.
 3. **Select Models**: Go to `Favorite Models` tab and choose your models
 4. **Start Using**: Click the status bar widget to access features
 

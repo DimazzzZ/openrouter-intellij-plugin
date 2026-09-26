@@ -300,14 +300,14 @@ open class OpenRouterService(
 
     /**
      * Get API keys list with usage information
-     * NOTE: This endpoint requires Provisioning Key authentication
+     * NOTE: This endpoint requires Management Key authentication
      */
     suspend fun getApiKeysList(): ApiResult<ApiKeysListResponse> =
         getApiKeysList(settingsService.getProvisioningKey())
 
     /**
      * Get API keys list with usage information using a specific provisioning key
-     * NOTE: This endpoint requires Provisioning Key authentication
+     * NOTE: This endpoint requires Management Key authentication
      */
     suspend fun getApiKeysList(provisioningKey: String): ApiResult<ApiKeysListResponse> =
         withContext(Dispatchers.IO) {
@@ -409,7 +409,7 @@ open class OpenRouterService(
 
     /**
      * Create a new API key
-     * NOTE: This endpoint requires Provisioning Key authentication
+     * NOTE: This endpoint requires Management Key authentication
      */
     suspend fun createApiKey(name: String, limit: Double? = null): ApiResult<CreateApiKeyResponse> =
         withContext(Dispatchers.IO) {
@@ -463,7 +463,7 @@ open class OpenRouterService(
 
     /**
      * Delete an API key by hash
-     * NOTE: This endpoint requires Provisioning Key authentication
+     * NOTE: This endpoint requires Management Key authentication
      */
     suspend fun deleteApiKey(keyHash: String): ApiResult<DeleteApiKeyResponse> =
         withContext(Dispatchers.IO) {
@@ -512,22 +512,36 @@ open class OpenRouterService(
     suspend fun getCredits(): ApiResult<CreditsResponse> =
         withContext(Dispatchers.IO) {
             try {
-                val apiKey = settingsService.getApiKey()
-                if (apiKey.isBlank()) {
-                    PluginLogger.Service.warn("No API key available for credits endpoint")
-                    return@withContext ApiResult.Error("No API key configured")
+                // /credits is Management-Key-only, and has been since about 2026-04-15 - the
+                // requirement appears in the API reference (absent 2025-10-02, present by then)
+                // though never in the changelog, which is why several projects met it as a
+                // breaking change rather than a documented one.
+                //
+                // There is deliberately NO fallback to the ordinary API key. One was tried and
+                // removed: a key created by hand in the dashboard was measured answering 200 here,
+                // but a key minted through POST /keys answers 403, the two are indistinguishable
+                // through GET /key and GET /keys, and every public report says an ordinary key is
+                // refused outright. Building on that difference meant building on an inconsistency
+                // that OpenRouter is likely to close - and a fallback that works for a minority,
+                // silently, is worse than none: it makes the same plugin behave differently for
+                // two users who configured it identically.
+                val managementKey = settingsService.getProvisioningKey()
+                if (managementKey.isBlank()) {
+                    PluginLogger.Service.warn("No Management Key available for credits endpoint")
+                    return@withContext ApiResult.Error("Management Key required")
                 }
 
-                val keyPreview = apiKey.take(OpenRouterConstants.STRING_TRUNCATE_LENGTH)
+                val keyPreview = managementKey.take(OpenRouterConstants.STRING_TRUNCATE_LENGTH)
                 PluginLogger.Service.debug(
-                    "Fetching credits from OpenRouter with API key: $keyPreview..."
+                    "Fetching credits from OpenRouter with Management Key: $keyPreview..."
                 )
+
                 PluginLogger.Service.debug("Making request to: ${getCreditsEndpoint()}")
 
                 val request = OpenRouterRequestBuilder.buildGetRequest(
                     url = getCreditsEndpoint(),
                     authType = OpenRouterRequestBuilder.AuthType.API_KEY,
-                    authToken = apiKey
+                    authToken = managementKey
                 )
 
                 val (response, responseBody) = client.newCall(request).awaitWithBody()
@@ -557,7 +571,7 @@ open class OpenRouterService(
 
     /**
      * Get activity analytics from OpenRouter
-     * NOTE: This endpoint requires Provisioning Key authentication
+     * NOTE: This endpoint requires Management Key authentication
      */
     suspend fun getActivity(): ApiResult<ActivityResponse> =
         withContext(Dispatchers.IO) {
