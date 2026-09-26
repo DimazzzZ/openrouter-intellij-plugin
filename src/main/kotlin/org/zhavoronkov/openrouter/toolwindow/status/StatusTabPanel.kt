@@ -1,20 +1,32 @@
 package org.zhavoronkov.openrouter.toolwindow.status
 
+import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Disposer
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
+import com.intellij.util.text.DateFormatUtil
 import com.intellij.util.ui.JBUI
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import org.zhavoronkov.openrouter.listeners.OpenRouterStatsListener
+import org.zhavoronkov.openrouter.models.ActivityData
+import org.zhavoronkov.openrouter.models.ApiKeysListResponse
 import org.zhavoronkov.openrouter.models.ApiResult
-import org.zhavoronkov.openrouter.services.OpenRouterService
+import org.zhavoronkov.openrouter.models.CreditsData
+import org.zhavoronkov.openrouter.services.AnalyticsService
+import org.zhavoronkov.openrouter.services.CreditUsageHistoryService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.services.OpenRouterStatsCache
+import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.awt.BorderLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
+import java.time.LocalDate
 import java.util.Locale
 import javax.swing.JButton
 import javax.swing.JComponent
@@ -22,14 +34,26 @@ import javax.swing.JPanel
 import javax.swing.SwingUtilities
 
 /**
- * Status tab panel for the OpenRouter tool window
+ * Status tab panel for the OpenRouter tool window.
+ *
+ * Reads exclusively from [OpenRouterStatsCache], the single source of truth also used by the
+ * status-bar widget and the stats popup. This tab used to call [org.zhavoronkov.openrouter.services.OpenRouterService]
+ * directly, which produced its own, uncoordinated fetch and its own numbers - including a
+ * "Quota" figure computed from API key limits (via `getQuotaInfo()`) presented as if it were the
+ * account balance, and a percentage divided by a total that was silently `0.0` for any key
+ * without an explicit limit.
+ *
+ * @param analyticsService owned here, not by [BreakdownBlock] - "BreakdownBlock owns no
+ *   fetching" (Task 9 brief) - so this panel is the one that decides, in [refreshBreakdown],
+ *   which of the two paths answers a period. Defaulted to a real instance in production;
+ *   overridable so a test can point it at a [okhttp3.mockwebserver.MockWebServer] instead of the
+ *   real OpenRouter API - see [applyAnalyticsResultForTest].
  */
-@Suppress("TooManyFunctions")
 class StatusTabPanel(
     private val project: Project,
     private val settingsService: OpenRouterSettingsService,
-    private val openRouterService: OpenRouterService
-) {
+    private val analyticsService: AnalyticsService = AnalyticsService()
+) : Disposable {
 
     companion object {
         // UI Dimensions
@@ -37,35 +61,151 @@ class StatusTabPanel(
         private const val CONTENT_SPACING = 5
         private const val LABEL_SPACING_LARGE = 20
         private const val CONFIGURATION_PANEL_BORDER = 10
-        private const val PERCENTAGE_MULTIPLIER = 100
 
         // Grid position constants
         private const val GRID_STATUS_ROW = 0
-        private const val GRID_MODEL_ROW = 1
-        private const val GRID_QUOTA_ROW = 2
-        private const val GRID_USAGE_ROW = 3
+        private const val GRID_DEGRADED_ROW = 1
+        private const val GRID_BALANCE_ROW = 2
+        private const val GRID_KEY_LIMIT_ROW = 3
         private const val GRID_ACTIVITY_ROW = 4
-        private const val GRID_CONFIG_ROW = 5
+        private const val GRID_BREAKDOWN_ROW = 5
+        private const val GRID_CONFIG_ROW = 6
+
+        /** [BreakdownBlock]'s own default period - see its "defaulting to 24 hours" contract. */
+        private val DEFAULT_BREAKDOWN_PERIOD = ActivityAggregator.Period.DAY
+
+        /** What DEGRADED's sparkline measures - a DIFFERENT quantity than READY's (D12): locally
+         * observed spend from [CreditUsageHistoryService], not the analytics API's server-side
+         * usage. Labelling the two identically would let two users compare "the same chart" and
+         * get different numbers. Blank (like [NO_SERIES_LABEL]) when there is no local history to
+         * plot, so the caption/sparkline pair hides itself exactly as it does everywhere else. */
+        private const val DEGRADED_SERIES_LABEL = "Locally observed spend (no provisioning key)"
+
+        /** What READY/ERROR's sparkline measures (Task 13) - the analytics API's own account-wide
+         * daily total ([AnalyticsBreakdown.spendSeriesRequestFor]/[AnalyticsBreakdown.toSpendSeries]),
+         * never [DEGRADED_SERIES_LABEL]'s locally-observed one. Each names both the QUANTITY
+         * ("Daily spend", "server-reported") and the WINDOW it covers (D12: two users comparing
+         * "the same chart" must get the same numbers, which starts with the caption saying what
+         * window it is) - and stays textually distinct from [DEGRADED_SERIES_LABEL] so neither can
+         * be mistaken for the other. Keyed by [ActivityAggregator.Period] rather than formatted
+         * from it, matching [BreakdownBlock]'s own fixed "24 hours" / "7 days" / "30 days" wording -
+         * except for DAY, where fix round 2 (finding 8) deliberately does NOT reuse that "24
+         * hours" wording: [AnalyticsBreakdown.spendSeriesRequestFor]'s window for DAY is the
+         * current CALENDAR day, not a rolling 24-hour one, and this caption sits directly above a
+         * computed rate, so it has to say what the window actually is rather than borrow
+         * [BreakdownBlock]'s (different) window's name for a similar-sounding period. */
+        private const val READY_SERIES_LABEL_DAY = "Daily spend (server-reported), today so far"
+        private const val READY_SERIES_LABEL_WEEK = "Daily spend (server-reported), last 7 days"
+        private const val READY_SERIES_LABEL_MONTH = "Daily spend (server-reported), last 30 days"
+
+        /** How stale the last activation-triggered analytics refresh must be before
+         * [onActivated] issues a new one - see [ActivationRefreshGate]'s own KDoc for why this
+         * exists at all. */
+        private const val ACTIVATION_REFRESH_THRESHOLD_MS = 5 * 60 * 1000L
+
+        // Placeholder arguments for BalanceBlock.update() for the states with no balance to show
+        // at all (NOT_CONFIGURED, LOADING) - never used for READY/ERROR's perDay/series/seriesLabel,
+        // which come from currentSpendPerDay/currentSpendSeries/currentSpendSeriesLabel (Task 13)
+        // instead. BalanceBlock's own "unknown, not zero" rule renders these as em dashes / hidden
+        // rows rather than as fabricated numbers. NO_REMAINING in particular must stay null, never
+        // 0.0 - a real (if unlikely) $0.00 balance and "no balance known yet" are different facts,
+        // and fix round 1 found exactly this pair conflated.
+        private val NO_REMAINING: Double? = null
+        private val NO_PER_DAY_RATE: Double? = null
+        private val NO_SERIES = emptyList<Double>()
+        private const val NO_SERIES_LABEL = ""
+        private const val NO_LAST_UPDATED_TEXT = ""
+
+        /** No known API key spend cap - [KeyLimitBlock] hides itself for a null limit. */
+        private val NO_KEY_LIMIT: Double? = null
     }
+
+    private val statsCache = OpenRouterStatsCache.getInstance()
 
     private val statusPanel: JPanel
     private var configurationPanel: JPanel? = null
     private val statusLabel = JBLabel("Loading...")
-    private val quotaLabel = JBLabel("Quota: N/A")
-    private val usageLabel = JBLabel("Usage: N/A")
-    private val modelLabel = JBLabel("Model: N/A")
+    private val balanceBlock = BalanceBlock()
+    private val keyLimitBlock = KeyLimitBlock()
     private val activityLabel = JBLabel("Recent Activity: N/A")
+    private val breakdownBlock = BreakdownBlock()
+
+    /** DEGRADED's explanatory banner - see its own KDoc for why this state needs one at all. */
+    private val degradedNoticeBlock = DegradedNoticeBlock(
+        onConfigure = {
+            com.intellij.openapi.options.ShowSettingsUtil.getInstance()
+                .showSettingsDialog(project, "OpenRouter")
+        }
+    )
+
+    /** Gates [onActivated]'s analytics re-query so a burst of tab-flicking issues at most one. */
+    private val activationRefreshGate = ActivationRefreshGate(ACTIVATION_REFRESH_THRESHOLD_MS)
+
+    /** Counts every [onActivated] call, gated or not - unlike [ActivationRefreshGate.tryAcquire]'s
+     * own boolean, which only tells a test "has the gate been consumed at least once", this can
+     * distinguish "called once" from "called twice", which is what proves a `ChangeListener` fires
+     * for exactly one of the two tabs (fix round 1, finding 3). */
+    @Volatile
+    private var onActivatedCallCountForTest = 0
 
     private val coroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
+    private var currentState: StatusTabState.State = StatusTabState.State.NOT_CONFIGURED
+
+    /** The period [breakdownBlock] currently shows - survives cache refreshes so a period the
+     * user picked is not silently reset back to the default on the next stats tick. The
+     * account-wide spend series/burn rate (Task 13) follows this SAME field - [refreshBreakdown]
+     * reads it once and passes it to both queries - so picking "7 days" for the breakdown can
+     * never leave the sparkline showing a different window. */
+    private var currentBreakdownPeriod: ActivityAggregator.Period = DEFAULT_BREAKDOWN_PERIOD
+
+    /** The account-wide daily spend series/burn rate/label [renderCredits] feeds to [balanceBlock]
+     * in READY/ERROR - populated by [applySpendSeriesResult], never computed inline in
+     * [renderCredits] itself, so an analytics error can leave them exactly as they were (D12; see
+     * [applySpendSeriesResult]'s own KDoc) instead of [renderCredits] having to invent a fallback.
+     * Start at the same "nothing known yet" placeholders [clearBalance] uses, so a state that has
+     * never successfully queried analytics renders identically to one that explicitly has none. */
+    private var currentSpendSeries: List<Double> = NO_SERIES
+    private var currentSpendPerDay: Double? = NO_PER_DAY_RATE
+    private var currentSpendSeriesLabel: String = NO_SERIES_LABEL
+
     val component: JComponent
 
+    /**
+     * Owned by `this`, not by [project]: parenting to the project would outlive this panel and
+     * leak the subscription across tool-window closes. This panel must itself be registered as a
+     * Disposer child of its owner ([org.zhavoronkov.openrouter.toolwindow.OpenRouterToolWindowContent])
+     * - a plain `statusTab.dispose()` method call runs only [dispose]'s body and never asks the
+     * Disposer to walk this connection, so the subscription would otherwise survive forever.
+     */
+    private val statsConnection = ApplicationManager.getApplication().messageBus.connect(this)
+
     init {
-        // Create status panel
         statusPanel = createStatusPanel()
         component = statusPanel
 
-        // Initial data refresh
+        breakdownBlock.onPeriodChanged = { period ->
+            currentBreakdownPeriod = period
+            refreshBreakdown()
+        }
+
+        statsConnection.subscribe(
+            OpenRouterStatsListener.TOPIC,
+            object : OpenRouterStatsListener {
+                override fun onStatsUpdated(credits: CreditsData, activity: List<ActivityData>?) {
+                    SwingUtilities.invokeLater { render() }
+                }
+
+                override fun onStatsLoading() {
+                    SwingUtilities.invokeLater { render() }
+                }
+
+                override fun onStatsError(errorMessage: String) {
+                    SwingUtilities.invokeLater { render() }
+                }
+            }
+        )
+
         refresh()
     }
 
@@ -106,26 +246,38 @@ class StatusTabPanel(
         gbc.gridx = 1
         panel.add(statusLabel, gbc)
 
-        // Model
+        // Degraded notice: only visible in DEGRADED - see DegradedNoticeBlock. Spans both columns
+        // and fills horizontally like the configuration panel below, since it is a banner rather
+        // than a single label.
         gbc.gridx = 0
-        gbc.gridy = GRID_MODEL_ROW
-        panel.add(JBLabel("Default Model:"), gbc)
-        gbc.gridx = 1
-        panel.add(modelLabel, gbc)
+        gbc.gridy = GRID_DEGRADED_ROW
+        gbc.gridwidth = 2
+        gbc.fill = GridBagConstraints.HORIZONTAL
+        panel.add(degradedNoticeBlock.component, gbc)
+        gbc.gridwidth = 1
+        gbc.fill = GridBagConstraints.NONE
 
-        // Quota
+        // Balance: remaining credits, total, burn rate, sparkline - see BalanceBlock. Spans both
+        // columns and fills horizontally like the configuration panel below, since it is a whole
+        // block rather than a single label.
         gbc.gridx = 0
-        gbc.gridy = GRID_QUOTA_ROW
-        panel.add(JBLabel("Quota:"), gbc)
-        gbc.gridx = 1
-        panel.add(quotaLabel, gbc)
+        gbc.gridy = GRID_BALANCE_ROW
+        gbc.gridwidth = 2
+        gbc.fill = GridBagConstraints.HORIZONTAL
+        panel.add(balanceBlock.component, gbc)
+        gbc.gridwidth = 1
+        gbc.fill = GridBagConstraints.NONE
 
-        // Usage
+        // Key limit: the API key's own spend cap - see KeyLimitBlock. Hidden entirely when no
+        // key carries one, so unlike the balance/breakdown blocks above it does not always
+        // occupy visible space. Spans both columns for the same reason as those blocks.
         gbc.gridx = 0
-        gbc.gridy = GRID_USAGE_ROW
-        panel.add(JBLabel("Usage:"), gbc)
-        gbc.gridx = 1
-        panel.add(usageLabel, gbc)
+        gbc.gridy = GRID_KEY_LIMIT_ROW
+        gbc.gridwidth = 2
+        gbc.fill = GridBagConstraints.HORIZONTAL
+        panel.add(keyLimitBlock.component, gbc)
+        gbc.gridwidth = 1
+        gbc.fill = GridBagConstraints.NONE
 
         // Activity
         gbc.gridx = 0
@@ -133,6 +285,16 @@ class StatusTabPanel(
         panel.add(JBLabel("Activity:"), gbc)
         gbc.gridx = 1
         panel.add(activityLabel, gbc)
+
+        // Breakdown: per-model spend over a stated period - see BreakdownBlock. Spans both
+        // columns like the balance block above, since it is a whole block, not a single label.
+        gbc.gridx = 0
+        gbc.gridy = GRID_BREAKDOWN_ROW
+        gbc.gridwidth = 2
+        gbc.fill = GridBagConstraints.HORIZONTAL
+        panel.add(breakdownBlock.component, gbc)
+        gbc.gridwidth = 1
+        gbc.fill = GridBagConstraints.NONE
 
         // Configuration section (dynamic)
         gbc.gridx = 0
@@ -142,10 +304,12 @@ class StatusTabPanel(
         gbc.insets = JBUI.insets(LABEL_SPACING_LARGE, CONTENT_SPACING, CONTENT_SPACING, CONTENT_SPACING)
 
         configurationPanel = createConfigurationPanel()
+        // Starts hidden: the real visibility is decided once, from the derived state, by the
+        // render() that refresh() triggers synchronously later in init - never guessed here from
+        // settingsService directly (fix round 1, finding 7: a second notion of state, agreeing
+        // with StatusTabState.derive only because both happened to read the same predicate).
+        configurationPanel!!.isVisible = false
         panel.add(configurationPanel!!, gbc)
-
-        // Update visibility based on current state
-        updateConfigurationPanelVisibility()
 
         return panel
     }
@@ -173,100 +337,441 @@ class StatusTabPanel(
         return panel
     }
 
-    private fun updateConfigurationPanelVisibility() {
-        configurationPanel?.isVisible = !settingsService.isConfigured()
+    /**
+     * Re-renders from whatever is currently in the shared cache, and - if configured - asks the
+     * cache to refresh. The cache de-duplicates concurrent refreshes itself, so this is safe to
+     * call as often as the user clicks "Refresh"; it never issues a request of its own.
+     */
+    fun refresh() {
+        render()
+        if (settingsService.isConfigured()) {
+            // A deliberate refresh must never serve a stale answer for a previously-seen
+            // period from AnalyticsService's own query cache - see its invalidate() KDoc.
+            analyticsService.invalidate()
+            statsCache.refresh()
+        }
     }
 
-    fun refresh() {
-        updateConfigurationPanelVisibility()
+    /**
+     * Called by [org.zhavoronkov.openrouter.toolwindow.OpenRouterToolWindowContent] whenever the
+     * Status tab becomes the selected tab.
+     *
+     * Re-queries analytics only when [activationRefreshGate] says the last activation-triggered
+     * query is stale enough to be worth another - there is deliberately no timer of its own here:
+     * a tool window can sit open all day in the background, and unlike the shared stats cache
+     * (refreshed on its own schedule by the status-bar widget regardless of this tab) analytics
+     * queries spend the user's quota only while this tab is actually visible. When the gate says
+     * no, this call is a no-op: whatever is already rendered stays on screen.
+     *
+     * A full [render] runs whenever the gate opens (fix round 1, finding 6) - not just
+     * [refreshBreakdown] - because [lastUpdatedText] is computed from "now" on every render call.
+     * Without this, switching away for an hour and back would still read "Updated moments ago":
+     * a stale number presented confidently, exactly the defect class this plan exists to remove.
+     * [render] itself decides per-state whether that includes a real analytics query (READY/ERROR)
+     * or not (DEGRADED never shows a breakdown at all, so this must never call [refreshBreakdown]
+     * on its own - that would repopulate it from the degraded, no-key path behind DEGRADED's back).
+     *
+     * @return `true` if a refresh was actually triggered, `false` if the gate held it back - lets
+     *   a test observe the gate's decision directly without needing to await the async query.
+     */
+    fun onActivated(): Boolean {
+        onActivatedCallCountForTest++
+        if (!activationRefreshGate.tryAcquire()) return false
+        analyticsService.invalidate()
+        render()
+        return true
+    }
 
-        if (!settingsService.isConfigured()) {
-            setUnconfiguredState()
+    private fun render() {
+        val inputs = StatusTabState.Inputs(
+            configured = settingsService.isConfigured(),
+            hasProvisioningKey = settingsService.getProvisioningKey().isNotBlank(),
+            hasData = statsCache.hasCachedData(),
+            isLoading = statsCache.isLoading(),
+            error = statsCache.getLastError()
+        )
+        val state = StatusTabState.derive(inputs)
+        currentState = state
+
+        // Both driven from the SAME derived `state`, once - never a second predicate of their own
+        // (fix round 1, finding 7: configurationPanel used to read settingsService.isConfigured()
+        // directly, agreeing with `state` only because both happened to read the same condition).
+        configurationPanel?.isVisible = state == StatusTabState.State.NOT_CONFIGURED
+        degradedNoticeBlock.component.isVisible = state == StatusTabState.State.DEGRADED
+
+        when (state) {
+            StatusTabState.State.NOT_CONFIGURED -> renderNotConfigured()
+            StatusTabState.State.LOADING -> renderLoading()
+            StatusTabState.State.ERROR -> renderError()
+            StatusTabState.State.DEGRADED -> renderDegraded()
+            StatusTabState.State.READY -> renderReady()
+        }
+    }
+
+    private fun renderNotConfigured() {
+        statusLabel.text = "Not configured"
+        clearBalance()
+        clearKeyLimit()
+        activityLabel.text = "N/A"
+        breakdownBlock.show(emptyList())
+    }
+
+    private fun renderLoading() {
+        statusLabel.text = "Loading..."
+        clearBalance()
+        clearKeyLimit()
+        activityLabel.text = "Loading..."
+        // Not show(emptyList()) (fix round 1, finding 2): nothing has returned yet, so "no
+        // activity in this period" would claim an answer that has not arrived.
+        breakdownBlock.showLoading()
+    }
+
+    private fun clearBalance() = balanceBlock.update(
+        remaining = NO_REMAINING,
+        total = 0.0,
+        perDay = NO_PER_DAY_RATE,
+        series = NO_SERIES,
+        seriesLabel = NO_SERIES_LABEL,
+        lastUpdatedText = NO_LAST_UPDATED_TEXT
+    )
+
+    /** No cap known yet (loading / not configured) - [KeyLimitBlock] hides itself for a null limit. */
+    private fun clearKeyLimit() = keyLimitBlock.update(used = 0.0, limit = NO_KEY_LIMIT)
+
+    /**
+     * The last known numbers stay fully rendered - via [renderCreditsAndActivity], the same path
+     * READY uses - beside a visible "couldn't refresh" line, never a blank panel. [renderCredits]
+     * attaches [lastUpdatedText] to those numbers, which matters most here: an hour-old balance
+     * during an outage must not look as fresh as one from a second ago.
+     */
+    private fun renderError() {
+        statusLabel.text = "Couldn't refresh: ${statsCache.getLastError() ?: "Unknown error"}"
+        renderCreditsAndActivity()
+    }
+
+    private fun renderReady() {
+        statusLabel.text = "Ready"
+        renderCreditsAndActivity()
+    }
+
+    /**
+     * DEGRADED is not a thinner READY with blanks where numbers would go: the spec's D6 claim
+     * that the tab falls back to `/credits` and `/activity` without a provisioning key does not
+     * hold, so there is no account data to show at all here. [degradedNoticeBlock] (toggled
+     * visible in [render]) states what is missing and why; this clears the account-data blocks
+     * like [renderNotConfigured]/[renderLoading] rather than reusing [renderCreditsAndActivity],
+     * feeding the sparkline from [CreditUsageHistoryService]'s local history instead - labelled as
+     * a different quantity than READY's series (D12) so nobody mistakes one for the other. Falls
+     * back to no history rather than throwing if the service is ever unavailable, the same
+     * defensiveness [OpenRouterStatsCache] applies to its own service lookups.
+     */
+    private fun renderDegraded() {
+        statusLabel.text = "Degraded"
+        clearKeyLimit()
+        activityLabel.text = "N/A"
+        // Not show(emptyList()) (fix round 1, finding 2): DEGRADED never queries the breakdown at
+        // all, so "no activity in this period" would claim a real, checked answer of zero.
+        breakdownBlock.showUnavailable()
+
+        val snapshots = try {
+            CreditUsageHistoryService.getInstance().getState().snapshots.map { it.timestampUtc to it.totalUsed }
+        } catch (e: IllegalStateException) {
+            PluginLogger.Service.warn("CreditUsageHistoryService not available: ${e.message}")
+            emptyList()
+        }
+        val series = DegradedSpend.spendSeries(snapshots)
+        // Not update() (fix round 1, finding 1): update()'s em-dash rows would say "balance
+        // unknown" when the true fact - already stated by degradedNoticeBlock - is "this needs a
+        // provisioning key you have not set". showLocalSeriesOnly() hides those rows entirely.
+        balanceBlock.showLocalSeriesOnly(
+            series = series,
+            seriesLabel = if (series.isEmpty()) NO_SERIES_LABEL else DEGRADED_SERIES_LABEL
+        )
+    }
+
+    private fun renderCreditsAndActivity() {
+        renderCredits(statsCache.getCachedCredits())
+        renderKeyLimit(statsCache.getCachedApiKeys())
+        renderActivity(statsCache.getCachedActivity())
+        refreshBreakdown()
+    }
+
+    /**
+     * Renders [keyLimitBlock] from the shared cache's own API key list - never from
+     * [org.zhavoronkov.openrouter.services.OpenRouterService.getQuotaInfo], which this panel no
+     * longer calls at all (Task 7 removed its `openRouterService` field, and this tab makes no
+     * network calls of its own). [KeyLimit.from] decides whether any of those keys carries a real
+     * cap; a `null` result means "hide the block", which [KeyLimitBlock.update] already does for
+     * a `null` limit - so this wiring passes the reading straight through without inventing its
+     * own zero.
+     */
+    private fun renderKeyLimit(apiKeys: ApiKeysListResponse?) {
+        val reading = KeyLimit.from(apiKeys)
+        keyLimitBlock.update(used = reading?.used ?: 0.0, limit = reading?.limit)
+    }
+
+    /**
+     * Answers [currentBreakdownPeriod] for [breakdownBlock], choosing the path per the Task 9
+     * brief: with an analytics (provisioning) key available, a query with the matching
+     * `time_range` (see [AnalyticsBreakdown.requestFor]); without one, the degraded path re-runs
+     * [ActivityAggregator.byModel] against the shared cache's own activity.
+     *
+     * These two paths are chosen ONLY by [AnalyticsService.isAvailable] - never by whether the
+     * query itself then succeeds. An analytics query error is handled entirely inside
+     * [applyAnalyticsResult] via [BreakdownBlock.showError], and never falls back to the degraded
+     * path: silently substituting [ActivityAggregator]'s locally-aggregated numbers under the
+     * same-looking list on a transient failure is exactly what the status tab redesign's spec
+     * (D12) forbids - it would let two users asking for "7 days" see different figures with no
+     * visible sign anything was substituted. [ActivityAggregator] is the no-provisioning-key path
+     * and nothing else.
+     *
+     * Also issues [applySpendSeriesResult] for the SAME [period] (Task 13), reading
+     * [currentBreakdownPeriod] into a single local `period` used for both - never two separate
+     * reads that a later edit could let drift apart. Only when analytics is actually available:
+     * the no-provisioning-key branch above returns before reaching it, matching DEGRADED (which
+     * never calls this method at all) in leaving [currentSpendSeries]/[currentSpendPerDay]/
+     * [currentSpendSeriesLabel] untouched rather than inventing a local-history stand-in under the
+     * READY/ERROR label - that would be exactly the kind of silent substitution D12 forbids, just
+     * in the other direction.
+     */
+    private fun refreshBreakdown() {
+        val period = currentBreakdownPeriod
+        if (!analyticsService.isAvailable()) {
+            // The no-provisioning-key path: re-aggregate the shared cache's own activity locally.
+            val activity = statsCache.getCachedActivity().orEmpty()
+            breakdownBlock.show(ActivityAggregator.byModel(activity, period, LocalDate.now()))
             return
         }
 
-        statusLabel.text = "Checking..."
-        modelLabel.text = "N/A"
-        activityLabel.text = "Loading..."
-
-        coroutineScope.launch { loadConnectionStatus() }
-        coroutineScope.launch { loadQuotaInfo() }
-        coroutineScope.launch { loadActivityInfo() }
+        coroutineScope.launch { applyAnalyticsResult(period) }
+        coroutineScope.launch { applySpendSeriesResult(period) }
     }
 
-    private fun setUnconfiguredState() {
-        statusLabel.text = "Not configured"
-        modelLabel.text = "N/A"
-        quotaLabel.text = "N/A"
-        usageLabel.text = "N/A"
-        activityLabel.text = "N/A"
-    }
-
-    private suspend fun loadConnectionStatus() {
-        val result = openRouterService.testConnection()
-        SwingUtilities.invokeLater {
-            when (result) {
-                is ApiResult.Success -> {
-                    statusLabel.text = if (result.data) "Connected" else "Connection failed"
-                }
-                is ApiResult.Error -> {
-                    statusLabel.text = "Connection failed"
-                }
+    /**
+     * Runs one analytics query for [period] and applies its result to [breakdownBlock]. Split out
+     * from [refreshBreakdown] so a test can await it directly via [applyAnalyticsResultForTest]
+     * instead of racing [coroutineScope]'s `Dispatchers.Main` launch.
+     */
+    private suspend fun applyAnalyticsResult(period: ActivityAggregator.Period) {
+        val request = AnalyticsBreakdown.requestFor(period, LocalDate.now())
+        when (val result = analyticsService.query(request)) {
+            is ApiResult.Success -> {
+                val payload = result.data
+                breakdownBlock.show(AnalyticsBreakdown.toModelSpend(payload.data), payload.metadata?.truncated == true)
             }
+            is ApiResult.Error -> breakdownBlock.showError()
         }
     }
 
-    private suspend fun loadQuotaInfo() {
-        val quotaResult = openRouterService.getQuotaInfo()
-        SwingUtilities.invokeLater {
-            when (quotaResult) {
-                is ApiResult.Success -> {
-                    val quota = quotaResult.data
-                    quotaLabel.text = "$${String.format(Locale.US, "%.2f", quota.total ?: 0.0)}"
-                    val usedAmount = String.format(Locale.US, "%.2f", quota.used ?: 0.0)
-                    val percentage = String.format(
-                        Locale.US,
-                        "%.1f",
-                        ((quota.used ?: 0.0) / (quota.total ?: 1.0)) * PERCENTAGE_MULTIPLIER
-                    )
-                    usageLabel.text = "$$usedAmount ($percentage%)"
-                }
-                is ApiResult.Error -> {
-                    quotaLabel.text = "Failed to load"
-                    usageLabel.text = "Failed to load"
-                }
-            }
-        }
-    }
-
-    private suspend fun loadActivityInfo() {
-        val activityResult = openRouterService.getActivity()
-        SwingUtilities.invokeLater {
-            when (activityResult) {
-                is ApiResult.Success -> {
-                    val activityResponse = activityResult.data
-                    if (activityResponse.data.isNotEmpty()) {
-                        val totalRequests = activityResponse.data.sumOf { (it.requests ?: 0).toLong() }
-                        val totalUsage = activityResponse.data.sumOf { it.usage ?: 0.0 }
-                        val usageStr = String.format(Locale.US, "%.4f", totalUsage)
-                        activityLabel.text = "$totalRequests requests, $$usageStr"
-                    } else {
-                        activityLabel.text = "No recent activity"
+    /**
+     * Runs the account-wide daily-spend query for [period] (Task 13) and, on success, applies it
+     * to [balanceBlock] via [renderCredits] - the OTHER half of the gap this task exists to close:
+     * [renderCredits] used to pass [NO_SERIES]/[NO_PER_DAY_RATE] unconditionally, so READY's own
+     * best feature (the spec's D3/D4 sparkline) only ever appeared in DEGRADED, fed from local
+     * history instead. A DIFFERENT query shape from [applyAnalyticsResult]'s
+     * ([AnalyticsBreakdown.spendSeriesRequestFor] - total_usage only, no model dimension, day
+     * granularity) answering a different question ("how fast am I burning it", not "where does it
+     * go"), so it is split into its own function/coroutine rather than folded into
+     * [applyAnalyticsResult]: a failure in one query must never affect the other's display (D12).
+     *
+     * On success, [currentSpendSeries] is [AnalyticsBreakdown.toSpendSeries]'s output,
+     * [currentSpendPerDay] is [AnalyticsBreakdown.burnRatePerDay] of that SAME series and [period]
+     * (so the burn rate and the chart it is drawn from can never silently disagree, and so the
+     * still-filling final bucket is excluded from the RATE the same way it is drawn as part of
+     * the CHART - see that function's own KDoc), and [currentSpendSeriesLabel] names both the
+     * quantity and [period]'s window - blank (hiding the row, same as [NO_SERIES_LABEL]) when the
+     * series itself came back empty, so an empty chart is never captioned as if it measured
+     * something.
+     *
+     * [renderCredits] is re-run immediately so the new numbers actually reach [balanceBlock] -
+     * but ONLY while [currentState] is still READY or ERROR (fix round 2, finding 5). This query
+     * is asynchronous; by the time it resolves, the panel may have moved to DEGRADED (provisioning
+     * key removed), NOT_CONFIGURED, or LOADING (a cache tick), each of which cleared or hid the
+     * balance rows for a reason of its own - [showLocalSeriesOnly] in DEGRADED's case, [clearBalance]
+     * in the others. Re-rendering the balance unconditionally here would silently undo that: a
+     * `"$X.XX/day"` figure and a "server-reported" caption appearing in a state whose own render
+     * method explicitly does not show them, from a request nobody watching that state asked for.
+     * When the guard blocks the call, the FIELDS are still updated above - only the redundant
+     * render is skipped - so the moment the panel legitimately returns to READY/ERROR, whichever
+     * render path gets there first already has the fresh numbers.
+     *
+     * On error, NONE of [currentSpendSeries]/[currentSpendPerDay]/[currentSpendSeriesLabel] are
+     * touched - not reset to unknown, and never backfilled from [ActivityAggregator] or
+     * [DegradedSpend]'s local numbers. Whatever was last successfully fetched (or the initial
+     * "nothing known yet" placeholders, if this has never once succeeded) stays exactly as it was:
+     * the same D12 discipline [applyAnalyticsResult] applies via [BreakdownBlock.showError] rather
+     * than a silent fallback, just with no dedicated error line to fill here, since neither an
+     * em-dash `perDay` nor an empty/hidden series is a fabricated answer either way.
+     */
+    private suspend fun applySpendSeriesResult(period: ActivityAggregator.Period) {
+        val request = AnalyticsBreakdown.spendSeriesRequestFor(period, LocalDate.now())
+        when (val result = analyticsService.query(request)) {
+            is ApiResult.Success -> {
+                val series = AnalyticsBreakdown.toSpendSeries(result.data.data)
+                currentSpendSeries = series
+                currentSpendPerDay = AnalyticsBreakdown.burnRatePerDay(series, period)
+                currentSpendSeriesLabel = if (series.isEmpty()) {
+                    NO_SERIES_LABEL
+                } else {
+                    when (period) {
+                        ActivityAggregator.Period.DAY -> READY_SERIES_LABEL_DAY
+                        ActivityAggregator.Period.WEEK -> READY_SERIES_LABEL_WEEK
+                        ActivityAggregator.Period.MONTH -> READY_SERIES_LABEL_MONTH
                     }
                 }
-                is ApiResult.Error -> {
-                    activityLabel.text = "No recent activity"
+                if (currentState == StatusTabState.State.READY || currentState == StatusTabState.State.ERROR) {
+                    renderCredits(statsCache.getCachedCredits())
                 }
             }
+            is ApiResult.Error -> Unit
         }
     }
 
-    fun dispose() {
+    /**
+     * Test-only entry point for [applyAnalyticsResult], bypassing [coroutineScope]'s
+     * `Dispatchers.Main` launch so a test can `runBlocking { }` it directly against an injected
+     * [analyticsService] (e.g. pointed at a [okhttp3.mockwebserver.MockWebServer]) without
+     * needing to pump an IDE event queue.
+     */
+    internal suspend fun applyAnalyticsResultForTest(period: ActivityAggregator.Period) =
+        applyAnalyticsResult(period)
+
+    /**
+     * Test-only entry point for [applySpendSeriesResult], the same seam [applyAnalyticsResultForTest]
+     * provides for the breakdown query - bypasses [coroutineScope]'s `Dispatchers.Main` launch so a
+     * test can `runBlocking { }` it directly against an injected [analyticsService].
+     */
+    internal suspend fun applySpendSeriesResultForTest(period: ActivityAggregator.Period) =
+        applySpendSeriesResult(period)
+
+    /**
+     * Renders the account balance from the shared cache's credits data via [BalanceBlock].
+     *
+     * `remaining` is `totalCredits - totalUsage` - real account credits, never the API key
+     * limits that `getQuotaInfo()` used to sum. [BalanceBlock] applies its own "unknown, not
+     * zero" rule to a zero or absent total, so a missing limit can no longer masquerade as a
+     * computed `Infinity%` the way the old inline usage-share label did.
+     *
+     * Burn rate and the spend series (Task 13) come from [currentSpendPerDay]/[currentSpendSeries]/
+     * [currentSpendSeriesLabel] - populated by [applySpendSeriesResult], not computed here - so
+     * this method stays a plain, synchronous read of whatever the last successful analytics query
+     * (if any) left behind; it never issues a query of its own. Before any such query has ever
+     * succeeded, those fields hold the same "nothing known yet" placeholders [clearBalance] uses,
+     * so [BalanceBlock] renders them exactly as absent as it would have before this task.
+     * [lastUpdatedText] (Task 11) is read here too, by both READY and ERROR (both reach this
+     * method through [renderCreditsAndActivity], and [applySpendSeriesResult] re-invokes it
+     * directly once its own query resolves) - it matters most in ERROR, where these are the last
+     * known numbers, not fresh ones.
+     */
+    private fun renderCredits(credits: CreditsData?) {
+        if (credits == null) {
+            clearBalance()
+            return
+        }
+
+        val remaining = credits.totalCredits - credits.totalUsage
+        balanceBlock.update(
+            remaining = remaining,
+            total = credits.totalCredits,
+            perDay = currentSpendPerDay,
+            series = currentSpendSeries,
+            seriesLabel = currentSpendSeriesLabel,
+            lastUpdatedText = lastUpdatedText
+        )
+    }
+
+    /**
+     * The shared cache's own freshness timestamp, formatted via the platform's [DateFormatUtil]
+     * rather than hand-rolled relative-time formatting - the codebase has no such helper of its
+     * own, and this is not the task to invent one.
+     *
+     * Blank when there is no timestamp yet (the cache's own zero "never updated" value) -
+     * [BalanceBlock] hides the row for blank text rather than rendering an epoch date.
+     */
+    private val lastUpdatedText: String
+        get() {
+            val timestamp = statsCache.getLastUpdateTimestamp()
+            if (timestamp <= 0L) return ""
+            return "Updated ${DateFormatUtil.formatBetweenDates(timestamp, System.currentTimeMillis())}"
+        }
+
+    private fun renderActivity(activity: List<ActivityData>?) {
+        activityLabel.text = if (activity.isNullOrEmpty()) {
+            "No recent activity"
+        } else {
+            val totalRequests = activity.sumOf { (it.requests ?: 0).toLong() }
+            val totalUsage = activity.sumOf { it.usage ?: 0.0 }
+            "$totalRequests requests, $${formatUsageAmount(totalUsage)}"
+        }
+    }
+
+    private fun formatUsageAmount(value: Double): String = String.format(Locale.US, "%.4f", value)
+
+    override fun dispose() {
         coroutineScope.cancel()
     }
 
-    internal fun getStatusTextForTest(): String = statusLabel.text
-    internal fun getQuotaTextForTest(): String = quotaLabel.text
-    internal fun getUsageTextForTest(): String = usageLabel.text
-    internal fun getActivityTextForTest(): String = activityLabel.text
+    internal fun getStateForTest(): StatusTabState.State = currentState
+
+    /** How many times [onActivated] has been called, gated or not - see [onActivatedCallCountForTest]'s own KDoc. */
+    internal fun getOnActivatedCallCountForTest(): Int = onActivatedCallCountForTest
+
+    /**
+     * Re-derives and re-renders from whatever is currently in [settingsService]/[statsCache],
+     * without [refresh]'s side effect of calling [OpenRouterStatsCache.refresh] - which, whenever
+     * both a config key and a provisioning key are present, launches a REAL background fetch
+     * against the live OpenRouter API. That singleton has no reset seam of its own, so a test
+     * exercising READY/ERROR/LOADING - which all require exactly that combination - drives them
+     * through this seam instead: mutate the shared cache/settings mock directly, then call this to
+     * see the result, with no network ever in the loop.
+     */
+    internal fun renderForTest() = render()
+
+    /**
+     * The wired-in [balanceBlock]/[keyLimitBlock]/[breakdownBlock]/[degradedNoticeBlock]
+     * components, so a test can prove each one is really in the tree (and, for
+     * [TestComponent.DEGRADED_NOTICE], that DEGRADED - and only DEGRADED - toggles its
+     * visibility). Replaces four separate `getXComponentForTest()` accessors (fix round 1: they
+     * were the class's only real duplication - four functions differing solely in which block
+     * they returned - and collapsing them, not the seven other, genuinely distinct test seams,
+     * is what brought [StatusTabPanel] back under detekt's function-count threshold). Takes
+     * [TestComponent] rather than a raw `String` key so a typo'd lookup is a COMPILE error - the
+     * `when` below is exhaustive - rather than a `null` a caller could silently treat as "not
+     * visible" and pass an assertion that never actually checked anything.
+     */
+    internal fun componentForTest(component: TestComponent): JComponent = when (component) {
+        TestComponent.BALANCE -> balanceBlock.component
+        TestComponent.KEY_LIMIT -> keyLimitBlock.component
+        TestComponent.BREAKDOWN -> breakdownBlock.component
+        TestComponent.DEGRADED_NOTICE -> degradedNoticeBlock.component
+    }
+
+    /** [currentBreakdownPeriod] as the real period-selector ComboBox (inside [breakdownBlock])
+     * actually left it - proof that selecting a period there updates the SAME field [refreshBreakdown]
+     * reads for BOTH the per-model breakdown query and the account-wide spend-series query
+     * (Task 13), rather than the two ever reading two different notions of "the current period". */
+    internal fun getCurrentBreakdownPeriodForTest(): ActivityAggregator.Period = currentBreakdownPeriod
+
+    /**
+     * True once the shared-cache subscription has actually been torn down.
+     *
+     * [statsConnection] is a Disposer child of `this`, so `Disposer.dispose(this)` disposes it
+     * automatically; a bare `this.dispose()` method call does not, because it only runs this
+     * class's own [dispose] body without invoking the Disposer. This accessor lets a test tell
+     * the two apart, the way [org.zhavoronkov.openrouter.statusbar.OpenRouterStatusBarWidget]'s
+     * `isRefreshAlarmDisposedForTest()` proves its own Disposer-parented resource is torn down.
+     */
+    internal fun isStatsConnectionDisposedForTest(): Boolean = Disposer.isDisposed(statsConnection)
 }
+
+/**
+ * Keys for [StatusTabPanel.componentForTest] - one entry per Swing sub-block a test can ask for.
+ *
+ * A top-level (not nested inside [StatusTabPanel]) type - but NOT because nesting it would have
+ * cost that class function-count headroom (fix round 2, finding 6 corrects this: detekt's
+ * `TooManyFunctions` counts functions, not nested types, so a nested `enum class` here would have
+ * been entirely free either way). It is top-level simply because it is not a detail of
+ * [StatusTabPanel]'s own implementation - it is the set of keys test code passes IN, independent
+ * of where the class that consumes them happens to live.
+ */
+internal enum class TestComponent { BALANCE, KEY_LIMIT, BREAKDOWN, DEGRADED_NOTICE }

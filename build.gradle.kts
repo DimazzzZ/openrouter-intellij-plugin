@@ -499,7 +499,35 @@ kover {
                     // in the status tab redesign. Not unit-testable under the fast :test task
                     // (needs a platform runner for JBLabel/JBScrollPane/GridBagLayout wiring).
                     "org.zhavoronkov.openrouter.toolwindow.status.StatusTabPanel",
-                    "org.zhavoronkov.openrouter.toolwindow.status.StatusTabPanel\$*"
+                    "org.zhavoronkov.openrouter.toolwindow.status.StatusTabPanel\$*",
+                    // Task 8: the balance block and its spend sparkline. Swing views needing a
+                    // platform runner for JBLabel/BoxLayout/custom-paint - same reasoning as
+                    // every other Swing view in this package.
+                    "org.zhavoronkov.openrouter.toolwindow.status.BalanceBlock",
+                    "org.zhavoronkov.openrouter.toolwindow.status.BalanceBlock\$*",
+                    "org.zhavoronkov.openrouter.toolwindow.status.SparklineView",
+                    "org.zhavoronkov.openrouter.toolwindow.status.SparklineView\$*",
+                    // Task 9: the per-model breakdown block and its period selector. Swing view
+                    // needing a platform runner for ComboBox/GridBagLayout - same reasoning as
+                    // every other Swing view in this package. AnalyticsBreakdown, the pure
+                    // request-building/row-mapping logic it consults, is NOT excluded here - it
+                    // runs under the fast :test task instead (see AnalyticsBreakdownTest).
+                    "org.zhavoronkov.openrouter.toolwindow.status.BreakdownBlock",
+                    "org.zhavoronkov.openrouter.toolwindow.status.BreakdownBlock\$*",
+                    // Task 10: the API key spend-cap block. Swing view needing a platform runner
+                    // for JBLabel/BoxLayout - same reasoning as every other Swing view in this
+                    // package. KeyLimit, the pure logic deciding whether a cap exists and what
+                    // `used` pairs with it, is NOT excluded here - it runs under the fast :test
+                    // task instead (see KeyLimitTest).
+                    "org.zhavoronkov.openrouter.toolwindow.status.KeyLimitBlock",
+                    "org.zhavoronkov.openrouter.toolwindow.status.KeyLimitBlock\$*",
+                    // Task 11: DEGRADED's explanatory banner. Swing view needing a platform
+                    // runner for JBLabel/JButton/JBUI.CurrentTheme - same reasoning as every
+                    // other Swing view in this package. ActivationRefreshGate and DegradedSpend,
+                    // the pure logic Task 11 adds alongside it, are NOT excluded here - they run
+                    // under the fast :test task instead (see their own *Test.kt files).
+                    "org.zhavoronkov.openrouter.toolwindow.status.DegradedNoticeBlock",
+                    "org.zhavoronkov.openrouter.toolwindow.status.DegradedNoticeBlock\$*"
                 )
             }
         }
