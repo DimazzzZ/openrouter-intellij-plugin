@@ -104,6 +104,57 @@ class RouterCatalogTest {
     }
 
     @Nested
+    @DisplayName("UI presentation")
+    inner class UiPresentation {
+        @Test
+        @DisplayName("a label is derived from the key when no override is set")
+        fun labelDerivedFromKey() {
+            val auto = RouterCatalog.find("openrouter/auto")!!.param!!
+            assertEquals("Cost tier", auto.label)
+            assertNull(auto.labelOverride)
+
+            val pareto = RouterCatalog.find("openrouter/pareto-code")!!.param!!
+            assertEquals("Min coding score", pareto.label)
+            assertNull(pareto.labelOverride)
+        }
+
+        @Test
+        @DisplayName("an explicit override wins over the key-derived label")
+        fun labelOverrideWins() {
+            val fusion = RouterCatalog.find("openrouter/fusion")!!.param!!
+            assertEquals("Fusion preset", fusion.labelOverride)
+            assertEquals("Fusion preset", fusion.label)
+        }
+
+        @Test
+        @DisplayName("a closed enum rejects free text and lists its values after a blank entry")
+        fun closedEnumPresentation() {
+            val auto = RouterCatalog.find("openrouter/auto")!!.param as RouterParam.Enum
+            assertFalse(auto.freeText)
+            assertEquals(listOf("", "low", "medium", "high", "xhigh", "max"), auto.suggestions)
+            assertEquals("One of: low, medium, high, xhigh, max", auto.description)
+        }
+
+        @Test
+        @DisplayName("an editable enum accepts free text and describes its values as suggestions")
+        fun editableEnumPresentation() {
+            val fusion = RouterCatalog.find("openrouter/fusion")!!.param as RouterParam.Enum
+            assertTrue(fusion.freeText)
+            assertEquals(listOf("", "general-fast"), fusion.suggestions)
+            assertEquals("Suggested: general-fast (or type your own)", fusion.description)
+        }
+
+        @Test
+        @DisplayName("a float range accepts free text and offers its bounds as suggestions")
+        fun floatRangePresentation() {
+            val pareto = RouterCatalog.find("openrouter/pareto-code")!!.param as RouterParam.FloatRange
+            assertTrue(pareto.freeText)
+            assertEquals(listOf("", "0.0", "1.0"), pareto.suggestions)
+            assertEquals("A number from 0.0 to 1.0", pareto.description)
+        }
+    }
+
+    @Nested
     @DisplayName("Row invariant")
     inner class RowInvariant {
         @Test

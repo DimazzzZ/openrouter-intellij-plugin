@@ -21,7 +21,7 @@ import org.zhavoronkov.openrouter.services.AnalyticsService
 import org.zhavoronkov.openrouter.services.CreditUsageHistoryService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.OpenRouterStatsCache
-import org.zhavoronkov.openrouter.utils.PluginLogger
+import org.zhavoronkov.openrouter.utils.applicationServiceOrNull
 import java.awt.BorderLayout
 import java.awt.GridBagConstraints
 import java.time.LocalDate
@@ -595,12 +595,10 @@ class StatusTabPanel(
         // same "no cap configured" fact keyLimitBlock.update(limit = null) would report.
         keyLimitBlock.showUnavailable()
 
-        val snapshots = try {
-            CreditUsageHistoryService.getInstance().getState().snapshots.map { it.timestampUtc to it.totalUsed }
-        } catch (e: IllegalStateException) {
-            PluginLogger.Service.warn("CreditUsageHistoryService not available: ${e.message}")
-            emptyList()
-        }
+        val snapshots = applicationServiceOrNull(CreditUsageHistoryService::class.java)
+            ?.getState()?.snapshots
+            ?.map { it.timestampUtc to it.totalUsed }
+            ?: emptyList()
         val series = DegradedSpend.spendSeries(snapshots)
         val seriesLabel = if (series.isEmpty()) NO_SERIES_LABEL else DEGRADED_SERIES_LABEL
 

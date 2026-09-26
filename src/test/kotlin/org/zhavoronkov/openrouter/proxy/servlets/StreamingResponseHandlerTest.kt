@@ -910,3 +910,156 @@ class StreamingResponseHandlerErrorPathTest {
         }
     }
 }
+
+/**
+ * The remaining arms of the streaming error classification: each is selected by its SECOND
+ * pattern, which the existing cases reach through the first one and so leave untaken.
+ */
+@DisplayName("StreamingResponseHandler Error Classification Tests")
+class StreamingResponseHandlerErrorClassificationTest {
+
+    private fun enhanced(failure: Exception): String {
+        val out = StringWriter()
+        StreamingResponseHandler().handleStreamingError(failure, PrintWriter(out), "cls")
+        return out.toString()
+    }
+
+    @Test
+    @DisplayName("a provider failure that is not the exact canned phrase is still recognised")
+    fun providerFailureBySecondPattern() {
+        val chunk = enhanced(RuntimeException("upstream provider blew up mid-stream"))
+
+        assertTrue(chunk.contains("model provider encountered an error"), "got: $chunk")
+        assertTrue(chunk.contains("Switching to a different model"), "got: $chunk")
+    }
+
+    @Test
+    @DisplayName("'too many requests' is recognised as rate limiting even without the phrase 'rate limit'")
+    fun tooManyRequestsBySecondPattern() {
+        val chunk = enhanced(RuntimeException("too many requests"))
+
+        assertTrue(chunk.contains("Rate limit exceeded"), "got: $chunk")
+        assertFalse(chunk.contains("model provider encountered"), "got: $chunk")
+    }
+
+    @Test
+    @DisplayName("'No endpoints found' is recognised as unavailability even without the word 'unavailable'")
+    fun noEndpointsBySecondPattern() {
+        val chunk = enhanced(RuntimeException("No endpoints found for this model"))
+
+        assertTrue(chunk.contains("Model temporarily unavailable"), "got: $chunk")
+    }
+
+    @Test
+    @DisplayName("an exception with no message still produces a readable chunk")
+    fun failureWithoutMessage() {
+        val chunk = enhanced(RuntimeException())
+
+        assertTrue(chunk.contains("Streaming error: Unknown error"), "got: $chunk")
+        assertTrue(chunk.contains("data: [DONE]"), "got: $chunk")
+    }
+}
+
+/**
+ * Chunk shapes the model can send that are not the happy path: an error envelope without a
+ * message, a choices array that is empty or holds the wrong type, a delta with no tool_calls.
+ * None may drop the stream - each must either forward the chunk or explain itself to the client.
+ */
+@DisplayName("StreamingResponseHandler Chunk Shape Tests")
+class StreamingResponseHandlerChunkShapeTest {
+
+    private fun stream(vararg lines: String): String {
+        val body = lines.joinToString("\n\n", postfix = "\n\ndata: [DONE]\n\n")
+        val response = Response.Builder()
+            .request(Request.Builder().url("http://localhost").build())
+            .protocol(Protocol.HTTP_1_1)
+            .code(200)
+            .message("OK")
+            .body(body.toResponseBody("text/event-stream".toMediaType()))
+            .build()
+        val out = StringWriter()
+        StreamingResponseHandler().streamResponseToClient(response, PrintWriter(out), "shape")
+        return out.toString()
+    }
+
+    @Test
+    @DisplayName("an error envelope with no message still explains itself")
+    fun errorChunkWithoutMessage() {
+        val out = stream("""data: {"error":{}}""")
+
+        assertTrue(out.contains("Unknown error from model"), "got: $out")
+    }
+
+    @Test
+    @DisplayName("an error message naming a provider but not an error is passed through unchanged")
+    fun errorMessageWithProviderOnly() {
+        val out = stream("""data: {"error":{"message":"provider"}}""")
+
+        assertTrue(out.contains("provider"), "got: $out")
+        assertFalse(out.contains("model provider encountered an error"), "got: $out")
+    }
+
+    @Test
+    @DisplayName("a chunk with an empty choices array is forwarded without tool-call bookkeeping")
+    fun emptyChoicesArray() {
+        val out = stream("""data: {"id":"1","object":"chat.completion.chunk","created":1,"model":"m","choices":[]}""")
+
+        assertTrue(out.contains("\"choices\":[]"), "the chunk must still reach the client: $out")
+        assertTrue(out.contains("data: [DONE]"), "got: $out")
+    }
+
+    @Test
+    @DisplayName("a choice with no delta is forwarded without tool-call bookkeeping")
+    fun choiceWithoutDelta() {
+        val out = stream(
+            """data: {"id":"1","object":"chat.completion.chunk","created":1,"model":"m",""" +
+                """"choices":[{"index":0,"finish_reason":"stop"}]}"""
+        )
+
+        assertTrue(out.contains("finish_reason"), "got: $out")
+    }
+
+    @Test
+    @DisplayName("finish_reason=tool_calls with no delta array still closes the accumulator")
+    fun finishReasonToolCallsWithoutDelta() {
+        val out = stream(
+            """data: {"id":"1","object":"chat.completion.chunk","created":1,"model":"m",""" +
+                """"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}"""
+        )
+
+        assertTrue(out.contains("tool_calls"), "got: $out")
+        assertTrue(out.contains("data: [DONE]"), "got: $out")
+    }
+
+    @Test
+    @DisplayName("a choices entry of the wrong type is logged and skipped, not fatal to the stream")
+    fun choicesEntryOfWrongType() {
+        val out = stream(
+            """data: {"id":"1","object":"chat.completion.chunk","created":1,"model":"m","choices":[123]}"""
+        )
+
+        assertTrue(out.contains("data: [DONE]"), "the stream must still be closed cleanly: $out")
+    }
+
+    @Test
+    @DisplayName("a non-SSE JSON body with no error message falls back to the generic explanation")
+    fun nonSseJsonWithoutErrorMessage() {
+        val out = stream("""{"detail":"nothing you can use"}""")
+
+        assertTrue(out.contains("Unexpected response format from model"), "got: $out")
+    }
+
+    @Test
+    @DisplayName("non-data noise past the safeguard limit is dropped rather than accumulated")
+    fun nonDataNoiseIsCapped() {
+        val noisyLine = "x".repeat(NOISE_LINE_LENGTH)
+        val out = stream(*Array(NOISE_LINE_COUNT) { noisyLine })
+
+        assertTrue(out.contains("data: [DONE]"), "the stream must still be closed cleanly: $out")
+    }
+
+    private companion object {
+        const val NOISE_LINE_LENGTH = 1_000
+        const val NOISE_LINE_COUNT = 12
+    }
+}

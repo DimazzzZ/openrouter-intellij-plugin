@@ -109,6 +109,42 @@ class RouterPluginsInjectorTest {
     }
 
     @Test
+    @DisplayName("does NOT inject when the request carries no model at all")
+    fun skipsMissingModel() {
+        defaults.set("openrouter/auto", "high")
+
+        val rawJson = buildRequest("""{"messages":[]}""")
+        val result = RouterPluginsInjector.inject(rawJson, defaults, gson, "t-9")
+
+        assertFalse(result)
+        assertFalse(rawJson.has("plugins"))
+    }
+
+    @Test
+    @DisplayName("does NOT inject when `model` is not a JSON primitive")
+    fun skipsNonPrimitiveModel() {
+        defaults.set("openrouter/auto", "high")
+
+        val rawJson = buildRequest("""{"model":{"slug":"openrouter/auto"},"messages":[]}""")
+        val result = RouterPluginsInjector.inject(rawJson, defaults, gson, "t-10")
+
+        assertFalse(result)
+        assertFalse(rawJson.has("plugins"))
+    }
+
+    @Test
+    @DisplayName("requestId is optional - injection works without one")
+    fun injectsWithoutRequestId() {
+        defaults.set("openrouter/auto", "low")
+
+        val rawJson = buildRequest("""{"model":"openrouter/auto","messages":[]}""")
+        val result = RouterPluginsInjector.inject(rawJson, defaults, gson)
+
+        assertTrue(result)
+        assertEquals("low", rawJson.getAsJsonArray("plugins")[0].asJsonObject.get("cost_tier").asString)
+    }
+
+    @Test
     @DisplayName("accepts an editable-enum saved value verbatim (Fusion preset)")
     fun editableEnumPassesThrough() {
         defaults.set("openrouter/fusion", "my-custom-preset")

@@ -63,6 +63,13 @@ class RouterRequestBuilderTest {
         }
 
         @Test
+        @DisplayName("a blank chosen value is treated as no selection, not as an empty param")
+        fun blankValueIsNoSelection() {
+            assertNull(RouterRequestBuilder.buildPlugins("openrouter/auto", "   "))
+            assertNull(RouterRequestBuilder.buildPlugins("openrouter/fusion", ""))
+        }
+
+        @Test
         @DisplayName("auto rejects a value outside the closed enum")
         fun autoInvalidValue() {
             // 'ultra' is not in [low,medium,high,xhigh,max]; treat as no selection
@@ -97,6 +104,22 @@ class RouterRequestBuilderTest {
             assertNull(RouterRequestBuilder.buildPlugins("openrouter/pareto-code", "abc"))
             assertNull(RouterRequestBuilder.buildPlugins("openrouter/pareto-code", null))
         }
+
+        @Test
+        @DisplayName("pareto rejects a value below the range minimum")
+        fun paretoBelowMinimum() {
+            assertNull(RouterRequestBuilder.buildPlugins("openrouter/pareto-code", "-0.5"))
+        }
+
+        @Test
+        @DisplayName("pareto accepts both range bounds")
+        fun paretoAcceptsBounds() {
+            val atMin = RouterRequestBuilder.buildPlugins("openrouter/pareto-code", "0.0")!!
+            val atMax = RouterRequestBuilder.buildPlugins("openrouter/pareto-code", "1.0")!!
+
+            assertEquals(0.0, atMin[0].params["min_coding_score"])
+            assertEquals(1.0, atMax[0].params["min_coding_score"])
+        }
     }
 
     @Nested
@@ -119,6 +142,17 @@ class RouterRequestBuilderTest {
                 RouterRequestBuilder.resolvedModelLabel(
                     requestedModel = "anthropic/claude-sonnet-4.5",
                     responseModel = "anthropic/claude-sonnet-4.5"
+                )
+            )
+        }
+
+        @Test
+        @DisplayName("no label when the router response carries a blank model")
+        fun blankResponseModel() {
+            assertNull(
+                RouterRequestBuilder.resolvedModelLabel(
+                    requestedModel = "openrouter/auto",
+                    responseModel = "   "
                 )
             )
         }

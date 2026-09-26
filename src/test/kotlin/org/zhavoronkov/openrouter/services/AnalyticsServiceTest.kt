@@ -3,6 +3,7 @@ package org.zhavoronkov.openrouter.services
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.SocketPolicy
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -288,5 +289,35 @@ class AnalyticsServiceTest {
         assertTrue(first is ApiResult.Error, "expected the first call to fail, got $first")
         assertTrue(second is ApiResult.Success, "a failed meta() must not be cached: got $second")
         assertEquals(2, server.requestCount)
+    }
+
+    // --- Network failure: the transport throws rather than answering ----------------------------
+
+    @Test
+    @DisplayName("a dropped connection on query() is reported as an error, not thrown to the caller")
+    fun `a dropped connection on query is an error`() = runBlocking {
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START))
+        val service = AnalyticsService(
+            baseUrlOverride = server.url("/api/v1").toString(),
+            provisioningKeyProvider = { "k" }
+        )
+
+        val result = service.query(request())
+
+        assertTrue(result is ApiResult.Error, "expected a reported error, got: $result")
+    }
+
+    @Test
+    @DisplayName("a dropped connection on meta() is reported as an error, not thrown to the caller")
+    fun `a dropped connection on meta is an error`() = runBlocking {
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START))
+        val service = AnalyticsService(
+            baseUrlOverride = server.url("/api/v1").toString(),
+            provisioningKeyProvider = { "k" }
+        )
+
+        val result = service.meta()
+
+        assertTrue(result is ApiResult.Error, "expected a reported error, got: $result")
     }
 }

@@ -25,6 +25,7 @@ import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.OpenRouterStatsCache
 import org.zhavoronkov.openrouter.ui.OpenRouterStatsPopup
+import org.zhavoronkov.openrouter.utils.applicationServiceOrNull
 import java.awt.event.MouseEvent
 import javax.swing.Icon
 
@@ -281,14 +282,14 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
      * Record a credit usage snapshot when stats are updated.
      */
     private fun recordCreditSnapshot(totalUsage: Double) {
-        try {
-            val historyService = org.zhavoronkov.openrouter.services.CreditUsageHistoryService.getInstance()
-            historyService.recordSnapshot(totalUsage)
-        } catch (e: IllegalStateException) {
-            org.zhavoronkov.openrouter.utils.PluginLogger.Service.debug(
-                "CreditUsageHistoryService not available: ${e.message}"
-            )
+        val historyService = applicationServiceOrNull(
+            org.zhavoronkov.openrouter.services.CreditUsageHistoryService::class.java
+        )
+        if (historyService == null) {
+            org.zhavoronkov.openrouter.utils.PluginLogger.Service.debug("CreditUsageHistoryService not available")
+            return
         }
+        historyService.recordSnapshot(totalUsage)
     }
 
     /**
@@ -444,14 +445,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         creditsData: CreditsData? = null
     ): String {
         // Get tracking service for real-time "Today" data
-        val trackingService = try {
-            OpenRouterGenerationTrackingService.getInstance()
-        } catch (e: IllegalStateException) {
-            org.zhavoronkov.openrouter.utils.PluginLogger.Service.debug(
-                "Tracking service not available: ${e.message}"
-            )
-            null
-        }
+        val trackingService = applicationServiceOrNull(OpenRouterGenerationTrackingService::class.java)
 
         val isRegular = settingsService.apiKeyManager.authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR
         return StatusBarStatsFormatter.formatStatusTooltipFromCredits(

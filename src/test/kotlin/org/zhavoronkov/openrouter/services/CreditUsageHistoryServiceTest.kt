@@ -292,4 +292,82 @@ class CreditUsageHistoryServiceTest {
         assertNotNull(spent)
         assertTrue(spent!! >= 0.0)
     }
+
+    // ---------------------------------------------------------------------
+    // getYesterdaySpent: the snapshot-derived fallback
+    // ---------------------------------------------------------------------
+
+    /** Start of yesterday in the zone the service itself computes against. */
+    private fun yesterdayStartUtcMillis(): Long =
+        java.time.LocalDate.now().minusDays(1).atStartOfDay()
+            .atZone(java.time.ZoneId.systemDefault())
+            .withZoneSameInstant(java.time.ZoneOffset.UTC)
+            .toInstant()
+            .toEpochMilli()
+
+    private fun seed(vararg snapshots: CreditUsageHistoryService.CreditSnapshot) {
+        service.loadState(CreditUsageHistoryService.State(snapshots = snapshots.toMutableList()))
+    }
+
+    @Test
+    @DisplayName("an API figure is preferred over the snapshot fallback")
+    fun apiFigureWins() {
+        assertEquals(3.5, service.getYesterdaySpent(3.5))
+    }
+
+    @Test
+    @DisplayName("a negative API figure is rejected and the snapshot fallback is used instead")
+    fun negativeApiFigureFallsBack() {
+        assertNull(service.getYesterdaySpent(-1.0), "no snapshots, so the fallback has nothing to say")
+    }
+
+    @Test
+    @DisplayName("with no snapshot at or before yesterday's start there is nothing to derive")
+    fun noSnapshotBeforeYesterdayStart() {
+        val yesterdayStart = yesterdayStartUtcMillis()
+        seed(CreditUsageHistoryService.CreditSnapshot(yesterdayStart + HOUR_MS, 10.0))
+
+        assertNull(service.getYesterdaySpent(null))
+    }
+
+    @Test
+    @DisplayName("a snapshot taken only after yesterday's end tells us nothing about yesterday")
+    fun snapshotAfterYesterdayEnd() {
+        val yesterdayStart = yesterdayStartUtcMillis()
+        seed(CreditUsageHistoryService.CreditSnapshot(yesterdayStart + 30 * HOUR_MS, 10.0))
+
+        assertNull(service.getYesterdaySpent(null))
+    }
+
+    @Test
+    @DisplayName("yesterday's spend is the difference between the day's boundaries")
+    fun spendIsTheBoundaryDifference() {
+        val yesterdayStart = yesterdayStartUtcMillis()
+        seed(
+            CreditUsageHistoryService.CreditSnapshot(yesterdayStart, 10.0),
+            CreditUsageHistoryService.CreditSnapshot(yesterdayStart + 12 * HOUR_MS, 14.0)
+        )
+        assertEquals(2, service.getSnapshotCount(), "both seeded snapshots must survive pruning")
+
+        assertEquals(4.0, service.getYesterdaySpent(null)!!, 1e-9)
+    }
+
+    @Test
+    @DisplayName("a total that went DOWN across yesterday is reported as unknown, never as negative spend")
+    fun totalGoingDownIsNotNegativeSpend() {
+        // A top-up or an account reset lowers `totalUsed`; the difference is then meaningless,
+        // and a negative "spent yesterday" would propagate into the days-left estimate.
+        val yesterdayStart = yesterdayStartUtcMillis()
+        seed(
+            CreditUsageHistoryService.CreditSnapshot(yesterdayStart, 10.0),
+            CreditUsageHistoryService.CreditSnapshot(yesterdayStart + 12 * HOUR_MS, 5.0)
+        )
+        assertEquals(2, service.getSnapshotCount(), "both seeded snapshots must survive pruning")
+
+        assertNull(service.getYesterdaySpent(null))
+    }
+
+    private companion object {
+        const val HOUR_MS = 3_600_000L
+    }
 }

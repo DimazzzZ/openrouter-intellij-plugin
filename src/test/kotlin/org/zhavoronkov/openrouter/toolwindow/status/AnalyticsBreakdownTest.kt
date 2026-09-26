@@ -737,4 +737,45 @@ class AnalyticsBreakdownTest {
     fun `burnRatePerDay returns null for an empty series`() {
         assertEquals(null, AnalyticsBreakdown.burnRatePerDay(emptyList(), ActivityAggregator.Period.WEEK))
     }
+
+    @Test
+    @DisplayName("a metric that is neither a number nor a string (an object, a list, a bool) drops the whole row")
+    fun `a metric of a wholly non-numeric type drops the row`() {
+        val result = AnalyticsBreakdown.toModelSpend(
+            listOf(
+                mapOf("model" to "listy", "total_usage" to listOf(1.0), "request_count" to 1.0),
+                mapOf("model" to "objecty", "total_usage" to 1.0, "request_count" to mapOf("n" to 1)),
+                mapOf("model" to "booly", "total_usage" to true, "request_count" to 1.0),
+                mapOf("model" to "good", "total_usage" to 1.0, "request_count" to 1.0)
+            )
+        )
+
+        assertEquals(listOf("good"), result.map { it.model })
+    }
+
+    @Test
+    @DisplayName("toSpendSeries drops a row whose bucket value is not a string")
+    fun `toSpendSeries drops a row with a non-string bucket`() {
+        val result = AnalyticsBreakdown.toSpendSeries(
+            listOf(
+                mapOf("date__day" to "2026-09-18", "total_usage" to 1.0),
+                mapOf("date__day" to 20260919, "total_usage" to 99.0)
+            )
+        )
+
+        assertEquals(listOf(1.0), result)
+    }
+
+    @Test
+    @DisplayName("toSpendSeries drops a row whose bucket value is blank")
+    fun `toSpendSeries drops a row with a blank bucket`() {
+        val result = AnalyticsBreakdown.toSpendSeries(
+            listOf(
+                mapOf("date__day" to "2026-09-18", "total_usage" to 1.0),
+                mapOf("date__day" to "   ", "total_usage" to 99.0)
+            )
+        )
+
+        assertEquals(listOf(1.0), result)
+    }
 }

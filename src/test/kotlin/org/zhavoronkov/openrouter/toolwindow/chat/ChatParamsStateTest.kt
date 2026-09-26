@@ -179,4 +179,36 @@ class ChatParamsStateTest {
             assertEquals("Send parameters", ChatParamsState.activeSummary(selection))
         }
     }
+
+    @Nested
+    @DisplayName("Router value edge cases shared by both readers")
+    inner class RouterValueEdges {
+
+        @Test
+        @DisplayName("a shown router control holding a blank value does not count as non-default")
+        fun `a shown router with a blank value is still default`() {
+            val selection = defaults(routerVisible = true, routerLabel = "Cost tier", routerValue = "   ")
+
+            assertFalse(ChatParamsState.hasNonDefaultSelection(selection))
+            assertEquals("Send parameters", ChatParamsState.activeSummary(selection))
+        }
+
+        @Test
+        @DisplayName("a shown router control holding no value at all does not count as non-default")
+        fun `a shown router with a null value is still default`() {
+            val selection = defaults(routerVisible = true, routerLabel = "Cost tier", routerValue = null)
+
+            assertFalse(ChatParamsState.hasNonDefaultSelection(selection))
+            assertEquals("Send parameters", ChatParamsState.activeSummary(selection))
+        }
+
+        @Test
+        @DisplayName("a router value with no label renders the value alone, never the word 'null'")
+        fun `a router value without a label renders the value alone`() {
+            val selection = defaults(routerVisible = true, routerLabel = null, routerValue = "high")
+
+            assertTrue(ChatParamsState.hasNonDefaultSelection(selection))
+            assertEquals(": high", ChatParamsState.activeSummary(selection))
+        }
+    }
 }

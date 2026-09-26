@@ -14,6 +14,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import org.zhavoronkov.openrouter.utils.applicationServiceOrNull
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -272,8 +273,13 @@ class CreditUsageHistoryService : PersistentStateComponent<CreditUsageHistorySer
             .toInstant()
             .toEpochMilli()
 
-        val startUsage = interpolateUsageAtTime(startUtc) ?: return null
+        // End first, deliberately. `interpolateUsageAtTime` answers null only when no snapshot
+        // sits at or before the target, and endUtc is later than startUtc - so asking for the
+        // start first would make the second check unreachable. This way both are real: no
+        // snapshot at all fails on the end, and a snapshot that lands inside yesterday (nothing
+        // before it) fails on the start.
         val endUsage = interpolateUsageAtTime(endUtc) ?: return null
+        val startUsage = interpolateUsageAtTime(startUtc) ?: return null
 
         val spent = endUsage - startUsage
         return if (spent >= 0) spent else null
@@ -302,14 +308,8 @@ class CreditUsageHistoryService : PersistentStateComponent<CreditUsageHistorySer
         PluginLogger.Service.info("CreditUsageHistoryService: Cleared all snapshots")
     }
 
-    private fun getStatsCacheSafely(): OpenRouterStatsCache? {
-        return try {
-            OpenRouterStatsCache.getInstance()
-        } catch (e: IllegalStateException) {
-            PluginLogger.Service.warn("CreditUsageHistoryService: OpenRouterStatsCache not available: ${e.message}")
-            null
-        }
-    }
+    private fun getStatsCacheSafely(): OpenRouterStatsCache? =
+        applicationServiceOrNull(OpenRouterStatsCache::class.java)
 
     private fun formatTimestamp(timestamp: Long): String {
         return LocalDateTime.ofInstant(

@@ -241,6 +241,31 @@ class ModelsServletTest {
         assertTrue(writer.toString().contains("openai/gpt-4o"))
     }
 
+    @Test
+    @DisplayName("an IOException from the model fetch falls back to the curated list, not an error page")
+    fun `doGet falls back to curated on IOException from service getModels`() = kotlinx.coroutines.runBlocking {
+        val openRouterService = mock(OpenRouterService::class.java)
+        // thenThrow refuses a checked exception the suspend fun's JVM signature does not declare;
+        // an Answer that throws reaches the same catch without that restriction.
+        `when`(openRouterService.getModels()).thenAnswer { throw java.io.IOException("network down") }
+        val servlet = ModelsServlet(openRouterService, { listOf("openai/gpt-4o") }, { emptyList() })
+
+        val req = mock(HttpServletRequest::class.java)
+        `when`(req.getParameter("mode")).thenReturn("all")
+        `when`(req.getHeader("User-Agent")).thenReturn("test")
+        `when`(req.requestURI).thenReturn("/models")
+        `when`(req.remoteAddr).thenReturn("127.0.0.1")
+        `when`(req.headerNames).thenReturn(java.util.Collections.emptyEnumeration())
+
+        val resp = mock(HttpServletResponse::class.java)
+        val writer = StringWriter()
+        `when`(resp.writer).thenReturn(PrintWriter(writer))
+
+        servlet.doGet(req, resp)
+
+        assertTrue(writer.toString().contains("openai/gpt-4o"))
+    }
+
     @Nested
     @DisplayName("Preset support")
     inner class PresetTests {
@@ -349,5 +374,169 @@ class ModelsServletTest {
         servlet.doGet(req, resp)
 
         org.mockito.Mockito.verify(resp).status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR
+    }
+
+    // --- Request-logging prologue: both shapes of the incoming request ---------------------------
+
+    @Test
+    @DisplayName("a request without a User-Agent header is served, not rejected")
+    fun `doGet serves a request with no User-Agent`() {
+        val servlet = ModelsServlet(mock(OpenRouterService::class.java), { listOf("openai/gpt-4o") }, { emptyList() })
+        val req = mock(HttpServletRequest::class.java)
+        `when`(req.getParameter("mode")).thenReturn("curated")
+        `when`(req.getHeader("User-Agent")).thenReturn(null)
+        `when`(req.requestURI).thenReturn("/models")
+        `when`(req.remoteAddr).thenReturn("127.0.0.1")
+        `when`(req.headerNames).thenReturn(java.util.Collections.emptyEnumeration())
+        val resp = mock(HttpServletResponse::class.java)
+        val writer = StringWriter()
+        `when`(resp.writer).thenReturn(PrintWriter(writer))
+
+        servlet.doGet(req, resp)
+
+        assertTrue(writer.toString().contains("openai/gpt-4o"))
+    }
+
+    @Test
+    @DisplayName("a request carrying a query string is served, not rejected")
+    fun `doGet serves a request with a query string`() {
+        val servlet = ModelsServlet(mock(OpenRouterService::class.java), { listOf("openai/gpt-4o") }, { emptyList() })
+        val req = mock(HttpServletRequest::class.java)
+        `when`(req.getParameter("mode")).thenReturn("curated")
+        `when`(req.getHeader("User-Agent")).thenReturn("test")
+        `when`(req.requestURI).thenReturn("/models")
+        `when`(req.queryString).thenReturn("mode=curated")
+        `when`(req.remoteAddr).thenReturn("127.0.0.1")
+        `when`(req.headerNames).thenReturn(java.util.Collections.emptyEnumeration())
+        val resp = mock(HttpServletResponse::class.java)
+        val writer = StringWriter()
+        `when`(resp.writer).thenReturn(PrintWriter(writer))
+
+        servlet.doGet(req, resp)
+
+        assertTrue(writer.toString().contains("openai/gpt-4o"))
+    }
+
+    // --- Filtering: a non-positive limit is "no limit", not "take nothing" -----------------------
+
+    @Test
+    @DisplayName("limit=0 is ignored rather than emptying the list")
+    fun `doGet all mode ignores a non-positive limit`() = kotlinx.coroutines.runBlocking {
+        val openRouterService = mock(OpenRouterService::class.java)
+        val models = OpenRouterModelsResponse(
+            data = listOf(
+                OpenRouterModelInfo(id = "openai/gpt-4o", name = "GPT-4o", created = 1L),
+                OpenRouterModelInfo(id = "anthropic/claude", name = "Claude", created = 2L)
+            )
+        )
+        `when`(openRouterService.getModels()).thenReturn(ApiResult.Success(models, 200))
+        val servlet = ModelsServlet(openRouterService, { emptyList() }, { emptyList() })
+
+        val req = mock(HttpServletRequest::class.java)
+        `when`(req.getParameter("mode")).thenReturn("all")
+        `when`(req.getParameter("limit")).thenReturn("0")
+        `when`(req.getHeader("User-Agent")).thenReturn("test")
+        `when`(req.requestURI).thenReturn("/models")
+        `when`(req.remoteAddr).thenReturn("127.0.0.1")
+        `when`(req.headerNames).thenReturn(java.util.Collections.emptyEnumeration())
+        val resp = mock(HttpServletResponse::class.java)
+        val writer = StringWriter()
+        `when`(resp.writer).thenReturn(PrintWriter(writer))
+
+        servlet.doGet(req, resp)
+
+        val body = writer.toString()
+        assertTrue(body.contains("openai/gpt-4o"))
+        assertTrue(body.contains("anthropic/claude"))
+    }
+
+    // --- Cache expiry: a populated but stale cache is refetched, not served ----------------------
+
+    @Test
+    @DisplayName("an expired cache entry is refetched rather than served stale")
+    fun `doGet all mode refetches once the cache has expired`() = kotlinx.coroutines.runBlocking {
+        val openRouterService = mock(OpenRouterService::class.java)
+        val models = OpenRouterModelsResponse(
+            data = listOf(OpenRouterModelInfo(id = "openai/gpt-4o", name = "GPT-4o", created = 1L))
+        )
+        `when`(openRouterService.getModels()).thenReturn(ApiResult.Success(models, 200))
+        val servlet = ModelsServlet(openRouterService, { emptyList() }, { emptyList() })
+
+        fun makeReq(): HttpServletRequest {
+            val req = mock(HttpServletRequest::class.java)
+            `when`(req.getParameter("mode")).thenReturn("all")
+            `when`(req.getHeader("User-Agent")).thenReturn("test")
+            `when`(req.requestURI).thenReturn("/models")
+            `when`(req.remoteAddr).thenReturn("127.0.0.1")
+            `when`(req.headerNames).thenReturn(java.util.Collections.emptyEnumeration())
+            return req
+        }
+        fun makeResp(): HttpServletResponse {
+            val resp = mock(HttpServletResponse::class.java)
+            `when`(resp.writer).thenReturn(PrintWriter(StringWriter()))
+            return resp
+        }
+
+        servlet.doGet(makeReq(), makeResp())
+
+        // Age the cache past its TTL without touching the entry itself: the map still holds
+        // "all", so this is the populated-but-stale branch, distinct from the empty-cache one.
+        val tsField = ModelsServlet::class.java.getDeclaredField("cacheTimestamp").apply { isAccessible = true }
+        (tsField.get(null) as java.util.concurrent.atomic.AtomicLong).set(0)
+
+        servlet.doGet(makeReq(), makeResp())
+
+        org.mockito.Mockito.verify(openRouterService, org.mockito.Mockito.times(2)).getModels()
+        Unit
+    }
+
+    // --- The doGet-level error envelopes --------------------------------------------------------
+
+    @Test
+    @DisplayName("an IllegalStateException escaping the model lookup answers 500 with a JSON error")
+    fun `doGet answers 500 when the favorites lookup is unavailable`() {
+        val servlet = ModelsServlet(
+            mock(OpenRouterService::class.java),
+            { throw IllegalStateException("settings unavailable") },
+            { emptyList() }
+        )
+        val req = mock(HttpServletRequest::class.java)
+        `when`(req.getParameter("mode")).thenReturn("curated")
+        `when`(req.getHeader("User-Agent")).thenReturn("test")
+        `when`(req.requestURI).thenReturn("/models")
+        `when`(req.remoteAddr).thenReturn("127.0.0.1")
+        `when`(req.headerNames).thenReturn(java.util.Collections.emptyEnumeration())
+        val resp = mock(HttpServletResponse::class.java)
+        val writer = StringWriter()
+        `when`(resp.writer).thenReturn(PrintWriter(writer))
+
+        servlet.doGet(req, resp)
+
+        verify(resp).status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR
+        assertTrue(writer.toString().contains("internal_error"))
+    }
+
+    @Test
+    @DisplayName("a TimeoutException escaping the model lookup answers 408 with a timeout_error envelope")
+    fun `doGet answers 408 when the model lookup times out`() {
+        val servlet = ModelsServlet(
+            mock(OpenRouterService::class.java),
+            { throw java.util.concurrent.TimeoutException("too slow") },
+            { emptyList() }
+        )
+        val req = mock(HttpServletRequest::class.java)
+        `when`(req.getParameter("mode")).thenReturn("curated")
+        `when`(req.getHeader("User-Agent")).thenReturn("test")
+        `when`(req.requestURI).thenReturn("/models")
+        `when`(req.remoteAddr).thenReturn("127.0.0.1")
+        `when`(req.headerNames).thenReturn(java.util.Collections.emptyEnumeration())
+        val resp = mock(HttpServletResponse::class.java)
+        val writer = StringWriter()
+        `when`(resp.writer).thenReturn(PrintWriter(writer))
+
+        servlet.doGet(req, resp)
+
+        verify(resp).status = HttpServletResponse.SC_REQUEST_TIMEOUT
+        assertTrue(writer.toString().contains("timeout_error"))
     }
 }

@@ -63,10 +63,17 @@ object MarkdownRenderer {
     private fun normalizeForInlineDisplay(html: String): String {
         if (html.isBlank()) return html
 
-        // Check if the entire content is EXACTLY one <p> block (no other tags except inline ones inside)
-        // Must match the whole string from start to end
-        val singleParagraphRegex = Regex("""^<p>(.*)</p>$""", RegexOption.DOT_MATCHES_ALL)
-        val match = singleParagraphRegex.matchEntire(html)
+        // Check if the entire content is EXACTLY one <p> block (no other tags except inline ones inside).
+        //
+        // Two details this regex depends on, both of which cost a silent bug when dropped:
+        //  - flexmark ends its output with a newline, and `matchEntire` requires the WHOLE string to
+        //    match, so the input has to be trimmed first. Without the trim nothing ever matched and
+        //    every short message fell through to the multi-paragraph branch.
+        //  - the group stops at the FIRST `</p>`, otherwise a greedy `.*` under DOT_MATCHES_ALL
+        //    happily spans two paragraphs and splices them into one.
+        val trimmed = html.trim()
+        val singleParagraphRegex = Regex("""^<p>((?:(?!</p>).)*)</p>$""", RegexOption.DOT_MATCHES_ALL)
+        val match = singleParagraphRegex.matchEntire(trimmed)
 
         return if (match != null) {
             // Unwrap single paragraph - return just the inline content

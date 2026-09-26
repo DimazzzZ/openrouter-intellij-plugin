@@ -145,4 +145,41 @@ class AnalyticsMetaCheckTest {
 
         assertEquals(AnalyticsMetaCheck.Result.Validated, result)
     }
+
+    // --- The "could not check" short-circuit only fires when ALL THREE lists are empty ----------
+
+    @Test
+    @DisplayName("a meta with only granularities is a real answer - its empty metrics list reports them missing")
+    fun `only granularities present is still a real answer`() {
+        val meta = AnalyticsMeta(metrics = emptyList(), dimensions = emptyList(), granularities = listOf("hour", "day"))
+
+        val result = AnalyticsMetaCheck.run(meta)
+
+        assertTrue(
+            result is AnalyticsMetaCheck.Result.Missing,
+            "one non-empty list makes the whole response a real answer, not an unparsable envelope"
+        )
+        assertEquals(
+            listOf("total_usage", "request_count", "model"),
+            (result as AnalyticsMetaCheck.Result.Missing).missingNames
+        )
+    }
+
+    @Test
+    @DisplayName("a meta with only dimensions is a real answer - its empty metrics list reports them missing")
+    fun `only dimensions present is still a real answer`() {
+        val meta = AnalyticsMeta(
+            metrics = emptyList(),
+            dimensions = listOf(AnalyticsDimension("model", null)),
+            granularities = emptyList()
+        )
+
+        val result = AnalyticsMetaCheck.run(meta)
+
+        assertTrue(result is AnalyticsMetaCheck.Result.Missing)
+        assertEquals(
+            listOf("total_usage", "request_count", "day", "hour"),
+            (result as AnalyticsMetaCheck.Result.Missing).missingNames
+        )
+    }
 }

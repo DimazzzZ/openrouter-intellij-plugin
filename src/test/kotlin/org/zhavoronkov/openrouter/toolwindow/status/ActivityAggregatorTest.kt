@@ -12,7 +12,7 @@ class ActivityAggregatorTest {
 
     private val today = LocalDate.of(2026, 9, 19)
 
-    private fun row(date: String, model: String, usage: Double, requests: Int) = ActivityData(
+    private fun row(date: String?, model: String, usage: Double, requests: Int) = ActivityData(
         date = date,
         model = model,
         modelPermaslug = null,
@@ -136,5 +136,24 @@ class ActivityAggregatorTest {
         assertTrue(
             ActivityAggregator.byModel(emptyList(), ActivityAggregator.Period.MONTH, today).isEmpty()
         )
+    }
+
+    @Test
+    @DisplayName("a row with a blank or absent date is dropped rather than thrown on")
+    fun `a row without a usable date is dropped`() {
+        val result = ActivityAggregator.byModel(
+            listOf(
+                row("2026-09-19", "openai/gpt-4o-mini", 0.10, 1),
+                row(null, "openai/gpt-4o-mini", 99.0, 99),
+                row("", "openai/gpt-4o-mini", 99.0, 99),
+                row("   ", "openai/gpt-4o-mini", 99.0, 99)
+            ),
+            ActivityAggregator.Period.DAY,
+            today
+        )
+
+        assertEquals(1, result.size)
+        assertEquals(0.10, result[0].usage)
+        assertEquals(1L, result[0].requests)
     }
 }

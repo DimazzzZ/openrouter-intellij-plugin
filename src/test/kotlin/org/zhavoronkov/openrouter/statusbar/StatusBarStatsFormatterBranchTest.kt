@@ -99,4 +99,33 @@ class StatusBarStatsFormatterBranchTest {
         )
         assertTrue(tooltip.contains("N/A"))
     }
+
+    @Test
+    @DisplayName("processActivity ignores a future-dated row - it is outside the trailing week too")
+    fun processIgnoresFutureDate() {
+        val tomorrow = LocalDate.now(ZoneId.of("UTC")).plusDays(1).toString()
+        val rows = StatusBarStatsFormatter.calculateActivityRows(listOf(activity(tomorrow, 9.0)))
+        assertTrue(rows.contains("7 Days:"))
+        assertTrue(rows.contains("\$0.000"))
+    }
+
+    @Test
+    @DisplayName("a positive yesterday spend yields a days-remaining estimate without the history service")
+    fun tooltipRemainingFromYesterdaySpend() {
+        // Before the fix this raised NPE: the guard around CreditUsageHistoryService.getInstance()
+        // caught IllegalStateException, but an absent application makes getInstance() throw NPE, so
+        // the documented fallback was unreachable and the exception escaped to the caller.
+        val yesterday = LocalDate.now(ZoneId.of("UTC")).minusDays(1).toString()
+
+        val tooltip = StatusBarStatsFormatter.formatStatusTooltipFromCredits(
+            statusText = "Status: Ready",
+            used = 2.0,
+            total = 12.0,
+            activityList = listOf(activity(yesterday, 2.0)),
+            creditsData = null
+        )
+
+        // remaining = 12 - 2 = 10, yesterday spend = 2.0 -> ~5 days
+        assertTrue(tooltip.contains("~5 days"), "Expected a days-remaining estimate, got: $tooltip")
+    }
 }

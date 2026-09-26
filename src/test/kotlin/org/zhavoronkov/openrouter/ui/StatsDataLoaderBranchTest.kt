@@ -110,6 +110,26 @@ class StatsDataLoaderBranchTest {
         }
 
         @Test
+        @DisplayName("a present settings service with no API client still yields Error")
+        fun `missing router service alone yields Error`() {
+            val settings = settingsMock(configured = true, provisioningKey = "pk")
+
+            val result = runLoad(settings, null)
+
+            assertTrue(result is StatsDataLoader.LoadResult.Error)
+        }
+
+        @Test
+        @DisplayName("a present API client with no settings service still yields Error")
+        fun `missing settings service alone yields Error`() {
+            val router = routerMock(okApiKeys(), okCredits(), okActivity())
+
+            val result = runLoad(null, router)
+
+            assertTrue(result is StatsDataLoader.LoadResult.Error)
+        }
+
+        @Test
         fun `unconfigured settings yield NotConfigured`() {
             val settings = settingsMock(configured = false, provisioningKey = "pk")
             val router = routerMock(okApiKeys(), okCredits(), okActivity())
