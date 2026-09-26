@@ -8,8 +8,6 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertDoesNotThrow
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNotNull
-import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
@@ -18,10 +16,6 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.zhavoronkov.openrouter.testing.OkHttpLeakSafeExtension
-import java.io.IOException
-import java.net.ConnectException
-import java.net.SocketTimeoutException
-import java.net.UnknownHostException
 
 /**
  * Tests for network error handling in OpenRouterService
@@ -54,45 +48,6 @@ class OpenRouterServiceNetworkErrorTest {
     @Nested
     @DisplayName("Network Error Scenarios")
     inner class NetworkErrorScenariosTest {
-
-        @Test
-        @DisplayName("Should handle connection timeout gracefully")
-        fun testConnectionTimeout() {
-            // This test documents that SocketTimeoutException is a type of IOException
-            // and should be handled gracefully by the service
-            assertTrue(IOException::class.java.isAssignableFrom(SocketTimeoutException::class.java))
-
-            // Verify the error message format
-            val errorMsg = "Request timed out - OpenRouter may be slow or unreachable"
-            assertTrue(errorMsg.contains("timed out"))
-            assertFalse(errorMsg.contains("Exception"))
-        }
-
-        @Test
-        @DisplayName("Should handle connection refused gracefully")
-        fun testConnectionRefused() {
-            // This test documents that ConnectException is a type of IOException
-            // and should be handled gracefully by the service
-            assertTrue(IOException::class.java.isAssignableFrom(ConnectException::class.java))
-
-            // Verify the error message format
-            val errorMsg = "Connection refused - OpenRouter may be down"
-            assertTrue(errorMsg.contains("Connection refused"))
-            assertFalse(errorMsg.contains("Exception"))
-        }
-
-        @Test
-        @DisplayName("Should handle unknown host gracefully")
-        fun testUnknownHost() {
-            // This test documents that UnknownHostException is a type of IOException
-            // and should be handled gracefully by the service
-            assertTrue(IOException::class.java.isAssignableFrom(UnknownHostException::class.java))
-
-            // Verify the error message format
-            val errorMsg = "Unable to reach OpenRouter (offline or DNS issue)"
-            assertTrue(errorMsg.contains("offline or DNS"))
-            assertFalse(errorMsg.contains("Exception"))
-        }
 
         @Test
         @DisplayName("Should handle server error responses gracefully")
@@ -146,61 +101,8 @@ class OpenRouterServiceNetworkErrorTest {
     }
 
     @Nested
-    @DisplayName("Error Message Formatting")
-    inner class ErrorMessageFormattingTest {
-
-        @Test
-        @DisplayName("Should format UnknownHostException message appropriately")
-        fun testUnknownHostExceptionMessage() {
-            val expectedMessage = "Unable to reach OpenRouter (offline or DNS issue)"
-
-            // Verify the error message is user-friendly
-            assertTrue(expectedMessage.contains("offline or DNS"))
-            assertFalse(expectedMessage.contains("Exception"))
-            assertFalse(expectedMessage.contains("stack trace"))
-        }
-
-        @Test
-        @DisplayName("Should format SocketTimeoutException message appropriately")
-        fun testSocketTimeoutExceptionMessage() {
-            val expectedMessage = "Request timed out - OpenRouter may be slow or unreachable"
-
-            // Verify the error message is user-friendly
-            assertTrue(expectedMessage.contains("timed out"))
-            assertFalse(expectedMessage.contains("Exception"))
-        }
-
-        @Test
-        @DisplayName("Should format ConnectException message appropriately")
-        fun testConnectExceptionMessage() {
-            val expectedMessage = "Connection refused - OpenRouter may be down"
-
-            // Verify the error message is user-friendly
-            assertTrue(expectedMessage.contains("Connection refused"))
-            assertFalse(expectedMessage.contains("Exception"))
-        }
-    }
-
-    @Nested
     @DisplayName("Graceful Degradation")
     inner class GracefulDegradationTest {
-
-        @Test
-        @DisplayName("Should return null on network error instead of throwing")
-        fun testReturnsNullOnError() {
-            // This test verifies the pattern used in OpenRouterService
-            // where network errors return null instead of throwing exceptions
-
-            val result = try {
-                // Simulate network call that fails
-                throw UnknownHostException("openrouter.ai")
-            } catch (_: IOException) {
-                // Handle gracefully by returning null
-                null
-            }
-
-            assertNull(result, "Network errors should return null for graceful degradation")
-        }
 
         @Test
         @DisplayName("Should allow retry after network error")
@@ -231,46 +133,6 @@ class OpenRouterServiceNetworkErrorTest {
             val request2 = okhttp3.Request.Builder().url(url).build()
             val response2 = httpClient.newCall(request2).execute()
             assertTrue(response2.isSuccessful)
-        }
-    }
-
-    @Nested
-    @DisplayName("Logging Behavior")
-    inner class LoggingBehaviorTest {
-
-        @Test
-        @DisplayName("Should log network errors at WARN level, not ERROR")
-        fun testLoggingLevel() {
-            // This test documents the expected behavior:
-            // Network errors should be logged at WARN level (not ERROR)
-            // because being offline is not an application error
-
-            val errorTypes = listOf(
-                UnknownHostException::class.java,
-                SocketTimeoutException::class.java,
-                ConnectException::class.java
-            )
-
-            errorTypes.forEach { exceptionType ->
-                assertTrue(
-                    IOException::class.java.isAssignableFrom(exceptionType),
-                    "$exceptionType should be an IOException"
-                )
-            }
-        }
-
-        @Test
-        @DisplayName("Should only log stack trace in debug mode")
-        fun testStackTraceOnlyInDebug() {
-            // This test documents the expected behavior:
-            // Full stack traces should only be logged when debug mode is enabled
-            // Normal users should see friendly error messages without stack traces
-
-            val debugEnabled = System.getProperty("openrouter.debug", "false").toBoolean()
-
-            // In production (debug disabled), stack traces should not be shown
-            // In development (debug enabled), stack traces can be shown
-            assertNotNull(debugEnabled)
         }
     }
 }

@@ -11,7 +11,6 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
-import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.Mockito.mock
@@ -21,7 +20,6 @@ import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatMessage
 import org.zhavoronkov.openrouter.testing.OkHttpLeakSafeExtension
 
-@Tag("functional")
 @ExtendWith(OkHttpLeakSafeExtension::class)
 @DisplayName("OpenRouter Service Branch Tests")
 class OpenRouterServiceBranchTest {

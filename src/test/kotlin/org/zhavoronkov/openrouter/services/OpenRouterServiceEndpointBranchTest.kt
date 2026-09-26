@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
-import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.Mockito.mock
@@ -25,7 +24,6 @@ import org.zhavoronkov.openrouter.testing.OkHttpLeakSafeExtension
  * error. Existing per-endpoint tests exercise mostly the happy path; this class fills
  * the error / parse / blank-key arms flagged by Kover.
  */
-@Tag("functional")
 @ExtendWith(OkHttpLeakSafeExtension::class)
 @DisplayName("OpenRouter Service Endpoint Branch Tests")
 class OpenRouterServiceEndpointBranchTest {
@@ -247,16 +245,29 @@ class OpenRouterServiceEndpointBranchTest {
     }
 
     @Test
-    @DisplayName("getCredits returns Error when no API key configured, without a request")
+    @DisplayName("getCredits returns Error when no Management Key configured, without a request")
     fun creditsBlankKey() = runBlocking {
-        // Measured against the live API (2026-09-21): /credits is account-scoped, answering for
-        // an ordinary API key exactly as it does for a management key, so getCredits() is gated
-        // on the API key, not the (still-present) management key configured in setUp().
-        `when`(mockSettingsService.getApiKey()).thenReturn("")
+        // /credits is Management-Key-only, and getCredits() deliberately has no fallback to the
+        // ordinary API key - see its own KDoc. The API key stays configured here precisely to
+        // show it does NOT satisfy the gate.
+        blankKey()
         val result = service.getCredits()
         assertTrue(result is ApiResult.Error)
-        assertEquals("No API key configured", (result as ApiResult.Error).message)
+        assertEquals("Management Key required", (result as ApiResult.Error).message)
         assertEquals(0, mockWebServer.requestCount)
+    }
+
+    @Test
+    @DisplayName("getCredits does NOT fall back to the ordinary API key when the Management Key is absent")
+    fun creditsDoesNotFallBackToApiKey() = runBlocking {
+        blankKey()
+        `when`(mockSettingsService.getApiKey()).thenReturn("sk-or-still-configured")
+
+        val result = service.getCredits()
+
+        assertTrue(result is ApiResult.Error)
+        assertEquals("Management Key required", (result as ApiResult.Error).message)
+        assertEquals(0, mockWebServer.requestCount, "a configured API key must not trigger a request here")
     }
 
     @Test
