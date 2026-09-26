@@ -15,12 +15,17 @@ import kotlin.time.Duration.Companion.milliseconds
  * Implements Disposable for dynamic plugin support
  *
  * Note: This is a light service (uses @Service annotation) and must be final
+ *
+ * @param clock injected so the cache-expiry decision can be exercised without waiting out
+ *  [org.zhavoronkov.openrouter.constants.OpenRouterConstants.MODELS_CACHE_DURATION_MS].
+ *  Defaults to the wall clock, so production behaviour is unchanged.
  */
 @Service
 @Suppress("TooManyFunctions")
 class FavoriteModelsService(
     private val settingsService: OpenRouterSettingsService? = null,
-    private val openRouterService: OpenRouterService? = null
+    private val openRouterService: OpenRouterService? = null,
+    private val clock: () -> Long = System::currentTimeMillis
 ) : Disposable {
 
     companion object {
@@ -44,7 +49,7 @@ class FavoriteModelsService(
      * @return List of models or null on error
      */
     suspend fun getAvailableModels(forceRefresh: Boolean = false): List<OpenRouterModelInfo>? {
-        val now = System.currentTimeMillis()
+        val now = clock()
         val isCacheValid = cachedModels != null && (now - cacheTimestamp) < OpenRouterConstants.MODELS_CACHE_DURATION_MS
 
         if (!forceRefresh && isCacheValid) {
@@ -60,7 +65,7 @@ class FavoriteModelsService(
                     is ApiResult.Success -> {
                         val response = result.data
                         cachedModels = response.data
-                        cacheTimestamp = System.currentTimeMillis()
+                        cacheTimestamp = clock()
                         PluginLogger.Service.info("Successfully cached ${cachedModels?.size} models")
                         cachedModels
                     }

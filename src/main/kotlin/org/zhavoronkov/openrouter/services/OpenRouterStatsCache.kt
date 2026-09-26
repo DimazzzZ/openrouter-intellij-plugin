@@ -5,8 +5,10 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import org.zhavoronkov.openrouter.api.BalanceData
 import org.zhavoronkov.openrouter.listeners.OpenRouterStatsListener
@@ -15,6 +17,7 @@ import org.zhavoronkov.openrouter.models.ApiKeysListResponse
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.CreditsData
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import org.zhavoronkov.openrouter.utils.applicationServiceOrNull
 import java.io.IOException
 import java.time.LocalDate
 import java.util.concurrent.atomic.AtomicBoolean
@@ -28,9 +31,24 @@ import java.util.concurrent.atomic.AtomicBoolean
  * When data is refreshed, all listeners subscribed to [OpenRouterStatsListener.TOPIC]
  * will be notified, ensuring UI consistency across all components.
  */
+/**
+ * @param settingsServiceOverride injected collaborator; when absent the application service is
+ *  resolved on demand, exactly as before. Mirrors [FavoriteModelsService], which carries the same
+ *  kind of override for the same reason.
+ * @param openRouterServiceOverride as [settingsServiceOverride], for the API client.
+ * @param scope where [refresh] launches its work. Injectable so a caller can await the refresh
+ *  instead of polling [isLoading].
+ *
+ * Every parameter defaults to what this class used to build or resolve itself, so the
+ * no-argument construction the platform does when instantiating the service is unchanged.
+ */
 @Service(Service.Level.APP)
 @Suppress("TooManyFunctions")
-class OpenRouterStatsCache : Disposable {
+class OpenRouterStatsCache(
+    private val settingsServiceOverride: OpenRouterSettingsService? = null,
+    private val openRouterServiceOverride: OpenRouterService? = null,
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+) : Disposable {
 
     companion object {
         fun getInstance(): OpenRouterStatsCache {
@@ -55,8 +73,6 @@ class OpenRouterStatsCache : Disposable {
     private var lastUpdateTimestamp: Long = 0
 
     private val isLoading = AtomicBoolean(false)
-
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     /** Returns the cached credits data, or null if not yet loaded. */
     fun getCachedCredits(): CreditsData? = cachedCredits
@@ -84,26 +100,26 @@ class OpenRouterStatsCache : Disposable {
      * Notifies all listeners when data is available.
      */
     @Suppress("ReturnCount")
-    fun refresh() {
+    fun refresh(): Job? {
         PluginLogger.Service.info("Stats cache: refresh() called")
 
         val validationResult = validateRefreshPreconditions()
         if (validationResult != null) {
             PluginLogger.Service.warn("Stats cache: Validation failed: $validationResult")
             notifyError(validationResult)
-            return
+            return null
         }
 
         // Prevent concurrent refreshes
         if (!isLoading.compareAndSet(false, true)) {
             PluginLogger.Service.debug("Stats cache: Already loading, skipping refresh")
-            return
+            return null
         }
 
         PluginLogger.Service.info("Stats cache: Starting refresh - launching coroutine")
         notifyLoading()
 
-        scope.launch {
+        return scope.launch {
             PluginLogger.Service.info("Stats cache: Coroutine started")
             executeRefresh()
             PluginLogger.Service.info("Stats cache: Coroutine completed")
@@ -144,23 +160,11 @@ class OpenRouterStatsCache : Disposable {
         return null
     }
 
-    private fun getSettingsServiceSafely(): OpenRouterSettingsService? {
-        return try {
-            OpenRouterSettingsService.getInstance()
-        } catch (e: IllegalStateException) {
-            PluginLogger.Service.warn("OpenRouterSettingsService not available: ${e.message}")
-            null
-        }
-    }
+    private fun getSettingsServiceSafely(): OpenRouterSettingsService? =
+        settingsServiceOverride ?: applicationServiceOrNull(OpenRouterSettingsService::class.java)
 
-    private fun getOpenRouterServiceSafely(): OpenRouterService? {
-        return try {
-            OpenRouterService.getInstance()
-        } catch (e: IllegalStateException) {
-            PluginLogger.Service.warn("OpenRouterService not available: ${e.message}")
-            null
-        }
-    }
+    private fun getOpenRouterServiceSafely(): OpenRouterService? =
+        openRouterServiceOverride ?: applicationServiceOrNull(OpenRouterService::class.java)
 
     @Suppress("TooGenericExceptionCaught")
     private suspend fun executeRefresh() {
@@ -197,14 +201,16 @@ class OpenRouterStatsCache : Disposable {
     }
 
     private suspend fun fetchAndProcessData(openRouterService: OpenRouterService) {
-        // Fetch data in parallel
-        val creditsDeferred = scope.async { openRouterService.getCredits() }
-        val activityDeferred = scope.async { openRouterService.getActivity() }
-        val apiKeysDeferred = scope.async { openRouterService.getApiKeysList() }
+        // Fetch data in parallel, as children of THIS coroutine rather than of [scope]: cancelling
+        // the job `refresh()` handed back must cancel the three requests it started, and children
+        // attached to the outer scope would outlive it and keep writing into the cache.
+        val (creditsResult, activityResult, apiKeysResult) = coroutineScope {
+            val creditsDeferred = async { openRouterService.getCredits() }
+            val activityDeferred = async { openRouterService.getActivity() }
+            val apiKeysDeferred = async { openRouterService.getApiKeysList() }
 
-        val creditsResult = creditsDeferred.await()
-        val activityResult = activityDeferred.await()
-        val apiKeysResult = apiKeysDeferred.await()
+            Triple(creditsDeferred.await(), activityDeferred.await(), apiKeysDeferred.await())
+        }
 
         processResults(creditsResult, activityResult, apiKeysResult)
     }
@@ -302,8 +308,9 @@ class OpenRouterStatsCache : Disposable {
     }
 
     private fun notifyLoading() {
-        ApplicationManager.getApplication().invokeLater {
-            ApplicationManager.getApplication().messageBus
+        val application = ApplicationManager.getApplication()
+        application?.invokeLater {
+            application.messageBus
                 .syncPublisher(OpenRouterStatsListener.TOPIC)
                 .onStatsLoading()
         }
@@ -318,8 +325,9 @@ class OpenRouterStatsCache : Disposable {
     }
 
     private fun notifySuccess(credits: CreditsData, activity: List<ActivityData>?) {
-        ApplicationManager.getApplication().invokeLater {
-            ApplicationManager.getApplication().messageBus
+        val application = ApplicationManager.getApplication()
+        application?.invokeLater {
+            application.messageBus
                 .syncPublisher(OpenRouterStatsListener.TOPIC)
                 .onStatsUpdated(credits, activity)
         }
@@ -376,8 +384,9 @@ class OpenRouterStatsCache : Disposable {
     }
 
     private fun notifyError(message: String) {
-        ApplicationManager.getApplication().invokeLater {
-            ApplicationManager.getApplication().messageBus
+        val application = ApplicationManager.getApplication()
+        application?.invokeLater {
+            application.messageBus
                 .syncPublisher(OpenRouterStatsListener.TOPIC)
                 .onStatsError(message)
         }

@@ -107,5 +107,5 @@ CLAUDE.md
 # Kotlin compiler daemon session files
 .kotlin/
 
-# Планировочные артефакты (спеки, планы, чеклисты) — не для репозитория
+# Working notes (specs, plans, checklists) - not for the repository
 docs/superpowers/

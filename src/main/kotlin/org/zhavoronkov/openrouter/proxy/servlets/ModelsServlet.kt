@@ -339,7 +339,6 @@ class ModelsServlet(
             message = message,
             type = when (statusCode) {
                 HttpServletResponse.SC_REQUEST_TIMEOUT -> "timeout_error"
-                HttpServletResponse.SC_SERVICE_UNAVAILABLE -> "service_unavailable"
                 else -> "internal_error"
             }
         )

@@ -146,13 +146,6 @@ object OpenRouterRequestBuilder {
     }
 
     /**
-     * Convenience method to create JSON request body
-     */
-    fun createJsonBody(jsonString: String): RequestBody {
-        return jsonString.toRequestBody(CONTENT_TYPE_JSON.toMediaType())
-    }
-
-    /**
      * Get the standard OpenRouter headers as a map (for AI Assistant integration)
      */
     fun getStandardHeaders(authToken: String? = null): Map<String, String> {

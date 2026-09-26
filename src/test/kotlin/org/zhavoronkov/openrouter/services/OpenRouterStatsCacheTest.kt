@@ -185,19 +185,6 @@ class OpenRouterStatsCacheTest {
     }
 
     @Nested
-    @DisplayName("Method Existence Tests")
-    inner class MethodExistenceTests {
-
-        @Test
-        @DisplayName("refresh method should exist and be callable")
-        fun testRefreshMethodExists() {
-            // Verify the refresh() method exists (it requires IntelliJ platform to run)
-            val method = OpenRouterStatsCache::class.java.getDeclaredMethod("refresh")
-            assertNotNull(method, "refresh() method should exist")
-        }
-    }
-
-    @Nested
     @DisplayName("UpdateFromPopup Tests")
     inner class UpdateFromPopupTests {
 

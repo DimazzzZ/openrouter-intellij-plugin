@@ -370,6 +370,14 @@ kover {
                     "org.zhavoronkov.openrouter.ui.VariantChipTableCellRenderer",
                     "org.zhavoronkov.openrouter.ui.VariantChipTableCellRenderer\$*",
                     // IntelliJ Configurable glue and Swing settings panels (framework wiring / views).
+                    // RouterDefaults* joins its siblings below: the Configurable is pure platform
+                    // glue and the panel is a UI-DSL v2 form that resolves OpenRouterSettingsService
+                    // in a field initializer, so neither constructs under the fast :test task. The
+                    // logic they read - RouterCatalog, RouterRequestBuilder - is NOT excluded.
+                    "org.zhavoronkov.openrouter.settings.RouterDefaultsConfigurable",
+                    "org.zhavoronkov.openrouter.settings.RouterDefaultsConfigurable\$*",
+                    "org.zhavoronkov.openrouter.settings.RouterDefaultsSettingsPanel",
+                    "org.zhavoronkov.openrouter.settings.RouterDefaultsSettingsPanel\$*",
                     "org.zhavoronkov.openrouter.settings.ApiKeyDialogManager",
                     "org.zhavoronkov.openrouter.settings.ApiKeyDialogManager\$*",
                     "org.zhavoronkov.openrouter.settings.FavoriteModelsConfigurable",
@@ -388,6 +396,11 @@ kover {
                     "org.zhavoronkov.openrouter.settings.ProviderRoutingConfigurable\$*",
                     "org.zhavoronkov.openrouter.settings.ProviderRoutingSettingsPanel",
                     "org.zhavoronkov.openrouter.settings.ProviderRoutingSettingsPanel\$*",
+                    // Shares ProviderRoutingSettingsPanel.kt with the panel above but is a separate
+                    // top-level class, so the pattern above does not reach it: a DialogWrapper, same
+                    // category as every other dialog listed here.
+                    "org.zhavoronkov.openrouter.settings.ProviderChooserDialog",
+                    "org.zhavoronkov.openrouter.settings.ProviderChooserDialog\$*",
                     // Swing table column/toolbar wiring in the favorites subpackage.
                     "org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsTableColumns",
                     "org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsTableColumns\$*",
@@ -538,7 +551,63 @@ kover {
                     // the pure logic Task 11 adds alongside it, are NOT excluded here - they run
                     // under the fast :test task instead (see their own *Test.kt files).
                     "org.zhavoronkov.openrouter.toolwindow.status.DegradedNoticeBlock",
-                    "org.zhavoronkov.openrouter.toolwindow.status.DegradedNoticeBlock\$*"
+                    "org.zhavoronkov.openrouter.toolwindow.status.DegradedNoticeBlock\$*",
+                    // ChatPanel: the last un-excluded member of the chat view family. A JPanel
+                    // mixing ComboBox/JBUI wiring with PathManager-backed chat persistence, all
+                    // private, with no seam - same reasoning as every ChatListView/ChatComposer/
+                    // MessagesPanel sibling already listed above. ChatParamsState, MessageSegmenter
+                    // and the composer policies, the pure logic it consults, are NOT excluded.
+                    "org.zhavoronkov.openrouter.toolwindow.ChatPanel",
+                    "org.zhavoronkov.openrouter.toolwindow.ChatPanel\$*",
+                    // Status bar widget: an EditorBasedWidget driving JBPopupFactory, BrowserUtil,
+                    // Messages and Alarm. Platform surface, not logic - StatusBarStatsFormatter,
+                    // which owns the numbers it renders, is NOT excluded and is covered instead.
+                    "org.zhavoronkov.openrouter.statusbar.OpenRouterStatusBarWidget",
+                    "org.zhavoronkov.openrouter.statusbar.OpenRouterStatusBarWidget\$*",
+                    // AI Assistant integration helper: every method resolves an application
+                    // service or reaches for ActionManager/ShowSettingsUtil. Platform wiring.
+                    "org.zhavoronkov.openrouter.integration.AIAssistantIntegrationHelper",
+                    "org.zhavoronkov.openrouter.integration.AIAssistantIntegrationHelper\$*",
+                    // Logging facade. Every branch is gated on one of two `by lazy` flags read from
+                    // system properties, so within a single JVM each `if` has exactly one reachable
+                    // side; the rest are `logger?.info(...)` null-edges that cannot fire because
+                    // createLogger only returns null when the platform itself throws. Nothing here
+                    // is domain logic - it delegates to com.intellij...Logger.
+                    "org.zhavoronkov.openrouter.utils.PluginLogger",
+                    "org.zhavoronkov.openrouter.utils.PluginLogger\$*",
+                    // Favorites toolbar: AnAction subclasses, the same surface already excluded as
+                    // `...openrouter.actions.*`. Listed by their own names on purpose - they live in
+                    // FavoriteModelsToolbarActions.kt, but no class of that name exists, so a
+                    // filename-shaped pattern would silently match nothing.
+                    "org.zhavoronkov.openrouter.settings.favorites.CapabilitiesFilterAction",
+                    "org.zhavoronkov.openrouter.settings.favorites.CapabilitiesFilterAction\$*",
+                    "org.zhavoronkov.openrouter.settings.favorites.ChoiceFilterAction",
+                    "org.zhavoronkov.openrouter.settings.favorites.ChoiceFilterAction\$*",
+                    "org.zhavoronkov.openrouter.settings.favorites.ClearFiltersAction",
+                    "org.zhavoronkov.openrouter.settings.favorites.ClearFiltersAction\$*",
+                    "org.zhavoronkov.openrouter.settings.favorites.FavoritesOnlyToggleAction",
+                    "org.zhavoronkov.openrouter.settings.favorites.FavoritesOnlyToggleAction\$*",
+                    "org.zhavoronkov.openrouter.settings.favorites.MoveFavoriteAction",
+                    "org.zhavoronkov.openrouter.settings.favorites.MoveFavoriteAction\$*",
+                    "org.zhavoronkov.openrouter.settings.favorites.PresetsAction",
+                    "org.zhavoronkov.openrouter.settings.favorites.PresetsAction\$*",
+                    "org.zhavoronkov.openrouter.settings.favorites.RefreshCatalogAction",
+                    "org.zhavoronkov.openrouter.settings.favorites.RefreshCatalogAction\$*",
+                    // Jetty lifecycle: binds a port, builds handlers, starts and stops the server.
+                    // The request handling it wires up is covered through the servlets themselves.
+                    "org.zhavoronkov.openrouter.proxy.OpenRouterProxyServer",
+                    "org.zhavoronkov.openrouter.proxy.OpenRouterProxyServer\$*",
+                    "org.zhavoronkov.openrouter.services.OpenRouterProxyService",
+                    "org.zhavoronkov.openrouter.services.OpenRouterProxyService\$*",
+                    // Plugin load/unload callbacks - IntelliJ lifecycle wiring, same category as
+                    // the startup activities already excluded above.
+                    "org.zhavoronkov.openrouter.listeners.PluginLifecycleListener",
+                    "org.zhavoronkov.openrouter.listeners.PluginLifecycleListener\$*",
+                    // Extension-point fan-out to other plugins: resolves the EP area and forwards to
+                    // whatever is registered. Nothing registers under the fast :test task, so the
+                    // loop body is unreachable there.
+                    "org.zhavoronkov.openrouter.services.BalanceProviderNotifier",
+                    "org.zhavoronkov.openrouter.services.BalanceProviderNotifier\$*"
                 )
             }
         }

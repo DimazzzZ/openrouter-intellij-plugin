@@ -196,9 +196,6 @@ open class OpenRouterService(
             } catch (e: IOException) {
                 PluginLogger.Service.error("[OR] Chat completion network error: ${e.message}", e)
                 ApiResult.Error(message = e.message ?: "Network error", throwable = e)
-            } catch (e: JsonSyntaxException) {
-                PluginLogger.Service.error("[OR] Chat completion JSON parsing error: ${e.message}", e)
-                ApiResult.Error(message = e.message ?: "JSON parsing error", throwable = e)
             }
         }
 
@@ -347,33 +344,28 @@ open class OpenRouterService(
             return ApiResult.Error("No management key configured")
         }
 
-        return runCatching { getApiKeysList(provisioningKey) }
-            .fold(
-                onSuccess = { apiKeysResult ->
-                    when (apiKeysResult) {
-                        is ApiResult.Success -> {
-                            val response = apiKeysResult.data
-                            // Sum up usage and limits from all enabled keys
-                            val enabledKeys = response.data.filter { !it.disabled }
-                            val totalUsed = enabledKeys.sumOf { it.usage }
-                            val totalLimit = enabledKeys.mapNotNull { it.limit }.sum()
-                            val remaining = if (totalLimit > 0) totalLimit - totalUsed else Double.MAX_VALUE
+        // No runCatching here: getApiKeysList answers failures as ApiResult.Error - it catches
+        // IOException itself and toApiResult handles the parse errors - so there is nothing to
+        // catch, and a fold's onFailure arm would be unreachable.
+        return when (val apiKeysResult = getApiKeysList(provisioningKey)) {
+            is ApiResult.Success -> {
+                val response = apiKeysResult.data
+                // Sum up usage and limits from all enabled keys
+                val enabledKeys = response.data.filter { !it.disabled }
+                val totalUsed = enabledKeys.sumOf { it.usage }
+                val totalLimit = enabledKeys.mapNotNull { it.limit }.sum()
+                val remaining = if (totalLimit > 0) totalLimit - totalUsed else Double.MAX_VALUE
 
-                            val quotaInfo = QuotaInfo(
-                                remaining = remaining,
-                                total = totalLimit,
-                                used = totalUsed,
-                                resetDate = null // OpenRouter doesn't provide reset date in this endpoint
-                            )
-                            ApiResult.Success(quotaInfo, apiKeysResult.statusCode)
-                        }
-                        is ApiResult.Error -> apiKeysResult.copy()
-                    }
-                },
-                onFailure = { e ->
-                    ApiResult.Error(message = "Failed to get quota info", throwable = e)
-                }
-            )
+                val quotaInfo = QuotaInfo(
+                    remaining = remaining,
+                    total = totalLimit,
+                    used = totalUsed,
+                    resetDate = null // OpenRouter doesn't provide reset date in this endpoint
+                )
+                ApiResult.Success(quotaInfo, apiKeysResult.statusCode)
+            }
+            is ApiResult.Error -> apiKeysResult.copy()
+        }
     }
 
     /**
