@@ -45,17 +45,68 @@ data class QuotaInfo(
 )
 
 /**
- * Response from /api/v1/key endpoint
+ * Response from /api/v1/key endpoint.
+ *
+ * The endpoint describes the key the request was authenticated with, so it answers a different
+ * question depending on which key is used: the Management Key describes the account, an API key
+ * describes that key's own allowances. Both are worth asking - see [KeyData.allowedDataRegions].
  */
 data class KeyInfoResponse(
     val data: KeyData
 )
 
+/**
+ * Everything /api/v1/key reports about a key. Every field carries a default: the endpoint has
+ * grown fields over time and will keep doing so, and a response that omits one must not leave a
+ * non-null Kotlin property holding null.
+ *
+ * [allowedDataRegions] is the one with teeth. It lists the data regions this key may use, taking
+ * BOTH the guardrail policy on the key and the account's regional-routing entitlement into
+ * account, which makes it the authoritative answer to "may this user route in-region?" - no
+ * probing, and no way to select a region that will then be refused.
+ *
+ * Its values are `global`, `europe` and `us`. Note the spelling: the same region is `europe`
+ * here, `eu` in the `/models?region=` query parameter, and `eu.` in the regional host name.
+ */
 data class KeyData(
-    val label: String,
-    val usage: Double, // Number of credits used
-    val limit: Double?, // Credit limit for the key, or null if unlimited
-    @SerializedName("is_free_tier") val isFreeTier: Boolean // Whether the user has paid for credits before
+    val label: String = "",
+    val usage: Double = 0.0,
+    @SerializedName("usage_daily") val usageDaily: Double = 0.0,
+    @SerializedName("usage_weekly") val usageWeekly: Double = 0.0,
+    @SerializedName("usage_monthly") val usageMonthly: Double = 0.0,
+    /** Credit limit for the key, or null when it is unlimited. */
+    val limit: Double? = null,
+    @SerializedName("limit_remaining") val limitRemaining: Double? = null,
+    @SerializedName("limit_reset") val limitReset: String? = null,
+    @SerializedName("is_free_tier") val isFreeTier: Boolean = false,
+    @SerializedName("is_management_key") val isManagementKey: Boolean = false,
+    @SerializedName("is_provisioning_key") val isProvisioningKey: Boolean = false,
+    @SerializedName("allowed_data_regions") val allowedDataRegions: List<String> = emptyList(),
+    @SerializedName("creator_user_id") val creatorUserId: String? = null,
+    @SerializedName("organization_id") val organizationId: String? = null,
+    @SerializedName("workspace_id") val workspaceId: String? = null,
+    @SerializedName("expires_at") val expiresAt: String? = null,
+    @SerializedName("byok_usage") val byokUsage: Double = 0.0,
+    @SerializedName("byok_usage_daily") val byokUsageDaily: Double = 0.0,
+    @SerializedName("byok_usage_weekly") val byokUsageWeekly: Double = 0.0,
+    @SerializedName("byok_usage_monthly") val byokUsageMonthly: Double = 0.0,
+    @SerializedName("include_byok_in_limit") val includeByokInLimit: Boolean = false,
+    @SerializedName("rate_limit") val rateLimit: KeyRateLimit? = null,
+    @SerializedName("free_model_daily_requests") val freeModelDailyRequests: FreeModelDailyRequests? = null
+)
+
+/** The key's request-rate allowance, as /api/v1/key reports it. */
+data class KeyRateLimit(
+    val requests: Int = 0,
+    val interval: String = "",
+    val note: String = ""
+)
+
+/** The key's daily budget for free models, as /api/v1/key reports it. */
+data class FreeModelDailyRequests(
+    val limit: Int = 0,
+    val used: Int = 0,
+    val remaining: Int = 0
 )
 
 // New models for the correct API endpoint
@@ -490,6 +541,11 @@ data class OpenRouterSettings(
     // the chat UI would produce it; RouterRequestBuilder validates/coerces it.
     // Injected into proxy requests only when the request omits `plugins`.
     var routerDefaults: MutableMap<String, String> = mutableMapOf(),
+    // In-Region Routing — the data region every OpenRouter call is pinned to. Stored as
+    // [DataRegion.apiName] rather than the enum so an unknown value from a newer build, or from a
+    // settings file edited by hand, degrades to the global region instead of failing to
+    // deserialize the whole settings object. Empty means the same as "global".
+    var dataRegion: String = DataRegion.GLOBAL.apiName,
 )
 
 /**

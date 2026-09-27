@@ -4,23 +4,24 @@ import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonSyntaxException
 import okhttp3.Request
+import org.zhavoronkov.openrouter.models.DataRegion
+import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import org.zhavoronkov.openrouter.utils.applicationServiceOrNull
 
 /**
  * Builds requests for OpenRouter API
  */
-class RequestBuilder {
-
-    companion object {
-        private const val OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-    }
+class RequestBuilder(
+    private val chatCompletionsUrl: () -> String = ::defaultChatCompletionsUrl
+) {
 
     private val gson = Gson()
 
     fun buildOpenRouterRequest(jsonBody: String, apiKey: String): Request {
         return OpenRouterRequestBuilder.buildPostRequest(
-            url = OPENROUTER_API_URL,
+            url = chatCompletionsUrl(),
             jsonBody = jsonBody,
             authType = OpenRouterRequestBuilder.AuthType.API_KEY,
             authToken = apiKey
@@ -35,4 +36,20 @@ class RequestBuilder {
             null
         }
     }
+}
+
+/**
+ * The outbound chat-completions URL, resolved per call rather than captured once.
+ *
+ * Per call matters because the data region is a setting and the proxy is not restarted when a
+ * setting changes: a URL captured at construction would keep sending requests to the region the
+ * user has just left.
+ *
+ * Outside a running IDE there is no settings service to ask, so this answers the unpinned
+ * endpoint. Nothing is lost by that - a region is a user setting, and there is no user.
+ */
+internal fun defaultChatCompletionsUrl(): String {
+    val baseUrl = applicationServiceOrNull(OpenRouterSettingsService::class.java)?.getApiBaseUrl()
+        ?: DataRegion.GLOBAL.baseUrl
+    return "$baseUrl/chat/completions"
 }

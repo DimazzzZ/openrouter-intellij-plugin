@@ -82,8 +82,12 @@ open class OpenRouterService(
         }
     }
 
-    // Method to get base URL for testing purposes
-    protected open fun getBaseUrl(): String = baseUrlOverride ?: OpenRouterConstants.BASE_URL
+    /**
+     * Base URL for every OpenRouter call, resolved from the selected data region so that pinning
+     * a region moves the whole service, not just inference. [baseUrlOverride] stays ahead of it
+     * as the test seam it has always been.
+     */
+    protected open fun getBaseUrl(): String = baseUrlOverride ?: settingsService.getApiBaseUrl()
 
     // Dynamic endpoint getters that use getBaseUrl()
     private fun getChatCompletionsEndpoint() = "${getBaseUrl()}/chat/completions"
@@ -367,6 +371,53 @@ open class OpenRouterService(
             is ApiResult.Error -> apiKeysResult.copy()
         }
     }
+
+    /**
+     * Reads /api/v1/key for one specific key.
+     *
+     * The endpoint reports on whichever key authenticated the request, so the answer differs by
+     * key: a Management Key describes the account's allowances, an API key describes that key's
+     * own. Anything that has to hold for BOTH - [org.zhavoronkov.openrouter.models.KeyData.allowedDataRegions]
+     * above all - has to be asked twice and intersected; see [DataRegions].
+     *
+     * The call itself is not new: [testApiKey] has always made it and thrown the body away,
+     * keeping only the status code. This keeps the body.
+     */
+    suspend fun fetchKeyInfo(key: String): ApiResult<KeyInfoResponse> =
+        withContext(Dispatchers.IO) {
+            try {
+                if (key.isBlank()) {
+                    return@withContext ApiResult.Error("Key is required")
+                }
+
+                val request = OpenRouterRequestBuilder.buildGetRequest(
+                    url = getKeyEndpoint(),
+                    authType = OpenRouterRequestBuilder.AuthType.API_KEY,
+                    authToken = key
+                )
+
+                val (response, responseBody) = client.newCall(request).awaitWithBody()
+
+                if (response.isSuccessful) {
+                    try {
+                        val keyInfo = gson.fromJson(responseBody, KeyInfoResponse::class.java)
+                        ApiResult.Success(keyInfo, response.code)
+                    } catch (e: JsonSyntaxException) {
+                        PluginLogger.Service.error("Error reading key info - invalid JSON response", e)
+                        ApiResult.Error("Failed to parse response", statusCode = response.code, throwable = e)
+                    }
+                } else {
+                    PluginLogger.Service.warn("Failed to read key info: ${response.code} - $responseBody")
+                    ApiResult.Error(
+                        message = extractErrorMessage(responseBody, "Failed to read key info"),
+                        statusCode = response.code
+                    )
+                }
+            } catch (e: IOException) {
+                handleNetworkError(e, "Error reading key info")
+                ApiResult.Error(message = e.message ?: "Network error", throwable = e)
+            }
+        }
 
     /**
      * Get key info for backward compatibility - returns summary of all keys

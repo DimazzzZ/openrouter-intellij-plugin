@@ -37,7 +37,8 @@ import java.util.concurrent.TimeUnit
  */
 class AnalyticsService internal constructor(
     private val baseUrlOverride: String?,
-    private val provisioningKeyProvider: () -> String
+    private val provisioningKeyProvider: () -> String,
+    private val baseUrlProvider: () -> String = { OpenRouterSettingsService.getInstance().getApiBaseUrl() }
 ) {
 
     constructor() : this(
@@ -68,7 +69,10 @@ class AnalyticsService internal constructor(
     @Volatile
     private var metaCache: AnalyticsMeta? = null
 
-    private fun getBaseUrl(): String = baseUrlOverride ?: OpenRouterConstants.BASE_URL
+    /**
+     * Resolved from the selected data region - analytics follow the region like everything else.
+     */
+    private fun getBaseUrl(): String = baseUrlOverride ?: baseUrlProvider()
     private fun getAnalyticsQueryEndpoint() = "${getBaseUrl()}/analytics/query"
     private fun getAnalyticsMetaEndpoint() = "${getBaseUrl()}/analytics/meta"
 

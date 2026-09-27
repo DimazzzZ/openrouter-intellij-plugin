@@ -91,7 +91,7 @@ class ChatCompletionServletProxyingTest {
         return ChatCompletionServlet(
             httpClient = client,
             settingsServiceProvider = { settingsService },
-            openRouterApiUrl = server.url("/api/v1/chat/completions").toString(),
+            openRouterApiUrl = { server.url("/api/v1/chat/completions").toString() },
             multimodalValidatorProvider = { multimodalValidator }
         )
     }
@@ -258,7 +258,7 @@ class ChatCompletionServletProxyingTest {
             val servlet = ChatCompletionServlet(
                 httpClient = client,
                 settingsServiceProvider = { settingsService },
-                openRouterApiUrl = deadUrl,
+                openRouterApiUrl = { deadUrl },
                 multimodalValidatorProvider = { multimodalValidator }
             )
             val exchange = response()
@@ -648,7 +648,7 @@ class ChatCompletionServletProxyingTest {
             val servlet = ChatCompletionServlet(
                 httpClient = client,
                 settingsServiceProvider = { settingsService },
-                openRouterApiUrl = deadUrl,
+                openRouterApiUrl = { deadUrl },
                 multimodalValidatorProvider = { multimodalValidator }
             )
             val exchange = response()

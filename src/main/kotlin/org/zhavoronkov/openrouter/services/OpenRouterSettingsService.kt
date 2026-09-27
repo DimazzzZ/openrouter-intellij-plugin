@@ -5,6 +5,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
+import org.zhavoronkov.openrouter.models.DataRegion
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
 import org.zhavoronkov.openrouter.services.settings.ApiKeySettingsManager
 import org.zhavoronkov.openrouter.services.settings.FavoriteModelsManager
@@ -131,6 +132,25 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
     fun getApiKey(): String = apiKeyManager.getApiKey()
 
     fun getProvisioningKey(): String = apiKeyManager.getProvisioningKey()
+
+    /**
+     * The data region every OpenRouter call is pinned to.
+     *
+     * Anything unrecognised - an older build reading a newer settings file, a hand-edited value,
+     * a region OpenRouter has since renamed - reads as [DataRegion.GLOBAL]. Falling back to the
+     * unpinned endpoint keeps the plugin working; the alternative, refusing to start over a
+     * settings string, is worse for everyone except the one case where the region was load-bearing,
+     * and that case surfaces immediately in the settings UI as "Global".
+     */
+    fun getDataRegion(): DataRegion =
+        DataRegion.fromApiName(settings.dataRegion) ?: DataRegion.GLOBAL
+
+    fun setDataRegion(region: DataRegion) {
+        settings.dataRegion = region.apiName
+    }
+
+    /** Base URL for every OpenRouter call, resolved from the selected region. */
+    fun getApiBaseUrl(): String = getDataRegion().baseUrl
 
     /**
      * This is necessary when settings are modified outside of the standard
