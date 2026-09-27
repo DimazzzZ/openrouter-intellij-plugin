@@ -10,7 +10,7 @@ The OpenRouter IntelliJ Plugin ("the Plugin") is an unofficial integration tool 
 
 ### Locally Stored Settings
 The Plugin stores the following data locally on your machine in IntelliJ's configuration directory:
-- **Authentication credentials** (API keys, provisioning keys, OAuth tokens)
+- **Authentication credentials** (API keys, Management Keys, OAuth tokens)
 - **Plugin preferences** (selected models, proxy settings, UI preferences)
 - **Usage statistics** (generation tracking data: model IDs, token counts, costs)
 

@@ -113,7 +113,7 @@ object AIAssistantIntegrationHelper {
             OpenRouter is not configured yet.
 
             To complete the integration:
-            1. Configure your OpenRouter Provisioning Key
+            1. Configure your OpenRouter Management Key
             2. Start the proxy server
             3. Configure AI Assistant to use the proxy URL
 

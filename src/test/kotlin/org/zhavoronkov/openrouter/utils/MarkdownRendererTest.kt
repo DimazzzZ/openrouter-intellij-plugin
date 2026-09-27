@@ -123,6 +123,16 @@ class MarkdownRendererTest {
         }
 
         @Test
+        @DisplayName("Markdown that renders to nothing (a bare link reference definition) yields blank HTML")
+        fun `Should handle markdown that renders to nothing`() {
+            // Non-blank input, but flexmark emits no body for a lone link reference definition -
+            // the one way normalizeForInlineDisplay's own blank guard is reachable from outside.
+            val html = MarkdownRenderer.renderToHtml("[foo]: /bar")
+
+            assertTrue(html.isBlank(), "Expected blank HTML, got: '$html'")
+        }
+
+        @Test
         @DisplayName("Should handle plain text without markdown")
         fun `Should handle plain text without markdown`() {
             val html = MarkdownRenderer.renderToHtml("Just plain text here")
@@ -133,10 +143,31 @@ class MarkdownRendererTest {
         @DisplayName("Should unwrap single paragraph for inline display")
         fun `Should unwrap single paragraph for inline display`() {
             val html = MarkdownRenderer.renderToHtml("Hello world")
-            // Single paragraph should be unwrapped so it renders inline next to "Assistant:"
-            assertFalse(html.startsWith("<p>"), "Should not start with <p> tag")
-            assertFalse(html.endsWith("</p>"), "Should not end with </p> tag")
-            assertTrue(html.contains("Hello world"), "Should contain the text")
+            // Single paragraph is unwrapped so it renders inline next to "Assistant:". Asserting on
+            // the exact result, not on "does not start with <p>": the multi-paragraph branch rewrites
+            // `<p>` into `<p style=...>`, which satisfies that weaker check without unwrapping at all.
+            assertEquals("Hello world", html.trim())
+        }
+
+        @Test
+        @DisplayName("Inline markup inside a single paragraph survives the unwrap")
+        fun `Inline markup inside a single paragraph survives the unwrap`() {
+            val html = MarkdownRenderer.renderToHtml("This is **bold** text")
+
+            assertEquals("This is <strong>bold</strong> text", html.trim())
+        }
+
+        @Test
+        @DisplayName("Two paragraphs are NOT spliced into one by the unwrap")
+        fun `Two paragraphs are not spliced into one`() {
+            val html = MarkdownRenderer.renderToHtml("First paragraph.\n\nSecond paragraph.")
+
+            // A greedy match would have produced `First paragraph.</p>\n<p>Second paragraph.`
+            assertTrue(html.contains("<p"), "multi-paragraph content keeps its structure, got: $html")
+            assertFalse(
+                html.trim().startsWith("First paragraph.</p>"),
+                "the unwrap must not span two paragraphs, got: $html"
+            )
         }
 
         @Test
@@ -219,42 +250,6 @@ class MarkdownRendererTest {
             )
             assertTrue(document.contains("<html>"), "Should contain html")
             assertTrue(document.contains("font-family: Arial"), "Should contain font-family")
-        }
-    }
-
-    @Nested
-    @DisplayName("HTML Document with Role Prefix")
-    inner class HtmlDocumentWithRolePrefixTests {
-
-        @Test
-        @DisplayName("Should wrap HTML with role prefix")
-        fun `Should wrap HTML with role prefix`() {
-            val document = MarkdownRenderer.wrapInHtmlDocumentWithRolePrefix(
-                bodyHtml = "Hello world",
-                rolePrefix = "Assistant:",
-                roleColorHex = "#9B9BD2",
-                fontFamily = "JetBrains Mono",
-                fontSizePx = 13,
-                contentColorHex = "#000000",
-            )
-            assertTrue(document.contains("Assistant:"), "Should contain role prefix")
-            assertTrue(document.contains("color: #9B9BD2"), "Should contain role color")
-            assertTrue(document.contains("Hello world"), "Should contain body content")
-        }
-
-        @Test
-        @DisplayName("Should apply font styling")
-        fun `Should apply font styling`() {
-            val document = MarkdownRenderer.wrapInHtmlDocumentWithRolePrefix(
-                bodyHtml = "Test",
-                rolePrefix = "You:",
-                roleColorHex = "#6B9BD2",
-                fontFamily = "Arial",
-                fontSizePx = 14,
-                contentColorHex = "#333333"
-            )
-            assertTrue(document.contains("font-family: Arial"), "Should contain font-family")
-            assertTrue(document.contains("font-size: 14px"), "Should contain font-size")
         }
     }
 }

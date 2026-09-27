@@ -25,7 +25,7 @@
         <li>💰 <strong>Quota &amp; balance visibility</strong> — real-time status bar widget with credit balance, cost tracking, and "days remaining" estimates</li>
         <li>⭐ <strong>Model selection</strong> — manage favorite models and custom presets, switch between models easily</li>
         <li>🔌 <strong>Local proxy</strong> — run an OpenAI-compatible proxy server that other tools and agents can reuse</li>
-        <li>🔑 <strong>API key management</strong> — secure OAuth/PKCE authentication and provisioning key support</li>
+        <li>🔑 <strong>API key management</strong> — secure OAuth/PKCE authentication and management key support</li>
     </ul>
 
     <h3>When you may not need this plugin</h3>
@@ -36,7 +36,7 @@
         <li><strong>🔐 OAuth/PKCE Authentication</strong> — secure authentication flow with automatic API key generation</li>
         <li><strong>🚀 AI Assistant Proxy</strong> — local OpenAI-compatible proxy that can be reused by other tools and agents</li>
         <li><strong>📊 Interactive Status Bar Widget</strong> — real-time usage display with comprehensive popup menu</li>
-        <li><strong>🔑 API Key Management</strong> — secure provisioning key support with scope-aware validation</li>
+        <li><strong>🔑 API Key Management</strong> — secure management key support with scope-aware validation</li>
         <li><strong>📈 Usage Analytics</strong> — track token consumption, costs, and model performance</li>
         <li><strong>⭐ Favorite Models</strong> — quick access to your preferred AI models with reasoning and verbosity controls</li>
         <li><strong>🔄 Dynamic Plugin Support</strong> — install, update, and uninstall without IDE restart</li>
@@ -45,7 +45,7 @@
     <h3>Quick Start</h3>
     <ol>
         <li>Install the plugin (no restart required)</li>
-        <li>Use OAuth/PKCE flow or add your Provisioning Key from <a href="https://openrouter.ai/settings/provisioning-keys">OpenRouter</a></li>
+        <li>Use OAuth/PKCE flow or add your Management Key from <a href="https://openrouter.ai/settings/provisioning-keys">OpenRouter</a></li>
         <li>Configure in <strong>Settings → Tools → OpenRouter</strong></li>
         <li>Click the status bar widget to access all features</li>
         <li>(Optional) Set up the local proxy for external tools — <a href="https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/docs/AI_ASSISTANT_SETUP.md">Setup Guide</a></li>

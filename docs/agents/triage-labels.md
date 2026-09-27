@@ -36,7 +36,7 @@ Labels compose freely — an issue can have status + type + priority + domain.
 - `domain:settings` — settings panel and persistence.
 - `domain:ui` — tool window, status bar, notifications.
 - `domain:service` — OpenRouter API clients.
-- `domain:auth` — provisioning keys, API key management.
+- `domain:auth` — Management Keys, API key management.
 - `domain:build` — Gradle, CI, release automation.
 
 ## Usage notes

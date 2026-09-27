@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
+import org.zhavoronkov.openrouter.models.ChatCompletionRequest
+import org.zhavoronkov.openrouter.models.ChatMessage
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatMessage
 import org.zhavoronkov.openrouter.proxy.models.OpenAIToolChoice
@@ -99,6 +101,50 @@ class RequestTranslatorBranchTest {
     @DisplayName("validate rejects an out-of-range topP")
     fun validateRejectsBadTopP() {
         val translated = RequestTranslator.translateChatCompletionRequest(request(topP = 2.0))
+        assertFalse(RequestTranslator.validateTranslatedRequest(translated))
+    }
+
+    @Test
+    @DisplayName("validate accepts a request with no temperature at all")
+    fun validateAcceptsAbsentTemperature() {
+        // translateChatCompletionRequest always substitutes a default, so this shape only reaches
+        // validateTranslatedRequest from a caller that built the request itself - which the public
+        // signature allows.
+        val built = ChatCompletionRequest(
+            model = "openai/gpt-4o",
+            messages = listOf(ChatMessage(role = "user", content = JsonPrimitive("Hi"))),
+            temperature = null,
+            maxTokens = null,
+            topP = null
+        )
+
+        assertTrue(RequestTranslator.validateTranslatedRequest(built))
+    }
+
+    @Test
+    @DisplayName("validate rejects a temperature below the allowed range")
+    fun validateRejectsNegativeTemperature() {
+        val translated = RequestTranslator.translateChatCompletionRequest(request(temperature = -1.0))
+
+        assertFalse(RequestTranslator.validateTranslatedRequest(translated))
+    }
+
+    @Test
+    @DisplayName("validate rejects content that is a primitive but not a string")
+    fun validateRejectsNonStringPrimitiveContent() {
+        val translated = RequestTranslator.translateChatCompletionRequest(request(content = JsonPrimitive(42)))
+
+        assertFalse(
+            RequestTranslator.validateTranslatedRequest(translated),
+            "a number is a JSON primitive but not a message body"
+        )
+    }
+
+    @Test
+    @DisplayName("validate rejects an empty content array")
+    fun validateRejectsEmptyContentArray() {
+        val translated = RequestTranslator.translateChatCompletionRequest(request(content = JsonArray()))
+
         assertFalse(RequestTranslator.validateTranslatedRequest(translated))
     }
 }

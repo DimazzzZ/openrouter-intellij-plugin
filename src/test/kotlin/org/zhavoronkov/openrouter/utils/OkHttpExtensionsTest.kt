@@ -135,6 +135,48 @@ class OkHttpExtensionsTest {
     }
 
     @Test
+    @DisplayName("toApiResult falls back to the raw body when a well-formed error body carries no error object")
+    fun errorJsonWithoutErrorObject() {
+        val response = buildResponse(code = 422, body = "{\"detail\":\"unprocessable\"}")
+
+        val result = response.toApiResult<String>(gson)
+
+        val error = result as ApiResult.Error
+        assertEquals(422, error.statusCode)
+        assertEquals("{\"detail\":\"unprocessable\"}", error.message)
+    }
+
+    @Test
+    @DisplayName("toApiResult falls back to the raw body when the error object carries no message")
+    fun errorJsonWithoutErrorMessage() {
+        val response = buildResponse(code = 429, body = "{\"error\":{}}")
+
+        val result = response.toApiResult<String>(gson)
+
+        val error = result as ApiResult.Error
+        assertEquals(429, error.statusCode)
+        assertEquals("{\"error\":{}}", error.message)
+    }
+
+    @Test
+    @DisplayName("toApiResult falls back to the status code when both the error body and the status line are blank")
+    fun errorWithBlankBodyAndBlankStatusLine() {
+        val response = Response.Builder()
+            .request(Request.Builder().url("http://test").build())
+            .protocol(Protocol.HTTP_1_1)
+            .code(503)
+            .message("")
+            .body("".toResponseBody("application/json".toMediaType()))
+            .build()
+
+        val result = response.toApiResult<String>(gson)
+
+        val error = result as ApiResult.Error
+        assertEquals(503, error.statusCode)
+        assertEquals("HTTP 503", error.message)
+    }
+
+    @Test
     @DisplayName("toApiResult trims leading whitespace before decoding")
     fun trimsLeadingWhitespace() {
         val response = buildResponse(body = "   {\"data\":\"test\"}")

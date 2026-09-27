@@ -1,6 +1,5 @@
 package org.zhavoronkov.openrouter.proxy.translation
 
-import com.intellij.openapi.application.ApplicationManager
 import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatMessage
 import org.zhavoronkov.openrouter.models.ChatTool
@@ -18,6 +17,7 @@ import org.zhavoronkov.openrouter.proxy.models.OpenAIReasoningConfig
 import org.zhavoronkov.openrouter.proxy.models.OpenAIToolChoice
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import org.zhavoronkov.openrouter.utils.applicationServiceOrNull
 
 /**
  * Translates OpenAI API requests to OpenRouter API format
@@ -25,23 +25,7 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
 object RequestTranslator {
 
     private val settingsService by lazy {
-        val application = ApplicationManager.getApplication()
-        if (application == null) {
-            PluginLogger.Service.debug("Application not available (test environment)")
-            return@lazy null
-        }
-
-        try {
-            OpenRouterSettingsService.getInstance()
-        } catch (e: IllegalStateException) {
-            // In test environment or when service not initialized yet
-            PluginLogger.Service.debug("Settings service not initialized", e)
-            null
-        } catch (e: IllegalArgumentException) {
-            // Service creation failed due to invalid state
-            PluginLogger.Service.debug("Settings service not available", e)
-            null
-        }
+        applicationServiceOrNull(OpenRouterSettingsService::class.java)
     }
 
     private const val DEFAULT_TEMPERATURE = 0.7
@@ -143,19 +127,14 @@ object RequestTranslator {
      * Validates that the translated request is valid for OpenRouter
      */
     fun validateTranslatedRequest(request: ChatCompletionRequest): Boolean {
-        return try {
-            request.model.isNotBlank() &&
-                request.messages.isNotEmpty() &&
-                request.messages.all { message ->
-                    message.role.isNotBlank() && isValidContent(message.content)
-                } &&
-                (request.temperature == null || request.temperature in 0.0..2.0) &&
-                (request.maxTokens == null || request.maxTokens > 0) &&
-                (request.topP == null || request.topP in 0.0..1.0)
-        } catch (e: IllegalArgumentException) {
-            PluginLogger.Service.error("Request validation failed: invalid argument", e)
-            false
-        }
+        return request.model.isNotBlank() &&
+            request.messages.isNotEmpty() &&
+            request.messages.all { message ->
+                message.role.isNotBlank() && isValidContent(message.content)
+            } &&
+            (request.temperature == null || request.temperature in 0.0..2.0) &&
+            (request.maxTokens == null || request.maxTokens > 0) &&
+            (request.topP == null || request.topP in 0.0..1.0)
     }
 
     /**

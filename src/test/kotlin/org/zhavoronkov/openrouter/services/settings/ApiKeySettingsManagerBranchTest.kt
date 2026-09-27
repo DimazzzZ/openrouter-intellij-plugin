@@ -311,7 +311,7 @@ class ApiKeySettingsManagerBranchTest {
             val settings = OpenRouterSettings(authScope = AuthScope.EXTENDED)
 
             assertThat(manager(settings).validateKeyForCurrentScope())
-                .isEqualTo("Provisioning key is not configured")
+                .isEqualTo("Management key is not configured")
         }
 
         @Test

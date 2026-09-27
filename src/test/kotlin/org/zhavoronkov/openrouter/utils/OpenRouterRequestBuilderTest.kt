@@ -140,6 +140,47 @@ class OpenRouterRequestBuilderTest {
     }
 
     @Nested
+    @DisplayName("Missing-token Tests")
+    inner class MissingTokenTests {
+
+        @Test
+        @DisplayName("An auth type with a null token sends no Authorization header")
+        fun shouldOmitAuthHeaderWhenTokenIsNull() {
+            val request = OpenRouterRequestBuilder.buildGetRequest(
+                url = "https://openrouter.ai/api/v1/credits",
+                authType = OpenRouterRequestBuilder.AuthType.API_KEY,
+                authToken = null
+            )
+
+            assertNull(request.header("Authorization"))
+        }
+
+        @Test
+        @DisplayName("An auth type with a blank token sends no Authorization header")
+        fun shouldOmitAuthHeaderWhenTokenIsBlank() {
+            val request = OpenRouterRequestBuilder.buildDeleteRequest(
+                url = "https://openrouter.ai/api/v1/keys/abc",
+                authType = OpenRouterRequestBuilder.AuthType.PROVISIONING_KEY,
+                authToken = "   "
+            )
+
+            assertNull(request.header("Authorization"))
+        }
+
+        @Test
+        @DisplayName("AuthType.NONE ignores a token that was passed anyway")
+        fun shouldIgnoreTokenWhenAuthTypeIsNone() {
+            val request = OpenRouterRequestBuilder.buildGetRequest(
+                url = "https://openrouter.ai/api/v1/models",
+                authType = OpenRouterRequestBuilder.AuthType.NONE,
+                authToken = "sk-or-v1-should-be-ignored"
+            )
+
+            assertNull(request.header("Authorization"))
+        }
+    }
+
+    @Nested
     @DisplayName("Standard Headers Tests")
     inner class StandardHeadersTests {
 

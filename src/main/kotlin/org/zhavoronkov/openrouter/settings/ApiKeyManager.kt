@@ -42,7 +42,7 @@ class ApiKeyManager(
     fun addApiKey() {
         if (!settingsService.isConfigured()) {
             Messages.showErrorDialog(
-                "Please configure your Provisioning Key first.",
+                "Please configure your Management Key first.",
                 "Configuration Required"
             )
             return

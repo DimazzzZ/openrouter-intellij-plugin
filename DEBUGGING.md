@@ -7,15 +7,15 @@ This document provides comprehensive debugging information for the OpenRouter In
 | Issue Type | Log Pattern | Location | Action |
 |------------|-------------|----------|---------|
 | **API Key Issues** | `❌ OpenRouter API Error: 401` | idea.log | Check API key configuration |
-| **Connection Problems** | `❌ Failed to connect to OpenRouter` | idea.log | Check network/proxy settings |
+| **Connection Problems** | `Network error during` / `Network error while` | idea.log | Check network/proxy settings |
 | **Request Failures** | `[Chat-XXXXX] ❌` | idea.log | Check request logs and API status |
 | **Settings Issues** | `Settings state persisted` | idea.log | Verify settings persistence |
-| **Model Loading** | `Loaded XXX models from OpenRouter` | idea.log | Check model fetching |
+| **Model Loading** | `Fetched and cached N models from OpenRouter` | idea.log | Check model fetching |
 | **Test Hanging** | `OutOfMemoryError` | test output | Use safe test runner |
-| **Duplicate Requests** | `🚨 DUPLICATE REQUEST DETECTED!` | idea.log | Check AI Assistant configuration |
-| **Missing Headers** | `X-Title header missing` | request logs | Verify OpenRouterRequestBuilder usage |
+| **Duplicate Requests** | `Potential duplicate request detected (hash:` | idea.log | Check AI Assistant configuration |
+| **Missing Headers** | not logged - inspect the outgoing request | request capture | `OpenRouterRequestBuilder` sets `X-Title`/`HTTP-Referer` on every call; a request without them was not built through it |
 | **Welcome Not Showing** | `hasSeenWelcome` flag | openrouter.xml | Reset flag to false |
-| **Wizard Validation** | `Validating provisioning key` | idea.log | Check API connectivity |
+| **Wizard Validation** | `Validation: Starting validation` | idea.log | Check API connectivity |
 
 ## 🔍 Log File Locations
 
@@ -69,12 +69,12 @@ This document provides comprehensive debugging information for the OpenRouter In
 ## 📊 Log Levels and Content
 
 ### Always Logged (INFO/WARN/ERROR)
-- **API Key Usage:** `🔑 Using API key from plugin settings: sk-or-v1-xxx...`
-- **Request Success:** `✅ Chat completion successful`
-- **API Errors:** `❌ OpenRouter API Error: 401`
-- **Connection Issues:** `❌ Failed to connect to OpenRouter`
+- **Request Received:** `[Chat-000001] NEW CHAT COMPLETION REQUEST RECEIVED`
+- **Request Success:** `[Chat-000001] ✅ Chat completion successful in 1243ms, returning response`
+- **API Errors:** `[Chat-000001] ❌ OpenRouter API Error: 401`
+- **Connection Issues:** `Network error during key creation: ...` (and the `while refreshing` / `during key deletion` variants)
 - **Settings Changes:** `Settings state persisted successfully`
-- **Model Loading:** `Loaded 328 models from OpenRouter`
+- **Model Loading:** `Fetched and cached 328 models from OpenRouter` (proxy cache; the settings-page loader logs at debug)
 
 ### Debug Mode Only
 - **Request Bodies:** `[DEBUG] Full request body: {...}`
@@ -96,13 +96,13 @@ tail -f ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log | grep -E "\[Chat-.*\]"
 tail -f ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log | grep "❌"
 
 # Monitor API key usage
-tail -f ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log | grep "🔑"
+tail -f ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log | grep -E "API key|Management Key"
 ```
 
 ### Historical Log Analysis
 ```bash
 # Find API key issues
-grep -E "API key|🔑" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+grep -E "API key|Management Key" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
 
 # Find authentication errors
 grep -E "401|❌.*OpenRouter" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
@@ -114,7 +114,7 @@ grep -E "\[OpenRouter\].*❌" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
 grep -E "Settings|setApiKey|getApiKey" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
 
 # Find model loading issues
-grep -E "models|Loaded.*models" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+grep -E "models from OpenRouter|[0-9]+ models" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
 ```
 
 ## 🚨 Common Issues and Solutions
@@ -132,7 +132,7 @@ grep -E "models|Loaded.*models" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
 1. Check API key configuration in Settings → OpenRouter
 2. Verify the correct API key is being used:
    ```bash
-   grep "🔑 Using API key" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log | tail -5
+   grep -E "\[Chat-[0-9]+\] API key:" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log | tail -5
    ```
 3. Check if API key was saved correctly:
    ```bash
@@ -141,7 +141,7 @@ grep -E "models|Loaded.*models" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
 
 **Solutions:**
 - Delete and recreate the "IntelliJ IDEA Plugin" API key
-- Verify provisioning key is correct
+- Verify Management Key is correct
 - Check OpenRouter account status
 
 ### 2. Connection Issues
@@ -169,10 +169,10 @@ grep -E "models|Loaded.*models" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
 ```
 
 **Debugging Steps:**
-1. Check if provisioning key is configured
+1. Check if Management Key is configured
 2. Verify model loading logs:
    ```bash
-   grep -E "Loading.*models|Loaded.*models" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+   grep -E "Loading initial models data|Successfully (loaded|refreshed) [0-9]+ models" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
    ```
 
 ### 4. Settings Persistence Issues
@@ -198,16 +198,15 @@ Got: sk-or-v1-42c6cb...
 
 **Symptoms:**
 ```
-[Chat-000096] Incoming POST /v1/chat/completions
+[Chat-000096] Incoming POST /v1/chat/completions (servletPath=/v1/chat/completions, pathInfo=null)
 [Chat-000097] Incoming POST /v1/chat/completions  ← Same timestamp!
-🚨 DUPLICATE REQUEST DETECTED!
-🚨 Time since first request: 1ms
+[Chat-000097] Potential duplicate request detected (hash: a1b2c3d4, time since last: 1ms)
 ```
 
 **Debugging Steps:**
 1. Check for duplicate request warnings:
    ```bash
-   grep "🚨 DUPLICATE REQUEST" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+   grep "Potential duplicate request detected" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
    ```
 2. Monitor request patterns:
    ```bash
@@ -275,7 +274,7 @@ Got: sk-or-v1-42c6cb...
 
 ### Never Share
 - ❌ Complete API keys
-- ❌ Provisioning keys
+- ❌ Management Keys
 - ❌ Full request/response bodies (may contain sensitive data)
 - ❌ Personal account information
 
@@ -301,10 +300,11 @@ Got: sk-or-v1-42c6cb...
 ### Request Flow Tracing
 Each request gets a unique ID for tracing through the logs:
 ```
-[Chat-000001] 🔑 Using API key from plugin settings: sk-or-v1-xxx...
+[Chat-000001] NEW CHAT COMPLETION REQUEST RECEIVED
 [Chat-000001] 📝 Model: 'openai/gpt-4o-mini'
 [Chat-000001] 🌊 STREAMING requested - handling SSE response
-[Chat-000001] ✅ Chat completion successful
+[Chat-000001] ✅ Chat completion successful in 1243ms, returning response
+[Chat-000001] REQUEST COMPLETE (1243ms)
 ```
 
 ### API Key Lifecycle Debugging
@@ -314,10 +314,10 @@ Track API key creation and usage:
 grep -E "Successfully created.*API key|About to save.*API key" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
 
 # Monitor API key verification
-grep -E "Verification.*saved key|matches=" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+grep -E "Verified saved API key length" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
 
-# Monitor API key usage
-grep -E "🔑.*Using API key|API key prefix" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+# Which key a failing chat request used (debug level, logged only on the error path)
+grep -E "\[Chat-[0-9]+\] API key:" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
 ```
 
 ### Settings Debugging
@@ -326,17 +326,30 @@ grep -E "🔑.*Using API key|API key prefix" ~/Library/Logs/JetBrains/IntelliJId
 grep -E "setApiKey called|setProvisioningKey|Settings state persisted" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
 
 # Check encryption/decryption
-grep -E "encrypted\.length|decrypted\.length" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+# EncryptionUtil logs only when a cipher step fails and it falls back to plain text -
+# a silent run means encryption worked. Key material is never logged, by design.
+grep -E "during (en|de)cryption|assuming plain text" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
 ```
 
 ### Model Loading Debugging
-```bash
-# Track model loading process
-grep -E "Starting to load models|Loaded.*models|Setting.*models to table" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+`ModelsDataManager` logs the whole load/refresh cycle at **debug** level, so these
+need `-Dopenrouter.debug=true` (see [Enabling Debug Logging](#enabling-debug-logging)).
+The proxy's own model cache logs at info level and needs no flag.
 
-# Monitor search functionality
-grep -E "Filtering models|Search text|AvailableModelsTableModel" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+```bash
+# Track model loading process (debug level)
+grep -E "Loading initial models data|Successfully (loaded|refreshed) [0-9]+ models|Refreshing models from OpenRouter API" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+
+# Failures (error level - always visible)
+grep -E "(Failed to (load|refresh)|Network error (loading|refreshing)|JSON parsing error (loading|refreshing)) models" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
+
+# What the proxy served to AI Assistant (info level)
+grep -E "Fetched and cached [0-9]+ models from OpenRouter" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log
 ```
+
+Search and filtering in the Favorite Models page are not logged: that page was
+rebuilt around a single table and its filtering is pure in-memory work over
+`ModelFilterCriteria`. Debug it in the IDE, not through the log.
 
 ## 🧪 Testing Integration
 
@@ -384,7 +397,7 @@ For comprehensive testing procedures, see [TESTING.md](TESTING.md):
 ### Duplicate Request Detection
 Look for these log patterns:
 ```
-🚨 DUPLICATE REQUEST DETECTED! Hash: abc123... (Chat-000096 & Chat-000097)
+[Chat-000097] Potential duplicate request detected (hash: abc123, time since last: 1ms)
 ```
 
 This indicates the AI Assistant client is sending duplicate requests.
@@ -525,12 +538,12 @@ After each refactoring:
 
 ### Setup Wizard Validation Issues
 
-**Problem**: Provisioning key validation fails with valid key
+**Problem**: Management Key validation fails with valid key
 
 **Debug Steps**:
 1. Check logs for validation attempts:
    ```bash
-   tail -f ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log | grep "Validating provisioning key"
+   tail -f ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log | grep "Validation:"
    ```
 
 2. Common issues:
@@ -573,7 +586,7 @@ After each refactoring:
 
 **Debug Steps**:
 1. Check if `setHasCompletedSetup(true)` is called
-2. Verify provisioning key is encrypted and saved:
+2. Verify Management Key is encrypted and saved:
    ```bash
    cat ~/Library/Application\ Support/JetBrains/IntelliJIdea*/options/openrouter.xml
    ```

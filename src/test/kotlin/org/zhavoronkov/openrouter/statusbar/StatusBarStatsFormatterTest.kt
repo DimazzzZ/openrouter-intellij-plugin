@@ -9,6 +9,7 @@ import org.mockito.Mockito.`when`
 import org.zhavoronkov.openrouter.models.ActivityData
 import org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService
 import java.time.LocalDate
+import java.time.ZoneId
 
 @DisplayName("StatusBarStatsFormatter Tests")
 class StatusBarStatsFormatterTest {
@@ -29,7 +30,7 @@ class StatusBarStatsFormatterTest {
 
     @Test
     fun `calculateActivityRows should include today usage`() {
-        val today = LocalDate.now().toString()
+        val today = LocalDate.now(ZoneId.of("UTC")).toString()
         val activities = listOf(
             ActivityData(
                 date = today,
@@ -53,7 +54,7 @@ class StatusBarStatsFormatterTest {
 
     @Test
     fun `formatStatusTooltipFromCredits should include activity rows`() {
-        val today = LocalDate.now().toString()
+        val today = LocalDate.now(ZoneId.of("UTC")).toString()
         val activities = listOf(
             ActivityData(
                 date = today,
@@ -101,7 +102,7 @@ class StatusBarStatsFormatterTest {
 
         @Test
         fun `calculateActivityRows should fall back to API data when tracking service is null`() {
-            val today = LocalDate.now().toString()
+            val today = LocalDate.now(ZoneId.of("UTC")).toString()
             val activities = listOf(
                 ActivityData(
                     date = today,
@@ -129,7 +130,7 @@ class StatusBarStatsFormatterTest {
             val mockTrackingService = mock(OpenRouterGenerationTrackingService::class.java)
             `when`(mockTrackingService.getTodayCost()).thenReturn(0.0)
 
-            val yesterday = LocalDate.now().minusDays(1).toString()
+            val yesterday = LocalDate.now(ZoneId.of("UTC")).minusDays(1).toString()
             val activities = listOf(
                 ActivityData(
                     date = yesterday,
@@ -176,7 +177,7 @@ class StatusBarStatsFormatterTest {
 
             // Create activities for the past week
             val activities = (0..6).map { daysAgo ->
-                val date = LocalDate.now().minusDays(daysAgo.toLong()).toString()
+                val date = LocalDate.now(ZoneId.of("UTC")).minusDays(daysAgo.toLong()).toString()
                 ActivityData(
                     date = date,
                     model = "model",

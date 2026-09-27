@@ -14,7 +14,6 @@ import com.vladsch.flexmark.util.data.MutableDataSet
  * Supports: headings, bold, italic, strikethrough, code (inline + fenced blocks),
  * links, lists, blockquotes, tables, and task lists.
  */
-@Suppress("unused")
 object MarkdownRenderer {
     private val options: MutableDataSet by lazy {
         MutableDataSet().apply {
@@ -33,6 +32,13 @@ object MarkdownRenderer {
 
     private val parser: Parser by lazy { Parser.builder(options).build() }
     private val renderer: HtmlRenderer by lazy { HtmlRenderer.builder(options).build() }
+
+    /**
+     * Parse Markdown to a flexmark AST using the same configuration as
+     * [renderToHtml], so the segmenter and the renderer never disagree about
+     * what counts as a fenced code block.
+     */
+    fun parse(markdown: String): Document = parser.parse(markdown)
 
     /**
      * Render Markdown text to HTML string.
@@ -57,10 +63,17 @@ object MarkdownRenderer {
     private fun normalizeForInlineDisplay(html: String): String {
         if (html.isBlank()) return html
 
-        // Check if the entire content is EXACTLY one <p> block (no other tags except inline ones inside)
-        // Must match the whole string from start to end
-        val singleParagraphRegex = Regex("""^<p>(.*)</p>$""", RegexOption.DOT_MATCHES_ALL)
-        val match = singleParagraphRegex.matchEntire(html)
+        // Check if the entire content is EXACTLY one <p> block (no other tags except inline ones inside).
+        //
+        // Two details this regex depends on, both of which cost a silent bug when dropped:
+        //  - flexmark ends its output with a newline, and `matchEntire` requires the WHOLE string to
+        //    match, so the input has to be trimmed first. Without the trim nothing ever matched and
+        //    every short message fell through to the multi-paragraph branch.
+        //  - the group stops at the FIRST `</p>`, otherwise a greedy `.*` under DOT_MATCHES_ALL
+        //    happily spans two paragraphs and splices them into one.
+        val trimmed = html.trim()
+        val singleParagraphRegex = Regex("""^<p>((?:(?!</p>).)*)</p>$""", RegexOption.DOT_MATCHES_ALL)
+        val match = singleParagraphRegex.matchEntire(trimmed)
 
         return if (match != null) {
             // Unwrap single paragraph - return just the inline content
@@ -71,35 +84,6 @@ object MarkdownRenderer {
                 Regex("""<p([^>]*)>"""),
                 """<p$1 style="margin-top: 0; margin-bottom: 0;">"""
             )
-        }
-    }
-
-    /**
-     * Wrap HTML content with a colored role prefix (e.g., "Assistant:").
-     * The prefix is rendered as inline HTML with the specified color.
-     *
-     * @param bodyHtml HTML body content
-     * @param rolePrefix The role prefix text (e.g., "Assistant:")
-     * @param roleColorHex Color for the role prefix (e.g., "#9B9BD2")
-     * @param fontFamily Font family
-     * @param fontSizePx Font size in pixels
-     * @param contentColorHex Color for the message content
-     * @return Complete HTML document string
-     */
-    @Suppress("LongParameterList")
-    fun wrapInHtmlDocumentWithRolePrefix(
-        bodyHtml: String,
-        rolePrefix: String,
-        roleColorHex: String,
-        fontFamily: String,
-        fontSizePx: Int,
-        contentColorHex: String
-    ): String {
-        return buildString {
-            append("<html><body style='margin: 0; padding: 0; font-family: $fontFamily; font-size: ${fontSizePx}px;'>")
-            append("<span style='color: $roleColorHex; font-weight: bold;'>$rolePrefix</span> ")
-            append("<span style='color: $contentColorHex;'>$bodyHtml</span>")
-            append("</body></html>")
         }
     }
 
@@ -122,7 +106,11 @@ object MarkdownRenderer {
         fontFamily: String? = null,
         fontSizePx: Int? = null,
         colorHex: String? = null,
-        isUser: Boolean = false
+        // Not read: the caller distinguishes user and assistant messages by the
+        // tinted block around them, not by anything in the document. Kept
+        // because MarkdownRendererTest still passes it, so removing it is a
+        // test change, not a renderer change.
+        @Suppress("unused") isUser: Boolean = false
     ): String {
         val styleBuilder = StringBuilder()
         styleBuilder.append("margin: 0; padding: 0; ")

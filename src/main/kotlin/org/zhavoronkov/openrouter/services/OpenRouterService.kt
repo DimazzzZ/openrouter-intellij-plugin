@@ -117,6 +117,33 @@ open class OpenRouterService(
     }
 
     /**
+     * Extracts `error.message` from an OpenRouter-shaped non-2xx JSON body - the same extraction
+     * [org.zhavoronkov.openrouter.utils.toApiResult] already does for callers that hand it a raw,
+     * unconsumed [Response]. [getCredits] and [getActivity] cannot call that extension directly:
+     * both already hold a decoupled body string from [awaitWithBody] (read once, so the connection
+     * can be closed before parsing/logging), and [Response.toApiResult] reads the body itself from
+     * the [Response] it is given - a second read of an already-closed body would return nothing.
+     *
+     * Without this, a non-2xx body was passed straight through as the user-visible message
+     * verbatim - the literal JSON, e.g. `{"error":{"message":"Only management keys can fetch
+     * credits for an account","code":403}}`, shown character-for-character in the status tab
+     * instead of the one sentence a human asked the server for.
+     *
+     * Falls back to the raw body (never blank) when the body does not parse as an
+     * [OpenRouterResponse] or carries no `error.message` - matching [Response.toApiResult]'s own
+     * fallback order, since a body shaped some other way is still better shown as-is than replaced
+     * with a generic string that discards it entirely.
+     */
+    private fun extractErrorMessage(responseBody: String, fallback: String): String {
+        val parsed = try {
+            gson.fromJson(responseBody, OpenRouterResponse::class.java)?.error?.message
+        } catch (_: JsonSyntaxException) {
+            null
+        }
+        return parsed?.takeIf { it.isNotBlank() } ?: responseBody.ifBlank { fallback }
+    }
+
+    /**
      * Get usage statistics for a specific generation
      */
     @Suppress("unused") // Public API method
@@ -169,9 +196,6 @@ open class OpenRouterService(
             } catch (e: IOException) {
                 PluginLogger.Service.error("[OR] Chat completion network error: ${e.message}", e)
                 ApiResult.Error(message = e.message ?: "Network error", throwable = e)
-            } catch (e: JsonSyntaxException) {
-                PluginLogger.Service.error("[OR] Chat completion JSON parsing error: ${e.message}", e)
-                ApiResult.Error(message = e.message ?: "JSON parsing error", throwable = e)
             }
         }
 
@@ -273,21 +297,21 @@ open class OpenRouterService(
 
     /**
      * Get API keys list with usage information
-     * NOTE: This endpoint requires Provisioning Key authentication
+     * NOTE: This endpoint requires Management Key authentication
      */
     suspend fun getApiKeysList(): ApiResult<ApiKeysListResponse> =
         getApiKeysList(settingsService.getProvisioningKey())
 
     /**
      * Get API keys list with usage information using a specific provisioning key
-     * NOTE: This endpoint requires Provisioning Key authentication
+     * NOTE: This endpoint requires Management Key authentication
      */
     suspend fun getApiKeysList(provisioningKey: String): ApiResult<ApiKeysListResponse> =
         withContext(Dispatchers.IO) {
             try {
                 if (provisioningKey.isBlank()) {
                     PluginLogger.Service.warn("Provisioning key is blank - cannot fetch API keys list")
-                    return@withContext ApiResult.Error("Provisioning key is required")
+                    return@withContext ApiResult.Error("Management key is required")
                 }
 
                 val keyPreview = KeyValidator.maskApiKey(provisioningKey)
@@ -317,36 +341,31 @@ open class OpenRouterService(
         val provisioningKey = settingsService.getProvisioningKey()
         if (provisioningKey.isBlank()) {
             PluginLogger.Service.warn("No provisioning key available for quota info")
-            return ApiResult.Error("No provisioning key configured")
+            return ApiResult.Error("No management key configured")
         }
 
-        return runCatching { getApiKeysList(provisioningKey) }
-            .fold(
-                onSuccess = { apiKeysResult ->
-                    when (apiKeysResult) {
-                        is ApiResult.Success -> {
-                            val response = apiKeysResult.data
-                            // Sum up usage and limits from all enabled keys
-                            val enabledKeys = response.data.filter { !it.disabled }
-                            val totalUsed = enabledKeys.sumOf { it.usage }
-                            val totalLimit = enabledKeys.mapNotNull { it.limit }.sum()
-                            val remaining = if (totalLimit > 0) totalLimit - totalUsed else Double.MAX_VALUE
+        // No runCatching here: getApiKeysList answers failures as ApiResult.Error - it catches
+        // IOException itself and toApiResult handles the parse errors - so there is nothing to
+        // catch, and a fold's onFailure arm would be unreachable.
+        return when (val apiKeysResult = getApiKeysList(provisioningKey)) {
+            is ApiResult.Success -> {
+                val response = apiKeysResult.data
+                // Sum up usage and limits from all enabled keys
+                val enabledKeys = response.data.filter { !it.disabled }
+                val totalUsed = enabledKeys.sumOf { it.usage }
+                val totalLimit = enabledKeys.mapNotNull { it.limit }.sum()
+                val remaining = if (totalLimit > 0) totalLimit - totalUsed else Double.MAX_VALUE
 
-                            val quotaInfo = QuotaInfo(
-                                remaining = remaining,
-                                total = totalLimit,
-                                used = totalUsed,
-                                resetDate = null // OpenRouter doesn't provide reset date in this endpoint
-                            )
-                            ApiResult.Success(quotaInfo, apiKeysResult.statusCode)
-                        }
-                        is ApiResult.Error -> apiKeysResult.copy()
-                    }
-                },
-                onFailure = { e ->
-                    ApiResult.Error(message = "Failed to get quota info", throwable = e)
-                }
-            )
+                val quotaInfo = QuotaInfo(
+                    remaining = remaining,
+                    total = totalLimit,
+                    used = totalUsed,
+                    resetDate = null // OpenRouter doesn't provide reset date in this endpoint
+                )
+                ApiResult.Success(quotaInfo, apiKeysResult.statusCode)
+            }
+            is ApiResult.Error -> apiKeysResult.copy()
+        }
     }
 
     /**
@@ -382,7 +401,7 @@ open class OpenRouterService(
 
     /**
      * Create a new API key
-     * NOTE: This endpoint requires Provisioning Key authentication
+     * NOTE: This endpoint requires Management Key authentication
      */
     suspend fun createApiKey(name: String, limit: Double? = null): ApiResult<CreateApiKeyResponse> =
         withContext(Dispatchers.IO) {
@@ -436,7 +455,7 @@ open class OpenRouterService(
 
     /**
      * Delete an API key by hash
-     * NOTE: This endpoint requires Provisioning Key authentication
+     * NOTE: This endpoint requires Management Key authentication
      */
     suspend fun deleteApiKey(keyHash: String): ApiResult<DeleteApiKeyResponse> =
         withContext(Dispatchers.IO) {
@@ -475,29 +494,46 @@ open class OpenRouterService(
         }
 
     /**
-     * Get credits information from OpenRouter
-     * NOTE: This endpoint requires Provisioning Key authentication, not API Key
+     * Get credits information from OpenRouter.
+     *
+     * Measured against the live API (2026-09-21): `/credits` answers for an ordinary API key
+     * exactly as it does for a management key - it is account-scoped, not key-scoped, so any
+     * configured API key can read it. It is authenticated with [OpenRouterConstants]'
+     * [OpenRouterRequestBuilder.AuthType.API_KEY], never the management key.
      */
     suspend fun getCredits(): ApiResult<CreditsResponse> =
         withContext(Dispatchers.IO) {
             try {
-                // Credits endpoint requires provisioning key, not API key
-                val provisioningKey = settingsService.getProvisioningKey()
-                if (provisioningKey.isBlank()) {
-                    PluginLogger.Service.warn("No provisioning key available for credits endpoint")
-                    return@withContext ApiResult.Error("No provisioning key configured")
+                // /credits is Management-Key-only, and has been since about 2026-04-15 - the
+                // requirement appears in the API reference (absent 2025-10-02, present by then)
+                // though never in the changelog, which is why several projects met it as a
+                // breaking change rather than a documented one.
+                //
+                // There is deliberately NO fallback to the ordinary API key. One was tried and
+                // removed: a key created by hand in the dashboard was measured answering 200 here,
+                // but a key minted through POST /keys answers 403, the two are indistinguishable
+                // through GET /key and GET /keys, and every public report says an ordinary key is
+                // refused outright. Building on that difference meant building on an inconsistency
+                // that OpenRouter is likely to close - and a fallback that works for a minority,
+                // silently, is worse than none: it makes the same plugin behave differently for
+                // two users who configured it identically.
+                val managementKey = settingsService.getProvisioningKey()
+                if (managementKey.isBlank()) {
+                    PluginLogger.Service.warn("No Management Key available for credits endpoint")
+                    return@withContext ApiResult.Error("Management Key required")
                 }
 
-                val keyPreview = provisioningKey.take(OpenRouterConstants.STRING_TRUNCATE_LENGTH)
+                val keyPreview = managementKey.take(OpenRouterConstants.STRING_TRUNCATE_LENGTH)
                 PluginLogger.Service.debug(
-                    "Fetching credits from OpenRouter with provisioning key: $keyPreview..."
+                    "Fetching credits from OpenRouter with Management Key: $keyPreview..."
                 )
+
                 PluginLogger.Service.debug("Making request to: ${getCreditsEndpoint()}")
 
                 val request = OpenRouterRequestBuilder.buildGetRequest(
                     url = getCreditsEndpoint(),
-                    authType = OpenRouterRequestBuilder.AuthType.PROVISIONING_KEY,
-                    authToken = provisioningKey
+                    authType = OpenRouterRequestBuilder.AuthType.API_KEY,
+                    authToken = managementKey
                 )
 
                 val (response, responseBody) = client.newCall(request).awaitWithBody()
@@ -515,7 +551,7 @@ open class OpenRouterService(
                 } else {
                     PluginLogger.Service.warn("Failed to fetch credits: ${response.code} - $responseBody")
                     ApiResult.Error(
-                        message = responseBody.ifBlank { "Failed to fetch credits" },
+                        message = extractErrorMessage(responseBody, "Failed to fetch credits"),
                         statusCode = response.code
                     )
                 }
@@ -527,7 +563,7 @@ open class OpenRouterService(
 
     /**
      * Get activity analytics from OpenRouter
-     * NOTE: This endpoint requires Provisioning Key authentication
+     * NOTE: This endpoint requires Management Key authentication
      */
     suspend fun getActivity(): ApiResult<ActivityResponse> =
         withContext(Dispatchers.IO) {
@@ -535,7 +571,7 @@ open class OpenRouterService(
                 val provisioningKey = settingsService.getProvisioningKey()
                 if (provisioningKey.isBlank()) {
                     PluginLogger.Service.warn("No provisioning key available for activity endpoint")
-                    return@withContext ApiResult.Error("No provisioning key configured")
+                    return@withContext ApiResult.Error("No management key configured")
                 }
 
                 val keyPreview = provisioningKey.take(OpenRouterConstants.STRING_TRUNCATE_LENGTH)
@@ -567,7 +603,7 @@ open class OpenRouterService(
                 } else {
                     PluginLogger.Service.warn("Failed to fetch activity: ${response.code} - $responseBody")
                     ApiResult.Error(
-                        message = responseBody.ifBlank { "Failed to fetch activity" },
+                        message = extractErrorMessage(responseBody, "Failed to fetch activity"),
                         statusCode = response.code
                     )
                 }

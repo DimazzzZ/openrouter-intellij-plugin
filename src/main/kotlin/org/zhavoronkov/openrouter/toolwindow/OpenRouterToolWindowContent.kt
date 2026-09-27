@@ -3,31 +3,21 @@ package org.zhavoronkov.openrouter.toolwindow
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
-import com.intellij.ui.components.JBLabel
-import com.intellij.ui.components.JBScrollPane
+import com.intellij.openapi.util.Disposer
 import com.intellij.ui.components.JBTabbedPane
 import com.intellij.util.ui.JBUI
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
 import org.zhavoronkov.openrouter.listeners.OpenRouterSettingsListener
-import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.toolwindow.status.StatusTabPanel
 import java.awt.BorderLayout
-import java.awt.GridBagConstraints
-import java.awt.GridBagLayout
-import java.util.Locale
-import javax.swing.JButton
 import javax.swing.JPanel
 import javax.swing.SwingUtilities
+import javax.swing.event.ChangeListener
 
 /**
  * Content for the OpenRouter tool window
  */
-@Suppress("TooManyFunctions")
 class OpenRouterToolWindowContent(
     private val project: Project,
     private val settingsService: OpenRouterSettingsService = OpenRouterSettingsService.getInstance(),
@@ -37,35 +27,35 @@ class OpenRouterToolWindowContent(
     companion object {
         // UI Dimensions
         private const val MAIN_PANEL_BORDER = 10
-        private const val TITLE_FONT_SIZE = 16f
-        private const val CONTENT_SPACING = 5
-        private const val LABEL_SPACING_LARGE = 20
-        private const val CONFIGURATION_PANEL_BORDER = 10
-        private const val PERCENTAGE_MULTIPLIER = 100
-
-        // Grid position constants
-        private const val GRID_STATUS_ROW = 0
-        private const val GRID_MODEL_ROW = 1
-        private const val GRID_QUOTA_ROW = 2
-        private const val GRID_USAGE_ROW = 3
-        private const val GRID_ACTIVITY_ROW = 4
-        private const val GRID_CONFIG_ROW = 5
     }
 
     private val mainPanel: JPanel
     private val tabbedPane: JBTabbedPane
-    private val statusPanel: JPanel
-    private var configurationPanel: JPanel? = null
-    private val statusLabel = JBLabel("Loading...")
-    private val quotaLabel = JBLabel("Quota: N/A")
-    private val usageLabel = JBLabel("Usage: N/A")
-    private val modelLabel = JBLabel("Model: N/A")
-    private val activityLabel = JBLabel("Recent Activity: N/A")
+    private val statusTab = StatusTabPanel(project, settingsService)
 
-    private val coroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val chatPanel = ChatPanel(project, settingsService, openRouterService)
 
+    /**
+     * Calls [StatusTabPanel.onActivated] whenever the Status tab becomes the selected tab -
+     * [JBTabbedPane] fires a [ChangeListener] on every selection change, including to the OTHER
+     * tab, so this checks which one is now selected rather than refreshing unconditionally.
+     * Registered as a plain Swing listener rather than through [Disposer] - `removeChangeListener`
+     * in [dispose] is enough to tear it down with this panel, and it holds no resource of its own
+     * that would otherwise leak.
+     */
+    private val statusTabActivationListener = ChangeListener {
+        if (tabbedPane.selectedComponent === statusTab.component) {
+            statusTab.onActivated()
+        }
+    }
+
     init {
+        // statusTab owns a message-bus subscription of its own (to the shared stats cache); it
+        // must be a Disposer CHILD of this content, not merely disposed by a plain method call
+        // from this.dispose() - a bare `statusTab.dispose()` call only runs that class's dispose()
+        // body, it does not ask the Disposer to walk (and tear down) statusTab's own children.
+        Disposer.register(this, statusTab)
+
         // Register for settings changes
         val connection = ApplicationManager.getApplication().messageBus.connect(this)
         connection.subscribe(
@@ -73,8 +63,7 @@ class OpenRouterToolWindowContent(
             object : OpenRouterSettingsListener {
                 override fun onSettingsChanged() {
                     SwingUtilities.invokeLater {
-                        updateConfigurationPanelVisibility()
-                        refreshData()
+                        statusTab.refresh()
                         chatPanel.refreshModels()
                     }
                 }
@@ -89,8 +78,7 @@ class OpenRouterToolWindowContent(
         tabbedPane = JBTabbedPane()
 
         // Create status panel
-        statusPanel = createStatusPanel()
-        tabbedPane.addTab("Status", statusPanel)
+        tabbedPane.addTab("Status", statusTab.component)
 
         // Create chat panel
         tabbedPane.addTab("Chat", chatPanel.getPanel())
@@ -98,212 +86,27 @@ class OpenRouterToolWindowContent(
         // Select Chat tab by default
         tabbedPane.selectedIndex = 1
 
+        // Refresh-on-activation (Task 11): the listener is added AFTER `selectedIndex = 1` above,
+        // so Swing's own initial-selection bookkeeping has already happened by the time it is
+        // attached - no ChangeEvent fires for this line at all, let alone one the listener would
+        // need to no-op on. It only ever fires for a later, real selection change.
+        tabbedPane.addChangeListener(statusTabActivationListener)
+
         mainPanel.add(tabbedPane, BorderLayout.CENTER)
-
-        // Initial data refresh
-        refreshData()
-    }
-
-    private fun createStatusPanel(): JPanel {
-        val panel = JPanel(BorderLayout())
-
-        // Header
-        val headerPanel = JPanel(BorderLayout())
-        val titleLabel = JBLabel("OpenRouter API Status")
-        titleLabel.font = titleLabel.font.deriveFont(TITLE_FONT_SIZE)
-        headerPanel.add(titleLabel, BorderLayout.WEST)
-
-        val refreshButton = JButton("Refresh")
-        refreshButton.addActionListener { refreshData() }
-        headerPanel.add(refreshButton, BorderLayout.EAST)
-
-        panel.add(headerPanel, BorderLayout.NORTH)
-
-        // Content
-        val contentPanel = createContentPanel()
-        val scrollPane = JBScrollPane(contentPanel)
-        panel.add(scrollPane, BorderLayout.CENTER)
-
-        return panel
-    }
-
-    private fun createContentPanel(): JPanel {
-        val panel = JPanel(GridBagLayout())
-        val gbc = GridBagConstraints()
-
-        gbc.anchor = GridBagConstraints.WEST
-        gbc.insets = JBUI.insets(CONTENT_SPACING)
-
-        // Status
-        gbc.gridx = 0
-        gbc.gridy = GRID_STATUS_ROW
-        panel.add(JBLabel("Status:"), gbc)
-        gbc.gridx = 1
-        panel.add(statusLabel, gbc)
-
-        // Model
-        gbc.gridx = 0
-        gbc.gridy = GRID_MODEL_ROW
-        panel.add(JBLabel("Default Model:"), gbc)
-        gbc.gridx = 1
-        panel.add(modelLabel, gbc)
-
-        // Quota
-        gbc.gridx = 0
-        gbc.gridy = GRID_QUOTA_ROW
-        panel.add(JBLabel("Quota:"), gbc)
-        gbc.gridx = 1
-        panel.add(quotaLabel, gbc)
-
-        // Usage
-        gbc.gridx = 0
-        gbc.gridy = GRID_USAGE_ROW
-        panel.add(JBLabel("Usage:"), gbc)
-        gbc.gridx = 1
-        panel.add(usageLabel, gbc)
-
-        // Activity
-        gbc.gridx = 0
-        gbc.gridy = GRID_ACTIVITY_ROW
-        panel.add(JBLabel("Activity:"), gbc)
-        gbc.gridx = 1
-        panel.add(activityLabel, gbc)
-
-        // Configuration section (dynamic)
-        gbc.gridx = 0
-        gbc.gridy = GRID_CONFIG_ROW
-        gbc.gridwidth = 2
-        gbc.fill = GridBagConstraints.HORIZONTAL
-        gbc.insets = JBUI.insets(LABEL_SPACING_LARGE, CONTENT_SPACING, CONTENT_SPACING, CONTENT_SPACING)
-
-        configurationPanel = createConfigurationPanel()
-        panel.add(configurationPanel!!, gbc)
-
-        // Update visibility based on current state
-        updateConfigurationPanelVisibility()
-
-        return panel
-    }
-
-    private fun createConfigurationPanel(): JPanel {
-        val panel = JPanel(BorderLayout())
-        panel.border = JBUI.Borders.compound(
-            JBUI.Borders.customLine(JBUI.CurrentTheme.ToolWindow.borderColor()),
-            JBUI.Borders.empty(CONFIGURATION_PANEL_BORDER)
-        )
-
-        val messageLabel = JBLabel(
-            "<html><b>OpenRouter not configured</b><br/>" +
-                "Please configure your API key to use OpenRouter features.</html>"
-        )
-        panel.add(messageLabel, BorderLayout.CENTER)
-
-        val configButton = JButton("Configure")
-        configButton.addActionListener {
-            com.intellij.openapi.options.ShowSettingsUtil.getInstance()
-                .showSettingsDialog(project, "OpenRouter")
-        }
-        panel.add(configButton, BorderLayout.SOUTH)
-
-        return panel
-    }
-
-    private fun updateConfigurationPanelVisibility() {
-        configurationPanel?.isVisible = !settingsService.isConfigured()
-    }
-
-    private fun refreshData() {
-        updateConfigurationPanelVisibility()
-
-        if (!settingsService.isConfigured()) {
-            setUnconfiguredState()
-            return
-        }
-
-        statusLabel.text = "Checking..."
-        modelLabel.text = "N/A"
-        activityLabel.text = "Loading..."
-
-        coroutineScope.launch { loadConnectionStatus() }
-        coroutineScope.launch { loadQuotaInfo() }
-        coroutineScope.launch { loadActivityInfo() }
-    }
-
-    private fun setUnconfiguredState() {
-        statusLabel.text = "Not configured"
-        modelLabel.text = "N/A"
-        quotaLabel.text = "N/A"
-        usageLabel.text = "N/A"
-        activityLabel.text = "N/A"
-    }
-
-    private suspend fun loadConnectionStatus() {
-        val result = openRouterService.testConnection()
-        SwingUtilities.invokeLater {
-            when (result) {
-                is ApiResult.Success -> {
-                    statusLabel.text = if (result.data) "Connected" else "Connection failed"
-                }
-                is ApiResult.Error -> {
-                    statusLabel.text = "Connection failed"
-                }
-            }
-        }
-    }
-
-    private suspend fun loadQuotaInfo() {
-        val quotaResult = openRouterService.getQuotaInfo()
-        SwingUtilities.invokeLater {
-            when (quotaResult) {
-                is ApiResult.Success -> {
-                    val quota = quotaResult.data
-                    quotaLabel.text = "$${String.format(Locale.US, "%.2f", quota.total ?: 0.0)}"
-                    val usedAmount = String.format(Locale.US, "%.2f", quota.used ?: 0.0)
-                    val percentage = String.format(
-                        Locale.US,
-                        "%.1f",
-                        ((quota.used ?: 0.0) / (quota.total ?: 1.0)) * PERCENTAGE_MULTIPLIER
-                    )
-                    usageLabel.text = "$$usedAmount ($percentage%)"
-                }
-                is ApiResult.Error -> {
-                    quotaLabel.text = "Failed to load"
-                    usageLabel.text = "Failed to load"
-                }
-            }
-        }
-    }
-
-    private suspend fun loadActivityInfo() {
-        val activityResult = openRouterService.getActivity()
-        SwingUtilities.invokeLater {
-            when (activityResult) {
-                is ApiResult.Success -> {
-                    val activityResponse = activityResult.data
-                    if (activityResponse.data.isNotEmpty()) {
-                        val totalRequests = activityResponse.data.sumOf { (it.requests ?: 0).toLong() }
-                        val totalUsage = activityResponse.data.sumOf { it.usage ?: 0.0 }
-                        val usageStr = String.format(Locale.US, "%.4f", totalUsage)
-                        activityLabel.text = "$totalRequests requests, $$usageStr"
-                    } else {
-                        activityLabel.text = "No recent activity"
-                    }
-                }
-                is ApiResult.Error -> {
-                    activityLabel.text = "No recent activity"
-                }
-            }
-        }
     }
 
     fun getContentPanel(): JPanel = mainPanel
 
-    override fun dispose() {
-        coroutineScope.cancel()
-    }
+    /** The wired-in [StatusTabPanel], so a test can call [StatusTabPanel.onActivated] directly to
+     * observe whether [statusTabActivationListener] already consumed its refresh gate. */
+    internal fun getStatusTabForTest(): StatusTabPanel = statusTab
 
-    internal fun getStatusTextForTest(): String = statusLabel.text
-    internal fun getQuotaTextForTest(): String = quotaLabel.text
-    internal fun getUsageTextForTest(): String = usageLabel.text
-    internal fun getActivityTextForTest(): String = activityLabel.text
+    /** The real [JBTabbedPane], so a test can drive tab selection the way a user would. */
+    internal fun getTabbedPaneForTest(): JBTabbedPane = tabbedPane
+
+    override fun dispose() {
+        tabbedPane.removeChangeListener(statusTabActivationListener)
+        // statusTab is disposed by the Disposer walking the child registered above, not here.
+        chatPanel.dispose()
+    }
 }

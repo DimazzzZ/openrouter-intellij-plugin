@@ -37,7 +37,7 @@ class SetupWizardErrorHandlerTest {
         fun `handles Invalid provisioningkey error`() {
             val error = ApiResult.Error("Invalid provisioningkey provided", 401)
             val result = SetupWizardErrorHandler.handleValidationError(error)
-            assertEquals("Invalid provisioning key", result)
+            assertEquals("Invalid Management key", result)
         }
 
         @Test

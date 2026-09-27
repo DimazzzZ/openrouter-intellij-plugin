@@ -58,7 +58,7 @@ class ProxyServerManager(
     fun startProxyServer(statusLabel: JBLabel, startButton: JButton, stopButton: JButton) {
         if (!settingsService.isConfigured()) {
             Messages.showErrorDialog(
-                "Please configure your Provisioning Key first.",
+                "Please configure your Management Key first.",
                 "Configuration Required"
             )
             return

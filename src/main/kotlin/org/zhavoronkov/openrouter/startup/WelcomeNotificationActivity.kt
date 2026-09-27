@@ -37,7 +37,7 @@ class WelcomeNotificationActivity : ProjectActivity {
                 <html>
                 Get started in 3 easy steps:
                 <ol style='margin-top: 4px; margin-bottom: 0px;'>
-                  <li>Add your API Key (OAuth or Provisioning Key)</li>
+                  <li>Add your API Key (OAuth or Management Key)</li>
                   <li>Select favorite models</li>
                   <li>Start the proxy server</li>
                 </ol>

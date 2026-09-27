@@ -286,7 +286,10 @@ tasks {
     // every time Settings is opened. Pinning en_US silences that dev-only
     // noise without affecting the shipped plugin.
     runIde {
-        jvmArgs("-Duser.language=en", "-Duser.country=US")
+        // `openrouter.debug` turns on PluginLogger.Service.debug, which logs which key each
+        // endpoint actually authenticates with (truncated preview only, never the whole key).
+        // Off in a released build; on here because runIde is the diagnostic surface.
+        jvmArgs("-Duser.language=en", "-Duser.country=US", "-Dopenrouter.debug=true")
     }
 }
 
@@ -367,6 +370,14 @@ kover {
                     "org.zhavoronkov.openrouter.ui.VariantChipTableCellRenderer",
                     "org.zhavoronkov.openrouter.ui.VariantChipTableCellRenderer\$*",
                     // IntelliJ Configurable glue and Swing settings panels (framework wiring / views).
+                    // RouterDefaults* joins its siblings below: the Configurable is pure platform
+                    // glue and the panel is a UI-DSL v2 form that resolves OpenRouterSettingsService
+                    // in a field initializer, so neither constructs under the fast :test task. The
+                    // logic they read - RouterCatalog, RouterRequestBuilder - is NOT excluded.
+                    "org.zhavoronkov.openrouter.settings.RouterDefaultsConfigurable",
+                    "org.zhavoronkov.openrouter.settings.RouterDefaultsConfigurable\$*",
+                    "org.zhavoronkov.openrouter.settings.RouterDefaultsSettingsPanel",
+                    "org.zhavoronkov.openrouter.settings.RouterDefaultsSettingsPanel\$*",
                     "org.zhavoronkov.openrouter.settings.ApiKeyDialogManager",
                     "org.zhavoronkov.openrouter.settings.ApiKeyDialogManager\$*",
                     "org.zhavoronkov.openrouter.settings.FavoriteModelsConfigurable",
@@ -385,6 +396,11 @@ kover {
                     "org.zhavoronkov.openrouter.settings.ProviderRoutingConfigurable\$*",
                     "org.zhavoronkov.openrouter.settings.ProviderRoutingSettingsPanel",
                     "org.zhavoronkov.openrouter.settings.ProviderRoutingSettingsPanel\$*",
+                    // Shares ProviderRoutingSettingsPanel.kt with the panel above but is a separate
+                    // top-level class, so the pattern above does not reach it: a DialogWrapper, same
+                    // category as every other dialog listed here.
+                    "org.zhavoronkov.openrouter.settings.ProviderChooserDialog",
+                    "org.zhavoronkov.openrouter.settings.ProviderChooserDialog\$*",
                     // Swing table column/toolbar wiring in the favorites subpackage.
                     "org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsTableColumns",
                     "org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsTableColumns\$*",
@@ -427,7 +443,171 @@ kover {
                     // parsing, token estimation, streaming flag, not-configured short-circuits) is
                     // covered by OpenRouterChatModelProviderTest + OpenRouterChatModelProviderLogicTest.
                     "org.zhavoronkov.openrouter.aiassistant.OpenRouterChatModelProvider",
-                    "org.zhavoronkov.openrouter.aiassistant.OpenRouterChatModelProvider\$*"
+                    "org.zhavoronkov.openrouter.aiassistant.OpenRouterChatModelProvider\$*",
+                    // Chat list view: Swing list/scroll-pane/popup-menu wiring extracted from
+                    // ChatPanel in the chat UI redesign seams ticket. Not unit-testable under
+                    // the fast :test task (needs a platform runner for JBList/JBScrollPane).
+                    "org.zhavoronkov.openrouter.toolwindow.chat.ChatListView",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.ChatListView\$*",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.ChatListCellRenderer",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.ChatListCellRenderer\$*",
+                    // Chat composer: Swing input/token-counter/Send wiring extracted from
+                    // ChatPanel in the chat UI redesign seams ticket. Not unit-testable under
+                    // the fast :test task (needs a platform runner for JBTextArea/JBScrollPane).
+                    "org.zhavoronkov.openrouter.toolwindow.chat.ChatComposer",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.ChatComposer\$*",
+                    // ComposerLayout: Swing LayoutManager that measures real components and
+                    // places them via ComposerLayoutPolicy, plus the combo renderer that
+                    // delegates to it. Not unit-testable under the fast :test task (needs a
+                    // platform runner for JComponent/ComboBox). ComposerLayoutPolicy and
+                    // MiddleEllipsis, the pure logic these consult, are NOT excluded here.
+                    "org.zhavoronkov.openrouter.toolwindow.composer.ComposerLayout",
+                    "org.zhavoronkov.openrouter.toolwindow.composer.ComposerLayout\$*",
+                    "org.zhavoronkov.openrouter.toolwindow.composer.MiddleEllipsisComboRenderer",
+                    "org.zhavoronkov.openrouter.toolwindow.composer.MiddleEllipsisComboRenderer\$*",
+                    // Chat conversation view: Swing messages-area/loading-indicator wiring
+                    // extracted from ChatPanel in the chat UI redesign seams ticket. Not
+                    // unit-testable under the fast :test task (needs a platform runner for
+                    // JBScrollPane/JEditorPane).
+                    "org.zhavoronkov.openrouter.toolwindow.chat.ChatConversationView",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.ChatConversationView\$*",
+                    // Chat toolbar: single ActionToolbar strip replacing the three-row
+                    // header/back/model chrome, added in the chat UI redesign. Not
+                    // unit-testable under the fast :test task (needs a platform runner
+                    // for ActionManager/ActionToolbar).
+                    "org.zhavoronkov.openrouter.toolwindow.chat.ChatToolbar",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.ChatToolbar\$*",
+                    // Send-parameters popup: UI DSL v2 form built from JBPopupFactory,
+                    // added in Task 10 of the chat UI redesign to replace the
+                    // FlowLayout-in-BoxLayout row that silently clipped wrapped
+                    // controls. Not unit-testable under the fast :test task (needs a
+                    // platform runner for ComboBox/JBPopupFactory).
+                    "org.zhavoronkov.openrouter.toolwindow.chat.ChatParamsPopup",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.ChatParamsPopup\$*",
+                    // Message rendering: Swing views added in Task 12 of the chat UI
+                    // redesign to measure message heights at the real viewport width
+                    // and replace the role-prefix rows with the D6 visuals. Not
+                    // unit-testable under the fast :test task (needs a platform
+                    // runner for JEditorPane/JScrollPane/Scrollable). MessageSegment
+                    // and MessageSegmenter, the pure logic these consume, are NOT
+                    // excluded here.
+                    "org.zhavoronkov.openrouter.toolwindow.chat.MessagesPanel",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.MessagesPanel\$*",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.WrappingEditorPane",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.WrappingEditorPane\$*",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.MessageView",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.MessageView\$*",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.CodeSegmentView",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.CodeSegmentView\$*",
+                    // Task 13: code/table segments scroll horizontally inside their
+                    // own segment instead of clipping. HorizontallyScrollingPane and
+                    // the wheel-forwarding helper are top-level declarations in
+                    // CodeSegmentView.kt (the existing CodeSegmentView$* wildcard
+                    // above only covers nested classes of CodeSegmentView itself, not
+                    // separate top-level ones), and CodeSegmentViewKt is the facade
+                    // class Kotlin generates for that file's top-level function. Same
+                    // "needs a platform runner for JBScrollPane" reasoning as every
+                    // other Swing view in this package.
+                    "org.zhavoronkov.openrouter.toolwindow.chat.HorizontallyScrollingPane",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.HorizontallyScrollingPane\$*",
+                    "org.zhavoronkov.openrouter.toolwindow.chat.CodeSegmentViewKt",
+                    // Status tab panel: Swing view extracted from OpenRouterToolWindowContent
+                    // in the status tab redesign. Not unit-testable under the fast :test task
+                    // (needs a platform runner for JBLabel/JBScrollPane/GridBagLayout wiring).
+                    "org.zhavoronkov.openrouter.toolwindow.status.StatusTabPanel",
+                    "org.zhavoronkov.openrouter.toolwindow.status.StatusTabPanel\$*",
+                    // Defect D fix: the Scrollable content view createContentPanel() wraps in a
+                    // JBScrollPane. Swing view (GridBagLayout/Scrollable wiring) - same reasoning
+                    // as org.zhavoronkov.openrouter.toolwindow.chat.MessagesPanel, its sibling on
+                    // the chat side of this repo. BreakdownColumnPolicy, the pure logic that
+                    // actually decides what fits once this panel hands rowsPanel a real width, is
+                    // NOT excluded - it runs under the fast :test task instead.
+                    "org.zhavoronkov.openrouter.toolwindow.status.StatusContentPanel",
+                    "org.zhavoronkov.openrouter.toolwindow.status.StatusContentPanel\$*",
+                    // Task 8: the balance block and its spend sparkline. Swing views needing a
+                    // platform runner for JBLabel/BoxLayout/custom-paint - same reasoning as
+                    // every other Swing view in this package.
+                    "org.zhavoronkov.openrouter.toolwindow.status.BalanceBlock",
+                    "org.zhavoronkov.openrouter.toolwindow.status.BalanceBlock\$*",
+                    "org.zhavoronkov.openrouter.toolwindow.status.SparklineView",
+                    "org.zhavoronkov.openrouter.toolwindow.status.SparklineView\$*",
+                    // Task 9: the per-model breakdown block and its period selector. Swing view
+                    // needing a platform runner for ComboBox/GridBagLayout - same reasoning as
+                    // every other Swing view in this package. AnalyticsBreakdown, the pure
+                    // request-building/row-mapping logic it consults, is NOT excluded here - it
+                    // runs under the fast :test task instead (see AnalyticsBreakdownTest).
+                    "org.zhavoronkov.openrouter.toolwindow.status.BreakdownBlock",
+                    "org.zhavoronkov.openrouter.toolwindow.status.BreakdownBlock\$*",
+                    // Task 10: the API key spend-cap block. Swing view needing a platform runner
+                    // for JBLabel/BoxLayout - same reasoning as every other Swing view in this
+                    // package. KeyLimit, the pure logic deciding whether a cap exists and what
+                    // `used` pairs with it, is NOT excluded here - it runs under the fast :test
+                    // task instead (see KeyLimitTest).
+                    "org.zhavoronkov.openrouter.toolwindow.status.KeyLimitBlock",
+                    "org.zhavoronkov.openrouter.toolwindow.status.KeyLimitBlock\$*",
+                    // Task 11: DEGRADED's explanatory banner. Swing view needing a platform
+                    // runner for JBLabel/JButton/JBUI.CurrentTheme - same reasoning as every
+                    // other Swing view in this package. ActivationRefreshGate and DegradedSpend,
+                    // the pure logic Task 11 adds alongside it, are NOT excluded here - they run
+                    // under the fast :test task instead (see their own *Test.kt files).
+                    "org.zhavoronkov.openrouter.toolwindow.status.DegradedNoticeBlock",
+                    "org.zhavoronkov.openrouter.toolwindow.status.DegradedNoticeBlock\$*",
+                    // ChatPanel: the last un-excluded member of the chat view family. A JPanel
+                    // mixing ComboBox/JBUI wiring with PathManager-backed chat persistence, all
+                    // private, with no seam - same reasoning as every ChatListView/ChatComposer/
+                    // MessagesPanel sibling already listed above. ChatParamsState, MessageSegmenter
+                    // and the composer policies, the pure logic it consults, are NOT excluded.
+                    "org.zhavoronkov.openrouter.toolwindow.ChatPanel",
+                    "org.zhavoronkov.openrouter.toolwindow.ChatPanel\$*",
+                    // Status bar widget: an EditorBasedWidget driving JBPopupFactory, BrowserUtil,
+                    // Messages and Alarm. Platform surface, not logic - StatusBarStatsFormatter,
+                    // which owns the numbers it renders, is NOT excluded and is covered instead.
+                    "org.zhavoronkov.openrouter.statusbar.OpenRouterStatusBarWidget",
+                    "org.zhavoronkov.openrouter.statusbar.OpenRouterStatusBarWidget\$*",
+                    // AI Assistant integration helper: every method resolves an application
+                    // service or reaches for ActionManager/ShowSettingsUtil. Platform wiring.
+                    "org.zhavoronkov.openrouter.integration.AIAssistantIntegrationHelper",
+                    "org.zhavoronkov.openrouter.integration.AIAssistantIntegrationHelper\$*",
+                    // Logging facade. Every branch is gated on one of two `by lazy` flags read from
+                    // system properties, so within a single JVM each `if` has exactly one reachable
+                    // side; the rest are `logger?.info(...)` null-edges that cannot fire because
+                    // createLogger only returns null when the platform itself throws. Nothing here
+                    // is domain logic - it delegates to com.intellij...Logger.
+                    "org.zhavoronkov.openrouter.utils.PluginLogger",
+                    "org.zhavoronkov.openrouter.utils.PluginLogger\$*",
+                    // Favorites toolbar: AnAction subclasses, the same surface already excluded as
+                    // `...openrouter.actions.*`. Listed by their own names on purpose - they live in
+                    // FavoriteModelsToolbarActions.kt, but no class of that name exists, so a
+                    // filename-shaped pattern would silently match nothing.
+                    "org.zhavoronkov.openrouter.settings.favorites.CapabilitiesFilterAction",
+                    "org.zhavoronkov.openrouter.settings.favorites.CapabilitiesFilterAction\$*",
+                    "org.zhavoronkov.openrouter.settings.favorites.ChoiceFilterAction",
+                    "org.zhavoronkov.openrouter.settings.favorites.ChoiceFilterAction\$*",
+                    "org.zhavoronkov.openrouter.settings.favorites.ClearFiltersAction",
+                    "org.zhavoronkov.openrouter.settings.favorites.ClearFiltersAction\$*",
+                    "org.zhavoronkov.openrouter.settings.favorites.FavoritesOnlyToggleAction",
+                    "org.zhavoronkov.openrouter.settings.favorites.FavoritesOnlyToggleAction\$*",
+                    "org.zhavoronkov.openrouter.settings.favorites.MoveFavoriteAction",
+                    "org.zhavoronkov.openrouter.settings.favorites.MoveFavoriteAction\$*",
+                    "org.zhavoronkov.openrouter.settings.favorites.PresetsAction",
+                    "org.zhavoronkov.openrouter.settings.favorites.PresetsAction\$*",
+                    "org.zhavoronkov.openrouter.settings.favorites.RefreshCatalogAction",
+                    "org.zhavoronkov.openrouter.settings.favorites.RefreshCatalogAction\$*",
+                    // Jetty lifecycle: binds a port, builds handlers, starts and stops the server.
+                    // The request handling it wires up is covered through the servlets themselves.
+                    "org.zhavoronkov.openrouter.proxy.OpenRouterProxyServer",
+                    "org.zhavoronkov.openrouter.proxy.OpenRouterProxyServer\$*",
+                    "org.zhavoronkov.openrouter.services.OpenRouterProxyService",
+                    "org.zhavoronkov.openrouter.services.OpenRouterProxyService\$*",
+                    // Plugin load/unload callbacks - IntelliJ lifecycle wiring, same category as
+                    // the startup activities already excluded above.
+                    "org.zhavoronkov.openrouter.listeners.PluginLifecycleListener",
+                    "org.zhavoronkov.openrouter.listeners.PluginLifecycleListener\$*",
+                    // Extension-point fan-out to other plugins: resolves the EP area and forwards to
+                    // whatever is registered. Nothing registers under the fast :test task, so the
+                    // loop body is unreachable there.
+                    "org.zhavoronkov.openrouter.services.BalanceProviderNotifier",
+                    "org.zhavoronkov.openrouter.services.BalanceProviderNotifier\$*"
                 )
             }
         }

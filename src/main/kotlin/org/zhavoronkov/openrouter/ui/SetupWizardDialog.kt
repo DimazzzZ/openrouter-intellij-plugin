@@ -209,7 +209,7 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
 
                 row {
                     icon(AllIcons.Ide.Notification.PluginUpdate)
-                    text("An API Key or Provisioning Key from OpenRouter")
+                    text("An API Key or Management Key from OpenRouter")
                 }.bottomGap(BottomGap.SMALL)
 
                 row {
@@ -228,7 +228,7 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
 
             // Authentication group - using manual radio buttons for better visibility control
             regularRadioButton = JRadioButton("Regular API Key (No monitoring)")
-            extendedRadioButton = JRadioButton("Extended (Provisioning Key)")
+            extendedRadioButton = JRadioButton("Extended (Management Key)")
             val authButtonGroup = ButtonGroup()
             authButtonGroup.add(regularRadioButton)
             authButtonGroup.add(extendedRadioButton)
@@ -259,7 +259,7 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
                 row {
                     text("Get your key from:")
                     browserLink(
-                        "OpenRouter Provisioning Keys",
+                        "OpenRouter Management Keys",
                         "https://openrouter.ai/settings/provisioning-keys"
                     ).visibleIf(radioButtonSelected(AuthScope.EXTENDED))
                 }.bottomGap(BottomGap.MEDIUM).visibleIf(radioButtonSelected(AuthScope.EXTENDED))
@@ -273,7 +273,7 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
 
                 row {
                     label("API Key:").visibleIf(radioButtonSelected(AuthScope.REGULAR))
-                    label("Provisioning Key:").visibleIf(radioButtonSelected(AuthScope.EXTENDED))
+                    label("Management Key:").visibleIf(radioButtonSelected(AuthScope.EXTENDED))
                 }.bottomGap(BottomGap.SMALL)
 
                 row {
@@ -284,7 +284,10 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
 
                 row {
                     comment("Paste your API key here").visibleIf(radioButtonSelected(AuthScope.REGULAR))
-                    comment("Paste your provisioning key here").visibleIf(radioButtonSelected(AuthScope.EXTENDED))
+                    comment(
+                        "Paste your Management Key here (called a Provisioning Key in your " +
+                            "OpenRouter account settings)"
+                    ).visibleIf(radioButtonSelected(AuthScope.EXTENDED))
                 }
             }
 
@@ -686,7 +689,7 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
                         val provisioningResult = openRouterService.getApiKeysList(key)
                         if (provisioningResult is ApiResult.Success) {
                             detectedProvisioning = true
-                            SetupWizardLogger.logValidationEvent("Detected Provisioning Key in Regular mode")
+                            SetupWizardLogger.logValidationEvent("Detected Management Key in Regular mode")
                         }
                     }
                     regularResult
@@ -706,7 +709,7 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
                             }
                             notifyScopeChanged()
                             Messages.showInfoMessage(
-                                "The provided key is a Provisioning Key. Switched to Extended mode for full features.",
+                                "The provided key is a Management Key. Switched to Extended mode for full features.",
                                 "Key Type Detected"
                             )
                         }
@@ -775,7 +778,7 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
 
     private fun showValidationSuccess() {
         validationIcon.icon = AllIcons.General.InspectionsOK
-        val type = if (authScope == AuthScope.REGULAR) "API key" else "provisioning key"
+        val type = if (authScope == AuthScope.REGULAR) "API key" else "management key"
         validationStatusLabel.text = "Valid $type"
         validationStatusLabel.foreground = JBColor.GREEN
         validationIcon.isVisible = true
@@ -795,7 +798,7 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
                 message.contains("Invalid key format", ignoreCase = true) ->
                 "Invalid key format or type"
             message.contains("Invalid provisioningkey", ignoreCase = true) ->
-                "Invalid provisioning key"
+                "Invalid Management key"
             message.contains("No cookie auth", ignoreCase = true) ||
                 message.contains("Authentication failed", ignoreCase = true) ->
                 "Invalid API key"

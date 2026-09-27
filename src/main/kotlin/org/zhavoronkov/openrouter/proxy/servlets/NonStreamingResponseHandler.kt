@@ -16,7 +16,11 @@ import java.io.IOException
  */
 class NonStreamingResponseHandler(
     private val httpClient: OkHttpClient,
-    private val gson: Gson
+    private val gson: Gson,
+    // The endpoint this handler posts to. Defaulted to the live API so existing callers are
+    // unaffected; ChatCompletionServlet threads its own value through so the servlet and this
+    // handler can be pointed at one test double together, rather than the servlet alone.
+    private val openRouterApiUrl: String = OPENROUTER_API_URL
 ) {
 
     companion object {
@@ -47,7 +51,7 @@ class NonStreamingResponseHandler(
         PluginLogger.Service.info("[Chat-$requestId] Dispatching request to OpenRouter API…")
 
         val request = OpenRouterRequestBuilder.buildPostRequest(
-            url = OPENROUTER_API_URL,
+            url = openRouterApiUrl,
             jsonBody = requestBody,
             authType = OpenRouterRequestBuilder.AuthType.API_KEY,
             authToken = apiKey

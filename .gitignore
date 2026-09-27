@@ -106,3 +106,6 @@ CLAUDE.md
 
 # Kotlin compiler daemon session files
 .kotlin/
+
+# Working notes (specs, plans, checklists) - not for the repository
+docs/superpowers/

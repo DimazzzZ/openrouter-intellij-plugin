@@ -311,7 +311,7 @@ class OpenRouterSettingsPanel {
                             } else if (settingsService.apiKeyManager.authScope == AuthScope.REGULAR) {
                                 "Regular API Key"
                             } else {
-                                "Extended (Provisioning Key)"
+                                "Extended (Management Key)"
                             }
                         }.bold().component
                     }
@@ -417,7 +417,7 @@ class OpenRouterSettingsPanel {
                 // API Keys group (at the end, only visible with Extended scope)
                 group("API Keys") {
                     row {
-                        comment("Keys load automatically when Provisioning Key is configured.")
+                        comment("Keys load automatically when a Management Key is configured.")
                     }
 
                     row {
@@ -579,7 +579,7 @@ class OpenRouterSettingsPanel {
     private fun startProxyServer() {
         if (!settingsService.isConfigured()) {
             Messages.showErrorDialog(
-                "Please configure your Provisioning Key first.",
+                "Please configure your Management Key first.",
                 "Configuration Required"
             )
             return
@@ -894,7 +894,7 @@ class OpenRouterSettingsPanel {
                 } else if (newScope == AuthScope.REGULAR) {
                     "Regular API Key"
                 } else {
-                    "Extended (Provisioning Key)"
+                    "Extended (Management Key)"
                 }
             }
             if (::authDescriptionLabel.isInitialized) {

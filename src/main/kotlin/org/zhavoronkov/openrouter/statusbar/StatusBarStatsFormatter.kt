@@ -4,6 +4,7 @@ import org.zhavoronkov.openrouter.models.ActivityData
 import org.zhavoronkov.openrouter.models.CreditsData
 import org.zhavoronkov.openrouter.services.CreditUsageHistoryService
 import org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService
+import org.zhavoronkov.openrouter.utils.applicationServiceOrNull
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -34,7 +35,8 @@ object StatusBarStatsFormatter {
         val total: Double,
         val activityList: List<ActivityData>? = null,
         val trackingService: OpenRouterGenerationTrackingService? = null,
-        val creditsData: CreditsData? = null
+        val creditsData: CreditsData? = null,
+        val authLabel: String = "Management Key"
     )
 
     fun formatStatusTextFromCredits(used: Double, total: Double, showCosts: Boolean): String {
@@ -59,9 +61,10 @@ object StatusBarStatsFormatter {
         total: Double,
         activityList: List<ActivityData>? = null,
         trackingService: OpenRouterGenerationTrackingService? = null,
-        creditsData: CreditsData? = null
+        creditsData: CreditsData? = null,
+        authLabel: String = "Management Key"
     ): String {
-        val params = TooltipParams(statusText, used, total, activityList, trackingService, creditsData)
+        val params = TooltipParams(statusText, used, total, activityList, trackingService, creditsData, authLabel)
         return formatStatusTooltip(params)
     }
 
@@ -91,7 +94,7 @@ object StatusBarStatsFormatter {
               <tr><td colspan='2'><b>Connection</b></td></tr>
               <tr height='2'><td></td></tr>
               <tr><td>Status:</td><td align='right' style='padding-left: 30px;'>${params.statusText}</td></tr>
-              <tr><td>Auth:</td><td align='right' style='padding-left: 30px;'>Provisioning Key</td></tr>
+              <tr><td>Auth:</td><td align='right' style='padding-left: 30px;'>${params.authLabel}</td></tr>
               <tr height='8'><td></td></tr>
               <tr><td colspan='2'><b>Credits</b></td></tr>
               <tr height='2'><td></td></tr>
@@ -206,30 +209,23 @@ object StatusBarStatsFormatter {
         return formatActivityRowsHtmlWithDays(todayCost, yesterdayCost, costs.lastWeek, daysRemaining)
     }
 
-    @Suppress("SwallowedException")
     private fun calculateTodayCostFromHistory(creditsData: CreditsData?): Double? {
         if (creditsData == null) return null
 
-        return try {
-            val historyService = CreditUsageHistoryService.getInstance()
-            historyService.calculateTodaySpent(creditsData.totalUsage)
-        } catch (_: IllegalStateException) {
-            // Service not available during initialization - fallback to other methods
-            null
-        }
+        // Service not available (during initialization, or outside a running IDE) - fall back to
+        // the other sources the caller already chains through.
+        val historyService = applicationServiceOrNull(CreditUsageHistoryService::class.java) ?: return null
+        return historyService.calculateTodaySpent(creditsData.totalUsage)
     }
 
-    @Suppress("SwallowedException")
     private fun calculateDaysRemainingFromHistory(remainingCredits: Double, yesterdaySpent: Double): Int? {
         if (yesterdaySpent <= 0) return null
 
-        return try {
-            val historyService = CreditUsageHistoryService.getInstance()
-            historyService.calculateDaysRemaining(remainingCredits, yesterdaySpent)
-        } catch (_: IllegalStateException) {
-            // Service not available - use fallback calculation
-            if (yesterdaySpent > 0) (remainingCredits / yesterdaySpent).toInt() else null
-        }
+        // Service not available - compute the same estimate directly. The guard above already
+        // established a positive divisor.
+        val historyService = applicationServiceOrNull(CreditUsageHistoryService::class.java)
+            ?: return (remainingCredits / yesterdaySpent).toInt()
+        return historyService.calculateDaysRemaining(remainingCredits, yesterdaySpent)
     }
 
     private fun formatActivityRowsHtmlWithDays(

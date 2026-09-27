@@ -7,14 +7,12 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
  * Provides controlled logging with different levels and reduces log pollution
  */
 object SetupWizardLogger {
-    private const val TAG = "[OpenRouter]"
-
     /**
      * Log important events that should always be visible
      */
     fun info(message: String) {
         if (SetupWizardConfig.LOGGING_ENABLED) {
-            PluginLogger.Service.info("$TAG $message")
+            PluginLogger.Service.info(message)
         }
     }
 
@@ -23,7 +21,7 @@ object SetupWizardLogger {
      */
     fun debug(message: String) {
         if (SetupWizardConfig.DEBUG_LOGGING_ENABLED) {
-            PluginLogger.Service.debug("$TAG $message")
+            PluginLogger.Service.debug(message)
         }
     }
 
@@ -32,7 +30,7 @@ object SetupWizardLogger {
      */
     fun warn(message: String) {
         if (SetupWizardConfig.LOGGING_ENABLED) {
-            PluginLogger.Service.warn("$TAG $message")
+            PluginLogger.Service.warn(message)
         }
     }
 
@@ -42,9 +40,9 @@ object SetupWizardLogger {
     fun error(message: String, throwable: Throwable? = null) {
         if (SetupWizardConfig.LOGGING_ENABLED) {
             if (throwable != null) {
-                PluginLogger.Service.error("$TAG $message", throwable)
+                PluginLogger.Service.error(message, throwable)
             } else {
-                PluginLogger.Service.error("$TAG $message")
+                PluginLogger.Service.error(message)
             }
         }
     }
@@ -55,9 +53,9 @@ object SetupWizardLogger {
     fun logPkceEvent(event: String, details: String? = null) {
         val message = "PKCE: $event${details?.let { " - $it" } ?: ""}"
         if (SetupWizardConfig.DEBUG_LOGGING_ENABLED) {
-            PluginLogger.Service.debug("$TAG $message")
+            PluginLogger.Service.debug(message)
         } else {
-            PluginLogger.Service.info("$TAG $message")
+            PluginLogger.Service.info(message)
         }
     }
 
@@ -66,7 +64,7 @@ object SetupWizardLogger {
      */
     fun logValidationEvent(event: String, details: String? = null) {
         val message = "Validation: $event${details?.let { " - $it" } ?: ""}"
-        PluginLogger.Service.info("$TAG $message")
+        PluginLogger.Service.info(message)
     }
 
     /**
@@ -74,6 +72,6 @@ object SetupWizardLogger {
      */
     fun logModelLoadingEvent(event: String, details: String? = null) {
         val message = "Models: $event${details?.let { " - $it" } ?: ""}"
-        PluginLogger.Service.info("$TAG $message")
+        PluginLogger.Service.info(message)
     }
 }

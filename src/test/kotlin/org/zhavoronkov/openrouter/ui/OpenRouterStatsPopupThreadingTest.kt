@@ -66,6 +66,7 @@ class OpenRouterStatsPopupThreadingTest {
 
         verify(settingsService).isConfigured()
         verify(settingsService).getProvisioningKey()
+        Unit
     }
 
     @Test

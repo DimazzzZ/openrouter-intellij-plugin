@@ -19,9 +19,9 @@ object ErrorMessages {
 
     fun apiKeyInvalid(): String = "$PREFIX_OPENROUTER Invalid API key"
 
-    fun provisioningKeyRequired(): String = "$PREFIX_OPENROUTER Provisioning key is required"
+    fun provisioningKeyRequired(): String = "$PREFIX_OPENROUTER Management key is required"
 
-    fun provisioningKeyInvalid(): String = "$PREFIX_OPENROUTER Invalid provisioning key"
+    fun provisioningKeyInvalid(): String = "$PREFIX_OPENROUTER Invalid Management key"
 
     fun authenticationFailed(reason: String? = null): String {
         return if (reason != null) {

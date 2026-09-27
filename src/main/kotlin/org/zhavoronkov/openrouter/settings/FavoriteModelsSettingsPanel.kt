@@ -87,7 +87,7 @@ class FavoriteModelsSettingsPanel(
         const val TABLE_MIN_HEIGHT = 160
         const val PANEL_BORDER = 10
         const val MISSING_KEY_MESSAGE =
-            "To manage favorite models, add your Provisioning Key in Tools → OpenRouter → Settings."
+            "To manage favorite models, add your Management Key in Tools → OpenRouter → Settings."
         const val PAGE_COMMENT =
             "Only favorite models are shown in AI Assistant. Their order here is the order there."
     }

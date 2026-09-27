@@ -1,0 +1,27 @@
+{
+  "data": {
+    "data": [
+      {
+        "model": "anthropic/claude-sonnet-4.5",
+        "total_usage": 0.5123,
+        "request_count": "31"
+      },
+      {
+        "model": "openai/gpt-4o-mini",
+        "total_usage": 0.0221,
+        "request_count": "12"
+      },
+      {
+        "model": "google/gemini-2.5-flash",
+        "total_usage": 0.0,
+        "request_count": "1"
+      }
+    ],
+    "metadata": {
+      "query_time_ms": 13,
+      "row_count": 3,
+      "truncated": false
+    },
+    "cachedAt": 1789924611423
+  }
+}

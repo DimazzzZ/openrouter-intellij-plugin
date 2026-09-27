@@ -15,6 +15,7 @@ import org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.OpenRouterStatsCache
+import org.zhavoronkov.openrouter.utils.applicationServiceOrNull
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.FlowLayout
@@ -40,15 +41,7 @@ import javax.swing.JSeparator
 class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project) {
 
     private val statsCache: OpenRouterStatsCache? by lazy {
-        try {
-            OpenRouterStatsCache.getInstance()
-        } catch (e: IllegalStateException) {
-            org.zhavoronkov.openrouter.utils.PluginLogger.Service.warn(
-                "OpenRouterStatsCache not available: ${e.message}",
-                e
-            )
-            null
-        }
+        applicationServiceOrNull(OpenRouterStatsCache::class.java)
     }
 
     init {
@@ -77,13 +70,7 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
 
     private val openRouterService: OpenRouterService?
         get() = openRouterServiceField ?: try {
-            OpenRouterService.getInstance()
-        } catch (e: IllegalStateException) {
-            org.zhavoronkov.openrouter.utils.PluginLogger.Service.warn(
-                "OpenRouterService not available: ${e.message}",
-                e
-            )
-            null
+            applicationServiceOrNull(OpenRouterService::class.java)
         } catch (e: NoClassDefFoundError) {
             org.zhavoronkov.openrouter.utils.PluginLogger.Service.warn(
                 "OpenRouterService class not found: ${e.message}",
@@ -98,13 +85,7 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
 
     private val settingsService: OpenRouterSettingsService?
         get() = settingsServiceField ?: try {
-            OpenRouterSettingsService.getInstance()
-        } catch (e: IllegalStateException) {
-            org.zhavoronkov.openrouter.utils.PluginLogger.Service.warn(
-                "OpenRouterSettingsService not available: ${e.message}",
-                e
-            )
-            null
+            applicationServiceOrNull(OpenRouterSettingsService::class.java)
         } catch (e: NoClassDefFoundError) {
             org.zhavoronkov.openrouter.utils.PluginLogger.Service.warn(
                 "OpenRouterSettingsService class not found: ${e.message}",
@@ -464,14 +445,7 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
 
     private fun updateWithActivity(activities: List<ActivityData>?) {
         // Get tracking service for real-time "Today" data
-        val trackingService = try {
-            OpenRouterGenerationTrackingService.getInstance()
-        } catch (e: IllegalStateException) {
-            org.zhavoronkov.openrouter.utils.PluginLogger.Service.debug(
-                "Tracking service not available: ${e.message}"
-            )
-            null
-        }
+        val trackingService = applicationServiceOrNull(OpenRouterGenerationTrackingService::class.java)
 
         // Calculate today's cost from local tracking (real-time data)
         val todayCostFromLocal = trackingService?.getTodayCost() ?: 0.0
@@ -516,19 +490,19 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
     }
 
     private fun showProvisioningKeyError() {
-        tierLabel.text = "Account: Provisioning Key Required"
-        totalCreditsLabel.text = "Total Credits: Configure provisioning key in settings"
-        creditsUsageLabel.text = "Credits Used: Configure provisioning key in settings"
-        creditsRemainingLabel.text = "Credits Remaining: Configure provisioning key in settings"
-        activity24hLabel.text = "Last 24 hours: Configure provisioning key in settings"
-        activityWeekLabel.text = "Last week: Configure provisioning key in settings"
+        tierLabel.text = "Account: Management Key Required"
+        totalCreditsLabel.text = "Total Credits: Configure Management Key in settings"
+        creditsUsageLabel.text = "Credits Used: Configure Management Key in settings"
+        creditsRemainingLabel.text = "Credits Remaining: Configure Management Key in settings"
+        activity24hLabel.text = "Last 24 hours: Configure Management Key in settings"
+        activityWeekLabel.text = "Last week: Configure Management Key in settings"
         activityModelsLabel.text = buildString {
             append("<html>Recent Models:<br/>")
             append("• Go to Settings → OpenRouter<br/>")
-            append("• Add your Provisioning Key<br/>")
+            append("• Add your Management Key<br/>")
             append("• Get it from openrouter.ai/keys</html>")
         }
-        setProgressBarState(text = "Provisioning Key Required - Click Settings")
+        setProgressBarState(text = "Management Key Required - Click Settings")
     }
 
     private fun openSettings() {

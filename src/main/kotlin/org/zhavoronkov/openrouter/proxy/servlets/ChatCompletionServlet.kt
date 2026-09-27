@@ -22,9 +22,7 @@ import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.io.IOException
 import java.io.PrintWriter
-import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -53,11 +51,36 @@ data class ParsedChatRequest(
     val rawJson: JsonObject
 )
 
+/**
+ * @param httpClient the client every OpenRouter call goes through.
+ * @param settingsServiceProvider resolved on first use, not at construction: the servlet is
+ *  instantiated while wiring the proxy server, and an eagerly-resolved application service makes
+ *  the class unconstructible anywhere the platform is not up (see `OpenRouterService`, which
+ *  already carries the same kind of seam).
+ * @param openRouterApiUrl the chat-completions endpoint, threaded into
+ *  [NonStreamingResponseHandler] too so both request paths agree on it.
+ * @param multimodalValidatorProvider resolved on first use for the same reason as
+ *  [settingsServiceProvider] - its own default reaches for an application service.
+ *
+ * Every parameter defaults to exactly what this class used to build inline, so the no-argument
+ * construction the proxy server does is unchanged.
+ */
 @Suppress("TooManyFunctions")
-class ChatCompletionServlet : HttpServlet() {
+class ChatCompletionServlet(
+    private val httpClient: OkHttpClient = defaultHttpClient(),
+    settingsServiceProvider: () -> OpenRouterSettingsService = { OpenRouterSettingsService.getInstance() },
+    private val openRouterApiUrl: String = OPENROUTER_API_URL,
+    multimodalValidatorProvider: () -> MultimodalContentValidator = { MultimodalContentValidator() }
+) : HttpServlet() {
 
     companion object {
         private const val OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+        private fun defaultHttpClient(): OkHttpClient = OkHttpClient.Builder()
+            .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .build()
 
         // Request tracking - thread-safe counter using AtomicInteger
         private val requestCounter = AtomicInteger(0)
@@ -91,16 +114,13 @@ class ChatCompletionServlet : HttpServlet() {
     }
 
     private val gson = Gson()
-    private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .build()
-    private val settingsService = OpenRouterSettingsService.getInstance()
-    private val requestValidator = RequestValidator(settingsService)
-    private val multimodalValidator = MultimodalContentValidator()
+    private val settingsService: OpenRouterSettingsService by lazy(settingsServiceProvider)
+    private val requestValidator by lazy { RequestValidator(settingsService) }
+    private val multimodalValidator by lazy(multimodalValidatorProvider)
     private val streamingHandler = StreamingResponseHandler()
-    private val nonStreamingHandler = NonStreamingResponseHandler(httpClient, gson)
+    private val nonStreamingHandler by lazy {
+        NonStreamingResponseHandler(httpClient, gson, openRouterApiUrl)
+    }
 
     /**
      * Enum representing different types of multimodal content errors
@@ -184,10 +204,6 @@ class ChatCompletionServlet : HttpServlet() {
 
         try {
             processRequest(req, resp, requestId, startNs)
-        } catch (e: TimeoutException) {
-            handleException(e, resp, requestId)
-        } catch (e: ExecutionException) {
-            handleException(e, resp, requestId)
         } catch (e: IOException) {
             handleException(e, resp, requestId)
         } catch (e: IllegalArgumentException) {
@@ -302,17 +318,6 @@ class ChatCompletionServlet : HttpServlet() {
         requestId: String
     ) {
         when (e) {
-            is java.util.concurrent.TimeoutException -> {
-                val msg = "[Chat-$requestId] Chat completion request timed out: ${e.message}"
-                PluginLogger.Service.error(msg, e)
-                sendErrorResponse(resp, "Request timed out", HttpServletResponse.SC_REQUEST_TIMEOUT)
-            }
-            is java.util.concurrent.ExecutionException -> {
-                val msg = "[Chat-$requestId] Chat completion execution failed: ${e.message}"
-                PluginLogger.Service.error(msg, e)
-                val errMsg = "Execution error: ${e.message}"
-                sendErrorResponse(resp, errMsg, HttpServletResponse.SC_INTERNAL_SERVER_ERROR)
-            }
             is java.io.IOException -> {
                 val msg = "[Chat-$requestId] IO error during chat completion: ${e.message}"
                 PluginLogger.Service.error(msg, e)
@@ -408,7 +413,6 @@ class ChatCompletionServlet : HttpServlet() {
      */
     private fun applyConfiguredDefaults(rawJson: JsonObject, requestId: String) {
         try {
-            val settingsService = OpenRouterSettingsService.getInstance()
             val defaultMaxTokens = settingsService.uiPreferencesManager.defaultMaxTokens
             if (defaultMaxTokens > 0 && !rawJson.has("max_tokens")) {
                 rawJson.addProperty("max_tokens", defaultMaxTokens)
@@ -460,7 +464,7 @@ class ChatCompletionServlet : HttpServlet() {
      */
     private fun buildOpenRouterRequest(jsonBody: String, apiKey: String): Request {
         return OpenRouterRequestBuilder.buildPostRequest(
-            url = OPENROUTER_API_URL,
+            url = openRouterApiUrl,
             jsonBody = jsonBody,
             authType = OpenRouterRequestBuilder.AuthType.API_KEY,
             authToken = apiKey
@@ -819,12 +823,10 @@ class ChatCompletionServlet : HttpServlet() {
             // Parse into JsonObject first so we can preserve all fields verbatim for
             // outbound passthrough. Then deserialize the same JsonObject into the typed
             // model for validation/logging/multimodal checks.
+            // A body that is not a JSON object - `null`, an array, a bare string or number -
+            // makes Gson throw rather than answer null, so the catch below is the one guard
+            // this needs. An elvis here would be a branch nothing can take.
             val rawJson = gson.fromJson(requestBody, JsonObject::class.java)
-                ?: run {
-                    PluginLogger.Service.error("[Chat-$requestId] Request body is not a JSON object")
-                    sendErrorResponse(resp, "Invalid JSON format", HttpServletResponse.SC_BAD_REQUEST)
-                    return null
-                }
             val openAIRequest = gson.fromJson(rawJson, OpenAIChatCompletionRequest::class.java)
 
             if (openAIRequest.messages.isEmpty()) {

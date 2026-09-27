@@ -2,6 +2,7 @@ package org.zhavoronkov.openrouter.settings.presets
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
@@ -145,6 +146,136 @@ class PresetsPageStateTest {
             state.beginEdit("email")
             state.updateSystemPrompt("hi")
             assertTrue(count >= 3)
+        }
+    }
+
+    @Nested
+    @DisplayName("Guards and no-ops")
+    inner class Guards {
+
+        @Test
+        @DisplayName("selecting the slug that is already selected changes nothing and fires nothing")
+        fun reselectingIsANoOp() {
+            val state = PresetsPageState()
+            state.setPresets(listOf(preset("email")))
+            state.selectedSlug = "email"
+            var fired = 0
+            state.onChanged = { fired++ }
+
+            state.selectedSlug = "email"
+
+            assertEquals(0, fired, "re-selecting the same slug must not fire a change")
+            assertEquals("email", state.selectedSlug)
+        }
+
+        @Test
+        @DisplayName("a refetch that still contains the selection keeps it")
+        fun refetchKeepsLiveSelection() {
+            val state = PresetsPageState()
+            state.setPresets(listOf(preset("email"), preset("blog")))
+            state.selectedSlug = "email"
+
+            state.setPresets(listOf(preset("email"), preset("news")))
+
+            assertEquals("email", state.selectedSlug, "a selection still present must survive a refetch")
+        }
+
+        @Test
+        @DisplayName("a refetch that drops the selection clears it")
+        fun refetchClearsDeadSelection() {
+            val state = PresetsPageState()
+            state.setPresets(listOf(preset("email")))
+            state.selectedSlug = "email"
+
+            state.setPresets(listOf(preset("news")))
+
+            assertNull(state.selectedSlug)
+        }
+
+        @Test
+        @DisplayName("a refetch with nothing selected leaves the selection alone")
+        fun refetchWithNoSelection() {
+            val state = PresetsPageState()
+
+            state.setPresets(listOf(preset("email")))
+
+            assertNull(state.selectedSlug)
+        }
+
+        @Test
+        @DisplayName("editing an unknown slug is ignored rather than staging an empty editor")
+        fun beginEditUnknownSlug() {
+            val state = PresetsPageState()
+            state.setPresets(listOf(preset("email")))
+
+            state.beginEdit("nope")
+
+            assertNull(state.editor)
+            assertNull(state.selectedSlug)
+        }
+
+        @Test
+        @DisplayName("editing a preset with no designated version stages an editor with empty config")
+        fun beginEditWithoutDesignatedVersion() {
+            val state = PresetsPageState()
+            state.setPresets(listOf(preset("email")))
+
+            state.beginEdit("email")
+
+            val editor = state.editor
+            assertNotNull(editor)
+            assertNull(editor!!.systemPrompt)
+            assertTrue(editor.passthrough.isEmpty())
+            assertTrue(
+                editor.wellKnown.values.all { it == null },
+                "every well-known field should read as absent, not as a fabricated value"
+            )
+        }
+
+        @Test
+        @DisplayName("updating a well-known field without an open editor is ignored")
+        fun updateWellKnownWithoutEditor() {
+            val state = PresetsPageState()
+
+            state.updateWellKnown(PresetsPageState.WellKnownKey.MODEL, "openai/gpt-4o-mini")
+
+            assertNull(state.editor)
+        }
+
+        @Test
+        @DisplayName("updating the system prompt without an open editor is ignored")
+        fun updateSystemPromptWithoutEditor() {
+            val state = PresetsPageState()
+
+            state.updateSystemPrompt("hello")
+
+            assertNull(state.editor)
+        }
+
+        @Test
+        @DisplayName("a blank or absent system prompt is stored as absent, never as an empty string")
+        fun blankSystemPromptBecomesNull() {
+            val state = PresetsPageState()
+            state.setPresets(listOf(preset("email", systemPrompt = "old")))
+            state.beginEdit("email")
+
+            state.updateSystemPrompt("   ")
+            assertNull(state.editor?.systemPrompt, "a blank prompt must not survive as whitespace")
+
+            state.updateSystemPrompt("kept")
+            assertEquals("kept", state.editor?.systemPrompt)
+
+            state.updateSystemPrompt(null)
+            assertNull(state.editor?.systemPrompt)
+        }
+
+        @Test
+        @DisplayName("with no editor open, nothing is a new version of anything")
+        fun noEditorIsNotANewVersion() {
+            val state = PresetsPageState()
+            state.setPresets(listOf(preset("email")))
+
+            assertFalse(state.isNewVersionOfExisting())
         }
     }
 }

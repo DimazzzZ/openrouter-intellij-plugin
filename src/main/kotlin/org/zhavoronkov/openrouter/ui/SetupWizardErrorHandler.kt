@@ -8,8 +8,6 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
  * Standardizes error handling and provides user-friendly error messages
  */
 object SetupWizardErrorHandler {
-    private const val TAG = "[OpenRouter]"
-
     /**
      * Handle API validation errors and convert to user-friendly messages
      */
@@ -20,7 +18,7 @@ object SetupWizardErrorHandler {
                 "Invalid key format or type"
 
             result.message.contains("Invalid provisioningkey", ignoreCase = true) ->
-                "Invalid provisioning key"
+                "Invalid Management key"
 
             result.message.contains("No cookie auth", ignoreCase = true) ||
                 result.message.contains("Authentication failed", ignoreCase = true) ->
@@ -32,7 +30,7 @@ object SetupWizardErrorHandler {
                 "Network error: Unable to connect to OpenRouter"
 
             else -> {
-                PluginLogger.Service.warn("$TAG Unknown validation error: ${result.message}")
+                PluginLogger.Service.warn("Unknown validation error: ${result.message}")
                 "Invalid key: ${result.message}"
             }
         }

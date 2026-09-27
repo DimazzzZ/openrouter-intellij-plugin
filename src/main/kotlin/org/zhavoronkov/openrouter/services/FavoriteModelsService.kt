@@ -15,12 +15,17 @@ import kotlin.time.Duration.Companion.milliseconds
  * Implements Disposable for dynamic plugin support
  *
  * Note: This is a light service (uses @Service annotation) and must be final
+ *
+ * @param clock injected so the cache-expiry decision can be exercised without waiting out
+ *  [org.zhavoronkov.openrouter.constants.OpenRouterConstants.MODELS_CACHE_DURATION_MS].
+ *  Defaults to the wall clock, so production behaviour is unchanged.
  */
 @Service
 @Suppress("TooManyFunctions")
 class FavoriteModelsService(
     private val settingsService: OpenRouterSettingsService? = null,
-    private val openRouterService: OpenRouterService? = null
+    private val openRouterService: OpenRouterService? = null,
+    private val clock: () -> Long = System::currentTimeMillis
 ) : Disposable {
 
     companion object {
@@ -44,7 +49,7 @@ class FavoriteModelsService(
      * @return List of models or null on error
      */
     suspend fun getAvailableModels(forceRefresh: Boolean = false): List<OpenRouterModelInfo>? {
-        val now = System.currentTimeMillis()
+        val now = clock()
         val isCacheValid = cachedModels != null && (now - cacheTimestamp) < OpenRouterConstants.MODELS_CACHE_DURATION_MS
 
         if (!forceRefresh && isCacheValid) {
@@ -52,7 +57,7 @@ class FavoriteModelsService(
             return cachedModels
         }
 
-        PluginLogger.Service.debug("[OpenRouter] Fetching models from API (forceRefresh: $forceRefresh)")
+        PluginLogger.Service.debug("Fetching models from API (forceRefresh: $forceRefresh)")
         return try {
             withTimeout(OpenRouterConstants.API_TIMEOUT_MS.milliseconds) {
                 val result = routerService.getModels()
@@ -60,12 +65,12 @@ class FavoriteModelsService(
                     is ApiResult.Success -> {
                         val response = result.data
                         cachedModels = response.data
-                        cacheTimestamp = System.currentTimeMillis()
-                        PluginLogger.Service.info("[OpenRouter] Successfully cached ${cachedModels?.size} models")
+                        cacheTimestamp = clock()
+                        PluginLogger.Service.info("Successfully cached ${cachedModels?.size} models")
                         cachedModels
                     }
                     is ApiResult.Error -> {
-                        PluginLogger.Service.warn("[OpenRouter] Failed to fetch models: ${result.message}")
+                        PluginLogger.Service.warn("Failed to fetch models: ${result.message}")
                         null
                     }
                 }
@@ -74,14 +79,14 @@ class FavoriteModelsService(
             // Coroutine was cancelled (e.g., timeout or parent job cancelled) - must rethrow
             throw e
         } catch (e: java.util.concurrent.TimeoutException) {
-            PluginLogger.Service.warn("[OpenRouter] Model fetch timed out", e)
-            PluginLogger.Service.error("[OpenRouter] Timeout details", e)
+            PluginLogger.Service.warn("Model fetch timed out", e)
+            PluginLogger.Service.error("Timeout details", e)
             null
         } catch (e: java.io.IOException) {
-            PluginLogger.Service.error("[OpenRouter] Error fetching models from API", e)
+            PluginLogger.Service.error("Error fetching models from API", e)
             null
         } catch (e: IllegalStateException) {
-            PluginLogger.Service.error("[OpenRouter] Error fetching models from API", e)
+            PluginLogger.Service.error("Error fetching models from API", e)
             null
         }
     }

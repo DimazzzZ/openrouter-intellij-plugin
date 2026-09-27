@@ -50,12 +50,21 @@ object ModelAvailabilityNotifier {
             return
         }
 
+        // A balloon needs an application to show it. Without one there is nothing to show and
+        // nowhere to show it, so the bookkeeping above stands and the balloon is skipped - the
+        // same guard BalanceProviderNotifier.getInstanceOrNull() applies for the same reason.
+        val application = ApplicationManager.getApplication()
+        if (application == null) {
+            PluginLogger.Service.debug("No application available; skipping notification for: $modelName")
+            return
+        }
+
         PluginLogger.Service.info("Showing model unavailability notification for: $modelName")
 
         // Get the current project (or use default project if none is open)
         val project = getCurrentProject()
 
-        ApplicationManager.getApplication().invokeLater {
+        application.invokeLater {
             showNotification(project, modelName, errorMessage)
         }
     }

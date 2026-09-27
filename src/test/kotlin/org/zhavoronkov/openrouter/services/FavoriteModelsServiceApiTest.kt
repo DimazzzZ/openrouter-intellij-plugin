@@ -77,6 +77,7 @@ class FavoriteModelsServiceApiTest {
             assertNotNull(result)
             assertEquals(2, result?.size)
             Mockito.verify(mockRouterService).getModels()
+            Unit
         }
 
         @Test
@@ -87,6 +88,7 @@ class FavoriteModelsServiceApiTest {
             val second = service.getAvailableModels()
             assertEquals(1, second?.size)
             Mockito.verify(mockRouterService, Mockito.times(1)).getModels()
+            Unit
         }
 
         @Test
@@ -96,6 +98,7 @@ class FavoriteModelsServiceApiTest {
             service.getAvailableModels()
             service.getAvailableModels(forceRefresh = true)
             Mockito.verify(mockRouterService, Mockito.times(2)).getModels()
+            Unit
         }
 
         @Test

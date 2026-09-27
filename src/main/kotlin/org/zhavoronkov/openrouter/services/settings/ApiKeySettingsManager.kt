@@ -13,10 +13,10 @@ import org.zhavoronkov.openrouter.utils.PluginLogger
 @Suppress("TooGenericExceptionCaught", "SwallowedException")
 private inline fun logSafely(level: String = "debug", message: () -> String) {
     try {
+        // Only "info" and the default are asked for; adding a level here without a caller
+        // just creates a branch no test can reach.
         when (level) {
             "info" -> PluginLogger.Service.info(message())
-            "warn" -> PluginLogger.Service.warn(message())
-            "error" -> PluginLogger.Service.error(message())
             else -> PluginLogger.Service.debug(message())
         }
     } catch (_: Exception) {
@@ -254,7 +254,7 @@ class ApiKeySettingsManager(
             AuthScope.EXTENDED -> {
                 val provKey = getProvisioningKey()
                 if (provKey.isBlank()) {
-                    "Provisioning key is not configured"
+                    "Management key is not configured"
                 } else {
                     val validationResult = KeyValidator.validateProvisioningKey(provKey)
                     if (KeyValidator.isError(validationResult)) {

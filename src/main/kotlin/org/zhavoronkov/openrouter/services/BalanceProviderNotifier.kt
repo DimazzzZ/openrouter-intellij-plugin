@@ -8,6 +8,7 @@ import org.jetbrains.annotations.ApiStatus
 import org.zhavoronkov.openrouter.api.BalanceData
 import org.zhavoronkov.openrouter.api.BalanceProvider
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import org.zhavoronkov.openrouter.utils.applicationServiceOrNull
 
 /**
  * Service responsible for notifying registered [BalanceProvider] implementations
@@ -183,13 +184,12 @@ class BalanceProviderNotifier : Disposable {
      * @return true if notifications should be sent to providers
      */
     private fun isEnabled(): Boolean {
-        return try {
-            OpenRouterSettingsService.getInstance()
-                .uiPreferencesManager.balanceProviderEnabled
-        } catch (_: IllegalStateException) {
+        val settingsService = applicationServiceOrNull(OpenRouterSettingsService::class.java)
+        if (settingsService == null) {
             PluginLogger.Service.debug("Settings service unavailable, defaulting to enabled")
-            true // Default to enabled if settings service is not available
+            return true
         }
+        return settingsService.uiPreferencesManager.balanceProviderEnabled
     }
 
     /**
