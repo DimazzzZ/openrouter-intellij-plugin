@@ -1,10 +1,12 @@
 package org.zhavoronkov.openrouter.toolwindow.chat
 
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import com.intellij.ui.InplaceButton
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
 import java.awt.Container
+import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.Toolkit
 import java.awt.datatransfer.DataFlavor
@@ -80,14 +82,18 @@ class CodeSegmentViewPlatformTest : BasePlatformTestCase() {
         val code = "fun main() = println(\"hi\")"
         val view = CodeSegmentView(MessageSegment.Code(language = "kotlin", code = code))
 
-        val button = findDescendant(view.component, JButton::class.java)
+        assertNull(
+            "the copy affordance must not be a bordered JButton - see the InplaceButton assertion below",
+            findDescendant(view.component, JButton::class.java)
+        )
+        val button = findDescendant(view.component, InplaceButton::class.java)
         assertNotNull("copy button must be present", button)
         assertEquals("Copy code", button!!.toolTipText)
         assertFalse("the copy button itself must not steal focus", button.isFocusable)
-        assertTrue("the button must have a listener wired to it", button.actionListeners.isNotEmpty())
+        assertEquals("the copy affordance must show a hand cursor", Cursor.HAND_CURSOR, button.cursor.type)
 
         try {
-            button.actionListeners.forEach { it.actionPerformed(null) }
+            button.doClick()
             val clipboardText = Toolkit.getDefaultToolkit().systemClipboard.getData(DataFlavor.stringFlavor)
             assertEquals(code, clipboardText)
         } catch (headless: java.awt.HeadlessException) {

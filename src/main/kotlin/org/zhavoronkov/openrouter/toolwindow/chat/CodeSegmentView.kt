@@ -1,6 +1,7 @@
 package org.zhavoronkov.openrouter.toolwindow.chat
 
 import com.intellij.icons.AllIcons
+import com.intellij.ui.InplaceButton
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
@@ -68,13 +69,20 @@ class CodeSegmentView(segment: MessageSegment.Code) {
         }
     }
 
-    private fun copyButton(code: String) = JButton(AllIcons.Actions.Copy).apply {
-        toolTipText = "Copy code"
+    /**
+     * The same borderless affordance the message-level copy button uses.
+     *
+     * This was a [JButton] carrying `JButton.buttonType = toolBarButton`, which is exactly the
+     * approach the message button's own KDoc records as insufficient: it does not guarantee the
+     * absence of a border or content-area fill in every LaF, and here it did not - the code block
+     * carried a large bordered button while the message beside it had a bare icon. [InplaceButton]
+     * is the platform's own borderless hover-icon affordance and is what the rest of this package
+     * already uses.
+     */
+    private fun copyButton(code: String) = InplaceButton("Copy code", AllIcons.Actions.Copy) {
+        StringSelection(code).let { Toolkit.getDefaultToolkit().systemClipboard.setContents(it, it) }
+    }.withHandCursor().apply {
         isFocusable = false
-        putClientProperty("JButton.buttonType", "toolBarButton")
-        addActionListener {
-            StringSelection(code).let { Toolkit.getDefaultToolkit().systemClipboard.setContents(it, it) }
-        }
     }
 
     private companion object {
