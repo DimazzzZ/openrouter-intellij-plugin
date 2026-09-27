@@ -7,6 +7,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.zhavoronkov.openrouter.models.ApiResult
+import org.zhavoronkov.openrouter.models.DataRegion
+import org.zhavoronkov.openrouter.models.RegionFavorites
 import org.zhavoronkov.openrouter.services.DataRegionAvailability
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
@@ -54,6 +57,30 @@ class OpenRouterConfigurable : Configurable {
     }
 
     /**
+     * Tells the user what the region they just picked would cost them in favourites.
+     *
+     * The region's catalogue is asked through the global host rather than the regional one, so
+     * this works before the choice is applied - which is the point. Anything that goes wrong
+     * clears the line rather than replacing it with an error: this is a hint attached to a
+     * decision in progress, and a failed count is not worth a complaint.
+     */
+    private fun loadFavoritesImpact(panel: OpenRouterSettingsPanel, region: DataRegion) {
+        regionScope.launch {
+            val summary = when (val models = OpenRouterService.getInstance().getModelsInRegion(region)) {
+                is ApiResult.Success -> RegionFavorites.impactSummary(
+                    region = region,
+                    favoriteIds = settingsService.favoriteModelsManager.getFavoriteModels(),
+                    regionModelIds = models.data.data.map { it.id }
+                )
+                is ApiResult.Error -> null
+            }
+            withContext(Dispatchers.Main) {
+                panel.setDataRegionFavoritesImpact(summary)
+            }
+        }
+    }
+
+    /**
      * Synchronizes settings between panel and service
      */
     private fun syncSettings(panel: OpenRouterSettingsPanel, toService: Boolean) {
@@ -69,6 +96,7 @@ class OpenRouterConfigurable : Configurable {
             panel.setShowCosts(settingsService.uiPreferencesManager.showCosts)
             panel.setBalanceProviderEnabled(settingsService.uiPreferencesManager.balanceProviderEnabled)
             panel.setDataRegion(settingsService.getDataRegion())
+            panel.onDataRegionChosen { region -> loadFavoritesImpact(panel, region) }
             loadAvailableDataRegions(panel)
         }
         syncDefaultMaxTokens(panel, toService)

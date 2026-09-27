@@ -737,6 +737,12 @@ class OpenRouterSettingsPanel {
 
     fun setAvailableDataRegions(regions: List<DataRegion>) = dataRegionSection.setAvailableRegions(regions)
 
+    fun setDataRegionFavoritesImpact(summary: String?) = dataRegionSection.setFavoritesImpact(summary)
+
+    fun onDataRegionChosen(handler: (DataRegion) -> Unit) {
+        dataRegionSection.onRegionChosen = handler
+    }
+
     fun getAuthScope(): AuthScope = currentUiAuthScope
 
     fun setAuthScope(scope: AuthScope) {

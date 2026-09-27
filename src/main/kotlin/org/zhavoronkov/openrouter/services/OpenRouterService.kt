@@ -17,6 +17,7 @@ import org.zhavoronkov.openrouter.models.ChatCompletionResponse
 import org.zhavoronkov.openrouter.models.CreateApiKeyRequest
 import org.zhavoronkov.openrouter.models.CreateApiKeyResponse
 import org.zhavoronkov.openrouter.models.CreditsResponse
+import org.zhavoronkov.openrouter.models.DataRegion
 import org.zhavoronkov.openrouter.models.DeleteApiKeyResponse
 import org.zhavoronkov.openrouter.models.ExchangeAuthCodeRequest
 import org.zhavoronkov.openrouter.models.ExchangeAuthCodeResponse
@@ -677,6 +678,28 @@ open class OpenRouterService(
         ) { responseBody ->
             gson.fromJson(responseBody, OpenRouterModelsResponse::class.java)
         }
+
+    /**
+     * The models a region serves, asked WITHOUT switching to that region.
+     *
+     * Deliberately the global host with a `region=` parameter rather than the regional host: this
+     * is what lets the settings page tell someone how many of their favourites a region would cost
+     * them BEFORE they commit to it. Measured against the live API, the two return exactly the
+     * same set, so nothing is lost by asking the cheap way.
+     *
+     * [DataRegion.GLOBAL] has no query value and so asks the plain endpoint.
+     */
+    suspend fun getModelsInRegion(region: DataRegion): ApiResult<OpenRouterModelsResponse> {
+        val query = region.queryValue?.let { "?region=$it" }.orEmpty()
+        return fetchPublicEndpoint(
+            "${DataRegion.GLOBAL.baseUrl}/models$query",
+            "models in ${region.apiName}",
+            OpenRouterConstants.RESPONSE_PREVIEW_LENGTH,
+            "Error fetching models for region ${region.apiName}"
+        ) { responseBody ->
+            gson.fromJson(responseBody, OpenRouterModelsResponse::class.java)
+        }
+    }
 
     /**
      * Get total count of available models from OpenRouter

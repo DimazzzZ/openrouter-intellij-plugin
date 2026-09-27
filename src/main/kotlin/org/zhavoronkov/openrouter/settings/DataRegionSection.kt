@@ -20,6 +20,17 @@ class DataRegionSection {
     val comboBox = ComboBox<DataRegion>(DefaultComboBoxModel(arrayOf(DataRegion.GLOBAL)))
     val comment = JLabel(CHECKING_TEXT)
 
+    /** Set by the caller; invoked when the user picks a different region. */
+    var onRegionChosen: (DataRegion) -> Unit = {}
+
+    private var baseComment: String = CHECKING_TEXT
+
+    init {
+        comboBox.addActionListener {
+            onRegionChosen(getRegion())
+        }
+    }
+
     /** The region currently shown. */
     fun getRegion(): DataRegion = comboBox.selectedItem as? DataRegion ?: DataRegion.GLOBAL
 
@@ -51,7 +62,20 @@ class DataRegionSection {
         // disabled with the reason rather than hidden.
         val canChoose = regions.size > 1
         comboBox.isEnabled = canChoose
-        comment.text = if (canChoose) AVAILABLE_TEXT else UNAVAILABLE_TEXT
+        baseComment = if (canChoose) AVAILABLE_TEXT else UNAVAILABLE_TEXT
+        comment.text = baseComment
+    }
+
+    /**
+     * Appends what the selected region would cost in favourites, or clears it when there is
+     * nothing to say.
+     *
+     * Kept beside the control rather than raised as a dialog: it is information for a decision
+     * the user is in the middle of making, not an error, and a region that serves every favourite
+     * should say nothing at all.
+     */
+    fun setFavoritesImpact(summary: String?) {
+        comment.text = if (summary == null) baseComment else "$baseComment $summary"
     }
 
     private fun items(): List<DataRegion?> = (0 until comboBox.itemCount).map { comboBox.getItemAt(it) }
