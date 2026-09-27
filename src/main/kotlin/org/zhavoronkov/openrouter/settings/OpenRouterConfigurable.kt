@@ -11,8 +11,10 @@ import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.DataRegion
 import org.zhavoronkov.openrouter.models.RegionFavorites
 import org.zhavoronkov.openrouter.services.DataRegionAvailability
+import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.services.OpenRouterStatsCache
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import javax.swing.JComponent
 
@@ -57,6 +59,30 @@ class OpenRouterConfigurable : Configurable {
     }
 
     /**
+     * Stores the chosen region and drops everything cached against the old one.
+     *
+     * The caches are the reason this is not a plain setter. A region serves a different catalogue
+     * - 66 models in the EU against 458 globally - and the model list, the analytics answers and
+     * the status-bar figures are all cached for minutes. Without this, changing region would
+     * leave the favourites page marking models unavailable, or available, according to the region
+     * the user just left, and the status bar quoting figures fetched from it.
+     *
+     * Only on an actual change: clearing caches on every Apply would throw away work for nothing.
+     *
+     * The analytics cache is not cleared here because it is not reachable from here - each holder
+     * builds its own AnalyticsService. It does not need to be: setDataRegion publishes the
+     * settings-changed topic, the tool window refreshes the Status tab on it, and that refresh
+     * invalidates the analytics cache itself.
+     */
+    private fun applyDataRegion(region: DataRegion) {
+        if (region == settingsService.getDataRegion()) return
+
+        settingsService.setDataRegion(region)
+        FavoriteModelsService.getInstance().clearCache()
+        OpenRouterStatsCache.getInstance().clearCache()
+    }
+
+    /**
      * Tells the user what the region they just picked would cost them in favourites.
      *
      * The region's catalogue is asked through the global host rather than the regional one, so
@@ -89,7 +115,7 @@ class OpenRouterConfigurable : Configurable {
             settingsService.uiPreferencesManager.refreshInterval = panel.getRefreshInterval()
             settingsService.uiPreferencesManager.showCosts = panel.shouldShowCosts()
             settingsService.uiPreferencesManager.balanceProviderEnabled = panel.isBalanceProviderEnabled()
-            settingsService.setDataRegion(panel.getDataRegion())
+            applyDataRegion(panel.getDataRegion())
         } else {
             panel.setAutoRefresh(settingsService.uiPreferencesManager.autoRefresh)
             panel.setRefreshInterval(settingsService.uiPreferencesManager.refreshInterval)

@@ -145,8 +145,19 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
     fun getDataRegion(): DataRegion =
         DataRegion.fromApiName(settings.dataRegion) ?: DataRegion.GLOBAL
 
+    /**
+     * Stores the region and tells everyone, which is what makes the change take effect.
+     *
+     * [notifyStateChanged] persists the settings and publishes the settings-changed topic; the
+     * tool window answers that by refreshing the Status tab, and that refresh drops the analytics
+     * query cache. Without the notification a region change would be a value nobody acted on
+     * until the next restart.
+     */
     fun setDataRegion(region: DataRegion) {
+        if (settings.dataRegion == region.apiName) return
+
         settings.dataRegion = region.apiName
+        notifyStateChanged()
     }
 
     /** Base URL for every OpenRouter call, resolved from the selected region. */
