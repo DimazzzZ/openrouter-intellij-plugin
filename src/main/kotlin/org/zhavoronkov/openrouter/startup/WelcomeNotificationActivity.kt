@@ -9,6 +9,7 @@ import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.startup.ProjectActivity
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.settings.OpenRouterConfigurable
 import org.zhavoronkov.openrouter.ui.SetupWizardDialog
 import org.zhavoronkov.openrouter.utils.PluginLogger
 
@@ -61,7 +62,7 @@ class WelcomeNotificationActivity : ProjectActivity {
                 // Open OpenRouter settings
                 ShowSettingsUtil.getInstance().showSettingsDialog(
                     project,
-                    "OpenRouter"
+                    OpenRouterConfigurable::class.java
                 )
                 notification.expire()
             }

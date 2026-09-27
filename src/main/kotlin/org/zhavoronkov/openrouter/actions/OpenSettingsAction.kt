@@ -5,6 +5,7 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.options.ShowSettingsUtil
 import org.zhavoronkov.openrouter.icons.OpenRouterIcons
+import org.zhavoronkov.openrouter.settings.OpenRouterConfigurable
 
 /**
  * Action to open OpenRouter settings
@@ -14,7 +15,7 @@ class OpenSettingsAction : AnAction("Settings...", "Open OpenRouter settings", O
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
 
-        ShowSettingsUtil.getInstance().showSettingsDialog(project, "OpenRouter")
+        ShowSettingsUtil.getInstance().showSettingsDialog(project, OpenRouterConfigurable::class.java)
     }
 
     /**

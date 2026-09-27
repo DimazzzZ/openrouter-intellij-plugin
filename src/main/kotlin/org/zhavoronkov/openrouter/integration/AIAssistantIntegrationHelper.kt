@@ -8,6 +8,7 @@ import com.intellij.openapi.ui.Messages
 import org.zhavoronkov.openrouter.proxy.OpenRouterProxyServer
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.settings.OpenRouterConfigurable
 import org.zhavoronkov.openrouter.utils.PluginLogger
 
 /**
@@ -190,7 +191,7 @@ object AIAssistantIntegrationHelper {
             }
             IntegrationStatus.OPENROUTER_NOT_CONFIGURED -> {
                 com.intellij.openapi.options.ShowSettingsUtil.getInstance()
-                    .showSettingsDialog(project, "OpenRouter")
+                    .showSettingsDialog(project, OpenRouterConfigurable::class.java)
             }
             IntegrationStatus.PROXY_SERVER_NOT_RUNNING -> {
                 val proxyService = OpenRouterProxyService.getInstance()

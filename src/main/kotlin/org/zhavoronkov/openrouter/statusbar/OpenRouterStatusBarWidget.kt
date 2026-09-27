@@ -24,6 +24,7 @@ import org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.OpenRouterStatsCache
+import org.zhavoronkov.openrouter.settings.OpenRouterConfigurable
 import org.zhavoronkov.openrouter.ui.OpenRouterStatsPopup
 import org.zhavoronkov.openrouter.utils.applicationServiceOrNull
 import java.awt.event.MouseEvent
@@ -217,7 +218,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
     private fun openSettings() {
         ApplicationManager.getApplication().invokeLater {
-            ShowSettingsUtil.getInstance().showSettingsDialog(project, "OpenRouter")
+            ShowSettingsUtil.getInstance().showSettingsDialog(project, OpenRouterConfigurable::class.java)
         }
     }
 

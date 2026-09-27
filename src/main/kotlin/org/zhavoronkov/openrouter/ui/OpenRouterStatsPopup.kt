@@ -15,6 +15,7 @@ import org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.OpenRouterStatsCache
+import org.zhavoronkov.openrouter.settings.OpenRouterConfigurable
 import org.zhavoronkov.openrouter.utils.applicationServiceOrNull
 import java.awt.BorderLayout
 import java.awt.Dimension
@@ -508,7 +509,7 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
     private fun openSettings() {
         ApplicationManager.getApplication()?.invokeLater {
             com.intellij.openapi.options.ShowSettingsUtil.getInstance()
-                .showSettingsDialog(project, "OpenRouter")
+                .showSettingsDialog(project, OpenRouterConfigurable::class.java)
         }
     }
 

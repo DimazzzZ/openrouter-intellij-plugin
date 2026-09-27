@@ -21,6 +21,7 @@ import org.zhavoronkov.openrouter.services.AnalyticsService
 import org.zhavoronkov.openrouter.services.CreditUsageHistoryService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.OpenRouterStatsCache
+import org.zhavoronkov.openrouter.settings.OpenRouterConfigurable
 import org.zhavoronkov.openrouter.utils.applicationServiceOrNull
 import java.awt.BorderLayout
 import java.awt.GridBagConstraints
@@ -147,7 +148,7 @@ class StatusTabPanel(
     private val degradedNoticeBlock = DegradedNoticeBlock(
         onConfigure = {
             com.intellij.openapi.options.ShowSettingsUtil.getInstance()
-                .showSettingsDialog(project, "OpenRouter")
+                .showSettingsDialog(project, OpenRouterConfigurable::class.java)
         }
     )
 
@@ -385,7 +386,7 @@ class StatusTabPanel(
         val configButton = JButton("Configure")
         configButton.addActionListener {
             com.intellij.openapi.options.ShowSettingsUtil.getInstance()
-                .showSettingsDialog(project, "OpenRouter")
+                .showSettingsDialog(project, OpenRouterConfigurable::class.java)
         }
         panel.add(configButton, BorderLayout.SOUTH)
 
