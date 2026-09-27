@@ -258,7 +258,15 @@ class ChatComposer {
                 g2.color = JBUI.CurrentTheme.Focus.focusColor()
                 val d = JBUI.scale(BADGE_DIAMETER)
                 val inset = JBUI.scale(BADGE_INSET)
-                g2.fillOval(width - d - inset, inset, d, d)
+
+                // Positioned against the ICON, not the button. ComposerLayout gives the gear the
+                // whole row's height so it lines up with the model combo beside it, and
+                // InplaceButton centres its 16px icon in those taller bounds - so a badge measured
+                // from the button's own top edge lands in the padding above the gear instead of on
+                // it, which is exactly what it did.
+                val iconX = (width - icon.iconWidth) / 2
+                val iconY = (height - icon.iconHeight) / 2
+                g2.fillOval(iconX + icon.iconWidth - d - inset, iconY + inset, d, d)
             } finally {
                 g2.dispose()
             }
