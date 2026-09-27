@@ -177,6 +177,25 @@ You can manually control the proxy server:
 - **Auto-start**: The server starts automatically when you configure a Management Key
 - **Status**: Check the status indicator in the OpenRouter status bar widget
 
+### Using the proxy from tools outside the IDE
+
+The proxy listens on `127.0.0.1`, so anything running on the same machine can use it — Claude Code, Codex CLI, aider, Continue, a shell script. Point the tool at the proxy URL from Step 2 as an OpenAI-compatible base URL, with an empty API key, and it will reach OpenRouter through your curated model list:
+
+```bash
+curl http://127.0.0.1:8880/v1/models
+curl http://127.0.0.1:8880/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"openai/gpt-4o-mini","messages":[{"role":"user","content":"hello"}]}'
+```
+
+**This works, but it is best-effort and comes with no guarantees.** The plugin is designed around the tools that run inside the IDE; everything else is welcome to use the proxy, but nothing is promised:
+
+- **The port is not fixed.** It is picked from the 8880–8899 range at startup, so it can differ between sessions. Pin it under **Settings** → **Tools** → **OpenRouter** if a tool needs a stable URL.
+- **The IDE has to be running.** Close it and the proxy goes with it.
+- **The proxy is unauthenticated today.** Any process on your machine can spend your OpenRouter credits through it. Treat it accordingly until the optional proxy token ships.
+
+If you want a gateway in its own right — one that runs without an IDE, fronts several providers, and enforces keys, budgets and rate limits — [LiteLLM](https://github.com/BerriAI/litellm) is built for that and is a better fit than this plugin. What this plugin adds on top of a plain endpoint is OpenRouter-specific: your curated model list and its order, model variants, provider routing defaults, presets, and real credit and spend figures read from OpenRouter itself.
+
 ## 🐛 Troubleshooting
 
 ### Proxy Server Won't Start

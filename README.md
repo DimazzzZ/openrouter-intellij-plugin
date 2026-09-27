@@ -33,6 +33,17 @@ An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.
 | **🔐 Secure Storage** | OS-native credential storage (Keychain, Credential Manager, libsecret) |
 | **🔌 Plugin API** | Extension point for other plugins to receive balance data |
 
+## Scope
+
+This plugin brings **OpenRouter specifically** into JetBrains IDEs. Everything it offers beyond forwarding a request is built on OpenRouter's own API: the curated model list that becomes your AI Assistant dropdown, variant suffixes such as `:free` and `:nitro`, provider routing defaults, presets, and credit and spend figures read from OpenRouter rather than reconstructed from local logs.
+
+It is deliberately **not** two other things:
+
+- **Not a generic LLM gateway.** The proxy's base URL selects among OpenRouter's own endpoints; it does not point at other providers. If you want one endpoint in front of many providers, with virtual keys, budgets and rate limits, [LiteLLM](https://github.com/BerriAI/litellm) is built for that and does it better than this plugin could.
+- **Not a coding agent.** JetBrains ships its own, and several editor agents reach OpenRouter directly. For agentic work the supported combination is this plugin for inference, AI Assistant for the agent loop, and MCP servers for tool execution — see [step 3.1 of the setup guide](docs/AI_ASSISTANT_SETUP.md).
+
+The reasoning, including what this rules out, is recorded in [ADR-0006](docs/adr/0006-openrouter-specific-integration-layer.md).
+
 ## Installation
 
 ### From Plugin Marketplace
