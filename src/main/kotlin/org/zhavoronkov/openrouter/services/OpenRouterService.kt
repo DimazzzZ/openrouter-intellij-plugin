@@ -17,6 +17,7 @@ import org.zhavoronkov.openrouter.models.ChatCompletionResponse
 import org.zhavoronkov.openrouter.models.CreateApiKeyRequest
 import org.zhavoronkov.openrouter.models.CreateApiKeyResponse
 import org.zhavoronkov.openrouter.models.CreditsResponse
+import org.zhavoronkov.openrouter.models.DataRegion
 import org.zhavoronkov.openrouter.models.DeleteApiKeyResponse
 import org.zhavoronkov.openrouter.models.ExchangeAuthCodeRequest
 import org.zhavoronkov.openrouter.models.ExchangeAuthCodeResponse
@@ -82,8 +83,12 @@ open class OpenRouterService(
         }
     }
 
-    // Method to get base URL for testing purposes
-    protected open fun getBaseUrl(): String = baseUrlOverride ?: OpenRouterConstants.BASE_URL
+    /**
+     * Base URL for every OpenRouter call, resolved from the selected data region so that pinning
+     * a region moves the whole service, not just inference. [baseUrlOverride] stays ahead of it
+     * as the test seam it has always been.
+     */
+    protected open fun getBaseUrl(): String = baseUrlOverride ?: settingsService.getApiBaseUrl()
 
     // Dynamic endpoint getters that use getBaseUrl()
     private fun getChatCompletionsEndpoint() = "${getBaseUrl()}/chat/completions"
@@ -369,6 +374,53 @@ open class OpenRouterService(
     }
 
     /**
+     * Reads /api/v1/key for one specific key.
+     *
+     * The endpoint reports on whichever key authenticated the request, so the answer differs by
+     * key: a Management Key describes the account's allowances, an API key describes that key's
+     * own. Anything that has to hold for BOTH - [org.zhavoronkov.openrouter.models.KeyData.allowedDataRegions]
+     * above all - has to be asked twice and intersected; see [DataRegions].
+     *
+     * The call itself is not new: [testApiKey] has always made it and thrown the body away,
+     * keeping only the status code. This keeps the body.
+     */
+    suspend fun fetchKeyInfo(key: String): ApiResult<KeyInfoResponse> =
+        withContext(Dispatchers.IO) {
+            try {
+                if (key.isBlank()) {
+                    return@withContext ApiResult.Error("Key is required")
+                }
+
+                val request = OpenRouterRequestBuilder.buildGetRequest(
+                    url = getKeyEndpoint(),
+                    authType = OpenRouterRequestBuilder.AuthType.API_KEY,
+                    authToken = key
+                )
+
+                val (response, responseBody) = client.newCall(request).awaitWithBody()
+
+                if (response.isSuccessful) {
+                    try {
+                        val keyInfo = gson.fromJson(responseBody, KeyInfoResponse::class.java)
+                        ApiResult.Success(keyInfo, response.code)
+                    } catch (e: JsonSyntaxException) {
+                        PluginLogger.Service.error("Error reading key info - invalid JSON response", e)
+                        ApiResult.Error("Failed to parse response", statusCode = response.code, throwable = e)
+                    }
+                } else {
+                    PluginLogger.Service.warn("Failed to read key info: ${response.code} - $responseBody")
+                    ApiResult.Error(
+                        message = extractErrorMessage(responseBody, "Failed to read key info"),
+                        statusCode = response.code
+                    )
+                }
+            } catch (e: IOException) {
+                handleNetworkError(e, "Error reading key info")
+                ApiResult.Error(message = e.message ?: "Network error", throwable = e)
+            }
+        }
+
+    /**
      * Get key info for backward compatibility - returns summary of all keys
      */
     @Suppress("unused") // Public API method for backward compatibility
@@ -626,6 +678,31 @@ open class OpenRouterService(
         ) { responseBody ->
             gson.fromJson(responseBody, OpenRouterModelsResponse::class.java)
         }
+
+    /**
+     * The models a region serves, asked WITHOUT switching to that region.
+     *
+     * Deliberately the global host with a `region=` parameter rather than the regional host: this
+     * is what lets the settings page tell someone how many of their favourites a region would cost
+     * them BEFORE they commit to it. Measured against the live API, the two return exactly the
+     * same set, so nothing is lost by asking the cheap way.
+     *
+     * [DataRegion.GLOBAL] has no query value and so asks the plain endpoint.
+     */
+    suspend fun getModelsInRegion(region: DataRegion): ApiResult<OpenRouterModelsResponse> {
+        val query = region.queryValue?.let { "?region=$it" }.orEmpty()
+        // The GLOBAL host on purpose, so the question can be asked without switching - but still
+        // behind baseUrlOverride, or this would be the one endpoint no test could redirect.
+        val host = baseUrlOverride ?: DataRegion.GLOBAL.baseUrl
+        return fetchPublicEndpoint(
+            "$host/models$query",
+            "models in ${region.apiName}",
+            OpenRouterConstants.RESPONSE_PREVIEW_LENGTH,
+            "Error fetching models for region ${region.apiName}"
+        ) { responseBody ->
+            gson.fromJson(responseBody, OpenRouterModelsResponse::class.java)
+        }
+    }
 
     /**
      * Get total count of available models from OpenRouter

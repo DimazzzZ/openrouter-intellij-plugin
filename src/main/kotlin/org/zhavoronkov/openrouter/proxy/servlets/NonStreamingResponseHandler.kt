@@ -20,11 +20,10 @@ class NonStreamingResponseHandler(
     // The endpoint this handler posts to. Defaulted to the live API so existing callers are
     // unaffected; ChatCompletionServlet threads its own value through so the servlet and this
     // handler can be pointed at one test double together, rather than the servlet alone.
-    private val openRouterApiUrl: String = OPENROUTER_API_URL
+    private val openRouterApiUrl: () -> String = ::defaultChatCompletionsUrl
 ) {
 
     companion object {
-        private const val OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
         private const val NANOSECONDS_TO_MILLISECONDS = 1_000_000L
     }
 
@@ -51,7 +50,7 @@ class NonStreamingResponseHandler(
         PluginLogger.Service.info("[Chat-$requestId] Dispatching request to OpenRouter API…")
 
         val request = OpenRouterRequestBuilder.buildPostRequest(
-            url = openRouterApiUrl,
+            url = openRouterApiUrl(),
             jsonBody = requestBody,
             authType = OpenRouterRequestBuilder.AuthType.API_KEY,
             authToken = apiKey

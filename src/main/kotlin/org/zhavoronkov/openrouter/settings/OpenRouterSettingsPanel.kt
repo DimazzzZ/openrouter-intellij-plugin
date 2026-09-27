@@ -10,11 +10,13 @@ import com.intellij.ui.ToolbarDecorator
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.dsl.builder.Align
+import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.RowLayout
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.table.JBTable
 import org.zhavoronkov.openrouter.models.ApiKeyInfo
 import org.zhavoronkov.openrouter.models.AuthScope
+import org.zhavoronkov.openrouter.models.DataRegion
 import org.zhavoronkov.openrouter.services.OpenRouterProxyService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
@@ -118,6 +120,7 @@ class OpenRouterSettingsPanel {
     private val showCostsCheckBox: JBCheckBox
     private val defaultMaxTokensSpinner: JSpinner
     private val enableDefaultMaxTokensCheckBox: JBCheckBox
+    private val dataRegionSection = DataRegionSection()
     private val apiKeyTableModel = ApiKeyTableModel()
     private val apiKeyTable = JBTable(apiKeyTableModel)
     private val openRouterService = OpenRouterService.getInstance()
@@ -426,6 +429,19 @@ class OpenRouterSettingsPanel {
                             .resizableColumn()
                     }.resizableRow()
                 }.visibleIf(isExtendedScope())
+
+                // Last on the page on purpose: In-Region Routing is a Business/Enterprise
+                // feature, so for most accounts this whole group is a disabled control with an
+                // explanation. It is shown rather than hidden so that someone who upgrades finds
+                // the setting where they expect it instead of hunting through release notes.
+                group("Enterprise") {
+                    row("Data region:") {
+                        cell(dataRegionSection.comboBox).align(AlignX.FILL)
+                    }
+                    row {
+                        cell(dataRegionSection.comment)
+                    }
+                }
             }
         } catch (e: IllegalStateException) {
             PluginLogger.Settings.error("Failed to create settings panel", e)
@@ -714,6 +730,19 @@ class OpenRouterSettingsPanel {
 
     // Public API methods
     fun getPanel(): JPanel = panel
+
+    fun getDataRegion(): DataRegion = dataRegionSection.getRegion()
+
+    fun setDataRegion(region: DataRegion) = dataRegionSection.setRegion(region)
+
+    fun setAvailableDataRegions(regions: List<DataRegion>) = dataRegionSection.setAvailableRegions(regions)
+
+    fun setDataRegionFavoritesImpact(region: DataRegion, unavailableCount: Int, favoriteCount: Int) =
+        dataRegionSection.setFavoritesImpact(region, unavailableCount, favoriteCount)
+
+    fun onDataRegionChosen(handler: (DataRegion) -> Unit) {
+        dataRegionSection.onRegionChosen = handler
+    }
 
     fun getAuthScope(): AuthScope = currentUiAuthScope
 

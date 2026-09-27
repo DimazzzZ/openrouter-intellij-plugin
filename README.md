@@ -32,6 +32,7 @@ An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.
 | **⭐ Favorite Models** | Quick access with filtering by provider, capabilities, and context length |
 | **🔐 Secure Storage** | OS-native credential storage (Keychain, Credential Manager, libsecret) |
 | **🔌 Plugin API** | Extension point for other plugins to receive balance data |
+| **🌍 In-Region Routing** | Pin every request to OpenRouter's EU or US endpoint (Business/Enterprise accounts) |
 
 ## Scope
 

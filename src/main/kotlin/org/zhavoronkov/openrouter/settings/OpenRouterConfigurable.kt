@@ -1,7 +1,20 @@
 package org.zhavoronkov.openrouter.settings
 
 import com.intellij.openapi.options.Configurable
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.zhavoronkov.openrouter.models.ApiResult
+import org.zhavoronkov.openrouter.models.DataRegion
+import org.zhavoronkov.openrouter.models.RegionFavorites
+import org.zhavoronkov.openrouter.services.DataRegionAvailability
+import org.zhavoronkov.openrouter.services.FavoriteModelsService
+import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.services.OpenRouterStatsCache
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import javax.swing.JComponent
 
@@ -24,6 +37,72 @@ class OpenRouterConfigurable : Configurable {
     private var settingsPanel: OpenRouterSettingsPanel? = null
     private val settingsService = OpenRouterSettingsService.getInstance()
 
+    // Cancelled in disposeUIResources: the lookup outlives nothing, and a settings page closed
+    // mid-request must not come back to touch a panel that is gone.
+    private val regionScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    /**
+     * Asks both keys which data regions they allow and narrows the selector to the answer.
+     *
+     * Off the EDT because it makes two network calls, and back onto it to touch Swing. Failure is
+     * not reported to the user: [DataRegionAvailability] already answers "Global only" when it
+     * cannot tell, which is what the control would show anyway, and a modal complaint about a
+     * paid feature the account probably does not have would be noise.
+     */
+    private fun loadAvailableDataRegions(panel: OpenRouterSettingsPanel) {
+        regionScope.launch {
+            val regions = DataRegionAvailability(OpenRouterService.getInstance(), settingsService).load()
+            withContext(Dispatchers.Main) {
+                panel.setAvailableDataRegions(regions)
+            }
+        }
+    }
+
+    /**
+     * Stores the chosen region and drops everything cached against the old one.
+     *
+     * The caches are the reason this is not a plain setter. A region serves a different catalogue
+     * - 66 models in the EU against 458 globally - and the model list, the analytics answers and
+     * the status-bar figures are all cached for minutes. Without this, changing region would
+     * leave the favorites page marking models unavailable, or available, according to the region
+     * the user just left, and the status bar quoting figures fetched from it.
+     *
+     * Only on an actual change: clearing caches on every Apply would throw away work for nothing.
+     *
+     * The analytics cache is not cleared here because it is not reachable from here - each holder
+     * builds its own AnalyticsService. It does not need to be: setDataRegion publishes the
+     * settings-changed topic, the tool window refreshes the Status tab on it, and that refresh
+     * invalidates the analytics cache itself.
+     */
+    private fun applyDataRegion(region: DataRegion) {
+        if (region == settingsService.getDataRegion()) return
+
+        settingsService.setDataRegion(region)
+        FavoriteModelsService.getInstance().clearCache()
+        OpenRouterStatsCache.getInstance().clearCache()
+    }
+
+    /**
+     * Tells the user what the region they just picked would cost them in favorite models.
+     *
+     * The region's catalogue is asked through the global host rather than the regional one, so
+     * this works before the choice is applied - which is the point. A failed fetch counts as
+     * nothing missing rather than as an error: this is a hint attached to a decision in progress,
+     * and an unanswered catalog is not evidence that anything is unavailable.
+     */
+    private fun loadFavoritesImpact(panel: OpenRouterSettingsPanel, region: DataRegion) {
+        regionScope.launch {
+            val favorites = settingsService.favoriteModelsManager.getFavoriteModels()
+            val unavailable = when (val models = OpenRouterService.getInstance().getModelsInRegion(region)) {
+                is ApiResult.Success -> RegionFavorites.unavailable(favorites, models.data.data.map { it.id }).size
+                is ApiResult.Error -> 0
+            }
+            withContext(Dispatchers.Main) {
+                panel.setDataRegionFavoritesImpact(region, unavailable, favorites.size)
+            }
+        }
+    }
+
     /**
      * Synchronizes settings between panel and service
      */
@@ -33,11 +112,15 @@ class OpenRouterConfigurable : Configurable {
             settingsService.uiPreferencesManager.refreshInterval = panel.getRefreshInterval()
             settingsService.uiPreferencesManager.showCosts = panel.shouldShowCosts()
             settingsService.uiPreferencesManager.balanceProviderEnabled = panel.isBalanceProviderEnabled()
+            applyDataRegion(panel.getDataRegion())
         } else {
             panel.setAutoRefresh(settingsService.uiPreferencesManager.autoRefresh)
             panel.setRefreshInterval(settingsService.uiPreferencesManager.refreshInterval)
             panel.setShowCosts(settingsService.uiPreferencesManager.showCosts)
             panel.setBalanceProviderEnabled(settingsService.uiPreferencesManager.balanceProviderEnabled)
+            panel.setDataRegion(settingsService.getDataRegion())
+            panel.onDataRegionChosen { region -> loadFavoritesImpact(panel, region) }
+            loadAvailableDataRegions(panel)
         }
         syncDefaultMaxTokens(panel, toService)
         syncProxySettings(panel, toService)
@@ -134,7 +217,8 @@ class OpenRouterConfigurable : Configurable {
             panel.shouldShowCosts() != settingsService.uiPreferencesManager.showCosts ||
             panel.isBalanceProviderEnabled() != settingsService.uiPreferencesManager.balanceProviderEnabled ||
             isSettingModified(panel, SettingType.DEFAULT_MAX_TOKENS) ||
-            isSettingModified(panel, SettingType.PROXY_SETTINGS)
+            isSettingModified(panel, SettingType.PROXY_SETTINGS) ||
+            panel.getDataRegion() != settingsService.getDataRegion()
     }
 
     /**
@@ -204,6 +288,7 @@ class OpenRouterConfigurable : Configurable {
     }
 
     override fun disposeUIResources() {
+        regionScope.coroutineContext.cancelChildren()
         settingsPanel = null
     }
 }

@@ -69,12 +69,11 @@ data class ParsedChatRequest(
 class ChatCompletionServlet(
     private val httpClient: OkHttpClient = defaultHttpClient(),
     settingsServiceProvider: () -> OpenRouterSettingsService = { OpenRouterSettingsService.getInstance() },
-    private val openRouterApiUrl: String = OPENROUTER_API_URL,
+    private val openRouterApiUrl: () -> String = ::defaultChatCompletionsUrl,
     multimodalValidatorProvider: () -> MultimodalContentValidator = { MultimodalContentValidator() }
 ) : HttpServlet() {
 
     companion object {
-        private const val OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
         private fun defaultHttpClient(): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
@@ -464,7 +463,7 @@ class ChatCompletionServlet(
      */
     private fun buildOpenRouterRequest(jsonBody: String, apiKey: String): Request {
         return OpenRouterRequestBuilder.buildPostRequest(
-            url = openRouterApiUrl,
+            url = openRouterApiUrl(),
             jsonBody = jsonBody,
             authType = OpenRouterRequestBuilder.AuthType.API_KEY,
             authToken = apiKey

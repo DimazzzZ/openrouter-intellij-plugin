@@ -160,6 +160,19 @@ You can configure your favorite models for quick access:
 ![Favorite Models](images/favorite-models.png)
 <p style="text-align:center;font-style: italic">Favorite Models settings panel</p>
 
+### Pinning requests to a data region
+
+**Settings** -> **Tools** -> **OpenRouter** -> **Enterprise** -> **Data region** sends every OpenRouter request to a regional endpoint (`eu.openrouter.ai` or `us.openrouter.ai`) instead of the global one. It applies to the whole plugin, not only inference: model lists, credits, analytics and key management all follow the region.
+
+The regions on offer come from your own key, since OpenRouter reports which data regions it permits, so the list is what your account can actually use rather than a guess. In-region routing is a Business/Enterprise feature, so if the control is disabled with a note saying the account has no entitlement, that is why and nothing is broken.
+
+Two things are worth knowing before pinning a region:
+
+- **A region serves far fewer models.** At the time of writing OpenRouter lists 458 models globally, 115 in the US and 66 in the EU. The settings page tells you how many of your starred favorites the region cannot serve before you apply the change, and the Favorite Models page greys out the ones it cannot.
+- **Your favorites are never changed.** Whatever the region, the stored list stays as it is, so switching back to Global restores exactly what was there.
+
+If the entitlement later goes away, through a plan change or a new policy on the key, the plugin keeps your selection and lets requests fail rather than quietly sending your traffic to the global endpoint. Silently leaving the region you chose would defeat the point of choosing it.
+
 ### Changing Proxy Port
 
 If port 8880 is already in use, the plugin will automatically try ports 8881-8899. You can check which port is being used:

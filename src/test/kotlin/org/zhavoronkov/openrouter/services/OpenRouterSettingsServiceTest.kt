@@ -8,6 +8,7 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.zhavoronkov.openrouter.models.AuthScope
+import org.zhavoronkov.openrouter.models.DataRegion
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
 
 @DisplayName("OpenRouter Settings Service Tests")
@@ -16,6 +17,61 @@ class OpenRouterSettingsServiceTest {
     @BeforeEach
     fun setUp() {
         // Reset state between tests
+    }
+
+    @Nested
+    @DisplayName("Data Region Tests")
+    inner class DataRegionTests {
+
+        @Test
+        @DisplayName("Defaults to the global region, which is the endpoint the plugin has always used")
+        fun testDefaultsToGlobal() {
+            assertEquals(DataRegion.GLOBAL, OpenRouterSettingsService().getDataRegion())
+        }
+
+        @Test
+        @DisplayName("Round-trips a region through the stored settings")
+        fun testRoundTrip() {
+            val service = OpenRouterSettingsService()
+
+            service.setDataRegion(DataRegion.EUROPE)
+
+            assertEquals(DataRegion.EUROPE, service.getDataRegion())
+            assertEquals(DataRegion.EUROPE.baseUrl, service.getApiBaseUrl())
+        }
+
+        @Test
+        @DisplayName("A stored value this build does not recognise reads as global rather than failing")
+        fun testUnknownStoredValueReadsAsGlobal() {
+            // Reaches the service the way a settings file would: a newer build's region name, or
+            // one edited by hand. Refusing to start over a settings string would be worse than
+            // falling back to the endpoint that always works.
+            val service = OpenRouterSettingsService()
+            service.loadState(OpenRouterSettings(dataRegion = "atlantis"))
+
+            assertEquals(DataRegion.GLOBAL, service.getDataRegion())
+            assertEquals(DataRegion.GLOBAL.baseUrl, service.getApiBaseUrl())
+        }
+
+        @Test
+        @DisplayName("An empty stored value reads as global")
+        fun testEmptyStoredValueReadsAsGlobal() {
+            val service = OpenRouterSettingsService()
+            service.loadState(OpenRouterSettings(dataRegion = ""))
+
+            assertEquals(DataRegion.GLOBAL, service.getDataRegion())
+        }
+
+        @Test
+        @DisplayName("Every region survives the round trip, so no spelling is lost in storage")
+        fun testEveryRegionRoundTrips() {
+            val service = OpenRouterSettingsService()
+
+            DataRegion.entries.forEach { region ->
+                service.setDataRegion(region)
+                assertEquals(region, service.getDataRegion(), "region ${region.apiName} did not survive storage")
+            }
+        }
     }
 
     @Nested

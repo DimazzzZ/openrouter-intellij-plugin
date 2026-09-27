@@ -7,15 +7,18 @@ import jakarta.servlet.http.HttpServletResponse
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.zhavoronkov.openrouter.models.ApiResult
+import org.zhavoronkov.openrouter.models.RegionFavorites
 import org.zhavoronkov.openrouter.proxy.models.OpenAIModel
 import org.zhavoronkov.openrouter.proxy.models.OpenAIModelsResponse
 import org.zhavoronkov.openrouter.proxy.models.OpenAIPermission
 import org.zhavoronkov.openrouter.proxy.routing.RouterCatalog
 import org.zhavoronkov.openrouter.proxy.translation.ResponseTranslator
+import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import org.zhavoronkov.openrouter.utils.applicationServiceOrNull
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
@@ -40,6 +43,20 @@ class ModelsServlet(
             .map { settings.presetsManager.getPresetModelId(it) }
             .filterNot { RouterCatalog.isRouter(it) }
         routerSlugs + customPresetIds
+    },
+    /**
+     * The model ids the configured region actually serves, or null when that is not known yet.
+     *
+     * Used to keep favorites the current data region cannot serve out of this list. Consumers
+     * pick from what this endpoint advertises, so advertising a model the region will refuse
+     * turns a configuration fact into a runtime error in somebody else's UI.
+     *
+     * Null is deliberate and distinct from an empty list: before the catalogue has ever loaded
+     * there is no evidence that anything is missing, and filtering on no evidence would empty
+     * the model list for everyone whose first request beat the catalogue fetch.
+     */
+    private val servedModelIdsProvider: () -> List<String>? = {
+        applicationServiceOrNull(FavoriteModelsService::class.java)?.getCachedModels()?.map { it.id }
     }
 ) : HttpServlet() {
 
@@ -162,7 +179,15 @@ class ModelsServlet(
             )
         }
 
-        val allModelIds = presetModelIds + favoriteModelIds
+        // Presets and router slugs are not catalogue entries, so only favorites are filtered.
+        val servedIds = servedModelIdsProvider()
+        val servedFavorites = if (servedIds == null) {
+            favoriteModelIds
+        } else {
+            favoriteModelIds - RegionFavorites.unavailable(favoriteModelIds, servedIds).toSet()
+        }
+
+        val allModelIds = presetModelIds + servedFavorites
 
         val coreModels = allModelIds.map { modelId ->
             OpenAIModel(

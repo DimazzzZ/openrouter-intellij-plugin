@@ -45,7 +45,12 @@ These three were used informally for a long time before they were pinned down. S
 
 - **Consumer** — any tool that sends requests to the plugin's local OpenAI-compatible proxy. AI Assistant's chat and completion surfaces are consumers; so is Android Studio's assistant, and so is a CLI pointed at `http://127.0.0.1:<port>`. A consumer is never the human: the human configures the plugin, the consumer uses it. Consumers come first — the plugin's own settings, status bar and chat window exist to configure, observe and verify what consumers get.
 - **Host** — the IDE the plugin is installed in, and the consumers that ship inside it. Hosts drive design decisions; consumers outside the host are best-effort, since the proxy's port is ephemeral and tied to the IDE's lifetime. "Host" is about where a consumer runs, not who wrote it.
-- **Curation** — the user's chosen subset of OpenRouter's catalogue, in their chosen order, as it is served to a consumer. Favourites are the storage; curation is what `/v1/models` emits and therefore what the consumer's model dropdown shows. Order is load-bearing, not cosmetic. Curation is the plugin's most distinctive job: pointed straight at OpenRouter, a consumer sees several hundred unfiltered models instead.
+- **Curation** — the user's chosen subset of OpenRouter's catalogue, in their chosen order, as it is served to a consumer. Favorites are the storage; curation is what `/v1/models` emits and therefore what the consumer's model dropdown shows. Order is load-bearing, not cosmetic. Curation is the plugin's most distinctive job: pointed straight at OpenRouter, a consumer sees several hundred unfiltered models instead.
+
+## Data regions
+
+- **Data Region** — the OpenRouter endpoint every request is pinned to: `global` (no pinning), `europe` or `us`. One region, three spellings, which is why the code has a `DataRegion` type rather than a string: `allowed_data_regions` says `europe`, the `/models?region=` parameter says `eu`, and the host is `eu.openrouter.ai`. Say **Data Region** in code, docs and UI copy; the OpenRouter feature it belongs to is **In-Region Routing**. `global` is a value, not an absence - the API names it - so the type has no null.
+- **In-Region Routing** — OpenRouter's feature for keeping a request inside a region for its whole lifecycle. A Business/Enterprise entitlement, reported per key by `allowed_data_regions` on `GET /api/v1/key`, which already folds in both the account entitlement and any guardrail policy on the key. Selecting a region moves the whole plugin, not just inference.
 
 ## Service boundaries
 
