@@ -24,6 +24,7 @@ import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatComposer
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatConversationView
+import org.zhavoronkov.openrouter.toolwindow.chat.ChatFileWriter
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatListView
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatParamsPopup
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatToolbar
@@ -428,9 +429,11 @@ class ChatPanel(
 
     private fun saveChats() {
         try {
+            // Serialised here, written on a background thread: this runs on the EDT after every
+            // finished reply and on every chat create/delete, and the file grows with the
+            // conversation. See ChatFileWriter.
             val json = gson.toJson(chatSessions)
-            val file = getChatsFile()
-            file.writeText(json)
+            ChatFileWriter.write(getChatsFile(), json)
         } catch (e: IOException) {
             PluginLogger.warn("Failed to save chat sessions: ${e.message}")
         }
@@ -561,7 +564,7 @@ class ChatPanel(
             val settings = mutableMapOf<String, String>()
             settings["selectedModel"] = selected
             val json = gson.toJson(settings)
-            getSettingsFile().writeText(json)
+            ChatFileWriter.write(getSettingsFile(), json)
         } catch (e: IOException) {
             PluginLogger.warn("Failed to save selected model: ${e.message}")
         }

@@ -34,9 +34,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 @Suppress("TooManyFunctions")
 object PasswordSafeKeyStorage {
 
-    // One thread, so credential writes keep the order they were made in - see persist().
-    private val credentialWriteExecutor =
-        AppExecutorUtil.createBoundedApplicationPoolExecutor("OpenRouter Credential Writer", 1)
+    // One thread, so credential store access keeps the order it was requested in - see persist().
+    private val credentialStoreExecutor =
+        AppExecutorUtil.createBoundedApplicationPoolExecutor("OpenRouter Credential Store", 1)
 
     private const val SERVICE_NAME = "OpenRouter IntelliJ Plugin"
     private const val API_KEY = "apiKey"
@@ -70,9 +70,16 @@ object PasswordSafeKeyStorage {
     }
 
     /**
-     * Preloads keys from PasswordSafe into cache.
-     * Called synchronously during plugin startup to ensure keys are available
-     * before any startup activity reads them.
+     * Warms the cache from PasswordSafe, off the EDT.
+     *
+     * Its only caller is the dynamic-plugin listener, and the platform loads plugins "in EDT and
+     * under write action", so reading the credential store straight from there was the same
+     * violation the setters used to commit - two of them, one per key, on every install, update or
+     * enable without a restart. The comment at that call site already promised a background
+     * thread; this is where the promise is kept, so no caller has to arrange it.
+     *
+     * Nothing waits on the result. A reader that arrives before the warm-up finishes falls back to
+     * loading the key it needs itself, which is the behaviour it had anyway.
      */
     @Suppress("TooGenericExceptionCaught")
     fun preloadKeys() {
@@ -80,15 +87,25 @@ object PasswordSafeKeyStorage {
             return
         }
 
+        val application = ApplicationManager.getApplication()
+        if (application == null) {
+            apiKeyCacheInitialized.set(true)
+            provisioningKeyCacheInitialized.set(true)
+            return
+        }
+
+        if (application.isDispatchThread) {
+            credentialStoreExecutor.execute { loadBothKeys() }
+        } else {
+            loadBothKeys()
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private fun loadBothKeys() {
         try {
-            val application = ApplicationManager.getApplication()
-            if (application != null) {
-                loadApiKeyFromPasswordSafe()
-                loadProvisioningKeyFromPasswordSafe()
-            } else {
-                apiKeyCacheInitialized.set(true)
-                provisioningKeyCacheInitialized.set(true)
-            }
+            loadApiKeyFromPasswordSafe()
+            loadProvisioningKeyFromPasswordSafe()
         } catch (_: Exception) {
             apiKeyCacheInitialized.set(true)
             provisioningKeyCacheInitialized.set(true)
@@ -260,7 +277,7 @@ object PasswordSafeKeyStorage {
             return
         }
 
-        credentialWriteExecutor.execute {
+        credentialStoreExecutor.execute {
             try {
                 PasswordSafe.instance.set(attributes, credentials)
             } catch (e: RuntimeException) {

@@ -27,12 +27,15 @@ class PasswordSafeKeyStorageEdtPlatformTest : BasePlatformTestCase() {
     }
 
     private val writingThreads = java.util.concurrent.CopyOnWriteArrayList<Boolean>()
+    private val readingThreads = java.util.concurrent.CopyOnWriteArrayList<Boolean>()
+    private val readsSeen = java.util.concurrent.CountDownLatch(EXPECTED_WRITES)
     private val writtenValues = java.util.concurrent.CopyOnWriteArrayList<String>()
     private val writesSeen = java.util.concurrent.CountDownLatch(EXPECTED_WRITES)
 
     override fun setUp() {
         super.setUp()
         writingThreads.clear()
+        readingThreads.clear()
         PasswordSafeKeyStorage.resetCacheForTesting()
 
         // A blanket Answer rather than stubbed matchers: PasswordSafe.set takes a non-null Kotlin
@@ -40,6 +43,10 @@ class PasswordSafeKeyStorageEdtPlatformTest : BasePlatformTestCase() {
         val recorder = mock(
             PasswordSafe::class.java,
             Answer { invocation ->
+                if (invocation.method.name == "getPassword") {
+                    readingThreads += ApplicationManager.getApplication().isDispatchThread
+                    readsSeen.countDown()
+                }
                 if (invocation.method.name == "set") {
                     writingThreads += ApplicationManager.getApplication().isDispatchThread
                     writtenValues += (invocation.arguments[1] as? Credentials)?.getPasswordAsString().orEmpty()
@@ -93,5 +100,20 @@ class PasswordSafeKeyStorageEdtPlatformTest : BasePlatformTestCase() {
         PasswordSafeKeyStorage.setApiKey("fresh-key")
 
         assertEquals("fresh-key", PasswordSafeKeyStorage.getApiKey())
+    }
+
+    fun testPreloadingTheCacheDoesNotReadTheCredentialStoreOnTheEdt() {
+        // preloadKeys() is called from the dynamic-plugin listener, and the platform loads plugins
+        // on the EDT under a write action, so reading the store straight from there produced the
+        // same error the setters did - twice, on every install, update or enable without restart.
+        PasswordSafeKeyStorage.resetCacheForTesting()
+
+        PasswordSafeKeyStorage.preloadKeys()
+
+        assertTrue(
+            "timed out waiting for the preload; $readingThreads seen",
+            readsSeen.await(WRITE_TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS)
+        )
+        assertFalse("the credential store was read on the EDT: $readingThreads", readingThreads.any { it })
     }
 }
