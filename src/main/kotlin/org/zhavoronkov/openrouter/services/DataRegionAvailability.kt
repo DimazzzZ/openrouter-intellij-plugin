@@ -2,7 +2,6 @@ package org.zhavoronkov.openrouter.services
 
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.DataRegion
-import org.zhavoronkov.openrouter.models.DataRegions
 import org.zhavoronkov.openrouter.models.KeyInfoResponse
 
 /**
@@ -34,7 +33,7 @@ class DataRegionAvailability(
      * tell that from a genuine downgrade. With nothing to go on the answer is
      * [DataRegion.GLOBAL] alone, which is also the plugin's default.
      */
-    suspend fun load(): List<DataRegion> = DataRegions.available(
+    suspend fun load(): List<DataRegion> = DataRegion.available(
         managementKeyRegions = regionsFor(managementKeyProvider()),
         apiKeyRegions = regionsFor(apiKeyProvider())
     )

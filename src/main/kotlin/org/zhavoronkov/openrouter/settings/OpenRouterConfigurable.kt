@@ -64,7 +64,7 @@ class OpenRouterConfigurable : Configurable {
      * The caches are the reason this is not a plain setter. A region serves a different catalogue
      * - 66 models in the EU against 458 globally - and the model list, the analytics answers and
      * the status-bar figures are all cached for minutes. Without this, changing region would
-     * leave the favourites page marking models unavailable, or available, according to the region
+     * leave the favorites page marking models unavailable, or available, according to the region
      * the user just left, and the status bar quoting figures fetched from it.
      *
      * Only on an actual change: clearing caches on every Apply would throw away work for nothing.
@@ -83,25 +83,22 @@ class OpenRouterConfigurable : Configurable {
     }
 
     /**
-     * Tells the user what the region they just picked would cost them in favourites.
+     * Tells the user what the region they just picked would cost them in favorite models.
      *
      * The region's catalogue is asked through the global host rather than the regional one, so
-     * this works before the choice is applied - which is the point. Anything that goes wrong
-     * clears the line rather than replacing it with an error: this is a hint attached to a
-     * decision in progress, and a failed count is not worth a complaint.
+     * this works before the choice is applied - which is the point. A failed fetch counts as
+     * nothing missing rather than as an error: this is a hint attached to a decision in progress,
+     * and an unanswered catalog is not evidence that anything is unavailable.
      */
     private fun loadFavoritesImpact(panel: OpenRouterSettingsPanel, region: DataRegion) {
         regionScope.launch {
-            val summary = when (val models = OpenRouterService.getInstance().getModelsInRegion(region)) {
-                is ApiResult.Success -> RegionFavorites.impactSummary(
-                    region = region,
-                    favoriteIds = settingsService.favoriteModelsManager.getFavoriteModels(),
-                    regionModelIds = models.data.data.map { it.id }
-                )
-                is ApiResult.Error -> null
+            val favorites = settingsService.favoriteModelsManager.getFavoriteModels()
+            val unavailable = when (val models = OpenRouterService.getInstance().getModelsInRegion(region)) {
+                is ApiResult.Success -> RegionFavorites.unavailable(favorites, models.data.data.map { it.id }).size
+                is ApiResult.Error -> 0
             }
             withContext(Dispatchers.Main) {
-                panel.setDataRegionFavoritesImpact(summary)
+                panel.setDataRegionFavoritesImpact(region, unavailable, favorites.size)
             }
         }
     }

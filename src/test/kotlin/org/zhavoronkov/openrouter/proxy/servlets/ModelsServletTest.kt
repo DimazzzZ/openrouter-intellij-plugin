@@ -51,15 +51,53 @@ class ModelsServletTest {
     private fun executeServlet(
         favorites: List<String> = listOf("openai/gpt-4"),
         presets: List<String> = listOf(),
-        mode: String = "curated"
+        mode: String = "curated",
+        servedModelIds: List<String>? = null
     ): String {
         val openRouterService = mock(OpenRouterService::class.java)
-        val servlet = ModelsServlet(openRouterService, { favorites }, { presets })
+        val servlet = ModelsServlet(openRouterService, { favorites }, { presets }, { servedModelIds })
         val (req, writer) = createDoGetRequest(mode)
         val resp = mock(HttpServletResponse::class.java)
         `when`(resp.writer).thenReturn(PrintWriter(writer))
         servlet.doGet(req, resp)
         return writer.toString()
+    }
+
+    @Test
+    fun `doGet omits favorites the configured region cannot serve`() {
+        // Pinning a data region narrows the catalogue sharply - 66 models in the EU against 458
+        // globally - and a consumer picks from whatever this endpoint advertises. Advertising a
+        // model the region will refuse turns a setting into a runtime error in someone else's UI.
+        val result = executeServlet(
+            favorites = listOf("openai/gpt-4o", "x-ai/grok-4"),
+            servedModelIds = listOf("openai/gpt-4o", "anthropic/claude-sonnet-4")
+        )
+
+        assertTrue(result.contains("openai/gpt-4o"), "a served favorite should still be advertised")
+        assertFalse(result.contains("x-ai/grok-4"), "a favorite the region cannot serve should not be")
+    }
+
+    @Test
+    fun `doGet keeps a favorite whose variant resolves to a served base model`() {
+        val result = executeServlet(
+            favorites = listOf("openai/gpt-4o:nitro"),
+            servedModelIds = listOf("openai/gpt-4o")
+        )
+
+        assertTrue(
+            result.contains("openai/gpt-4o:nitro"),
+            "a routing variant is not a separate model, so it is served wherever its base model is"
+        )
+    }
+
+    @Test
+    fun `doGet advertises every favorite while the catalog is still unknown`() {
+        // Null is not an empty catalog: before the first fetch returns there is no evidence that
+        // anything is missing, and filtering on none would empty the list for anyone whose first
+        // request beats it.
+        val result = executeServlet(favorites = listOf("x-ai/grok-4"), servedModelIds = null)
+
+        assertTrue(result.contains("x-ai/grok-4"))
     }
 
     @Test

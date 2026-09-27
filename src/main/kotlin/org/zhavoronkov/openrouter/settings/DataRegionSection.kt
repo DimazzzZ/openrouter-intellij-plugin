@@ -2,7 +2,6 @@ package org.zhavoronkov.openrouter.settings
 
 import com.intellij.openapi.ui.ComboBox
 import org.zhavoronkov.openrouter.models.DataRegion
-import org.zhavoronkov.openrouter.models.DataRegions
 import javax.swing.DefaultComboBoxModel
 import javax.swing.JLabel
 
@@ -26,16 +25,23 @@ class DataRegionSection {
 
     private var baseComment: String = CHECKING_TEXT
 
+    // Swing fires the combo's ActionListener for a programmatic selection exactly as it does for
+    // a click, so without this guard every availability load and every settings reset would look
+    // like a choice - measured at two spurious notifications per load, each one a network call.
+    private var updatingProgrammatically = false
+
     init {
         comboBox.addActionListener {
-            onRegionChosen(getRegion())
+            if (!updatingProgrammatically) {
+                onRegionChosen(getRegion())
+            }
         }
     }
 
     /** The region currently shown. */
     fun getRegion(): DataRegion = comboBox.selectedItem as? DataRegion ?: DataRegion.GLOBAL
 
-    fun setRegion(region: DataRegion) {
+    fun setRegion(region: DataRegion) = quietly {
         if (items().none { it == region }) {
             comboBox.addItem(region)
         }
@@ -52,7 +58,7 @@ class DataRegionSection {
      * data-residency grounds is precisely the outcome they were avoiding. It stays selected and
      * visible; the failure surfaces as failing requests, which is loud and honest.
      */
-    fun setAvailableRegions(regions: List<DataRegion>) {
+    fun setAvailableRegions(regions: List<DataRegion>) = quietly {
         val selected = getRegion()
         val items = (regions + selected).distinct()
 
@@ -62,7 +68,7 @@ class DataRegionSection {
         // One entry means Global alone: there is nothing to choose, so the control is shown
         // disabled with the reason rather than hidden. The control stays enabled when a selection
         // has been withdrawn, so the user can act on the warning.
-        val stillAvailable = DataRegions.isStillAvailable(selected, regions)
+        val stillAvailable = DataRegion.isStillAvailable(selected, regions)
         val canChoose = regions.size > 1
         comboBox.isEnabled = canChoose || !stillAvailable
         baseComment = when {
@@ -74,15 +80,31 @@ class DataRegionSection {
     }
 
     /**
-     * Appends what the selected region would cost in favourites, or clears it when there is
-     * nothing to say.
+     * Appends what the selected region would cost in favorite models, or says nothing when there
+     * is nothing to say.
      *
-     * Kept beside the control rather than raised as a dialog: it is information for a decision
-     * the user is in the middle of making, not an error, and a region that serves every favourite
-     * should say nothing at all.
+     * Kept beside the control rather than raised as a dialog: it is information for a decision the
+     * user is in the middle of making, not an error. Three cases deliberately stay silent - the
+     * global region, which serves everything; a region that serves every favorite; and a catalog
+     * that could not be read, since an unanswered catalog is not evidence that anything is missing.
      */
-    fun setFavoritesImpact(summary: String?) {
-        comment.text = if (summary == null) baseComment else "$baseComment $summary"
+    fun setFavoritesImpact(region: DataRegion, unavailableCount: Int, favoriteCount: Int) {
+        comment.text = if (region == DataRegion.GLOBAL || unavailableCount == 0) {
+            baseComment
+        } else {
+            "$baseComment $unavailableCount of your $favoriteCount favorite models are not " +
+                "available in ${region.displayName} and will not be offered while it is selected."
+        }
+    }
+
+    /** Runs a programmatic mutation without it being mistaken for the user making a choice. */
+    private fun quietly(block: () -> Unit) {
+        updatingProgrammatically = true
+        try {
+            block()
+        } finally {
+            updatingProgrammatically = false
+        }
     }
 
     private fun withdrawnText(region: DataRegion) =

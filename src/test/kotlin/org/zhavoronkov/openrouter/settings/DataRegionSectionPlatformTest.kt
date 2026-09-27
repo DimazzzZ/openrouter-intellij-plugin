@@ -19,6 +19,20 @@ class DataRegionSectionPlatformTest : BasePlatformTestCase() {
     private fun items(section: DataRegionSection): List<DataRegion?> =
         (0 until section.comboBox.itemCount).map { section.comboBox.getItemAt(it) }
 
+    fun testProgrammaticUpdatesAreNotMistakenForTheUserChoosing() {
+        val section = DataRegionSection()
+        var notified = 0
+        section.onRegionChosen = { notified++ }
+
+        // Exactly what happens when the settings page opens: the stored region is restored, then
+        // the account's availability arrives. Neither is a choice, and treating them as one cost
+        // two network calls per load before this was guarded.
+        section.setRegion(DataRegion.EUROPE)
+        section.setAvailableRegions(listOf(DataRegion.GLOBAL, DataRegion.EUROPE))
+
+        assertEquals(0, notified)
+    }
+
     fun testOnlyTheGlobalRegionLeavesTheControlDisabledWithTheReason() {
         val section = DataRegionSection()
 

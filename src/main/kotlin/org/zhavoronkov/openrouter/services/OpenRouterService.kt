@@ -691,8 +691,11 @@ open class OpenRouterService(
      */
     suspend fun getModelsInRegion(region: DataRegion): ApiResult<OpenRouterModelsResponse> {
         val query = region.queryValue?.let { "?region=$it" }.orEmpty()
+        // The GLOBAL host on purpose, so the question can be asked without switching - but still
+        // behind baseUrlOverride, or this would be the one endpoint no test could redirect.
+        val host = baseUrlOverride ?: DataRegion.GLOBAL.baseUrl
         return fetchPublicEndpoint(
-            "${DataRegion.GLOBAL.baseUrl}/models$query",
+            "$host/models$query",
             "models in ${region.apiName}",
             OpenRouterConstants.RESPONSE_PREVIEW_LENGTH,
             "Error fetching models for region ${region.apiName}"

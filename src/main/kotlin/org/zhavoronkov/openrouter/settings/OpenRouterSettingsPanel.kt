@@ -737,7 +737,8 @@ class OpenRouterSettingsPanel {
 
     fun setAvailableDataRegions(regions: List<DataRegion>) = dataRegionSection.setAvailableRegions(regions)
 
-    fun setDataRegionFavoritesImpact(summary: String?) = dataRegionSection.setFavoritesImpact(summary)
+    fun setDataRegionFavoritesImpact(region: DataRegion, unavailableCount: Int, favoriteCount: Int) =
+        dataRegionSection.setFavoritesImpact(region, unavailableCount, favoriteCount)
 
     fun onDataRegionChosen(handler: (DataRegion) -> Unit) {
         dataRegionSection.onRegionChosen = handler

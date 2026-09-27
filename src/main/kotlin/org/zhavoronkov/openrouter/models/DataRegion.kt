@@ -41,51 +41,41 @@ enum class DataRegion(
          */
         fun fromApiName(apiName: String): DataRegion? =
             entries.firstOrNull { it.apiName.equals(apiName, ignoreCase = true) }
-    }
-}
 
-/**
- * Works out which regions a user may actually select.
- *
- * `allowed_data_regions` already folds in both the guardrail policy on the key and the account's
- * regional-routing entitlement, so asking the key is enough - there is no separate entitlement
- * check to make and no way to pick a region the server will then refuse. In-region routing is a
- * paid-plan feature, so for most accounts this answers [DataRegion.GLOBAL] alone.
- */
-object DataRegions {
+        /**
+         * The regions available given what each key reports.
+         *
+         * Both keys are consulted because the plugin uses both: the Management Key reads the account
+         * (credits, analytics, key management) and the API key carries inference. Pinning a region
+         * points BOTH at the regional host, so a region only works if both keys allow it - hence the
+         * intersection. A key that reports nothing is treated as unknown and left out of the
+         * reckoning rather than read as "allows nothing", so one failed lookup cannot silently strip
+         * a region the user is entitled to.
+         *
+         * [DataRegion.GLOBAL] is always present. It is the plugin's own default and the state a user
+         * must always be able to return to; an account that somehow does not list it would otherwise
+         * be stuck in a region it cannot leave.
+         */
+        fun available(managementKeyRegions: List<String>?, apiKeyRegions: List<String>?): List<DataRegion> {
+            val reported = listOfNotNull(managementKeyRegions, apiKeyRegions)
+                .filter { it.isNotEmpty() }
+                .map { regions -> regions.mapNotNull(DataRegion::fromApiName).toSet() }
 
-    /**
-     * The regions available given what each key reports.
-     *
-     * Both keys are consulted because the plugin uses both: the Management Key reads the account
-     * (credits, analytics, key management) and the API key carries inference. Pinning a region
-     * points BOTH at the regional host, so a region only works if both keys allow it - hence the
-     * intersection. A key that reports nothing is treated as unknown and left out of the
-     * reckoning rather than read as "allows nothing", so one failed lookup cannot silently strip
-     * a region the user is entitled to.
-     *
-     * [DataRegion.GLOBAL] is always present. It is the plugin's own default and the state a user
-     * must always be able to return to; an account that somehow does not list it would otherwise
-     * be stuck in a region it cannot leave.
-     */
-    fun available(managementKeyRegions: List<String>?, apiKeyRegions: List<String>?): List<DataRegion> {
-        val reported = listOfNotNull(managementKeyRegions, apiKeyRegions)
-            .filter { it.isNotEmpty() }
-            .map { regions -> regions.mapNotNull(DataRegion::fromApiName).toSet() }
+            val allowed = when {
+                reported.isEmpty() -> setOf(DataRegion.GLOBAL)
+                else -> reported.reduce { acc, next -> acc intersect next } + DataRegion.GLOBAL
+            }
 
-        val allowed = when {
-            reported.isEmpty() -> setOf(DataRegion.GLOBAL)
-            else -> reported.reduce { acc, next -> acc intersect next } + DataRegion.GLOBAL
+            return DataRegion.entries.filter { it in allowed }
         }
 
-        return DataRegion.entries.filter { it in allowed }
+        /**
+         * Whether a stored selection still holds.
+         *
+         * A selection can stop being valid without the user touching anything - a plan downgrade,
+         * a new guardrail policy, a replaced key - so it is re-checked rather than trusted.
+         */
+        fun isStillAvailable(selected: DataRegion, available: List<DataRegion>): Boolean =
+            selected in available
     }
-
-    /**
-     * Whether a stored selection still holds.
-     *
-     * A selection can stop being valid without the user touching anything - a plan downgrade, a
-     * new guardrail policy, a replaced key - so it is re-checked rather than trusted.
-     */
-    fun isStillAvailable(selected: DataRegion, available: List<DataRegion>): Boolean = selected in available
 }

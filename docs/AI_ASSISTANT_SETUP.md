@@ -168,8 +168,8 @@ The regions on offer come from your own key, since OpenRouter reports which data
 
 Two things are worth knowing before pinning a region:
 
-- **A region serves far fewer models.** At the time of writing OpenRouter lists 458 models globally, 115 in the US and 66 in the EU. The settings page tells you how many of your starred favourites the region cannot serve before you apply the change, and the Favorite Models page greys out the ones it cannot.
-- **Your favourites are never changed.** Whatever the region, the stored list stays as it is, so switching back to Global restores exactly what was there.
+- **A region serves far fewer models.** At the time of writing OpenRouter lists 458 models globally, 115 in the US and 66 in the EU. The settings page tells you how many of your starred favorites the region cannot serve before you apply the change, and the Favorite Models page greys out the ones it cannot.
+- **Your favorites are never changed.** Whatever the region, the stored list stays as it is, so switching back to Global restores exactly what was there.
 
 If the entitlement later goes away, through a plan change or a new policy on the key, the plugin keeps your selection and lets requests fail rather than quietly sending your traffic to the global endpoint. Silently leaving the region you chose would defeat the point of choosing it.
 

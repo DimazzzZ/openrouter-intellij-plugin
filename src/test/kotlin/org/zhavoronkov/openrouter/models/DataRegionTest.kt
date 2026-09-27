@@ -9,9 +9,10 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 /**
- * [DataRegion] exists because OpenRouter spells the same region three ways, and [DataRegions]
- * because a region is only usable when BOTH of the plugin's keys allow it. Both are plain logic
- * over values the API reports, so they belong to the fast headless `test` task.
+ * [DataRegion] exists because OpenRouter spells the same region three ways, and its companion
+ * carries the availability rules, because a region is only usable when BOTH of the plugin's
+ * keys allow it. Both are plain logic over values the API reports, so they belong to the fast
+ * headless `test` task.
  */
 @DisplayName("DataRegion")
 class DataRegionTest {
@@ -62,7 +63,7 @@ class DataRegionTest {
         @Test
         @DisplayName("only the regions both keys allow are offered")
         fun `only the intersection is offered`() {
-            val available = DataRegions.available(
+            val available = DataRegion.available(
                 managementKeyRegions = listOf("global", "europe", "us"),
                 apiKeyRegions = listOf("global", "europe")
             )
@@ -73,7 +74,7 @@ class DataRegionTest {
         @Test
         @DisplayName("an account with no in-region entitlement is offered the global region alone")
         fun `no entitlement leaves only global`() {
-            val available = DataRegions.available(listOf("global"), listOf("global"))
+            val available = DataRegion.available(listOf("global"), listOf("global"))
 
             assertEquals(listOf(DataRegion.GLOBAL), available)
         }
@@ -81,7 +82,7 @@ class DataRegionTest {
         @Test
         @DisplayName("a key whose lookup failed is left out of the reckoning, not read as allowing nothing")
         fun `a failed lookup does not strip regions`() {
-            val available = DataRegions.available(listOf("global", "europe"), null)
+            val available = DataRegion.available(listOf("global", "europe"), null)
 
             assertEquals(listOf(DataRegion.GLOBAL, DataRegion.EUROPE), available)
         }
@@ -89,14 +90,14 @@ class DataRegionTest {
         @Test
         @DisplayName("when neither key could be read, only the global region is offered")
         fun `two failed lookups leave only global`() {
-            assertEquals(listOf(DataRegion.GLOBAL), DataRegions.available(null, null))
-            assertEquals(listOf(DataRegion.GLOBAL), DataRegions.available(emptyList(), emptyList()))
+            assertEquals(listOf(DataRegion.GLOBAL), DataRegion.available(null, null))
+            assertEquals(listOf(DataRegion.GLOBAL), DataRegion.available(emptyList(), emptyList()))
         }
 
         @Test
         @DisplayName("the global region is offered even when the account does not list it")
         fun `global is always offered`() {
-            val available = DataRegions.available(listOf("europe"), listOf("europe"))
+            val available = DataRegion.available(listOf("europe"), listOf("europe"))
 
             assertTrue(DataRegion.GLOBAL in available)
             assertEquals(listOf(DataRegion.GLOBAL, DataRegion.EUROPE), available)
@@ -105,7 +106,7 @@ class DataRegionTest {
         @Test
         @DisplayName("an unrecognised region name is ignored rather than breaking the intersection")
         fun `an unrecognised name is ignored`() {
-            val available = DataRegions.available(
+            val available = DataRegion.available(
                 managementKeyRegions = listOf("global", "europe", "apac"),
                 apiKeyRegions = listOf("global", "europe", "apac")
             )
@@ -116,7 +117,7 @@ class DataRegionTest {
         @Test
         @DisplayName("regions are offered in a stable order, not the order the server listed them")
         fun `regions keep a stable order`() {
-            val available = DataRegions.available(
+            val available = DataRegion.available(
                 managementKeyRegions = listOf("us", "europe", "global"),
                 apiKeyRegions = listOf("us", "global", "europe")
             )
@@ -132,18 +133,18 @@ class DataRegionTest {
         @Test
         @DisplayName("a selection the account still allows survives")
         fun `a still-allowed selection survives`() {
-            val available = DataRegions.available(listOf("global", "europe"), listOf("global", "europe"))
+            val available = DataRegion.available(listOf("global", "europe"), listOf("global", "europe"))
 
-            assertTrue(DataRegions.isStillAvailable(DataRegion.EUROPE, available))
+            assertTrue(DataRegion.isStillAvailable(DataRegion.EUROPE, available))
         }
 
         @Test
         @DisplayName("a selection the account has lost - a downgrade, a new policy - no longer holds")
         fun `a withdrawn selection no longer holds`() {
-            val available = DataRegions.available(listOf("global"), listOf("global"))
+            val available = DataRegion.available(listOf("global"), listOf("global"))
 
-            assertFalse(DataRegions.isStillAvailable(DataRegion.EUROPE, available))
-            assertTrue(DataRegions.isStillAvailable(DataRegion.GLOBAL, available))
+            assertFalse(DataRegion.isStillAvailable(DataRegion.EUROPE, available))
+            assertTrue(DataRegion.isStillAvailable(DataRegion.GLOBAL, available))
         }
     }
 }
