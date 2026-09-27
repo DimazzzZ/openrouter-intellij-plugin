@@ -86,17 +86,23 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
         val container = if (isUser) huggingRow(body) else flatBlock(body)
         contentRow = container
 
-        component = JPanel(BorderLayout()).apply {
+        val copyButton = copyButton(text)
+
+        component = JPanel(TopRightOverlayLayout(copyButton)).apply {
             isOpaque = false
             alignmentX = Component.LEFT_ALIGNMENT
             border = messageBorder(isUser)
+            // Index 0 so it paints above its siblings: Swing paints children from the highest
+            // index down, so the lowest index ends up on top.
+            add(copyButton, 0)
             add(container, BorderLayout.CENTER)
-            val strip = southStrip(text, footnote)
-            add(strip, BorderLayout.SOUTH)
+            footnoteStrip(footnote)?.let { add(it, BorderLayout.SOUTH) }
             addMouseListener(object : MouseAdapter() {
-                override fun mouseEntered(e: MouseEvent) = setActionsVisible(strip, true)
+                override fun mouseEntered(e: MouseEvent) {
+                    copyButton.isVisible = true
+                }
                 override fun mouseExited(e: MouseEvent) {
-                    if (!contains(e.point)) setActionsVisible(strip, false)
+                    if (!contains(e.point)) copyButton.isVisible = false
                 }
             })
         }
@@ -133,25 +139,18 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
     }
 
     /**
-     * Footnote on the left, actions on the right. The copy button is what pays
-     * for losing cross-message selection when each message became its own
-     * component (spec D5); it appears on hover so it costs no attention.
+     * The copy button, floating over the message's top-right corner.
      *
-     * [InplaceButton] is the platform's borderless hover-icon affordance (used
-     * for things like inline "close tab" actions) - a plain [javax.swing.JButton]
-     * with `JButton.buttonType = toolBarButton` is not enough to drop its
-     * border/content-area fill in every LaF, and painted as a big rounded
-     * rectangle here.
+     * It is what pays for losing cross-message selection when each message became its own
+     * component (spec D5), and it appears on hover so it costs no attention.
      *
-     * The strip's own preferred height is pinned to the button's height
-     * regardless of the button's visibility, so hovering never changes the
-     * strip's height and shifts every message below it - `isVisible` on a
-     * component inside a [BorderLayout] slot makes that slot's contribution to
-     * the parent's preferred size vanish, which is exactly what produced the
-     * jump.
+     * It used to live in the footnote strip at the bottom-right, which put it directly above the
+     * NEXT message's first line and below its own: hovering what looked like the next message's
+     * corner copied the previous one. Floating it over its own top-right corner attaches it to the
+     * message it copies, and costs no vertical space, so the conversation's rhythm is unchanged.
      */
-    private fun southStrip(text: String, footnote: String?): JComponent {
-        val copyButton = InplaceButton("Copy message", AllIcons.Actions.Copy) {
+    private fun copyButton(text: String): InplaceButton =
+        InplaceButton("Copy message", AllIcons.Actions.Copy) {
             StringSelection(text).let {
                 Toolkit.getDefaultToolkit().systemClipboard.setContents(it, it)
             }
@@ -159,21 +158,20 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
             isFocusable = false
             isVisible = false
         }
-        val reservedHeight = copyButton.preferredSize.height
-        return object : JPanel(BorderLayout()) {
-            override fun getPreferredSize(): Dimension {
-                val natural = super.getPreferredSize()
-                return Dimension(natural.width, maxOf(natural.height, reservedHeight))
-            }
-        }.apply {
-            isOpaque = false
-            footnote?.takeIf { it.isNotBlank() }?.let { add(footnoteLabel(it), BorderLayout.CENTER) }
-            add(copyButton, BorderLayout.EAST)
-        }
-    }
 
-    private fun setActionsVisible(strip: JComponent, visible: Boolean) {
-        strip.components.filterIsInstance<InplaceButton>().forEach { it.isVisible = visible }
+    /**
+     * The footnote row, or null when there is no footnote.
+     *
+     * It no longer reserves the copy button's height: that reservation existed so hovering could
+     * not change the strip's height and shift every message below it, and with the button gone
+     * from this strip there is nothing left to reserve for.
+     */
+    private fun footnoteStrip(footnote: String?): JComponent? {
+        val label = footnote?.takeIf { it.isNotBlank() }?.let { footnoteLabel(it) } ?: return null
+        return JPanel(BorderLayout()).apply {
+            isOpaque = false
+            add(label, BorderLayout.CENTER)
+        }
     }
 
     private fun proseComponent(markdown: String, isUser: Boolean): JComponent {

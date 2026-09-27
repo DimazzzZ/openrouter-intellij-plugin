@@ -223,7 +223,7 @@ class MessageViewLayoutPlatformTest : BasePlatformTestCase() {
         val second = MessageView("hi", isUserSecond, footnote = null)
         layoutInPanel(first, second)
 
-        return textTopAbsoluteY(second) - stripBottomAbsoluteY(first)
+        return textTopAbsoluteY(second) - contentBottomAbsoluteY(first)
     }
 
     // --- Width-then-height audit: no descendant clipped by the message's own
@@ -271,13 +271,16 @@ class MessageViewLayoutPlatformTest : BasePlatformTestCase() {
         assertNoDescendantClippedByBottomEdge(view.component)
     }
 
-    private fun southOf(container: Container): Container =
-        (container.layout as BorderLayout).getLayoutComponent(container, BorderLayout.SOUTH) as Container
-
-    private fun stripBottomAbsoluteY(view: MessageView): Int {
-        val strip = southOf(view.component)
-        return view.component.y + strip.y + strip.height
-    }
+    /**
+     * The bottom of the message's content, below which only its own padding remains.
+     *
+     * Measured from the message rather than from its footnote strip: the strip only exists when
+     * there is a footnote, now that the copy button floats over the message instead of sitting in
+     * that strip. The property under test - a uniform gap between messages whoever spoke - is the
+     * same either way.
+     */
+    private fun contentBottomAbsoluteY(view: MessageView): Int =
+        view.component.y + view.component.height - view.component.insets.bottom
 
     private fun textTopAbsoluteY(view: MessageView): Int =
         view.component.y + leftEdgeAndTopOfText(view).y
