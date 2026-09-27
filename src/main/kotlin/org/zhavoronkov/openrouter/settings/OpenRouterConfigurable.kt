@@ -1,6 +1,14 @@
 package org.zhavoronkov.openrouter.settings
 
 import com.intellij.openapi.options.Configurable
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.zhavoronkov.openrouter.services.DataRegionAvailability
+import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import javax.swing.JComponent
@@ -24,6 +32,27 @@ class OpenRouterConfigurable : Configurable {
     private var settingsPanel: OpenRouterSettingsPanel? = null
     private val settingsService = OpenRouterSettingsService.getInstance()
 
+    // Cancelled in disposeUIResources: the lookup outlives nothing, and a settings page closed
+    // mid-request must not come back to touch a panel that is gone.
+    private val regionScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    /**
+     * Asks both keys which data regions they allow and narrows the selector to the answer.
+     *
+     * Off the EDT because it makes two network calls, and back onto it to touch Swing. Failure is
+     * not reported to the user: [DataRegionAvailability] already answers "Global only" when it
+     * cannot tell, which is what the control would show anyway, and a modal complaint about a
+     * paid feature the account probably does not have would be noise.
+     */
+    private fun loadAvailableDataRegions(panel: OpenRouterSettingsPanel) {
+        regionScope.launch {
+            val regions = DataRegionAvailability(OpenRouterService.getInstance(), settingsService).load()
+            withContext(Dispatchers.Main) {
+                panel.setAvailableDataRegions(regions)
+            }
+        }
+    }
+
     /**
      * Synchronizes settings between panel and service
      */
@@ -33,11 +62,14 @@ class OpenRouterConfigurable : Configurable {
             settingsService.uiPreferencesManager.refreshInterval = panel.getRefreshInterval()
             settingsService.uiPreferencesManager.showCosts = panel.shouldShowCosts()
             settingsService.uiPreferencesManager.balanceProviderEnabled = panel.isBalanceProviderEnabled()
+            settingsService.setDataRegion(panel.getDataRegion())
         } else {
             panel.setAutoRefresh(settingsService.uiPreferencesManager.autoRefresh)
             panel.setRefreshInterval(settingsService.uiPreferencesManager.refreshInterval)
             panel.setShowCosts(settingsService.uiPreferencesManager.showCosts)
             panel.setBalanceProviderEnabled(settingsService.uiPreferencesManager.balanceProviderEnabled)
+            panel.setDataRegion(settingsService.getDataRegion())
+            loadAvailableDataRegions(panel)
         }
         syncDefaultMaxTokens(panel, toService)
         syncProxySettings(panel, toService)
@@ -134,7 +166,8 @@ class OpenRouterConfigurable : Configurable {
             panel.shouldShowCosts() != settingsService.uiPreferencesManager.showCosts ||
             panel.isBalanceProviderEnabled() != settingsService.uiPreferencesManager.balanceProviderEnabled ||
             isSettingModified(panel, SettingType.DEFAULT_MAX_TOKENS) ||
-            isSettingModified(panel, SettingType.PROXY_SETTINGS)
+            isSettingModified(panel, SettingType.PROXY_SETTINGS) ||
+            panel.getDataRegion() != settingsService.getDataRegion()
     }
 
     /**
@@ -204,6 +237,7 @@ class OpenRouterConfigurable : Configurable {
     }
 
     override fun disposeUIResources() {
+        regionScope.coroutineContext.cancelChildren()
         settingsPanel = null
     }
 }
