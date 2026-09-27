@@ -4,6 +4,7 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.ui.InplaceButton
 import java.awt.BorderLayout
 import java.awt.Container
+import java.awt.Cursor
 import javax.swing.JButton
 import javax.swing.JComponent
 
@@ -30,6 +31,18 @@ class MessageViewCopyButtonPlatformTest : BasePlatformTestCase() {
     private fun southStripOf(view: MessageView): JComponent {
         val layout = view.component.layout as BorderLayout
         return layout.getLayoutComponent(view.component, BorderLayout.SOUTH) as JComponent
+    }
+
+    /**
+     * Same reasoning as the composer's gear: InplaceButton inherits the arrow, and a borderless
+     * icon has nothing but its hover highlight to say it can be clicked.
+     */
+    fun testCopyAffordanceShowsAHandCursor() {
+        val view = MessageView("hello", isUser = false, footnote = null)
+
+        val copyButton = findDescendant(view.component, InplaceButton::class.java)!!
+
+        assertEquals("the copy affordance must show a hand cursor", Cursor.HAND_CURSOR, copyButton.cursor.type)
     }
 
     fun testCopyAffordanceIsBorderlessNotABorderedJButton() {

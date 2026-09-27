@@ -155,7 +155,7 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
             StringSelection(text).let {
                 Toolkit.getDefaultToolkit().systemClipboard.setContents(it, it)
             }
-        }.apply {
+        }.withHandCursor().apply {
             isFocusable = false
             isVisible = false
         }

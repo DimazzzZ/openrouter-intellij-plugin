@@ -57,7 +57,7 @@ class ChatComposer {
 
     private val settingsButton = BadgedInplaceButton(AllIcons.General.GearPlain, "Send parameters") {
         onSettingsClick()
-    }.apply {
+    }.withHandCursor().apply {
         isFocusable = false
     }
 

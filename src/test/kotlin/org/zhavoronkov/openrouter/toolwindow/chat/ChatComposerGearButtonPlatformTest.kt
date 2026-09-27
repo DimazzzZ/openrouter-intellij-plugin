@@ -2,6 +2,7 @@ package org.zhavoronkov.openrouter.toolwindow.chat
 
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.ui.InplaceButton
+import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.Rectangle
 import java.awt.image.BufferedImage
@@ -34,6 +35,20 @@ class ChatComposerGearButtonPlatformTest : BasePlatformTestCase() {
             "the gear must not be a plain bordered JButton",
             gear is JButton
         )
+    }
+
+    /**
+     * The gear is a click target, so it should say so under the pointer.
+     *
+     * InplaceButton inherits the default arrow - it sets no cursor of its own - so a borderless
+     * icon button reads as decoration until it is clicked on spec.
+     */
+    fun testGearShowsAHandCursor() {
+        val composer = ChatComposer()
+
+        val cursor = composer.settingsComponent().cursor
+
+        assertEquals("the gear must show a hand cursor", Cursor.HAND_CURSOR, cursor.type)
     }
 
     fun testGearKeepsItsTooltip() {
