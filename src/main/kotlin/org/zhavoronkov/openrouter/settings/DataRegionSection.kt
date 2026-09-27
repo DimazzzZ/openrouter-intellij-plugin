@@ -2,6 +2,7 @@ package org.zhavoronkov.openrouter.settings
 
 import com.intellij.openapi.ui.ComboBox
 import org.zhavoronkov.openrouter.models.DataRegion
+import org.zhavoronkov.openrouter.models.DataRegions
 import javax.swing.DefaultComboBoxModel
 import javax.swing.JLabel
 
@@ -59,10 +60,16 @@ class DataRegionSection {
         comboBox.selectedItem = selected
 
         // One entry means Global alone: there is nothing to choose, so the control is shown
-        // disabled with the reason rather than hidden.
+        // disabled with the reason rather than hidden. The control stays enabled when a selection
+        // has been withdrawn, so the user can act on the warning.
+        val stillAvailable = DataRegions.isStillAvailable(selected, regions)
         val canChoose = regions.size > 1
-        comboBox.isEnabled = canChoose
-        baseComment = if (canChoose) AVAILABLE_TEXT else UNAVAILABLE_TEXT
+        comboBox.isEnabled = canChoose || !stillAvailable
+        baseComment = when {
+            !stillAvailable -> withdrawnText(selected)
+            canChoose -> AVAILABLE_TEXT
+            else -> UNAVAILABLE_TEXT
+        }
         comment.text = baseComment
     }
 
@@ -77,6 +84,10 @@ class DataRegionSection {
     fun setFavoritesImpact(summary: String?) {
         comment.text = if (summary == null) baseComment else "$baseComment $summary"
     }
+
+    private fun withdrawnText(region: DataRegion) =
+        "${region.displayName} is no longer available to your keys, so requests will fail until you " +
+            "choose another region. It has been left selected rather than changed for you."
 
     private fun items(): List<DataRegion?> = (0 until comboBox.itemCount).map { comboBox.getItemAt(it) }
 

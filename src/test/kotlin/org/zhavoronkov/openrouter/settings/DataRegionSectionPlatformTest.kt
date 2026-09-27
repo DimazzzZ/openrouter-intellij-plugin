@@ -45,6 +45,23 @@ class DataRegionSectionPlatformTest : BasePlatformTestCase() {
         assertEquals(DataRegionSection.CHECKING_TEXT, section.comment.text)
     }
 
+    fun testAWithdrawnSelectionIsReportedRatherThanLeftToFailSilently() {
+        val section = DataRegionSection()
+        section.setAvailableRegions(listOf(DataRegion.GLOBAL, DataRegion.EUROPE))
+        section.setRegion(DataRegion.EUROPE)
+
+        section.setAvailableRegions(listOf(DataRegion.GLOBAL))
+
+        assertTrue(
+            "the warning must name the region that went away",
+            section.comment.text.contains(DataRegion.EUROPE.displayName)
+        )
+        assertTrue(
+            "and the control must stay usable so the warning can be acted on",
+            section.comboBox.isEnabled
+        )
+    }
+
     fun testAWithdrawnSelectionIsKeptRatherThanSilentlyReset() {
         val section = DataRegionSection()
         section.setAvailableRegions(listOf(DataRegion.GLOBAL, DataRegion.EUROPE))
