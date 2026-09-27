@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### New Features
 
+#### 🌍 In-Region Routing
+- **Data Region Selector** - A new `Enterprise` group at the bottom of `Tools → OpenRouter` pins every OpenRouter request to a data region, swapping the base URL for `eu.openrouter.ai` or `us.openrouter.ai`. It covers the whole plugin, not just inference: model lists, credits, analytics and key management all follow the region
+- **Availability Read From Your Key, Not Guessed** - The regions offered come from `allowed_data_regions` on OpenRouter's `/api/v1/key`, which already accounts for both the guardrail policy on the key and your account's regional-routing entitlement. Both configured keys are asked and the answers intersected, because pinning a region moves account reads as well as inference. In-region routing is a Business/Enterprise feature, so for most accounts the control is shown disabled with the reason rather than hidden - if you upgrade, the setting is where you expect it
+- **Says What a Region Costs Before You Pick It** - A region serves far fewer models than the global endpoint (66 in the EU and 115 in the US against 458 globally at the time of writing), so the settings page reports how many of your favourites it cannot serve *before* the change is applied. Your favourites are never modified: switching back restores exactly what was there, and the favourites table greys what the current region cannot serve
+- **A Region You Lose Is Not Silently Swapped** - If the entitlement goes away - a plan downgrade, a new guardrail policy, a replaced key - the plugin keeps your selection and lets the failure show, rather than quietly moving your traffic to the global endpoint. For anyone who chose a region for data residency, a silent fallback is precisely the outcome they were guarding against
+
 #### 🧭 Routers Hub
 - **First-Class Routers** - OpenRouter's model-routing slugs (`openrouter/auto`, `openrouter/fusion`, `openrouter/pareto-code`, `openrouter/fusion-flash`, `openrouter/free`) are now treated as first-class **routers** driven by a single declarative `RouterCatalog` (slug, display name, plugin id, tunable param), so no router-specific branching leaks into the rest of the codebase
 - **Router Defaults Settings Page** - New `Tools → OpenRouter → Router Defaults` sub-page persists a per-router default parameter once (`RouterDefaultsManager` + `RouterDefaultsConfigurable`), stored in settings state
