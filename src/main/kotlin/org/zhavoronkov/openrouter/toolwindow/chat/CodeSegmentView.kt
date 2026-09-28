@@ -1,7 +1,6 @@
 package org.zhavoronkov.openrouter.toolwindow.chat
 
 import com.intellij.icons.AllIcons
-import com.intellij.ui.InplaceButton
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
@@ -79,10 +78,8 @@ class CodeSegmentView(segment: MessageSegment.Code) {
      * is the platform's own borderless hover-icon affordance and is what the rest of this package
      * already uses.
      */
-    private fun copyButton(code: String) = InplaceButton("Copy code", AllIcons.Actions.Copy) {
+    private fun copyButton(code: String) = ChatIconButton("Copy code", AllIcons.Actions.Copy) {
         StringSelection(code).let { Toolkit.getDefaultToolkit().systemClipboard.setContents(it, it) }
-    }.withHandCursor().apply {
-        isFocusable = false
     }
 
     private companion object {

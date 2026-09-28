@@ -2,7 +2,6 @@ package org.zhavoronkov.openrouter.toolwindow.chat
 
 import com.intellij.icons.AllIcons
 import com.intellij.ui.ColorUtil
-import com.intellij.ui.InplaceButton
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
@@ -149,13 +148,12 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
      * corner copied the previous one. Floating it over its own top-right corner attaches it to the
      * message it copies, and costs no vertical space, so the conversation's rhythm is unchanged.
      */
-    private fun copyButton(text: String): InplaceButton =
-        InplaceButton("Copy message", AllIcons.Actions.Copy) {
+    private fun copyButton(text: String): ChatIconButton =
+        ChatIconButton("Copy message", AllIcons.Actions.Copy) {
             StringSelection(text).let {
                 Toolkit.getDefaultToolkit().systemClipboard.setContents(it, it)
             }
-        }.withHandCursor().apply {
-            isFocusable = false
+        }.apply {
             isVisible = false
         }
 

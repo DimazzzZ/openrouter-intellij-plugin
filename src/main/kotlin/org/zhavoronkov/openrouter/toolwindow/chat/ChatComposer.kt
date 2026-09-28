@@ -2,7 +2,6 @@ package org.zhavoronkov.openrouter.toolwindow.chat
 
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.ui.ComboBox
-import com.intellij.ui.InplaceButton
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
@@ -16,7 +15,6 @@ import java.awt.FlowLayout
 import java.awt.Graphics
 import java.awt.Graphics2D
 import java.awt.RenderingHints
-import java.awt.event.ActionListener
 import java.awt.event.ComponentAdapter
 import java.awt.event.ComponentEvent
 import javax.swing.Icon
@@ -55,10 +53,8 @@ class ChatComposer {
     private val statusLabel = JBLabel("")
     private val inputTokensLabel = JBLabel("~0 tokens")
 
-    private val settingsButton = BadgedInplaceButton(AllIcons.General.GearPlain, "Send parameters") {
+    private val settingsButton = BadgedIconButton(AllIcons.General.GearPlain, "Send parameters") {
         onSettingsClick()
-    }.withHandCursor().apply {
-        isFocusable = false
     }
 
     private val countersPanel = JPanel(FlowLayout(FlowLayout.RIGHT, JBUI.scale(COUNTER_GAP), 0)).apply {
@@ -220,16 +216,16 @@ class ChatComposer {
     fun inputComponent(): JBTextArea = inputArea
 
     /**
-     * A borderless, hover-highlight icon button (the gear) that can paint a
-     * small dot badge in its top-right corner.
+     * The chat's borderless icon button (the gear), extended to paint a small
+     * dot badge in its top-right corner.
      *
      * Opening send parameters is a secondary action next to the model
      * selector, so it must not carry the same visual weight as a bordered
-     * button (item 4 of the polish pass): [InplaceButton] is the platform's
-     * own borderless hover-icon affordance, used elsewhere in this package
-     * for the per-message copy button, and paints no border or content-area
-     * fill in any LaF - a plain [JButton] with `JButton.buttonType =
-     * toolBarButton` (the previous approach) could not guarantee that.
+     * button (item 4 of the polish pass): [ChatIconButton] paints no border or
+     * content-area fill in any LaF - a plain [JButton] with
+     * `JButton.buttonType = toolBarButton` (the previous approach) could not
+     * guarantee that - and it is what the per-message and code-block copy
+     * buttons use, so all three share one hover and pressed treatment.
      *
      * The badge is painted rather than shipped as a second icon asset, so it
      * follows the theme (via [JBUI.CurrentTheme]) and needs no asset. It is
@@ -237,11 +233,11 @@ class ChatComposer {
      * into a popup (Task 10 / spec D7): it must be correct whenever any
      * parameter differs from Default.
      */
-    private class BadgedInplaceButton(
+    private class BadgedIconButton(
         icon: Icon,
         tooltip: String,
         onClick: () -> Unit
-    ) : InplaceButton(tooltip, icon, ActionListener { onClick() }) {
+    ) : ChatIconButton(tooltip, icon, onClick) {
 
         var badged: Boolean = false
             set(value) {
