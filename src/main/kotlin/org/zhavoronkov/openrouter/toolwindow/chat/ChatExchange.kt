@@ -1,11 +1,12 @@
 package org.zhavoronkov.openrouter.toolwindow.chat
 
+import com.google.gson.Gson
 import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatCompletionResponse
 import org.zhavoronkov.openrouter.models.ChatMessage
+import org.zhavoronkov.openrouter.models.ChatTool
 import org.zhavoronkov.openrouter.models.JsonSchemaFormat
 import org.zhavoronkov.openrouter.models.OutputSchema
-import org.zhavoronkov.openrouter.models.PluginConfig
 import org.zhavoronkov.openrouter.models.ReasoningConfig
 import org.zhavoronkov.openrouter.models.ResponseFormat
 import org.zhavoronkov.openrouter.models.WebSearchSettings
@@ -81,9 +82,9 @@ data class OutputModeChoice(val mode: OutputMode, val unsupportedReason: String?
 /**
  * What a reply says about how it was produced, as shown in the footer under it.
  *
- * The fields are facts, never footer wording: [requestedModel] is what the chat asked for,
- * [searched] whether that request carried a web search, and [respondingModel], [provider], [cost]
- * and [finishReason] what OpenRouter reported back. [answeringModel], [facts] and [warning] are
+ * The fields are facts, never footer wording: [requestedModel] is what the chat asked for, and
+ * [respondingModel], [provider], [cost], [finishReason] and [webSearches] what OpenRouter reported
+ * back. [answeringModel], [facts] and [warning] are
  * rendered from them each time they are read. Saved chats store this class as it is, so its
  * property names are a storage format, and keeping wording out of it is what lets the footer's
  * wording change without stranding a saved message.
@@ -99,7 +100,7 @@ data class ReplySummary(
     val provider: String? = null,
     val cost: Double? = null,
     val finishReason: String? = null,
-    val searched: Boolean = false
+    val webSearches: Int = 0
 ) {
     /**
      * Which model actually answered.
@@ -117,16 +118,23 @@ data class ReplySummary(
 
     /**
      * The footer's line of facts: the answering model, then the provider and cost when known, then
-     * a marker when the request carried a web search - so an answer drawn from the web can be told
-     * from one drawn from the model.
+     * how many web searches ran - so an answer drawn from the web can be told from one drawn from
+     * the model. Searches are counted from the response, not the request: with Web Search on the
+     * model decides whether to search, and may not.
      */
     val facts: String
         get() = listOfNotNull(
             answeringModel,
             provider,
             cost?.let(::formatCost),
-            SEARCHED_MARKER.takeIf { searched }
+            searchesMarker()
         ).joinToString(FACT_SEPARATOR)
+
+    private fun searchesMarker(): String? = when {
+        webSearches <= 0 -> null
+        webSearches == 1 -> "1 web search"
+        else -> "$webSearches web searches"
+    }
 
     /**
      * What the footer warns about a reply that did not stop normally, or null when it did.
@@ -146,7 +154,6 @@ data class ReplySummary(
 
     private companion object {
         const val FACT_SEPARATOR = " · "
-        const val SEARCHED_MARKER = "web search"
         const val COST_SIGNIFICANT_FIGURES = 2
 
         /**
@@ -208,7 +215,8 @@ object ChatExchange {
         stream = false,
         reasoning = reasoningConfig(options.reasoning),
         verbosity = verbosity(options.verbosity),
-        plugins = plugins(model, options, webSearch),
+        plugins = RouterRequestBuilder.buildPlugins(model, options.routerParam),
+        tools = webSearchTools(options, webSearch),
         responseFormat = responseFormat(options.outputMode, schemas)
     )
 
@@ -293,33 +301,30 @@ object ChatExchange {
     }
 
     /**
-     * The Router's parameter block and the web plugin entry share OpenRouter's one `plugins`
-     * array, side by side. Nothing to attach leaves the field out rather than sending it empty.
+     * OpenRouter's web search server tool when [options] turns Web Search on, carrying whatever
+     * [webSearch] tunes away from OpenRouter's defaults - so an untouched configuration sends the
+     * bare tool. The chat window offers no function tools of its own, so this is the whole array.
      *
-     * The web entry carries its id plus whatever [webSearch] tunes away from OpenRouter's defaults,
-     * so an untouched configuration sends the id and nothing else.
+     * The deprecated `web` plugin is not used: OpenRouter replaced it with this tool, which lets
+     * the model decide whether and how often to search.
      */
-    private fun plugins(model: String, options: ChatRequestOptions, webSearch: WebSearchSettings): List<PluginConfig>? {
-        val router = RouterRequestBuilder.buildPlugins(model, options.routerParam).orEmpty()
-        val web = if (options.webSearch) {
-            listOf(PluginConfig(id = WEB_PLUGIN_ID, params = webSearch.pluginParams()))
-        } else {
-            emptyList()
-        }
-        return (router + web).ifEmpty { null }
+    private fun webSearchTools(options: ChatRequestOptions, webSearch: WebSearchSettings): List<ChatTool>? {
+        if (!options.webSearch) return null
+        val parameters = webSearch.toolParameters().takeIf { it.isNotEmpty() }
+        return listOf(ChatTool(type = WEB_SEARCH_TOOL, parameters = parameters?.let(GSON::toJsonTree)))
     }
 
     /**
      * What [response] says about how it was produced, given the [request] that asked for it.
      *
-     * Whether a search ran is read off the request that was actually sent rather than passed in
-     * beside it, so the footer's marker cannot disagree with what OpenRouter was asked for.
+     * How many web searches ran is read from the response's usage rather than inferred from the
+     * request: allowing a search does not mean one happened.
      */
     fun summarizeReply(request: ChatCompletionRequest, response: ChatCompletionResponse): ReplySummary =
         ReplySummary(
             requestedModel = request.model,
             respondingModel = response.model,
-            searched = request.plugins.orEmpty().any { it.id == WEB_PLUGIN_ID },
+            webSearches = response.usage?.serverToolUse?.webSearchRequests ?: 0,
             provider = response.provider?.takeIf { it.isNotBlank() },
             cost = response.usage?.cost,
             finishReason = response.choices?.firstOrNull()?.finishReason
@@ -363,8 +368,10 @@ object ChatExchange {
     /** The `supported_parameters` entry that declares schema-constrained output. */
     private const val STRUCTURED_OUTPUTS = "structured_outputs"
 
-    /** OpenRouter's web search plugin; see the web search guide in OpenRouter's documentation. */
-    private const val WEB_PLUGIN_ID = "web"
+    /** OpenRouter's web search server tool; see its guide in OpenRouter's documentation. */
+    private const val WEB_SEARCH_TOOL = "openrouter:web_search"
+
+    private val GSON = Gson()
 
     /** How both combo boxes spell "the user changed nothing", and the first choice each offers. */
     const val UNCHANGED = "Default"

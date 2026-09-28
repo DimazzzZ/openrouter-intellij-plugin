@@ -17,8 +17,9 @@ import javax.swing.JPanel
 
 /**
  * Settings page for tuning Web Search: which engine, how many results, which domains to include or
- * exclude, and which mode. Applied to every message sent with the chat's Web search box ticked;
- * whether a message searches at all stays a per-message choice made in the chat.
+ * exclude, and which mode. Applied to every message sent with the chat's Web search box ticked,
+ * and filled into any web search a Consumer request asks for itself; whether a request
+ * searches at all stays the sender's choice.
  *
  * Every control starts at "leave it to OpenRouter", and [WebSearchSettings.pluginParams] leaves
  * out whatever is still there, so visiting this page is never required for a search to work.
@@ -59,8 +60,9 @@ class WebSearchSettingsPanel(
         return panel {
             row {
                 comment(
-                    "Applied to every message sent with Web search on. Anything left at its default " +
-                        "is left out of the request, so OpenRouter decides it."
+                    "Applied to every chat message sent with Web search on, and to any Consumer " +
+                        "request that asks for a web search itself. Anything left at its default is left " +
+                        "out of the request, so OpenRouter decides it."
                 )
             }.topGap(TopGap.MEDIUM)
             row("Engine:") { cell(engine).comment("Automatic lets OpenRouter pick the search backend.") }

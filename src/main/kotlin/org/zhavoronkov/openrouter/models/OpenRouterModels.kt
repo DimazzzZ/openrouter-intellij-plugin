@@ -448,9 +448,15 @@ data class ChatMessage(
     @SerializedName("tool_calls") val toolCalls: List<ChatToolCall>? = null
 )
 
+/**
+ * One entry of a request's `tools` array: a function the caller defines, with [function] set, or
+ * one of OpenRouter's server tools, named by [type] - `openrouter:web_search`, for one - with its
+ * settings under [parameters] and no [function].
+ */
 data class ChatTool(
     val type: String = "function",
-    val function: ChatToolFunction
+    val function: ChatToolFunction? = null,
+    val parameters: com.google.gson.JsonElement? = null
 )
 
 data class ChatToolFunction(
@@ -501,7 +507,14 @@ data class ChatUsage(
     @SerializedName("completion_tokens") val completionTokens: Int? = null,
     @SerializedName("total_tokens") val totalTokens: Int? = null,
     /** What the call cost in credits. OpenRouter reports it on every response unasked. */
-    val cost: Double? = null
+    val cost: Double? = null,
+    /** What OpenRouter's server tools did while answering, when any were offered. */
+    @SerializedName("server_tool_use") val serverToolUse: ServerToolUse? = null
+)
+
+/** How often each server tool ran for one response. */
+data class ServerToolUse(
+    @SerializedName("web_search_requests") val webSearchRequests: Int? = null
 )
 
 // Auth Code Exchange models

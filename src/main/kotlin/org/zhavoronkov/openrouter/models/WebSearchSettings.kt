@@ -1,12 +1,12 @@
 package org.zhavoronkov.openrouter.models
 
 /**
- * A backend OpenRouter's web plugin can search with, and the modes it takes.
+ * A backend OpenRouter's web search can use, and the modes it takes.
  *
  * Every fact about an engine lives here, so the settings page and the request cannot disagree
- * about what is valid. Taken from OpenRouter's web search guide
- * (`/docs/guides/features/plugins/web-search.md`): only Exa and Parallel document a mode, each has
- * its own set, and each names one of them as its default.
+ * about what is valid. Taken from OpenRouter's web search server tool guide
+ * (`/docs/guides/features/server-tools/web-search.md`): only Exa and Parallel document a mode,
+ * each has its own set, and each names one of them as its default.
  *
  * [apiName] is OpenRouter's spelling and what is stored in settings; [modes] lists every mode the
  * engine accepts, [defaultMode] among them, in the order the guide lists them.
@@ -59,23 +59,40 @@ data class WebSearchSettings(
      */
     val effectiveMode: String? get() = mode?.takeIf { it in engine?.selectableModes.orEmpty() }
 
-    /** The tuning keys for the `web` plugin entry, in OpenRouter's spelling, defaults left out. */
-    fun pluginParams(): Map<String, Any> = buildMap {
+    /**
+     * The `parameters` of OpenRouter's `openrouter:web_search` server tool, in its spelling, with
+     * every default left out - so an untouched configuration sends the tool with none at all.
+     */
+    fun toolParameters(): Map<String, Any> = buildMap {
         engine?.let { put("engine", it.apiName) }
         if (maxResults != DEFAULT_MAX_RESULTS) put("max_results", maxResults)
-        if (includeDomains.isNotEmpty()) put("include_domains", includeDomains)
-        if (excludeDomains.isNotEmpty()) put("exclude_domains", excludeDomains)
+        if (includeDomains.isNotEmpty()) put(TOOL_ALLOWED_DOMAINS, includeDomains)
+        if (excludeDomains.isNotEmpty()) put(TOOL_EXCLUDED_DOMAINS, excludeDomains)
         effectiveMode?.let { put("mode", it) }
     }
 
+    /**
+     * The same tuning in the spelling of the deprecated `web` plugin, which differs only in its
+     * two domain keys. A Consumer may still send that plugin, and the proxy tunes it too.
+     */
+    fun legacyPluginParams(): Map<String, Any> = toolParameters().mapKeys { (key, _) ->
+        when (key) {
+            TOOL_ALLOWED_DOMAINS -> "include_domains"
+            TOOL_EXCLUDED_DOMAINS -> "exclude_domains"
+            else -> key
+        }
+    }
+
     companion object {
+        private const val TOOL_ALLOWED_DOMAINS = "allowed_domains"
+        private const val TOOL_EXCLUDED_DOMAINS = "excluded_domains"
+
         /** OpenRouter's own default result count, per its web search guide. */
         const val DEFAULT_MAX_RESULTS = 5
 
         /**
-         * The settings page's bounds for the result count. OpenRouter's guide documents no limit;
-         * these keep the control to counts a person would pick, since every result adds to the
-         * cost of the search.
+         * The settings page's bounds for the result count. The server tool accepts 1-25, and 1-20
+         * with Perplexity; the page stays within what every engine accepts.
          */
         const val MIN_MAX_RESULTS = 1
         const val MAX_MAX_RESULTS = 20

@@ -1,5 +1,6 @@
 package org.zhavoronkov.openrouter.proxy.servlets
 
+import com.google.gson.JsonParser
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import okhttp3.OkHttpClient
@@ -18,13 +19,18 @@ import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
+import org.zhavoronkov.openrouter.models.OutputSchema
+import org.zhavoronkov.openrouter.models.WebSearchEngine
+import org.zhavoronkov.openrouter.models.WebSearchSettings
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
 import org.zhavoronkov.openrouter.proxy.validation.MultimodalContentValidator
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.settings.ApiKeySettingsManager
+import org.zhavoronkov.openrouter.services.settings.OutputSchemasManager
 import org.zhavoronkov.openrouter.services.settings.ProviderRoutingManager
 import org.zhavoronkov.openrouter.services.settings.RouterDefaultsManager
 import org.zhavoronkov.openrouter.services.settings.UIPreferencesManager
+import org.zhavoronkov.openrouter.services.settings.WebSearchSettingsManager
 import org.zhavoronkov.openrouter.testing.OkHttpLeakSafeExtension
 import java.io.BufferedReader
 import java.io.IOException
@@ -547,6 +553,51 @@ class ChatCompletionServletProxyingTest {
 
             val forwarded = server.takeRequest().body.readUtf8()
             assertTrue(forwarded.contains("\"max_tokens\":$DEFAULT_MAX_TOKENS"), "got: $forwarded")
+        }
+
+        /**
+         * What a Consumer gets from the Web Search and Output Schemas pages: its own web entry
+         * tuned the way the user chose, and a saved schema it named, both reaching OpenRouter.
+         */
+        @Test
+        @DisplayName("a Consumer's web entry is tuned and a saved schema it names is filled in")
+        fun appliesWebSearchTuningAndSavedSchemas() {
+            val settings = OpenRouterSettings()
+            `when`(settingsService.uiPreferencesManager).thenReturn(UIPreferencesManager(settings) {})
+            `when`(settingsService.providerRoutingManager).thenReturn(ProviderRoutingManager(settings) {})
+            `when`(settingsService.routerDefaultsManager).thenReturn(RouterDefaultsManager(settings) {})
+            `when`(settingsService.webSearchManager).thenReturn(
+                WebSearchSettingsManager(settings) {}.apply {
+                    replace(WebSearchSettings(engine = WebSearchEngine.EXA, maxResults = 3))
+                }
+            )
+            `when`(settingsService.outputSchemasManager).thenReturn(
+                OutputSchemasManager(settings) {}.apply {
+                    replaceAll(listOf(OutputSchema("features", strict = true, schema = """{"type":"object"}""")))
+                }
+            )
+            enqueueCompletion()
+            val exchange = response()
+
+            val body = """{"model":"openai/gpt-4o-mini","messages":[{"role":"user","content":"hi"}],
+                "tools":[{"type":"openrouter:web_search"}],
+                "response_format":{"type":"json_schema","json_schema":{"name":"features"}}}"""
+            servlet().service(request(body), exchange.resp)
+
+            val forwarded = JsonParser.parseString(server.takeRequest().body.readUtf8()).asJsonObject
+            assertEquals(
+                JsonParser.parseString(
+                    """[{"type":"openrouter:web_search","parameters":{"engine":"exa","max_results":3}}]"""
+                ),
+                forwarded["tools"]
+            )
+            assertEquals(
+                JsonParser.parseString(
+                    """{"type":"json_schema",
+                        "json_schema":{"name":"features","strict":true,"schema":{"type":"object"}}}"""
+                ),
+                forwarded["response_format"]
+            )
         }
 
         @Test

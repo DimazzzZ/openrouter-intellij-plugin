@@ -451,11 +451,13 @@ class ChatParamsPopup(
         const val OUTPUT_UNAVAILABLE_TEXT = "Greyed out: not supported by this model."
 
         /**
-         * The cost is said on the control itself rather than in a comment beneath it: a search is
-         * billed per request on top of inference, and that has to be read before the box is
-         * ticked, not discovered on the invoice. On the checkbox it costs the form no extra line.
+         * The cost is said on the control itself rather than in a comment beneath it: each search
+         * is billed on top of inference, and that has to be read before the box is ticked, not
+         * discovered on the invoice. "Allow" because ticking it lets the model search, as often as
+         * it decides to, rather than making it search once. On the checkbox it costs the form no
+         * extra line.
          */
-        private const val WEB_SEARCH_TEXT = "Search the web (charged per request)"
+        private const val WEB_SEARCH_TEXT = "Allow web search (charged per search)"
 
         /**
          * Extra top gap above the second/third row is dropped to

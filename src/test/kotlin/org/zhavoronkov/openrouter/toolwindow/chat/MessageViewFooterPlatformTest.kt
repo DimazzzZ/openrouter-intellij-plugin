@@ -132,11 +132,11 @@ class MessageViewFooterPlatformTest : BasePlatformTestCase() {
     }
 
     fun testTheFooterMarksASearchOnlyWhenOneRan() {
-        val searched = render(summary.copy(searched = true))
-        val facts = searched.label(summary.copy(searched = true).facts)
+        val searched = render(summary.copy(webSearches = 2))
+        val facts = searched.label(summary.copy(webSearches = 2).facts)
 
         assertNotNull("a reply that web search must say so in its footer", facts)
-        assertTrue(facts!!.text.endsWith("web search"))
+        assertTrue(facts!!.text.endsWith("2 web searches"))
         assertTrue("the search marker must be painted", searched.ink(searched.boundsOf(facts)).isNotEmpty())
         assertTrue(
             "a reply that did not search must carry no search marker",
@@ -204,7 +204,7 @@ class MessageViewFooterPlatformTest : BasePlatformTestCase() {
             provider = "Amazon Bedrock",
             cost = 0.0123,
             finishReason = "length",
-            searched = true
+            webSearches = 3
         )
         val rendered = render(longSummary, NARROW)
         val facts = rendered.label(longSummary.facts)!!

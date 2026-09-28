@@ -51,7 +51,7 @@ class WebSearchSettingsPanelPlatformTest : BasePlatformTestCase() {
         page.createPanel()
 
         assertFalse("opening the page must not count as a change", page.isModified())
-        assertEquals(emptyMap<String, Any>(), page.snapshot().pluginParams())
+        assertEquals(emptyMap<String, Any>(), page.snapshot().toolParameters())
     }
 
     fun testApplyStoresWhatThePageShows() {

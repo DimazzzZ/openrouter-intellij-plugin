@@ -9,6 +9,8 @@ import jakarta.servlet.http.HttpServletResponse
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import org.zhavoronkov.openrouter.proxy.defaults.SavedSchemaInjector
+import org.zhavoronkov.openrouter.proxy.defaults.WebSearchTuningInjector
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
 import org.zhavoronkov.openrouter.proxy.routing.ProviderRoutingInjector
 import org.zhavoronkov.openrouter.proxy.routing.RouterPluginsInjector
@@ -403,8 +405,9 @@ class ChatCompletionServlet(
     }
 
     /**
-     * Apply plugin-configured defaults (max_tokens, provider routing, fallback models) to
-     * the raw JSON only when the request doesn't already include them.
+     * Apply plugin-configured defaults (max_tokens, provider routing, fallback models, router
+     * parameters, Web Search tuning, saved Output Schemas) to the raw JSON only when the request
+     * doesn't already include them.
      *
      * Invariant: if the client already sent `provider` or `models[]`, this
      * function does NOT overwrite or merge — the client's block is preserved verbatim.
@@ -433,6 +436,18 @@ class ChatCompletionServlet(
                 gson = gson,
                 requestId = requestId
             )
+
+            // The user's Web Search tuning, into a web search the Consumer asked for itself (invariant:
+            // only keys the entry lacks, and never a search the Consumer did not ask for).
+            if (WebSearchTuningInjector.inject(rawJson, settingsService.webSearchManager.current())) {
+                PluginLogger.Service.debug("[Chat-$requestId] Applied saved Web Search tuning")
+            }
+
+            // A saved Output Schema, for a json_schema response format that names one and carries
+            // no schema of its own (invariant: a Consumer's own schema is never replaced).
+            if (SavedSchemaInjector.inject(rawJson, settingsService.outputSchemasManager.all())) {
+                PluginLogger.Service.debug("[Chat-$requestId] Applied a saved Output Schema by name")
+            }
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             // Settings service may not be available in test environment
             // (getService can raise IllegalStateException or a class-loading

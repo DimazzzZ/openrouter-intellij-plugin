@@ -34,7 +34,7 @@ class WebSearchSettingsManagerTest {
     @DisplayName("fresh settings leave every choice to OpenRouter")
     fun `fresh settings leave every choice to OpenRouter`() {
         assertEquals(WebSearchSettings(), manager.current())
-        assertEquals(emptyMap<String, Any>(), manager.current().pluginParams())
+        assertEquals(emptyMap<String, Any>(), manager.current().toolParameters())
     }
 
     @Test

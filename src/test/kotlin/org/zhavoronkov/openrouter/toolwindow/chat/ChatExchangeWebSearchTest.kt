@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.google.gson.JsonParser
 import com.google.gson.JsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.zhavoronkov.openrouter.models.ChatMessage
@@ -15,21 +16,21 @@ class ChatExchangeWebSearchTest {
 
     private val messages = listOf(ChatMessage(role = "user", content = JsonPrimitive("hi")))
 
-    /** The web entry as OpenRouter receives it, for a message with Web Search on. */
-    private fun webEntry(settings: WebSearchSettings, model: String = "openai/gpt-5.2") =
+    /** The web search tool as OpenRouter receives it, for a message with Web Search on. */
+    private fun webTool(settings: WebSearchSettings, model: String = "openai/gpt-5.2") =
         Gson().toJsonTree(
-            ChatExchange.buildRequest(model, messages, ChatRequestOptions(webSearch = true), settings).plugins
-        ).asJsonArray.single { it.asJsonObject["id"].asString == "web" }
+            ChatExchange.buildRequest(model, messages, ChatRequestOptions(webSearch = true), settings).tools
+        ).asJsonArray.single { it.asJsonObject["type"].asString == "openrouter:web_search" }
 
     @Test
-    @DisplayName("a default configuration sends the bare web entry")
-    fun `a default configuration sends the bare web entry`() {
-        assertEquals(JsonParser.parseString("""{"id": "web"}"""), webEntry(WebSearchSettings()))
+    @DisplayName("a default configuration sends the bare tool, with no parameters at all")
+    fun `a default configuration sends the bare tool`() {
+        assertEquals(JsonParser.parseString("""{"type": "openrouter:web_search"}"""), webTool(WebSearchSettings()))
     }
 
     @Test
-    @DisplayName("every configured value appears in the web entry")
-    fun `every configured value appears in the web entry`() {
+    @DisplayName("every configured value appears in the tool's parameters, in the tool's spelling")
+    fun `every configured value appears in the tool's parameters`() {
         val settings = WebSearchSettings(
             engine = WebSearchEngine.EXA,
             maxResults = 8,
@@ -40,31 +41,36 @@ class ChatExchangeWebSearchTest {
 
         val expected = """
             {
-              "id": "web",
-              "engine": "exa",
-              "max_results": 8,
-              "include_domains": ["docs.gradle.org", "*.jetbrains.com"],
-              "exclude_domains": ["pinterest.com"],
-              "mode": "deep"
+              "type": "openrouter:web_search",
+              "parameters": {
+                "engine": "exa",
+                "max_results": 8,
+                "allowed_domains": ["docs.gradle.org", "*.jetbrains.com"],
+                "excluded_domains": ["pinterest.com"],
+                "mode": "deep"
+              }
             }
         """
-        assertEquals(JsonParser.parseString(expected), webEntry(settings))
+        assertEquals(JsonParser.parseString(expected), webTool(settings))
     }
 
     @Test
     @DisplayName("an automatic engine is left out, letting OpenRouter choose")
     fun `an automatic engine is left out`() {
-        val entry = webEntry(WebSearchSettings(engine = null, maxResults = 3))
+        val tool = webTool(WebSearchSettings(engine = null, maxResults = 3))
 
-        assertEquals(JsonParser.parseString("""{"id": "web", "max_results": 3}"""), entry)
+        assertEquals(
+            JsonParser.parseString("""{"type": "openrouter:web_search", "parameters": {"max_results": 3}}"""),
+            tool
+        )
     }
 
     @Test
     @DisplayName("a result count equal to OpenRouter's default is left out")
     fun `a result count equal to the default is left out`() {
-        val entry = webEntry(WebSearchSettings(maxResults = WebSearchSettings.DEFAULT_MAX_RESULTS))
+        val tool = webTool(WebSearchSettings(maxResults = WebSearchSettings.DEFAULT_MAX_RESULTS))
 
-        assertEquals(JsonParser.parseString("""{"id": "web"}"""), entry)
+        assertEquals(JsonParser.parseString("""{"type": "openrouter:web_search"}"""), tool)
     }
 
     /**
@@ -76,12 +82,12 @@ class ChatExchangeWebSearchTest {
     @DisplayName("a mode that does not belong to the chosen engine is left out")
     fun `a mode that does not belong to the chosen engine is left out`() {
         assertEquals(
-            JsonParser.parseString("""{"id": "web", "engine": "parallel"}"""),
-            webEntry(WebSearchSettings(engine = WebSearchEngine.PARALLEL, mode = "deep"))
+            JsonParser.parseString("""{"type": "openrouter:web_search", "parameters": {"engine": "parallel"}}"""),
+            webTool(WebSearchSettings(engine = WebSearchEngine.PARALLEL, mode = "deep"))
         )
         assertEquals(
-            JsonParser.parseString("""{"id": "web"}"""),
-            webEntry(WebSearchSettings(engine = null, mode = "deep")),
+            JsonParser.parseString("""{"type": "openrouter:web_search"}"""),
+            webTool(WebSearchSettings(engine = null, mode = "deep")),
             "with the engine left to OpenRouter no mode can be known to apply"
         )
     }
@@ -90,26 +96,8 @@ class ChatExchangeWebSearchTest {
     @DisplayName("an engine's own default mode is left out like every other default")
     fun `an engine's own default mode is left out`() {
         assertEquals(
-            JsonParser.parseString("""{"id": "web", "engine": "exa"}"""),
-            webEntry(WebSearchSettings(engine = WebSearchEngine.EXA, mode = "auto"))
-        )
-        assertEquals(
-            JsonParser.parseString("""{"id": "web", "engine": "parallel"}"""),
-            webEntry(WebSearchSettings(engine = WebSearchEngine.PARALLEL, mode = "basic"))
-        )
-    }
-
-    @Test
-    @DisplayName("the web entry sits beside a Router's parameter block")
-    fun `the web entry sits beside a Router's parameter block`() {
-        val options = ChatRequestOptions(routerParam = "medium", webSearch = true)
-        val tuned = WebSearchSettings(engine = WebSearchEngine.EXA)
-
-        val request = ChatExchange.buildRequest("openrouter/auto", messages, options, tuned)
-
-        assertEquals(
-            JsonParser.parseString("""[{"id":"auto-router","cost_tier":"medium"},{"id":"web","engine":"exa"}]"""),
-            Gson().toJsonTree(request.plugins)
+            JsonParser.parseString("""{"type": "openrouter:web_search", "parameters": {"engine": "exa"}}"""),
+            webTool(WebSearchSettings(engine = WebSearchEngine.EXA, mode = "auto"))
         )
     }
 
@@ -120,6 +108,7 @@ class ChatExchangeWebSearchTest {
 
         val request = ChatExchange.buildRequest("openai/gpt-5.2", messages, ChatRequestOptions(), tuned)
 
-        assertEquals(null, request.plugins)
+        assertNull(request.tools)
+        assertNull(request.plugins)
     }
 }

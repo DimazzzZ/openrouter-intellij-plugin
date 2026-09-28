@@ -166,77 +166,83 @@ class ChatExchangeTest {
     // --- Web Search ------------------------------------------------------------
 
     @Test
-    @DisplayName("Web Search sends the bare web plugin entry, carrying nothing but its id")
-    fun `Web Search sends the bare web plugin entry`() {
+    @DisplayName("Web Search sends OpenRouter's web search tool, carrying nothing but its type")
+    fun `Web Search sends OpenRouter's web search tool`() {
         val request = ChatExchange.buildRequest("openai/gpt-5.2", messages, ChatRequestOptions(webSearch = true))
 
         assertEquals(
-            JsonParser.parseString("""[{"id": "web"}]"""),
-            Gson().toJsonTree(request.plugins),
-            "with no tuning configured the entry must leave every choice to OpenRouter"
+            JsonParser.parseString("""[{"type": "openrouter:web_search"}]"""),
+            Gson().toJsonTree(request.tools),
+            "with no tuning configured the tool must leave every choice to OpenRouter"
         )
     }
 
     /**
-     * Every combination of the toggle and the Router selection, written as the plugins array
-     * OpenRouter receives. The Router's block and the web entry share one array, and neither may
-     * overwrite the other.
+     * The deprecated `web` plugin is never sent: OpenRouter replaced it with the web search server
+     * tool, and a Router's parameter block is the only thing left in `plugins`.
      */
     @ParameterizedTest(name = "{0}, routerParam={1}, webSearch={2}")
     @CsvSource(
         nullValues = ["NULL"],
         textBlock = """
-        openai/gpt-5.2,  NULL,   false, NULL
-        openai/gpt-5.2,  NULL,   true,  '[{"id":"web"}]'
-        openai/gpt-5.2,  medium, false, NULL
-        openai/gpt-5.2,  medium, true,  '[{"id":"web"}]'
-        openrouter/auto, NULL,   false, NULL
-        openrouter/auto, NULL,   true,  '[{"id":"web"}]'
-        openrouter/auto, medium, false, '[{"id":"auto-router","cost_tier":"medium"}]'
-        openrouter/auto, medium, true,  '[{"id":"auto-router","cost_tier":"medium"},{"id":"web"}]'"""
+        openai/gpt-5.2,  NULL,   false, NULL,                                          NULL
+        openai/gpt-5.2,  NULL,   true,  NULL,                                          '[{"type":"openrouter:web_search"}]'
+        openai/gpt-5.2,  medium, true,  NULL,                                          '[{"type":"openrouter:web_search"}]'
+        openrouter/auto, medium, false, '[{"id":"auto-router","cost_tier":"medium"}]', NULL
+        openrouter/auto, medium, true,  '[{"id":"auto-router","cost_tier":"medium"}]', '[{"type":"openrouter:web_search"}]'"""
     )
-    @DisplayName("the plugins array for every combination of Web Search and Router selection")
-    fun `the plugins array for every combination of Web Search and Router selection`(
+    @DisplayName("the plugins and tools for every combination of Web Search and Router selection")
+    fun `the plugins and tools for every combination of Web Search and Router selection`(
         model: String,
         routerParam: String?,
         webSearch: Boolean,
-        expected: String?
+        expectedPlugins: String?,
+        expectedTools: String?
     ) {
         val options = ChatRequestOptions(routerParam = routerParam, webSearch = webSearch)
 
-        val plugins = ChatExchange.buildRequest(model, messages, options).plugins
+        val request = ChatExchange.buildRequest(model, messages, options)
 
-        if (expected == null) {
-            assertNull(plugins, "nothing to attach must leave the plugins field out, not send an empty array")
-        } else {
-            assertEquals(JsonParser.parseString(expected), Gson().toJsonTree(plugins))
-        }
+        assertEquals(expectedPlugins?.let(JsonParser::parseString), request.plugins?.let { Gson().toJsonTree(it) })
+        assertEquals(expectedTools?.let(JsonParser::parseString), request.tools?.let { Gson().toJsonTree(it) })
     }
 
+    /**
+     * The model decides whether to search, so asking for a search is not the same as one running;
+     * the footer reports what the response says happened.
+     */
     @Test
-    @DisplayName("a reply to a request that web search says so in its footer")
-    fun `a reply to a request that web search says so in its footer`() {
-        val reply = ChatCompletionResponse(
-            model = "openai/gpt-5.2",
-            provider = "OpenAI",
-            usage = ChatUsage(cost = 0.01)
+    @DisplayName("a reply whose response reports searches says so in its footer")
+    fun `a reply whose response reports searches says so in its footer`() {
+        val reply = response(
+            """{"model": "openai/gpt-5.2", "provider": "OpenAI",
+                "usage": {"cost": 0.01, "server_tool_use": {"web_search_requests": 2}}}"""
         )
 
         val summary = ChatExchange.summarizeReply(sent("openai/gpt-5.2", ChatRequestOptions(webSearch = true)), reply)
 
-        assertTrue(summary.searched)
-        assertEquals("openai/gpt-5.2 · OpenAI · \$0.01 · web search", summary.facts)
+        assertEquals(2, summary.webSearches)
+        assertEquals("openai/gpt-5.2 · OpenAI · \$0.01 · 2 web searches", summary.facts)
     }
 
     @Test
-    @DisplayName("a reply to a request that did not search the web carries no search marker")
-    fun `a reply to a request that did not search the web carries no search marker`() {
-        val reply = ChatCompletionResponse(model = "openrouter/auto")
-        val request = sent("openrouter/auto", ChatRequestOptions(routerParam = "medium"))
+    @DisplayName("one search is reported as one")
+    fun `one search is reported as one`() {
+        val summary = ReplySummary(requestedModel = "m", webSearches = 1)
 
-        val summary = ChatExchange.summarizeReply(request, reply)
+        assertEquals("m · 1 web search", summary.facts)
+    }
 
-        assertFalse(summary.searched, "a Router's own plugin entry is not a web search")
+    @Test
+    @DisplayName("a reply that searched nothing carries no search marker, even when a search was allowed")
+    fun `a reply that searched nothing carries no search marker`() {
+        val reply = response(
+            """{"model": "openai/gpt-5.2", "usage": {"server_tool_use": {"web_search_requests": 0}}}"""
+        )
+
+        val summary = ChatExchange.summarizeReply(sent("openai/gpt-5.2", ChatRequestOptions(webSearch = true)), reply)
+
+        assertEquals(0, summary.webSearches)
         assertFalse(summary.facts.contains("web"))
     }
 

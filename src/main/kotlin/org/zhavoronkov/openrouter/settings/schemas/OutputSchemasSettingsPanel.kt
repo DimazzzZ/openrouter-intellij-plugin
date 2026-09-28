@@ -56,8 +56,9 @@ class OutputSchemasSettingsPanel(
         return panel {
             row {
                 comment(
-                    "Named JSON Schemas a reply can be asked to follow. A schema's name is what " +
-                        "OpenRouter receives, so name it for what it produces."
+                    "Named JSON Schemas a reply can be asked to follow, from the chat or by a Consumer " +
+                        "naming one in a json_schema response format. A schema's name is what OpenRouter " +
+                        "receives, so name it for what it produces."
                 )
             }.topGap(TopGap.MEDIUM)
             row { cell(decorated).align(Align.FILL) }.resizableRow()

@@ -61,7 +61,7 @@ class ChatPanelDataModelTest {
                     "provider": "Google Vertex",
                     "cost": 0.00042,
                     "finishReason": "length",
-                    "searched": false
+                    "webSearches": 0
                   }
                 }
             """
@@ -86,10 +86,10 @@ class ChatPanelDataModelTest {
         @Test
         @DisplayName("a reply that web search still says so after reopening")
         fun `a reply that web search still says so after reopening`() {
-            val reloaded = reload(ChatPanel.ChatMessageData.reply("Hi there!", summary.copy(searched = true)))
+            val reloaded = reload(ChatPanel.ChatMessageData.reply("Hi there!", summary.copy(webSearches = 2)))
 
-            assertEquals(true, reloaded.summary?.searched)
-            assertTrue(reloaded.footerFacts!!.endsWith("web search"), "got '${reloaded.footerFacts}'")
+            assertEquals(2, reloaded.summary?.webSearches)
+            assertTrue(reloaded.footerFacts!!.endsWith("2 web searches"), "got '${reloaded.footerFacts}'")
         }
 
         @Test
@@ -99,7 +99,7 @@ class ChatPanelDataModelTest {
 
             val message = gson.fromJson(json, ChatPanel.ChatMessageData::class.java)
 
-            assertEquals(false, message.summary?.searched)
+            assertEquals(0, message.summary?.webSearches)
             assertEquals("openai/gpt-5.2", message.footerFacts)
         }
 

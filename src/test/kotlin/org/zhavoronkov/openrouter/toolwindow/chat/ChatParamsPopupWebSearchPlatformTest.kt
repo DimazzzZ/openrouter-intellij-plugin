@@ -48,10 +48,10 @@ class ChatParamsPopupWebSearchPlatformTest : BasePlatformTestCase() {
         return found
     }
 
-    private fun pluginsSent(): String? {
+    private fun toolsSent(): String? {
         val messages = listOf(ChatMessage(role = "user", content = JsonPrimitive("hi")))
-        val plugins = ChatExchange.buildRequest("openai/gpt-5.2", messages, popup.requestOptions()).plugins
-        return plugins?.let { Gson().toJsonTree(it).toString() }
+        val tools = ChatExchange.buildRequest("openai/gpt-5.2", messages, popup.requestOptions()).tools
+        return tools?.let { Gson().toJsonTree(it).toString() }
     }
 
     fun testTheFormOffersWebSearchAndSaysItCostsPerRequest() {
@@ -63,16 +63,19 @@ class ChatParamsPopupWebSearchPlatformTest : BasePlatformTestCase() {
         assertSame("the form must show the checkbox whose state the request reads", webSearch, box)
         assertTrue(
             "the checkbox must say that ticking it adds a per-request cost, got '${box!!.text}'",
-            box.text.contains("charged per request")
+            box.text.contains("charged per search")
         )
     }
 
-    fun testTickingTheBoxAttachesTheWebPluginToTheRequest() {
-        assertNull("an unticked box must send no plugin entry", pluginsSent())
+    fun testTickingTheBoxOffersTheWebSearchToolToTheModel() {
+        assertNull("an unticked box must send no web search tool", toolsSent())
 
         webSearch.isSelected = true
 
-        assertEquals(JsonParser.parseString("""[{"id":"web"}]"""), JsonParser.parseString(pluginsSent()))
+        assertEquals(
+            JsonParser.parseString("""[{"type":"openrouter:web_search"}]"""),
+            JsonParser.parseString(toolsSent())
+        )
     }
 
     /**
@@ -82,7 +85,7 @@ class ChatParamsPopupWebSearchPlatformTest : BasePlatformTestCase() {
     fun testTheToggleKeepsItsStateAcrossSendsAndReopening() {
         webSearch.isSelected = true
         buildForm()
-        pluginsSent()
+        toolsSent()
         val reopened = buildForm()
 
         assertTrue(
@@ -98,7 +101,7 @@ class ChatParamsPopupWebSearchPlatformTest : BasePlatformTestCase() {
         webSearch.isSelected = true
 
         assertTrue(
-            "a search is charged per request, so a ticked box must badge the gear",
+            "a search is charged, so a ticked box must badge the gear",
             popup.hasNonDefaultSelection()
         )
         assertEquals("Web search", popup.activeSummary())
