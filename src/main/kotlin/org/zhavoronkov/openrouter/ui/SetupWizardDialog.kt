@@ -6,7 +6,6 @@ import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
-import com.intellij.ui.JBColor
 import com.intellij.ui.SearchTextField
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
@@ -18,6 +17,7 @@ import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.table.JBTable
 import com.intellij.util.Alarm
 import com.intellij.util.ui.JBUI
+import com.intellij.util.ui.NamedColorUtil
 import com.intellij.util.ui.UIUtil
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -493,7 +493,8 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
             row {
                 updateProxyUrl()
                 proxyUrlLabel.font = Font(Font.MONOSPACED, Font.PLAIN, URL_LABEL_FONT_SIZE)
-                proxyUrlLabel.foreground = JBColor.BLUE
+                // The theme's link colour, not rgb(0,0,255) - same reason as the validation label below.
+                proxyUrlLabel.foreground = JBUI.CurrentTheme.Link.Foreground.ENABLED
                 cell(proxyUrlLabel)
                     .resizableColumn()
 
@@ -780,7 +781,11 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
         validationIcon.icon = AllIcons.General.InspectionsOK
         val type = if (authScope == AuthScope.REGULAR) "API key" else "management key"
         validationStatusLabel.text = "Valid $type"
-        validationStatusLabel.foreground = JBColor.GREEN
+        // The icon carries the colour, the text does not. JBColor.GREEN is literally rgb(0,255,0)
+        // - no theme defines it, nothing else in the IDE uses it, and beside a themed checkmark it
+        // reads as a highlighter. The platform's own validation UI tints the icon and leaves the
+        // label at its normal foreground; this follows it.
+        validationStatusLabel.foreground = UIUtil.getLabelForeground()
         validationIcon.isVisible = true
         validationStatusLabel.isVisible = true
 
@@ -807,7 +812,8 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
 
         validationIcon.icon = AllIcons.General.Error
         validationStatusLabel.text = if (friendlyMessage.startsWith("Invalid")) friendlyMessage else "Invalid key: $friendlyMessage"
-        validationStatusLabel.foreground = JBColor.RED
+        // Likewise: the theme's own error foreground rather than rgb(255,0,0).
+        validationStatusLabel.foreground = NamedColorUtil.getErrorForeground()
         validationIcon.isVisible = true
         validationStatusLabel.isVisible = true
 
@@ -904,7 +910,7 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
                         SetupWizardLogger.logModelLoadingEvent("Failed to load models or list is empty")
                         modelsLoadingIcon.icon = AllIcons.General.Error
                         modelsLoadingLabel.text = "Failed to load models. Please check your connection."
-                        modelsLoadingLabel.foreground = JBColor.RED
+                        modelsLoadingLabel.foreground = NamedColorUtil.getErrorForeground()
                     }
                     updateButtons()
                 }, ModalityState.any())
@@ -914,7 +920,7 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
                     isLoadingModels = false
                     modelsLoadingIcon.icon = AllIcons.General.Error
                     modelsLoadingLabel.text = SetupWizardErrorHandler.handleModelLoadingError(e)
-                    modelsLoadingLabel.foreground = JBColor.RED
+                    modelsLoadingLabel.foreground = NamedColorUtil.getErrorForeground()
                     updateButtons()
                 }, ModalityState.any())
             } catch (e: CancellationException) {
@@ -926,7 +932,7 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
                     isLoadingModels = false
                     modelsLoadingIcon.icon = AllIcons.General.Error
                     modelsLoadingLabel.text = SetupWizardErrorHandler.handleModelLoadingError(e)
-                    modelsLoadingLabel.foreground = JBColor.RED
+                    modelsLoadingLabel.foreground = NamedColorUtil.getErrorForeground()
                     updateButtons()
                 }, ModalityState.any())
             } catch (e: IllegalStateException) {
@@ -935,7 +941,7 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
                     isLoadingModels = false
                     modelsLoadingIcon.icon = AllIcons.General.Error
                     modelsLoadingLabel.text = SetupWizardErrorHandler.handleModelLoadingError(e)
-                    modelsLoadingLabel.foreground = JBColor.RED
+                    modelsLoadingLabel.foreground = NamedColorUtil.getErrorForeground()
                     updateButtons()
                 }, ModalityState.any())
             }
