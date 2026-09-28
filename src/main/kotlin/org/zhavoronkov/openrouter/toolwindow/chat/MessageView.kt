@@ -13,6 +13,7 @@ import java.awt.Component
 import java.awt.Dimension
 import java.awt.Graphics
 import java.awt.Graphics2D
+import java.awt.Insets
 import java.awt.RenderingHints
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
@@ -58,12 +59,10 @@ internal fun userMessageBackgroundFallback(): Color =
  * that into a shape difference, and the user's fill then only has to say
  * which of the two speakers it is.
  *
- * A user message's bubble hugs its own text instead of spanning the full row
- * (the polish-pass fix for the block reading as a stray text field): it sits
- * at the [BorderLayout.WEST] of a full-width, invisible row, which is what
- * lets it size to its content while [MessagesPanel] still stretches the row
- * itself to the viewport's width. A reply stays full width, because a long
- * answer reading as one narrow column is worse than it reading as the page.
+ * A user message's bubble takes a fixed [USER_BUBBLE_FRACTION] of the row and
+ * a reply's takes all of it, so which of the two is speaking can be read off
+ * the shape alone, before the tint or the text. The fraction is held by
+ * [MessageGapBorder], as a slice of the row reserved on the right-hand side.
  *
  * Padding is now symmetrical: each bubble supplies its own, and [component]
  * adds the same gap around both, so user and assistant text starts on the
@@ -78,9 +77,6 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
 
     val component: JComponent
 
-    /** The full-width row holding the user's bubble, or the reply's own full-width bubble. */
-    private lateinit var contentRow: JComponent
-
     init {
         val body = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
@@ -91,7 +87,7 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
         MessageSegmenter.split(text).forEach { segment ->
             body.add(
                 when (segment) {
-                    is MessageSegment.Prose -> proseComponent(segment.markdown, isUser)
+                    is MessageSegment.Prose -> proseComponent(segment.markdown)
                     is MessageSegment.Code -> CodeSegmentView(segment).component
                 }
             )
@@ -100,14 +96,11 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
         val copyButton = copyButton(text)
         val bubble = MessageBubble(body, filled = isUser, footer = MessageFooter(footnote, copyButton))
 
-        val container = if (isUser) huggingRow(bubble) else bubble
-        contentRow = container
-
         component = JPanel(BorderLayout()).apply {
             isOpaque = false
             alignmentX = Component.LEFT_ALIGNMENT
-            border = messageBorder()
-            add(container, BorderLayout.CENTER)
+            border = MessageGapBorder(if (isUser) 1.0 - USER_BUBBLE_FRACTION else 0.0)
+            add(bubble, BorderLayout.CENTER)
             addMouseListener(object : MouseAdapter() {
                 override fun mouseEntered(e: MouseEvent) {
                     copyButton.isPainted = true
@@ -117,29 +110,6 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
                 }
             })
         }
-    }
-
-    /**
-     * The gap around the bubble - the space between one message and the next, and between a
-     * message and the conversation's edge.
-     *
-     * The same for both speakers now that both are enclosed: the bubble itself owns the padding
-     * between the outline and the text, so there is no longer an asymmetry to cancel out here.
-     */
-    private fun messageBorder(): Border = JBUI.Borders.empty(MESSAGE_GAP_V, MESSAGE_GAP_H)
-
-    /**
-     * Wraps the user's [MessageBubble] in a full-width, invisible row so it can hug its own
-     * content while still satisfying [MessagesPanel]'s width-tracking `Scrollable` contract.
-     *
-     * [BorderLayout.WEST] is what makes this work: unlike `CENTER` (which a reply's bubble uses
-     * and which BorderLayout always stretches to fill), a `WEST` child keeps its own preferred
-     * width and is left-aligned within whatever width the row is given - exactly "hug content,
-     * stay left, let the container still fill the row" that item 1 asks for.
-     */
-    private fun huggingRow(bubble: JComponent): JComponent = JPanel(BorderLayout()).apply {
-        isOpaque = false
-        add(bubble, BorderLayout.WEST)
     }
 
     /**
@@ -163,7 +133,7 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
             isPainted = false
         }
 
-    private fun proseComponent(markdown: String, isUser: Boolean): JComponent {
+    private fun proseComponent(markdown: String): JComponent {
         val font = UIUtil.getLabelFont()
         val html = MarkdownRenderer.wrapInHtmlDocument(
             bodyHtml = MarkdownRenderer.renderToHtml(markdown),
@@ -180,10 +150,6 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
         // segment precisely so this scroll pane's blast radius stays small.
         return when {
             html.contains("<table") || html.contains("<pre") -> horizontallyScrollableProse(html)
-            isUser -> HuggingEditorPane(html).apply {
-                isOpaque = false
-                alignmentX = Component.LEFT_ALIGNMENT
-            }
             else -> WrappingEditorPane("text/html", html).apply {
                 isOpaque = false
                 alignmentX = Component.LEFT_ALIGNMENT
@@ -269,50 +235,6 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
     }
 
     /**
-     * A [JEditorPane] for a user message's prose: reports the width its text
-     * actually needs, capped at [HUG_MAX_FRACTION] of [contentRow]'s width, so
-     * a short message hugs its text (item 1) instead of stretching across the
-     * whole row. Longer text wraps at the cap, same as [WrappingEditorPane].
-     *
-     * Measuring "the width the text actually needs" relies on the same Swing
-     * behaviour [WrappingEditorPane] works around: a fresh HTML view, given no
-     * width constraint, reports the width of its longest unbroken line as its
-     * preferred width. Forcing a huge width first (rather than reading the
-     * pane's untouched preferred size) keeps this correct even after a later
-     * layout pass has already constrained the pane to a narrower size.
-     *
-     * [contentRow] is read - not passed in at construction - because this pane
-     * is built before [huggingRow] exists (the row wraps the block, which
-     * wraps the body, which contains this pane); by the time Swing actually
-     * lays this out, `contentRow` has long since been assigned.
-     */
-    private inner class HuggingEditorPane(html: String) : JEditorPane("text/html", html) {
-
-        init {
-            isEditable = false
-            border = null
-            margin = JBUI.emptyInsets()
-            putClientProperty(HONOR_DISPLAY_PROPERTIES, true)
-            putClientProperty(W3C_LENGTH_UNITS, true)
-        }
-
-        override fun getPreferredSize(): Dimension {
-            setSize(Short.MAX_VALUE.toInt(), Short.MAX_VALUE.toInt())
-            val natural = super.getPreferredSize().width
-            val targetWidth = natural.coerceAtMost(maxHugWidth())
-            setSize(targetWidth, Short.MAX_VALUE.toInt())
-            return Dimension(targetWidth, super.getPreferredSize().height)
-        }
-
-        override fun getMaximumSize(): Dimension = preferredSize
-
-        private fun maxHugWidth(): Int {
-            val rowWidth = if (contentRow.width > 0) contentRow.width else JBUI.scale(HUG_FALLBACK_WIDTH)
-            return (rowWidth * HUG_MAX_FRACTION).toInt()
-        }
-    }
-
-    /**
      * A rounded card around one message's text: outlined for both speakers, and additionally
      * tinted for the user so the two are told apart by more than position.
      *
@@ -359,14 +281,37 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
         }
     }
 
+    /**
+     * The gap around a bubble - the space between one message and the next, and between a message
+     * and the conversation's edge - plus, for a user message, the slice of the row its bubble is
+     * not allowed to take.
+     *
+     * That slice has to be a border inset rather than a narrower component, because the bubble
+     * sits in a [BorderLayout.CENTER] slot, which is stretched to whatever is left over after the
+     * insets. It cannot be a fixed number of pixels either: the conversation is a tool window and
+     * is resized constantly, and the fraction has to survive that. A border is the one place
+     * [java.awt.Container.doLayout] asks the question late enough to answer it from the row's real
+     * width.
+     */
+    private class MessageGapBorder(private val reservedRightFraction: Double) : Border {
+
+        override fun getBorderInsets(c: Component): Insets {
+            val vertical = JBUI.scale(MESSAGE_GAP_V)
+            val horizontal = JBUI.scale(MESSAGE_GAP_H)
+            val reserved = (c.width * reservedRightFraction).toInt()
+            return Insets(vertical, horizontal, vertical, horizontal + reserved)
+        }
+
+        override fun isBorderOpaque(): Boolean = false
+
+        override fun paintBorder(c: Component, g: Graphics, x: Int, y: Int, width: Int, height: Int) = Unit
+    }
+
     private companion object {
         const val MESSAGE_GAP_V = 4
         const val MESSAGE_GAP_H = 6
 
-        /** Cap on a user block's width, as a fraction of the row's width (item 1). */
-        const val HUG_MAX_FRACTION = 0.8
-
-        /** Same fallback [WrappingEditorPane] uses for a not-yet-measured row. */
-        const val HUG_FALLBACK_WIDTH = 200
+        /** How much of the row a user message's bubble takes; a reply takes all of it. */
+        const val USER_BUBBLE_FRACTION = 0.8
     }
 }
