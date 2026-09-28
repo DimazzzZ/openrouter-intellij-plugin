@@ -18,6 +18,7 @@ import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import javax.swing.Box
 import javax.swing.BoxLayout
 import javax.swing.JComponent
 import javax.swing.JEditorPane
@@ -69,6 +70,9 @@ internal fun userMessageBackgroundFallback(): Color =
  * same line and the same vertical gap separates every pair of messages
  * regardless of who spoke - all without the cancellation arithmetic the
  * half-enclosed arrangement needed.
+ *
+ * Each bubble ends in a [MessageFooter]: the model and cost, and the copy
+ * button, on one right-aligned line at the bubble's foot.
  */
 class MessageView(text: String, isUser: Boolean, footnote: String?) {
 
@@ -93,34 +97,31 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
             )
         }
 
-        val container = if (isUser) huggingRow(body) else MessageBubble(body, filled = false)
+        val copyButton = copyButton(text)
+        val bubble = MessageBubble(body, filled = isUser, footer = MessageFooter(footnote, copyButton))
+
+        val container = if (isUser) huggingRow(bubble) else bubble
         contentRow = container
 
-        val copyButton = copyButton(text)
-
-        component = JPanel(TopRightOverlayLayout(copyButton)).apply {
+        component = JPanel(BorderLayout()).apply {
             isOpaque = false
             alignmentX = Component.LEFT_ALIGNMENT
             border = messageBorder()
-            // Index 0 so it paints above its siblings: Swing paints children from the highest
-            // index down, so the lowest index ends up on top.
-            add(copyButton, 0)
             add(container, BorderLayout.CENTER)
-            footnoteStrip(footnote)?.let { add(it, BorderLayout.SOUTH) }
             addMouseListener(object : MouseAdapter() {
                 override fun mouseEntered(e: MouseEvent) {
-                    copyButton.isVisible = true
+                    copyButton.isPainted = true
                 }
                 override fun mouseExited(e: MouseEvent) {
-                    if (!contains(e.point)) copyButton.isVisible = false
+                    if (!contains(e.point)) copyButton.isPainted = false
                 }
             })
         }
     }
 
     /**
-     * The gap around the bubble and its south strip - the space between one message and the next,
-     * and between a message and the conversation's edge.
+     * The gap around the bubble - the space between one message and the next, and between a
+     * message and the conversation's edge.
      *
      * The same for both speakers now that both are enclosed: the bubble itself owns the padding
      * between the outline and the text, so there is no longer an asymmetry to cancel out here.
@@ -136,21 +137,22 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
      * width and is left-aligned within whatever width the row is given - exactly "hug content,
      * stay left, let the container still fill the row" that item 1 asks for.
      */
-    private fun huggingRow(body: JComponent): JComponent = JPanel(BorderLayout()).apply {
+    private fun huggingRow(bubble: JComponent): JComponent = JPanel(BorderLayout()).apply {
         isOpaque = false
-        add(MessageBubble(body, filled = true), BorderLayout.WEST)
+        add(bubble, BorderLayout.WEST)
     }
 
     /**
-     * The copy button, floating over the message's top-right corner.
+     * The copy button, which lives at the foot of the message's own bubble.
      *
      * It is what pays for losing cross-message selection when each message became its own
-     * component (spec D5), and it appears on hover so it costs no attention.
+     * component (spec D5), and it shows only on hover so it costs no attention.
      *
-     * It used to live in the footnote strip at the bottom-right, which put it directly above the
-     * NEXT message's first line and below its own: hovering what looked like the next message's
-     * corner copied the previous one. Floating it over its own top-right corner attaches it to the
-     * message it copies, and costs no vertical space, so the conversation's rhythm is unchanged.
+     * It briefly floated over the message's top-right corner, which was the fix for an earlier
+     * arrangement where it sat below its own message and directly above the NEXT one, so hovering
+     * what looked like the next message's corner copied the previous one. The bubble settles that
+     * on its own - the outline says where one message ends - so the button can go back to the
+     * bottom-right, beside the model and cost it belongs with.
      */
     private fun copyButton(text: String): ChatIconButton =
         ChatIconButton("Copy message", AllIcons.Actions.Copy) {
@@ -158,23 +160,8 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
                 Toolkit.getDefaultToolkit().systemClipboard.setContents(it, it)
             }
         }.apply {
-            isVisible = false
+            isPainted = false
         }
-
-    /**
-     * The footnote row, or null when there is no footnote.
-     *
-     * It no longer reserves the copy button's height: that reservation existed so hovering could
-     * not change the strip's height and shift every message below it, and with the button gone
-     * from this strip there is nothing left to reserve for.
-     */
-    private fun footnoteStrip(footnote: String?): JComponent? {
-        val label = footnote?.takeIf { it.isNotBlank() }?.let { footnoteLabel(it) } ?: return null
-        return JPanel(BorderLayout()).apply {
-            isOpaque = false
-            add(label, BorderLayout.CENTER)
-        }
-    }
 
     private fun proseComponent(markdown: String, isUser: Boolean): JComponent {
         val font = UIUtil.getLabelFont()
@@ -242,10 +229,43 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
         return scrollPane
     }
 
-    private fun footnoteLabel(footnote: String) = JBLabel(footnote).apply {
-        foreground = UIUtil.getContextHelpForeground()
-        font = JBUI.Fonts.smallFont()
-        horizontalAlignment = JBLabel.RIGHT
+    /**
+     * The line at the foot of a bubble: the model and what it cost on the left of the copy button,
+     * both pushed to the right-hand end.
+     *
+     * The copy button is hidden by not being painted rather than by [JComponent.setVisible],
+     * because an invisible child is one Swing's layouts skip entirely: the row would lose the
+     * button's width and height every time the pointer left, so the footnote would slide sideways
+     * and every message below would shift up. Unpainted, the button keeps its slot and hovering
+     * moves nothing.
+     */
+    private class MessageFooter(footnote: String?, copyButton: JComponent) : JPanel(BorderLayout()) {
+        init {
+            isOpaque = false
+            border = JBUI.Borders.emptyTop(FOOTER_GAP_V)
+            add(
+                JPanel().apply {
+                    layout = BoxLayout(this, BoxLayout.X_AXIS)
+                    isOpaque = false
+                    footnote?.takeIf { it.isNotBlank() }?.let {
+                        add(footnoteLabel(it))
+                        add(Box.createRigidArea(Dimension(JBUI.scale(FOOTER_GAP_H), 0)))
+                    }
+                    add(copyButton)
+                },
+                BorderLayout.EAST
+            )
+        }
+
+        private companion object {
+            const val FOOTER_GAP_V = 4
+            const val FOOTER_GAP_H = 6
+
+            fun footnoteLabel(footnote: String) = JBLabel(footnote).apply {
+                foreground = UIUtil.getContextHelpForeground()
+                font = JBUI.Fonts.smallFont()
+            }
+        }
     }
 
     /**
@@ -300,11 +320,16 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
      * with - rather than a colour invented here, so the bubble stays quiet in every theme instead
      * of matching the default one and drifting everywhere else.
      */
-    private class MessageBubble(body: JComponent, private val filled: Boolean) : JPanel(BorderLayout()) {
+    private class MessageBubble(
+        body: JComponent,
+        private val filled: Boolean,
+        footer: JComponent
+    ) : JPanel(BorderLayout()) {
         init {
             isOpaque = false
             border = JBUI.Borders.empty(BUBBLE_PAD_V, BUBBLE_PAD_H)
             add(body, BorderLayout.CENTER)
+            add(footer, BorderLayout.SOUTH)
         }
 
         override fun paintComponent(g: Graphics) {

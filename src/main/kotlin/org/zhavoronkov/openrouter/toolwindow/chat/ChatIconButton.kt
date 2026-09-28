@@ -7,6 +7,7 @@ import java.awt.event.ActionListener
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.Icon
+import javax.swing.JComponent
 
 /**
  * The borderless icon button the chat uses everywhere: the composer's gear, the per-message copy
@@ -36,6 +37,21 @@ internal open class ChatIconButton(
 ) : InplaceButton(tooltip, icon, ActionListener { onClick() }) {
 
     private var pressedByMouse = false
+
+    /**
+     * Whether the icon is drawn at all.
+     *
+     * The way to hide a button that appears on hover without letting it move anything: Swing's
+     * layouts skip an invisible child outright, so [JComponent.setVisible] would hand the button's
+     * width and height back to its row every time the pointer left, and give them back on every
+     * hover. Unpainted, the button keeps its slot and only stops drawing.
+     */
+    var isPainted: Boolean = true
+        set(value) {
+            if (field == value) return
+            field = value
+            setPainting(value)
+        }
 
     init {
         // The pointer is the only clickability cue a borderless icon has before it is hovered.

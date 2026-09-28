@@ -2,8 +2,8 @@ package org.zhavoronkov.openrouter.toolwindow.chat
 
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.ui.InplaceButton
+import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
-import java.awt.BorderLayout
 import java.awt.Container
 import java.awt.Cursor
 import java.awt.Dimension
@@ -39,28 +39,54 @@ class MessageViewCopyButtonPlatformTest : BasePlatformTestCase() {
      * Same reasoning as the composer's gear: InplaceButton inherits the arrow, and a borderless
      * icon has nothing but its hover highlight to say it can be clicked.
      */
+    private fun tallReply(footnote: String? = "Routed to somewhere") = MessageView(
+        "a message with enough text to occupy several lines ".repeat(LINE_REPEATS),
+        isUser = false,
+        footnote = footnote
+    )
+
     /**
-     * The copy button must belong to its own message, visibly.
+     * The copy button sits at the foot of its own bubble, at the right-hand end.
      *
-     * It used to sit in the south strip, at the bottom-right - which put it directly above the
-     * NEXT message's first line and below its own, so hovering what looked like the next message's
-     * corner copied the previous one. It now floats over its own message's top-right.
+     * It spent a while floating over the message's top-right corner, which was the fix for an
+     * earlier arrangement that put it below its own message and directly above the NEXT one, so
+     * hovering what looked like the next message's corner copied the previous one. The bubble
+     * settles that by itself, so this pins the button back at the bottom-right where it reads as
+     * part of the message's own footer.
      */
-    fun testCopyAffordanceSitsAtTheTopOfItsOwnMessage() {
-        val view = MessageView(
-            "a message with enough text to occupy several lines ".repeat(LINE_REPEATS),
-            isUser = false,
-            footnote = "Routed to somewhere"
-        )
-        val root = view.component
-        val copyButton = laidOutCopyButton(root)
-        val inRoot = boundsIn(root, copyButton)
-        val topRegion = root.insets.top + inRoot.height
+    fun testCopyAffordanceSitsAtTheFootOfItsOwnBubble() {
+        val root = tallReply().component
+        val inRoot = boundsIn(root, laidOutCopyButton(root))
 
         assertTrue(
-            "the copy button (y=${inRoot.y}) must sit at the top of the message, not at its foot " +
+            "the copy button (y=${inRoot.y}) must sit at the foot of the message, not at its top " +
                 "(message height=${root.height})",
-            inRoot.y <= topRegion
+            inRoot.y > root.height * 2 / 3
+        )
+        assertTrue(
+            "the copy button must sit at the right-hand end: it starts at x=${inRoot.x} of ${root.width}",
+            inRoot.x > root.width * 2 / 3
+        )
+    }
+
+    /**
+     * The model and what it cost share the button's line, immediately to its left - the whole
+     * point of moving the button down here rather than leaving it in a corner of its own.
+     */
+    fun testTheFootnoteSharesTheCopyButtonsLine() {
+        val root = tallReply().component
+        val button = boundsIn(root, laidOutCopyButton(root))
+        val footnote = boundsIn(root, findDescendant(root, JBLabel::class.java)!!)
+
+        assertTrue(
+            "the footnote (ends at x=${footnote.x + footnote.width}) must sit left of the copy " +
+                "button (starts at x=${button.x})",
+            footnote.x + footnote.width <= button.x
+        )
+        assertTrue(
+            "the footnote (y=${footnote.y}..${footnote.y + footnote.height}) and the copy button " +
+                "(y=${button.y}..${button.y + button.height}) must be on one line",
+            footnote.y < button.y + button.height && button.y < footnote.y + footnote.height
         )
     }
 
@@ -86,13 +112,11 @@ class MessageViewCopyButtonPlatformTest : BasePlatformTestCase() {
     /**
      * Lays the message out and returns the copy button with real bounds.
      *
-     * The button starts hidden until hover, and a BorderLayout skips invisible children - so
-     * without making it visible first every geometry assertion would be comparing zeroes and would
-     * pass whatever the code did. The size check is here so that can never quietly happen again.
+     * The size check is here because a button that was never laid out reports zeroes, and every
+     * geometry assertion below would then pass whatever the code did.
      */
     private fun laidOutCopyButton(root: JComponent): InplaceButton {
         val button = findDescendant(root, InplaceButton::class.java)!!
-        button.isVisible = true
         root.size = Dimension(WIDTH, root.preferredSize.height)
         layoutTree(root)
 
@@ -137,42 +161,47 @@ class MessageViewCopyButtonPlatformTest : BasePlatformTestCase() {
     }
 
     /**
-     * Hovering must not move anything.
+     * Hovering must not move anything - not the message below it, and not the footnote beside it.
      *
-     * The strip used to reserve the button's height for exactly this reason - a component
-     * appearing inside a BorderLayout slot grows that slot and shoves every message below it down
-     * the moment the pointer arrives. The button no longer occupies a slot at all, so the property
-     * now holds by construction; this keeps it that way.
+     * This is the whole reason the button is hidden by not painting rather than by
+     * [JComponent.setVisible]: Swing's layouts skip an invisible child, so the footer would give
+     * up the button's width and height whenever the pointer left and take them back on every
+     * hover, sliding the footnote sideways and shifting every message below.
      */
-    fun testShowingTheCopyButtonDoesNotChangeTheMessageHeight() {
-        val view = MessageView("hello", isUser = false, footnote = "a footnote")
-        val copyButton = findDescendant(view.component, InplaceButton::class.java)!!
+    fun testShowingTheCopyButtonMovesNothing() {
+        val root = tallReply("a footnote").component
+        val copyButton = laidOutCopyButton(root) as ChatIconButton
+        val footnote = findDescendant(root, JBLabel::class.java)!!
 
-        assertFalse("the copy affordance starts hidden until hover", copyButton.isVisible)
-        val heightWhileHidden = view.component.preferredSize.height
+        assertFalse("the copy affordance starts hidden until hover", copyButton.isPainted)
+        val heightWhileHidden = root.preferredSize.height
+        val footnoteWhileHidden = boundsIn(root, footnote)
 
-        copyButton.isVisible = true
-        val heightWhileVisible = view.component.preferredSize.height
+        copyButton.isPainted = true
+        root.size = Dimension(WIDTH, root.preferredSize.height)
+        layoutTree(root)
 
         assertTrue("the message must have a real height", heightWhileHidden > 0)
         assertEquals(
             "the message's height must not change when the copy button appears on hover",
             heightWhileHidden,
-            heightWhileVisible
+            root.preferredSize.height
+        )
+        assertEquals(
+            "the footnote must not move when the copy button appears on hover",
+            footnoteWhileHidden,
+            boundsIn(root, footnote)
         )
     }
 
-    /**
-     * A message with no footnote carries no footnote row: the row's height used to be reserved for
-     * the copy button, and the button is no longer in it.
-     */
-    fun testAMessageWithoutAFootnoteHasNoFootnoteRow() {
-        val view = MessageView("hello", isUser = false, footnote = null)
+    /** A message with no footnote shows no footnote text, but still offers the copy button. */
+    fun testAMessageWithoutAFootnoteStillHasItsCopyButton() {
+        val root = tallReply(footnote = null).component
 
-        val layout = view.component.layout as BorderLayout
         assertNull(
-            "nothing should be reserved at the foot of a message that has no footnote",
-            layout.getLayoutComponent(view.component, BorderLayout.SOUTH)
+            "a message with no footnote must show no footnote text",
+            findDescendant(root, JBLabel::class.java)
         )
+        assertNotNull("the copy button must be there regardless", laidOutCopyButton(root))
     }
 }
