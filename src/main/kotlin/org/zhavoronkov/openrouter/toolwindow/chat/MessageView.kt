@@ -49,21 +49,32 @@ internal fun userMessageBackgroundFallback(): Color =
  * #6B9BD2 / #9B9BD2 / gray, which is wrong in the light theme and in every
  * custom theme.
  *
- * A user message's tinted block hugs its own text instead of spanning the
- * full row (the polish-pass fix for the block reading as a stray text field):
- * it sits at the [BorderLayout.WEST] of a full-width, invisible row, which is
- * what lets it size to its content while [MessagesPanel] still stretches the
- * row itself to the viewport's width. Its own padding reuses [MESSAGE_GAP_V]
- * / [MESSAGE_GAP_H] and the outer [component] drops its horizontal/top
- * padding for a user message by exactly that amount, so the two paddings
- * cancel out and user/assistant text starts on the same line, and the same
- * vertical gap separates every pair of messages regardless of who spoke.
+ * Both speakers get a [MessageBubble]: an outlined, rounded card around the
+ * text. Only one of them being enclosed (the earlier arrangement, where a
+ * user message sat in a tinted block and a reply was left bare) makes the
+ * reply read as the page rather than as something someone said, so the eye
+ * has to work out who is speaking from the tint alone. Enclosing both turns
+ * that into a shape difference, and the user's fill then only has to say
+ * which of the two speakers it is.
+ *
+ * A user message's bubble hugs its own text instead of spanning the full row
+ * (the polish-pass fix for the block reading as a stray text field): it sits
+ * at the [BorderLayout.WEST] of a full-width, invisible row, which is what
+ * lets it size to its content while [MessagesPanel] still stretches the row
+ * itself to the viewport's width. A reply stays full width, because a long
+ * answer reading as one narrow column is worse than it reading as the page.
+ *
+ * Padding is now symmetrical: each bubble supplies its own, and [component]
+ * adds the same gap around both, so user and assistant text starts on the
+ * same line and the same vertical gap separates every pair of messages
+ * regardless of who spoke - all without the cancellation arithmetic the
+ * half-enclosed arrangement needed.
  */
 class MessageView(text: String, isUser: Boolean, footnote: String?) {
 
     val component: JComponent
 
-    /** The full-width row holding [TintedBlock] (user) or the flat body (assistant). */
+    /** The full-width row holding the user's bubble, or the reply's own full-width bubble. */
     private lateinit var contentRow: JComponent
 
     init {
@@ -82,7 +93,7 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
             )
         }
 
-        val container = if (isUser) huggingRow(body) else flatBlock(body)
+        val container = if (isUser) huggingRow(body) else MessageBubble(body, filled = false)
         contentRow = container
 
         val copyButton = copyButton(text)
@@ -90,7 +101,7 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
         component = JPanel(TopRightOverlayLayout(copyButton)).apply {
             isOpaque = false
             alignmentX = Component.LEFT_ALIGNMENT
-            border = messageBorder(isUser)
+            border = messageBorder()
             // Index 0 so it paints above its siblings: Swing paints children from the highest
             // index down, so the lowest index ends up on top.
             add(copyButton, 0)
@@ -108,33 +119,26 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
     }
 
     /**
-     * The outer padding around [container] and the south strip.
+     * The gap around the bubble and its south strip - the space between one message and the next,
+     * and between a message and the conversation's edge.
      *
-     * A user message removes the top/left padding here because [TintedBlock]
-     * supplies the exact same amount itself - see the class doc. The bottom
-     * (below the strip) and right stay uniform for both speakers: they are
-     * not part of the tinted card, so there is nothing to cancel against.
+     * The same for both speakers now that both are enclosed: the bubble itself owns the padding
+     * between the outline and the text, so there is no longer an asymmetry to cancel out here.
      */
-    private fun messageBorder(isUser: Boolean): Border = if (isUser) {
-        JBUI.Borders.empty(0, 0, MESSAGE_GAP_V, MESSAGE_GAP_H)
-    } else {
-        JBUI.Borders.empty(MESSAGE_GAP_V, MESSAGE_GAP_H)
-    }
+    private fun messageBorder(): Border = JBUI.Borders.empty(MESSAGE_GAP_V, MESSAGE_GAP_H)
 
     /**
-     * Wraps [TintedBlock] in a full-width, invisible row so it can hug its
-     * own content while still satisfying [MessagesPanel]'s width-tracking
-     * `Scrollable` contract.
+     * Wraps the user's [MessageBubble] in a full-width, invisible row so it can hug its own
+     * content while still satisfying [MessagesPanel]'s width-tracking `Scrollable` contract.
      *
-     * [BorderLayout.WEST] is what makes this work: unlike `CENTER` (which
-     * [flatBlock] uses and which BorderLayout always stretches to fill), a
-     * `WEST` child keeps its own preferred width and is left-aligned within
-     * whatever width the row is given - exactly "hug content, stay left,
-     * let the container still fill the row" that item 1 asks for.
+     * [BorderLayout.WEST] is what makes this work: unlike `CENTER` (which a reply's bubble uses
+     * and which BorderLayout always stretches to fill), a `WEST` child keeps its own preferred
+     * width and is left-aligned within whatever width the row is given - exactly "hug content,
+     * stay left, let the container still fill the row" that item 1 asks for.
      */
     private fun huggingRow(body: JComponent): JComponent = JPanel(BorderLayout()).apply {
         isOpaque = false
-        add(TintedBlock(body), BorderLayout.WEST)
+        add(MessageBubble(body, filled = true), BorderLayout.WEST)
     }
 
     /**
@@ -238,11 +242,6 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
         return scrollPane
     }
 
-    private fun flatBlock(body: JComponent): JComponent = JPanel(BorderLayout()).apply {
-        isOpaque = false
-        add(body, BorderLayout.CENTER)
-    }
-
     private fun footnoteLabel(footnote: String) = JBLabel(footnote).apply {
         foreground = UIUtil.getContextHelpForeground()
         font = JBUI.Fonts.smallFont()
@@ -293,11 +292,18 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
         }
     }
 
-    /** Rounded tinted background for user messages. */
-    private class TintedBlock(body: JComponent) : JPanel(BorderLayout()) {
+    /**
+     * A rounded card around one message's text: outlined for both speakers, and additionally
+     * tinted for the user so the two are told apart by more than position.
+     *
+     * The outline is [JBColor.border] - the colour the IDE already outlines its own components
+     * with - rather than a colour invented here, so the bubble stays quiet in every theme instead
+     * of matching the default one and drifting everywhere else.
+     */
+    private class MessageBubble(body: JComponent, private val filled: Boolean) : JPanel(BorderLayout()) {
         init {
             isOpaque = false
-            border = JBUI.Borders.empty(MESSAGE_GAP_V, MESSAGE_GAP_H)
+            border = JBUI.Borders.empty(BUBBLE_PAD_V, BUBBLE_PAD_H)
             add(body, BorderLayout.CENTER)
         }
 
@@ -305,8 +311,16 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
             val g2 = g.create() as Graphics2D
             try {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-                g2.color = JBColor.namedColor("Chat.userMessageBackground", userMessageBackgroundFallback())
-                g2.fillRoundRect(0, 0, width, height, JBUI.scale(ARC), JBUI.scale(ARC))
+                val arc = JBUI.scale(ARC)
+                if (filled) {
+                    g2.color = JBColor.namedColor("Chat.userMessageBackground", userMessageBackgroundFallback())
+                    g2.fillRoundRect(0, 0, width, height, arc, arc)
+                }
+                g2.color = JBColor.namedColor("Chat.messageBorder", JBColor.border())
+                // Inset by the stroke's own width: drawRoundRect draws ON the coordinates it is
+                // given, so a right/bottom edge at width/height falls outside the clip and the
+                // outline comes out open on two sides.
+                g2.drawRoundRect(0, 0, width - 1, height - 1, arc, arc)
             } finally {
                 g2.dispose()
             }
@@ -314,7 +328,9 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
         }
 
         private companion object {
-            const val ARC = 8
+            const val ARC = 10
+            const val BUBBLE_PAD_V = 6
+            const val BUBBLE_PAD_H = 10
         }
     }
 
