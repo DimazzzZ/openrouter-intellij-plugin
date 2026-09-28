@@ -43,6 +43,20 @@ object RouterRequestBuilder {
     }
 
     /**
+     * The label every reply carries: which model actually answered it.
+     *
+     * A router's reply keeps [resolvedModelLabel]'s wording, because there the interesting fact is
+     * that a router was asked and something else answered. Every other reply gets the plain slug -
+     * it is the same fact, just without a detour to report. A conversation that ran across several
+     * models is unreadable otherwise: nothing on the message says which one produced it, and the
+     * model picker only ever shows the one selected now.
+     */
+    fun answeringModelLabel(requestedModel: String, responseModel: String?): String =
+        resolvedModelLabel(requestedModel, responseModel)
+            ?: responseModel?.takeIf { it.isNotBlank() }
+            ?: requestedModel
+
+    /**
      * Decides how the chat UI should update its router-param control when it
      * recomputes state for [selectedModel], given the param key the control
      * currently reflects ([shownParamKey], null when hidden).
