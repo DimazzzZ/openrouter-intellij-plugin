@@ -16,6 +16,7 @@ import org.zhavoronkov.openrouter.models.ActivityData
 import org.zhavoronkov.openrouter.models.ApiKeysListResponse
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.CreditsData
+import org.zhavoronkov.openrouter.models.KeyData
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import org.zhavoronkov.openrouter.utils.applicationServiceOrNull
 import java.io.IOException
@@ -77,6 +78,16 @@ class OpenRouterStatsCache(
     @Volatile
     private var unavailableReason: String? = null
 
+    /**
+     * What `GET /api/v1/key` says about the key currently configured, or null until it is read.
+     *
+     * Kept here rather than fetched by whoever needs it, for the same reason everything else in
+     * this class is: the status bar, the stats popup and the Status tab must never show different
+     * numbers for the same thing.
+     */
+    @Volatile
+    private var currentKeyInfo: KeyData? = null
+
     @Volatile
     private var lastUpdateTimestamp: Long = 0
 
@@ -96,6 +107,36 @@ class OpenRouterStatsCache(
 
     /** Why account data is unavailable in this configuration, or null when it is available. */
     fun getUnavailableReason(): String? = unavailableReason
+
+    /** The configured key's own usage and spend cap, or null until [refreshCurrentKey] answers. */
+    fun getCurrentKeyInfo(): KeyData? = currentKeyInfo
+
+    /**
+     * Reads the configured key's own usage and spend cap.
+     *
+     * Separate from [refresh] because it needs no Management Key: `GET /api/v1/key` describes the
+     * key making the request, so an ordinary API key can read its own cap and spend. `GET /keys` -
+     * the whole account's key list - is the Management-Key-only one, and conflating the two is why
+     * the Status tab told people their own key's spend cap "Needs a Management Key".
+     */
+    fun refreshCurrentKey(): Job? {
+        val settingsService = getSettingsServiceSafely() ?: return null
+        val apiKey = settingsService.getApiKey().ifBlank { settingsService.getProvisioningKey() }
+        if (apiKey.isBlank()) return null
+
+        val service = getOpenRouterServiceSafely() ?: return null
+        return scope.launch {
+            when (val result = service.fetchKeyInfo(apiKey)) {
+                is ApiResult.Success -> {
+                    currentKeyInfo = result.data.data
+                    PluginLogger.Service.debug("Stats cache: current key info refreshed")
+                }
+                is ApiResult.Error -> PluginLogger.Service.debug(
+                    "Stats cache: could not read the current key: ${result.message}"
+                )
+            }
+        }
+    }
 
     /** Returns the timestamp of the last successful update. */
     fun getLastUpdateTimestamp(): Long = lastUpdateTimestamp
