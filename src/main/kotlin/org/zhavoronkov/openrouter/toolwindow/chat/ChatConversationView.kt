@@ -49,8 +49,8 @@ class ChatConversationView {
 
     val component: JComponent get() = scrollPane
 
-    fun addMessage(text: String, isUser: Boolean, footnote: String? = null) {
-        messagesPanel.add(MessageView(text, isUser, footnote).component)
+    fun addMessage(text: String, isUser: Boolean, footnote: String? = null, warning: String? = null) {
+        messagesPanel.add(MessageView(text, isUser, footnote, warning).component)
         remeasure()
         scrollToBottom()
     }

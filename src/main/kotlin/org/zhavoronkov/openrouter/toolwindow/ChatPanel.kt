@@ -15,19 +15,20 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import org.zhavoronkov.openrouter.models.ApiResult
-import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatMessage
-import org.zhavoronkov.openrouter.models.ReasoningConfig
 import org.zhavoronkov.openrouter.proxy.routing.RouterCatalog
 import org.zhavoronkov.openrouter.proxy.routing.RouterRequestBuilder
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatComposer
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatConversationView
+import org.zhavoronkov.openrouter.toolwindow.chat.ChatExchange
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatFileWriter
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatListView
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatParamsPopup
+import org.zhavoronkov.openrouter.toolwindow.chat.ChatRequestOptions
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatToolbar
+import org.zhavoronkov.openrouter.toolwindow.chat.ReplySummary
 import org.zhavoronkov.openrouter.ui.ModelVariantChipRenderer
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 import org.zhavoronkov.openrouter.utils.PluginLogger
@@ -62,8 +63,6 @@ class ChatPanel(
 
     companion object {
         private const val PANEL_BORDER = 4
-        private const val MAX_TOKENS = 4096
-        private const val TEMPERATURE = 0.7
         private const val ACTIVE_CHAT_KEY = "openrouter.chat.activeSession"
         private const val CHATS_FILENAME = "openrouter-chats.json"
         private const val SETTINGS_FILENAME = "openrouter-chat-settings.json"
@@ -256,12 +255,13 @@ class ChatPanel(
         // the composer's gear button. ChatPanel still owns the combo boxes
         // (their model, enabled state and selection feed sendChatRequest), it
         // just no longer places them directly.
-        val reasoningOptions = arrayOf("Default", "None", "Minimal", "Low", "Medium", "High", "XHigh")
-        reasoningComboBox.model = DefaultComboBoxModel(reasoningOptions)
+        // The choices come from ChatExchange rather than from lists here, because it is what
+        // turns them into a request: a label this panel offers but that module cannot translate
+        // would be dropped from the request silently instead of failing to compile.
+        reasoningComboBox.model = DefaultComboBoxModel(ChatExchange.REASONING_CHOICES.toTypedArray())
         reasoningComboBox.toolTipText = "Reasoning effort (for supported models)"
 
-        val verbosityOptions = arrayOf("Default", "Low", "Medium", "High", "XHigh", "Max")
-        verbosityComboBox.model = DefaultComboBoxModel(verbosityOptions)
+        verbosityComboBox.model = DefaultComboBoxModel(ChatExchange.VERBOSITY_CHOICES.toTypedArray())
         verbosityComboBox.toolTipText = "Response verbosity (for supported models)"
 
         routerParamComboBox.toolTipText = "Router parameter (for openrouter/* routers)"
@@ -347,7 +347,7 @@ class ChatPanel(
         for (msg in chat.messages) {
             when (msg.role) {
                 "user" -> conversationView.addMessage(msg.content, isUser = true)
-                "assistant" -> conversationView.addMessage(msg.content, isUser = false, footnote = msg.footnote)
+                "assistant" -> showAssistantMessage(msg)
                 "system" -> conversationView.addSystemMessage(msg.content)
             }
         }
@@ -740,34 +740,14 @@ class ChatPanel(
                 ChatMessage(role = msg.role, content = JsonPrimitive(msg.content))
             } ?: emptyList()
 
-            val reasoningConfig = when (reasoningComboBox.selectedItem as? String) {
-                null, "Default" -> null
-                "None" -> ReasoningConfig(effort = "none")
-                "Minimal" -> ReasoningConfig(effort = "minimal")
-                "Low" -> ReasoningConfig(effort = "low")
-                "Medium" -> ReasoningConfig(effort = "medium")
-                "High" -> ReasoningConfig(effort = "high")
-                "XHigh" -> ReasoningConfig(effort = "xhigh")
-                else -> null
-            }
-
-            val verbosityValue = when (val v = verbosityComboBox.selectedItem as? String) {
-                null, "Default" -> null
-                else -> v.lowercase()
-            }
-
-            val routerValue = routerParamComboBox.selectedItem as? String
-            val plugins = RouterRequestBuilder.buildPlugins(model, routerValue)
-
-            val request = ChatCompletionRequest(
+            val request = ChatExchange.buildRequest(
                 model = model,
                 messages = messages,
-                maxTokens = MAX_TOKENS,
-                temperature = TEMPERATURE,
-                stream = false,
-                reasoning = reasoningConfig,
-                verbosity = verbosityValue,
-                plugins = plugins
+                options = ChatRequestOptions(
+                    reasoning = reasoningComboBox.selectedItem as? String,
+                    verbosity = verbosityComboBox.selectedItem as? String,
+                    routerParam = routerParamComboBox.selectedItem as? String
+                )
             )
 
             val result = openRouterService.createChatCompletion(request)
@@ -809,11 +789,12 @@ class ChatPanel(
         }
 
         val messageText = extractMessageText(assistantMessage)
-        // Which model answered, echoed under the reply as a small footnote rather than as a
-        // separate system line. Saved with the message so reopening the chat does not lose it.
-        val answeredBy = RouterRequestBuilder.answeringModelLabel(requestedModel, response.model)
-        addAssistantMessage(messageText, footnote = answeredBy)
-        currentChat?.messages?.add(ChatMessageData("assistant", messageText, footnote = answeredBy))
+        // How the reply was produced, echoed under it as a small footnote rather than as a
+        // separate system line. Shown from the saved message itself, so a live reply and a
+        // reopened one go through the same rendering and cannot disagree.
+        val reply = ChatMessageData.reply(messageText, ChatExchange.summarizeReply(requestedModel, response))
+        showAssistantMessage(reply)
+        currentChat?.messages?.add(reply)
 
         val usage = response.usage
         if (usage != null) {
@@ -845,8 +826,13 @@ class ChatPanel(
     }
 
     private fun addUserMessage(message: String) = conversationView.addMessage(message, isUser = true)
-    private fun addAssistantMessage(message: String, footnote: String? = null) =
-        conversationView.addMessage(message, isUser = false, footnote = footnote)
+    private fun showAssistantMessage(message: ChatMessageData) =
+        conversationView.addMessage(
+            message.content,
+            isUser = false,
+            footnote = message.footerFacts,
+            warning = message.footerWarning
+        )
 
     private fun setLoading(loading: Boolean) {
         isLoading = loading
@@ -884,15 +870,38 @@ class ChatPanel(
     }
 
     /**
-     * [footnote] is what the message's own line under the text says - for a reply, which model
-     * answered it. Stored with the message rather than derived on display, because by the time a
-     * chat is reopened the only model the panel still knows about is the one selected now, which
-     * is the wrong answer for every message that predates the last time the picker changed.
+     * One saved message. A reply also carries its [ReplySummary] - which model answered, which
+     * provider served it, what it cost and why it stopped - as structured fields, so that
+     * reopening a chat renders the footer afresh, warning included, and the footer's wording can
+     * change without stranding old messages. Stored with the message rather than derived on
+     * display, because by the time a chat is reopened the only model the panel still knows about
+     * is the one selected now, which is the wrong answer for every message that predates the last
+     * time the picker changed.
      *
-     * It is nullable and defaults to null so chats saved before this existed still load: Gson
-     * leaves an absent field at its default.
+     * [footnote] holds an already-rendered footer line. It is read only when [summary] is absent,
+     * and a message with a summary leaves it null, which Gson does not write.
+     *
+     * Every field past [content] is nullable and defaults to null so a chat saved without it still
+     * loads: Gson leaves an absent field null.
      */
-    data class ChatMessageData(val role: String, val content: String, val footnote: String? = null)
+    data class ChatMessageData(
+        val role: String,
+        val content: String,
+        val footnote: String? = null,
+        val summary: ReplySummary? = null
+    ) {
+        /** The footer's line of facts: rendered from [summary], or else the stored [footnote]. */
+        val footerFacts: String?
+            get() = summary?.facts ?: footnote
+
+        val footerWarning: String?
+            get() = summary?.warning
+
+        companion object {
+            fun reply(content: String, summary: ReplySummary) =
+                ChatMessageData(role = "assistant", content = content, summary = summary)
+        }
+    }
 
     data class ChatSession(
         val id: String,

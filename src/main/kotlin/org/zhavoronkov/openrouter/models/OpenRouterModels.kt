@@ -464,7 +464,9 @@ data class ChatCompletionResponse(
     val created: Long? = null,
     val model: String? = null,
     val choices: List<ChatChoice>? = null,
-    val usage: ChatUsage? = null
+    val usage: ChatUsage? = null,
+    /** The upstream provider OpenRouter routed the call to, e.g. "Anthropic" or "Google Vertex". */
+    val provider: String? = null
 )
 
 data class ChatChoice(
@@ -476,7 +478,9 @@ data class ChatChoice(
 data class ChatUsage(
     @SerializedName("prompt_tokens") val promptTokens: Int? = null,
     @SerializedName("completion_tokens") val completionTokens: Int? = null,
-    @SerializedName("total_tokens") val totalTokens: Int? = null
+    @SerializedName("total_tokens") val totalTokens: Int? = null,
+    /** What the call cost in credits. OpenRouter reports it on every response unasked. */
+    val cost: Double? = null
 )
 
 // Auth Code Exchange models

@@ -36,6 +36,14 @@ this file says.
   supported routers. The chat model list, the proxy `/v1/models` listing and
   the request builder all read from it; no router-specific branches live
   anywhere else.
+- **Chat Exchange** — what the chat window sends to OpenRouter and what it
+  reads back: the one pure module that turns the send-parameter controls'
+  selections into a request's optional fields, and a response into the facts a
+  reply reports about itself. It owns the labels those controls offer as well
+  as their translation, so a label the request cannot express cannot exist.
+  Distinct from the **Proxy layer**, which translates for a **Consumer**; this
+  is the plugin's own chat window talking for the human.
+- **Reply Summary** — what a reply reports about how it was produced, shown in the footer under it: the answering model (a **Router**'s reply keeps its "Routed to X" wording), the provider that served the call, what it cost, and why generation stopped. Provider and cost are left out when the response does not carry them; the stop reason becomes a warning only when it is not a normal stop. Built by the **Chat Exchange**.
 - **PluginConfig** — the `{ id, params }` block attached to a request's
   `plugins` field to pass a router's parameter (e.g. `auto-router` +
   `cost_tier`). Emitted only when the user picks a valid value.

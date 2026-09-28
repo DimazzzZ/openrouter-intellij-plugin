@@ -10,7 +10,6 @@ import org.zhavoronkov.openrouter.utils.MarkdownRenderer
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component
-import java.awt.Dimension
 import java.awt.Graphics
 import java.awt.Graphics2D
 import java.awt.Insets
@@ -19,11 +18,11 @@ import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
-import javax.swing.Box
 import javax.swing.BoxLayout
 import javax.swing.JComponent
 import javax.swing.JEditorPane
 import javax.swing.JPanel
+import javax.swing.SwingConstants
 import javax.swing.border.Border
 
 private const val USER_TINT_FRACTION = 0.06
@@ -70,10 +69,11 @@ internal fun userMessageBackgroundFallback(): Color =
  * regardless of who spoke - all without the cancellation arithmetic the
  * half-enclosed arrangement needed.
  *
- * Each bubble ends in a [MessageFooter]: the model and cost, and the copy
- * button, on one right-aligned line at the bubble's foot.
+ * Each bubble ends in a [MessageFooter]: the model, provider and cost, and the
+ * copy button, on one right-aligned line at the bubble's foot, with a warning
+ * above that line when a reply did not stop normally.
  */
-class MessageView(text: String, isUser: Boolean, footnote: String?) {
+class MessageView(text: String, isUser: Boolean, footnote: String?, warning: String? = null) {
 
     val component: JComponent
 
@@ -94,7 +94,7 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
         }
 
         val copyButton = copyButton(text)
-        val bubble = MessageBubble(body, filled = isUser, footer = MessageFooter(footnote, copyButton))
+        val bubble = MessageBubble(body, filled = isUser, footer = MessageFooter(footnote, warning, copyButton))
 
         component = JPanel(BorderLayout()).apply {
             isOpaque = false
@@ -196,8 +196,17 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
     }
 
     /**
-     * The line at the foot of a bubble: the model and what it cost on the left of the copy button,
-     * both pushed to the right-hand end.
+     * The foot of a bubble: one line of facts - the model, the provider and what it cost - ending
+     * in the copy button at the right-hand end, and above it, only for a reply that did not stop
+     * normally, a warning saying why.
+     *
+     * The facts take whatever width the button leaves and are drawn right-aligned, so in a narrow
+     * tool window they are cut short with an ellipsis instead of wrapping onto a second line or
+     * pushing the button out of the bubble; the full text stays in the tooltip.
+     *
+     * The warning is coloured and carries the warning icon rather than sharing the facts' grey,
+     * because it is the one thing in the footer that asks the reader to act - a reply cut off at
+     * the token limit ends mid-sentence, and grey text is exactly what the eye skips.
      *
      * The copy button is hidden by not being painted rather than by [JComponent.setVisible],
      * because an invisible child is one Swing's layouts skip entirely: the row would lose the
@@ -205,31 +214,38 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
      * and every message below would shift up. Unpainted, the button keeps its slot and hovering
      * moves nothing.
      */
-    private class MessageFooter(footnote: String?, copyButton: JComponent) : JPanel(BorderLayout()) {
+    private class MessageFooter(
+        footnote: String?,
+        warning: String?,
+        copyButton: JComponent
+    ) : JPanel(BorderLayout()) {
         init {
             isOpaque = false
             border = JBUI.Borders.emptyTop(FOOTER_GAP_V)
-            add(
-                JPanel().apply {
-                    layout = BoxLayout(this, BoxLayout.X_AXIS)
-                    isOpaque = false
-                    footnote?.takeIf { it.isNotBlank() }?.let {
-                        add(footnoteLabel(it))
-                        add(Box.createRigidArea(Dimension(JBUI.scale(FOOTER_GAP_H), 0)))
-                    }
-                    add(copyButton)
-                },
-                BorderLayout.EAST
-            )
+            warning?.takeIf { it.isNotBlank() }?.let { add(warningLabel(it), BorderLayout.NORTH) }
+            footnote?.takeIf { it.isNotBlank() }?.let { add(footnoteLabel(it), BorderLayout.CENTER) }
+            add(copyButton, BorderLayout.EAST)
         }
 
         private companion object {
             const val FOOTER_GAP_V = 4
             const val FOOTER_GAP_H = 6
 
+            val WARNING_FOREGROUND = JBColor.namedColor("Chat.replyWarningForeground", JBColor(0x9E6A00, 0xE0A94A))
+
             fun footnoteLabel(footnote: String) = JBLabel(footnote).apply {
                 foreground = UIUtil.getContextHelpForeground()
                 font = JBUI.Fonts.smallFont()
+                horizontalAlignment = SwingConstants.RIGHT
+                border = JBUI.Borders.emptyRight(FOOTER_GAP_H)
+                toolTipText = footnote
+            }
+
+            fun warningLabel(warning: String) = JBLabel(warning, AllIcons.General.Warning, SwingConstants.RIGHT).apply {
+                foreground = WARNING_FOREGROUND
+                font = JBUI.Fonts.smallFont()
+                border = JBUI.Borders.empty(0, 0, FOOTER_GAP_V, FOOTER_GAP_H)
+                toolTipText = warning
             }
         }
     }
