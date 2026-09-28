@@ -71,7 +71,7 @@ When you first install the plugin, a **welcome notification** will appear with a
 
 1. **Open Settings**: `Settings` → `Tools` → `OpenRouter`
 2. **Authenticate**: Click "Connect to OpenRouter" for OAuth/PKCE, or paste a [Management Key](https://openrouter.ai/settings/provisioning-keys)
-   - A **Management Key** (OpenRouter's own page still titles it "Provisioning Keys") is what lets the plugin read your account: the balance, spend history and per-model breakdown in the Status tab. An ordinary API key can send chat requests but cannot read any of that, so those parts of the tab stay empty and say so.
+   - **A Management Key reads your account; an ordinary API key reads itself.** With a Management Key (OpenRouter's own page still titles it "Provisioning Keys") the Status tab shows your credit balance, spend history and per-model breakdown, and the spend cap across every key on the account. With an ordinary API key it shows that key's own spend and cap, plus the spend this plugin recorded locally — everything account-wide stays empty and says why. Either key sends chat requests.
 3. **Select Models**: Go to `Favorite Models` tab and choose your models
 4. **Start Using**: Click the status bar widget to access features
 

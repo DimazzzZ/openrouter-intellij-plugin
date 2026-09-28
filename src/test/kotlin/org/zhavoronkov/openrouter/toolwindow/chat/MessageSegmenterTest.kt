@@ -1,6 +1,7 @@
 package org.zhavoronkov.openrouter.toolwindow.chat
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
@@ -142,6 +143,55 @@ Final paragraph."""
 
         assertEquals(1, segments.size)
         assertTrue(segments[0] is MessageSegment.Prose)
+    }
+
+    /**
+     * The defect this pins: blocks were rejoined with nothing between them, and a table needs a
+     * blank line before it or the whole reply parses as one paragraph. A model asked for a table
+     * answered with rows of literal pipes.
+     */
+    @Test
+    @DisplayName("a table between two paragraphs survives segmentation")
+    fun `a table between two paragraphs survives segmentation`() {
+        val original = """Here are the main features:
+
+| Feature | Description |
+|---------|-------------|
+| Chat | Talk to any model |
+
+Would you like more detail?"""
+
+        val segments = MessageSegmenter.split(original)
+        assertEquals(1, segments.size)
+        val html = MarkdownRenderer.renderToHtml((segments[0] as MessageSegment.Prose).markdown)
+
+        assertTrue(html.contains("<table"), "Expected a real table, got: $html")
+        assertEquals(MarkdownRenderer.renderToHtml(original), html)
+    }
+
+    /**
+     * The same loss seen from the other side: without the blank line the closing paragraph becomes
+     * a lazy continuation of the list's last item and is drawn indented inside it.
+     */
+    @Test
+    @DisplayName("a paragraph after a list stays out of the list")
+    fun `a paragraph after a list stays out of the list`() {
+        val original = """So this plugin probably lets you:
+
+- Chat with different models
+- Compare outputs
+
+I can't browse the page right now."""
+
+        val segments = MessageSegmenter.split(original)
+        assertEquals(1, segments.size)
+        val html = MarkdownRenderer.renderToHtml((segments[0] as MessageSegment.Prose).markdown)
+
+        assertFalse(
+            html.substringAfter("</ul>").isBlank(),
+            "The closing paragraph was swallowed by the list: $html"
+        )
+        assertEquals(MarkdownRenderer.renderToHtml(original), html)
     }
 
     @Test

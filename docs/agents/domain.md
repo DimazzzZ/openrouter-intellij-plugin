@@ -16,11 +16,16 @@ this file says.
   docs and UI copy; keep the old word only where it is a URL or a stored
   identifier (`provisioningKey`, `AuthType.PROVISIONING_KEY`).
 - **API Key** — short-lived key minted from a Management Key. Sent as
-  `Authorization: Bearer` on outbound OpenRouter requests. It can spend
-  (`/chat/completions`) but cannot read the account: anything the user's
-  balance or history is derived from needs the Management Key instead. Both key
-  types share the `sk-or-v1-` prefix, so a key's scope is discoverable only by
-  calling a Management-only endpoint and seeing whether it answers.
+  `Authorization: Bearer` on outbound OpenRouter requests. **A Management Key
+  reads the account; an API key reads itself.** It can spend
+  (`/chat/completions`) and it can read `/key`, which describes the key making
+  the request — its own usage, spend cap and rate limit — but nothing
+  account-wide: the balance, the activity history, the key list and analytics
+  all need the Management Key. Note the singular and plural are different
+  endpoints with different requirements: `/key` answers any key, `/keys`
+  answers only a Management Key. Both key types share the `sk-or-v1-` prefix,
+  so a key's scope is discoverable only by calling a Management-only endpoint
+  and seeing whether it answers.
 - **Model** — an OpenRouter model identifier (e.g. `openai/gpt-4o`,
   `anthropic/claude-3.5-sonnet`). Vendor-prefixed, always lowercase.
 - **Router** — an `openrouter/`-namespaced model slug that OpenRouter itself

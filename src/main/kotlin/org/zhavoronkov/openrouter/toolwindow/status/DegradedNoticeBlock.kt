@@ -45,10 +45,13 @@ class DegradedNoticeBlock(onConfigure: () -> Unit) {
 
     private companion object {
         const val BORDER_SIZE = 10
-        const val TITLE = "Limited: Management Key needed for full details"
-        const val MESSAGE = "Account data - the balance, the per-model breakdown, activity " +
-            "history and the API key spend cap - needs a Management Key, which is not set. " +
-            "The chart below is the spend recorded locally while the IDE was running."
+        const val TITLE = "Management Key needed for account data"
+
+        // Deliberately shorter than it was, and no longer claiming the API key spend cap among
+        // the casualties: that is the key's OWN cap, which the key can read (see KeyLimitBlock).
+        // What remains here is only what genuinely belongs to the account rather than the key.
+        const val MESSAGE = "Credit balance, per-model breakdown and activity history need a " +
+            "Management Key."
         const val BUTTON_TEXT = "Add Management Key"
     }
 }

@@ -21,6 +21,7 @@ import org.zhavoronkov.openrouter.services.AnalyticsService
 import org.zhavoronkov.openrouter.services.CreditUsageHistoryService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.OpenRouterStatsCache
+import org.zhavoronkov.openrouter.settings.OpenRouterConfigurable
 import org.zhavoronkov.openrouter.utils.applicationServiceOrNull
 import java.awt.BorderLayout
 import java.awt.GridBagConstraints
@@ -84,7 +85,7 @@ class StatusTabPanel(
          * usage. Labelling the two identically would let two users compare "the same chart" and
          * get different numbers. Blank (like [NO_SERIES_LABEL]) when there is no local history to
          * plot, so the caption/sparkline pair hides itself exactly as it does everywhere else. */
-        private const val DEGRADED_SERIES_LABEL = "Locally observed spend (no management key)"
+        private const val DEGRADED_SERIES_LABEL = "Locally observed spend"
 
         /** What READY/ERROR's sparkline measures (Task 13) - the analytics API's own account-wide
          * spend total ([AnalyticsBreakdown.spendSeriesRequestFor]/[AnalyticsBreakdown.toSpendSeries]),
@@ -147,7 +148,7 @@ class StatusTabPanel(
     private val degradedNoticeBlock = DegradedNoticeBlock(
         onConfigure = {
             com.intellij.openapi.options.ShowSettingsUtil.getInstance()
-                .showSettingsDialog(project, "OpenRouter")
+                .showSettingsDialog(project, OpenRouterConfigurable::class.java)
         }
     )
 
@@ -385,7 +386,7 @@ class StatusTabPanel(
         val configButton = JButton("Configure")
         configButton.addActionListener {
             com.intellij.openapi.options.ShowSettingsUtil.getInstance()
-                .showSettingsDialog(project, "OpenRouter")
+                .showSettingsDialog(project, OpenRouterConfigurable::class.java)
         }
         panel.add(configButton, BorderLayout.SOUTH)
 
@@ -591,9 +592,16 @@ class StatusTabPanel(
         // Not show(emptyList()) (fix round 1, finding 2): DEGRADED never queries the breakdown at
         // all, so "no activity in this period" would claim a real, checked answer of zero.
         breakdownBlock.showUnavailable()
-        // GET /keys is 401 for an ordinary API key - nothing was checked, so this is not the
-        // same "no cap configured" fact keyLimitBlock.update(limit = null) would report.
-        keyLimitBlock.showUnavailable()
+        // The key's OWN cap is readable with the key in hand: GET /key describes the key making
+        // the request, and only GET /keys - the whole account's list - needs a Management Key.
+        // Until that answer arrives there is nothing checked to report, hence showUnavailable.
+        val keyInfo = statsCache.getCurrentKeyInfo()
+        if (keyInfo != null) {
+            keyLimitBlock.update(used = keyInfo.usage, limit = keyInfo.limit)
+        } else {
+            keyLimitBlock.showUnavailable()
+            statsCache.refreshCurrentKey()
+        }
 
         val snapshots = applicationServiceOrNull(CreditUsageHistoryService::class.java)
             ?.getState()?.snapshots

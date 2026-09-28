@@ -1,5 +1,6 @@
 package org.zhavoronkov.openrouter.statusbar
 
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
@@ -22,6 +23,48 @@ class StatusBarStatsFormatterBranchTest {
     fun statusTextNoCredits() {
         val text = StatusBarStatsFormatter.formatStatusTextFromCredits(1.5, 0.0, showCosts = true)
         assertTrue(text.contains("no credits"))
+    }
+
+    @Test
+    @DisplayName("credits block leads with the total and then what is left, never what was spent")
+    fun creditsBlockShowsTotalThenRemaining() {
+        val tooltip = StatusBarStatsFormatter.formatStatusTooltipFromCredits(
+            statusText = "Ready",
+            used = 2.5,
+            total = 10.0
+        )
+
+        assertTrue(tooltip.contains("Remaining:"), "Expected a Remaining row, got: $tooltip")
+        assertFalse(tooltip.contains("Used:"), "What was spent is no longer shown: $tooltip")
+        assertTrue(tooltip.contains("\$7.500"), "Remaining must be total minus used, got: $tooltip")
+        assertTrue(
+            tooltip.indexOf("Total:") < tooltip.indexOf("Remaining:"),
+            "The total must come first, got: $tooltip"
+        )
+    }
+
+    /**
+     * The activity block estimates how many DAYS are left, so it cannot share a label with the
+     * credits block's own remaining balance - one is a number of days, the other an amount of
+     * money, and a tooltip carrying both rows under one name is unreadable.
+     */
+    @Test
+    @DisplayName("the days estimate is labelled apart from the remaining balance")
+    fun daysEstimateDoesNotCollideWithRemainingBalance() {
+        val yesterday = LocalDate.now(ZoneId.of("UTC")).minusDays(1).toString()
+        val tooltip = StatusBarStatsFormatter.formatStatusTooltipFromCredits(
+            statusText = "Ready",
+            used = 5.0,
+            total = 10.0,
+            activityList = listOf(activity(yesterday, 1.0))
+        )
+
+        assertTrue(tooltip.contains("Days Left:"), "Expected a days-left row, got: $tooltip")
+        assertEquals(
+            1,
+            Regex("Remaining:").findAll(tooltip).count(),
+            "Only the credits balance may be called Remaining, got: $tooltip"
+        )
     }
 
     @Test

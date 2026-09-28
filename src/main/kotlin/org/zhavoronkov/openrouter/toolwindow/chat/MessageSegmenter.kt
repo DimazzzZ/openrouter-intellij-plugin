@@ -13,7 +13,8 @@ import org.zhavoronkov.openrouter.utils.MarkdownRenderer
  *   is isolated into its own [MessageSegment.Prose] segment, so the view layer can
  *   render it with horizontal scrolling without affecting surrounding prose.
  * - Ordinary prose without nested fences stays accumulated in a single segment,
- *   preserving wrapping and minimizing component count.
+ *   preserving wrapping and minimizing component count. Blocks are rejoined with a
+ *   blank line between them - see [appendBlock].
  * - Indented code blocks (four-space indent, no fence) are NOT extracted or isolated;
  *   they stay in ordinary prose segments and rely on the view layer's `<pre>` scroll handling.
  *
@@ -44,14 +45,32 @@ object MessageSegmenter {
                     flush(prose, segments)
                 }
 
-                else -> {
-                    prose.append(node.chars.toString())
-                }
+                else -> appendBlock(prose, node)
             }
         }
         flush(prose, segments)
 
         return segments
+    }
+
+    /**
+     * Adds one top-level block to the prose being accumulated, separated from the previous one by
+     * a blank line.
+     *
+     * A node's own `chars` stop at its last character and take no account of what separated it
+     * from its neighbour, so appending them back to back hands the renderer a document whose
+     * blocks are no longer blocks. That is not a cosmetic loss: a table needs a blank line before
+     * it or the whole thing parses as one paragraph and renders as literal pipes, and a paragraph
+     * after a list without one becomes a lazy continuation of the list's last item and is drawn
+     * indented inside it.
+     *
+     * A blank line is always the right separator here because every child of the document is a
+     * block: two blocks that were adjacent in the source parse the same way with a blank line
+     * between them, and two that were separated by one need it back.
+     */
+    private fun appendBlock(prose: StringBuilder, node: Node) {
+        if (prose.isNotEmpty()) prose.append(BLOCK_SEPARATOR)
+        prose.append(node.chars.toString().trim())
     }
 
     private fun containsFencedCodeBlock(node: Node): Boolean {
@@ -67,4 +86,6 @@ object MessageSegmenter {
         if (text.isNotEmpty()) into += MessageSegment.Prose(text)
         buffer.setLength(0)
     }
+
+    private const val BLOCK_SEPARATOR = "\n\n"
 }

@@ -6,7 +6,6 @@ import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
-import com.intellij.ui.JBColor
 import com.intellij.ui.SearchTextField
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
@@ -18,6 +17,7 @@ import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.table.JBTable
 import com.intellij.util.Alarm
 import com.intellij.util.ui.JBUI
+import com.intellij.util.ui.NamedColorUtil
 import com.intellij.util.ui.UIUtil
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -178,7 +178,11 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
     }
 
     override fun createCenterPanel(): JComponent {
-        cardPanel.preferredSize = Dimension(DIALOG_WIDTH, DIALOG_HEIGHT)
+        // No fixed size: CardLayout already reports the largest of its cards, which is the same
+        // "one size, the most demanding step" rule a hard-coded number was trying to express -
+        // except it stays true when a step changes. The number it replaced (700x500) had drifted
+        // from every step it covered: measured, the cards want 289, 486, 544 and 639px of height,
+        // so Welcome was given 211px it had no use for while Setup Complete was squeezed by 139.
         return cardPanel
     }
 
@@ -334,14 +338,6 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
         return predicate
     }
 
-    private fun advancedProxySelected(): com.intellij.ui.layout.ComponentPredicate {
-        val predicate = object : UpdatablePredicate() {
-            override fun invoke() = isAdvancedProxySetup
-        }
-        uiPredicates.add(predicate)
-        return predicate
-    }
-
     private fun notifyScopeChanged() {
         uiPredicates.forEach { it.update() }
     }
@@ -391,37 +387,22 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
         return panel
     }
 
+    /**
+     * The last step: the URL to paste, and a way out.
+     *
+     * It used to configure the proxy as well - a Standard/Advanced pair of radio buttons, a port
+     * field and an autostart checkbox - which made it the tallest step in the wizard and therefore
+     * set the size of every other one. Port and autostart are settings, they already live in
+     * Settings | Tools | OpenRouter, and a first-run wizard is the wrong place to ask about them:
+     * someone who cares can change them there, and someone who does not should not have to
+     * decline. The wizard now takes the standard setup and says where to change it.
+     */
     private fun createCompletionPanel(): JPanel {
-        val standardRadioButton = JRadioButton("Standard Setup (Recommended)")
-        val advancedRadioButton = JRadioButton("Advanced Setup")
-        val group = ButtonGroup()
-        group.add(standardRadioButton)
-        group.add(advancedRadioButton)
-
-        if (isAdvancedProxySetup) {
-            advancedRadioButton.isSelected = true
-        } else {
-            standardRadioButton.isSelected = true
-        }
-
-        val updateProxyUrl = {
-            val port = if (isAdvancedProxySetup) proxyPort else DEFAULT_PROXY_PORT
-            proxyUrlLabel.text = OpenRouterProxyServer.buildProxyUrl(port)
-        }
-
-        standardRadioButton.addActionListener {
-            isAdvancedProxySetup = false
-            proxyAutoStart = true
-            proxyPort = DEFAULT_PROXY_PORT
-            updateProxyUrl()
-            notifyScopeChanged() // Reuse this to trigger visibility updates
-        }
-
-        advancedRadioButton.addActionListener {
-            isAdvancedProxySetup = true
-            updateProxyUrl()
-            notifyScopeChanged()
-        }
+        // Whatever the previous run left behind, a wizard run means the standard setup.
+        isAdvancedProxySetup = false
+        proxyAutoStart = true
+        proxyPort = DEFAULT_PROXY_PORT
+        proxyUrlLabel.text = OpenRouterProxyServer.buildProxyUrl(DEFAULT_PROXY_PORT)
 
         return panel {
             row {
@@ -435,65 +416,18 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
 
             separator()
 
-            group("Proxy Server Setup") {
-                buttonsGroup {
-                    row {
-                        cell(standardRadioButton)
-                            .comment("Uses an available port (default 8880) and starts automatically with IDE.")
-                    }
-                    row {
-                        cell(advancedRadioButton)
-                            .comment("Configure custom port and autostart preferences.")
-                    }
-                }
-
-                indent {
-                    row("Port:") {
-                        intTextField(1024..65535)
-                            .applyToComponent {
-                                text = proxyPort.toString()
-                                document.addDocumentListener(object : DocumentListener {
-                                    override fun insertUpdate(e: DocumentEvent?) = update()
-                                    override fun removeUpdate(e: DocumentEvent?) = update()
-                                    override fun changedUpdate(e: DocumentEvent?) = update()
-                                    private fun update() {
-                                        val newPort = text.toIntOrNull()
-                                        if (newPort != null) {
-                                            proxyPort = newPort
-                                            updateProxyUrl()
-                                        }
-                                    }
-                                })
-                            }
-                    }.visibleIf(advancedProxySelected())
-
-                    row {
-                        checkBox("Start automatically with IDE")
-                            .applyToComponent {
-                                isSelected = proxyAutoStart
-                                addActionListener { proxyAutoStart = isSelected }
-                            }
-                    }.visibleIf(advancedProxySelected())
-                }
-            }
-
-            separator()
-
             row {
-                text(
-                    "Copy the proxy server URL below and paste it into your favorite AI Assistant. " +
-                        "For example, in JetBrains AI Assistant, paste this URL in the custom server settings."
-                )
-            }.topGap(TopGap.MEDIUM).bottomGap(BottomGap.MEDIUM)
+                text("Paste this URL into your AI Assistant's custom server settings.")
+            }.topGap(TopGap.MEDIUM).bottomGap(BottomGap.SMALL)
 
             row {
                 label("Proxy Server URL:")
             }.bottomGap(BottomGap.SMALL)
 
             row {
-                updateProxyUrl()
                 proxyUrlLabel.font = Font(Font.MONOSPACED, Font.PLAIN, URL_LABEL_FONT_SIZE)
-                proxyUrlLabel.foreground = JBColor.BLUE
+                // The theme's link colour, not rgb(0,0,255) - same reason as the validation label below.
+                proxyUrlLabel.foreground = JBUI.CurrentTheme.Link.Foreground.ENABLED
                 cell(proxyUrlLabel)
                     .resizableColumn()
 
@@ -513,14 +447,10 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
             separator()
 
             row {
-                label("<html><b>Need help with configuration?</b></html>")
-            }.topGap(TopGap.MEDIUM).bottomGap(BottomGap.SMALL)
-
-            row {
                 browserLink(
                     "View AI Assistant Setup Guide",
                     "https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/docs/AI_ASSISTANT_SETUP.md"
-                )
+                ).comment("The proxy port and whether it starts with the IDE live in Settings | Tools | OpenRouter.")
             }
         }
     }
@@ -780,7 +710,11 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
         validationIcon.icon = AllIcons.General.InspectionsOK
         val type = if (authScope == AuthScope.REGULAR) "API key" else "management key"
         validationStatusLabel.text = "Valid $type"
-        validationStatusLabel.foreground = JBColor.GREEN
+        // The icon carries the colour, the text does not. JBColor.GREEN is literally rgb(0,255,0)
+        // - no theme defines it, nothing else in the IDE uses it, and beside a themed checkmark it
+        // reads as a highlighter. The platform's own validation UI tints the icon and leaves the
+        // label at its normal foreground; this follows it.
+        validationStatusLabel.foreground = UIUtil.getLabelForeground()
         validationIcon.isVisible = true
         validationStatusLabel.isVisible = true
 
@@ -807,7 +741,8 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
 
         validationIcon.icon = AllIcons.General.Error
         validationStatusLabel.text = if (friendlyMessage.startsWith("Invalid")) friendlyMessage else "Invalid key: $friendlyMessage"
-        validationStatusLabel.foreground = JBColor.RED
+        // Likewise: the theme's own error foreground rather than rgb(255,0,0).
+        validationStatusLabel.foreground = NamedColorUtil.getErrorForeground()
         validationIcon.isVisible = true
         validationStatusLabel.isVisible = true
 
@@ -904,7 +839,7 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
                         SetupWizardLogger.logModelLoadingEvent("Failed to load models or list is empty")
                         modelsLoadingIcon.icon = AllIcons.General.Error
                         modelsLoadingLabel.text = "Failed to load models. Please check your connection."
-                        modelsLoadingLabel.foreground = JBColor.RED
+                        modelsLoadingLabel.foreground = NamedColorUtil.getErrorForeground()
                     }
                     updateButtons()
                 }, ModalityState.any())
@@ -914,7 +849,7 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
                     isLoadingModels = false
                     modelsLoadingIcon.icon = AllIcons.General.Error
                     modelsLoadingLabel.text = SetupWizardErrorHandler.handleModelLoadingError(e)
-                    modelsLoadingLabel.foreground = JBColor.RED
+                    modelsLoadingLabel.foreground = NamedColorUtil.getErrorForeground()
                     updateButtons()
                 }, ModalityState.any())
             } catch (e: CancellationException) {
@@ -926,7 +861,7 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
                     isLoadingModels = false
                     modelsLoadingIcon.icon = AllIcons.General.Error
                     modelsLoadingLabel.text = SetupWizardErrorHandler.handleModelLoadingError(e)
-                    modelsLoadingLabel.foreground = JBColor.RED
+                    modelsLoadingLabel.foreground = NamedColorUtil.getErrorForeground()
                     updateButtons()
                 }, ModalityState.any())
             } catch (e: IllegalStateException) {
@@ -935,7 +870,7 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
                     isLoadingModels = false
                     modelsLoadingIcon.icon = AllIcons.General.Error
                     modelsLoadingLabel.text = SetupWizardErrorHandler.handleModelLoadingError(e)
-                    modelsLoadingLabel.foreground = JBColor.RED
+                    modelsLoadingLabel.foreground = NamedColorUtil.getErrorForeground()
                     updateButtons()
                 }, ModalityState.any())
             }
@@ -1081,8 +1016,6 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
 
     companion object {
         // Use SetupWizardConfig for all constants
-        private val DIALOG_WIDTH = SetupWizardConfig.DIALOG_WIDTH
-        private val DIALOG_HEIGHT = SetupWizardConfig.DIALOG_HEIGHT
         private val MODELS_TABLE_WIDTH = SetupWizardConfig.MODELS_TABLE_WIDTH
         private val MODELS_TABLE_HEIGHT = SetupWizardConfig.MODELS_TABLE_HEIGHT
         private val TABLE_ROW_HEIGHT = SetupWizardConfig.TABLE_ROW_HEIGHT

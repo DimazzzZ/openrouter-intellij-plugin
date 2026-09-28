@@ -23,6 +23,7 @@
     <ul>
         <li>📊 <strong>Usage monitoring</strong> — view OpenRouter credits, spending, and activity stats directly in the IDE</li>
         <li>💰 <strong>Quota &amp; balance visibility</strong> — real-time status bar widget with credit balance, cost tracking, and "days remaining" estimates</li>
+        <li>🔑 <strong>A Management Key reads your account; an ordinary API key reads itself</strong> — either key sends chat requests, but the balance, per-model breakdown and activity history are account data and need a Management Key. With an ordinary key you still see that key's own spend and cap.</li>
         <li>⭐ <strong>Model selection</strong> — manage favorite models and custom presets, switch between models easily</li>
         <li>🔌 <strong>Local proxy</strong> — run an OpenAI-compatible proxy server that other tools and agents can reuse</li>
         <li>🔑 <strong>API key management</strong> — secure OAuth/PKCE authentication and management key support</li>

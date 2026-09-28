@@ -5,6 +5,7 @@ import com.intellij.credentialStore.Credentials
 import com.intellij.credentialStore.generateServiceName
 import com.intellij.ide.passwordSafe.PasswordSafe
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.util.concurrency.AppExecutorUtil
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -25,9 +26,17 @@ import java.util.concurrent.atomic.AtomicBoolean
  * - Populated on first access (async) and on startup via preloadKeys()
  * - Updated immediately when keys are set
  * - Read operations return cached values instantly (safe for EDT)
+ *
+ * Writes get the same treatment for the same reason: the cache and the in-memory map are updated
+ * on the calling thread, so the new value is readable the instant a setter returns, and only the
+ * hop into the OS credential store is moved off the EDT. See [persist].
  */
 @Suppress("TooManyFunctions")
 object PasswordSafeKeyStorage {
+
+    // One thread, so credential store access keeps the order it was requested in - see persist().
+    private val credentialStoreExecutor =
+        AppExecutorUtil.createBoundedApplicationPoolExecutor("OpenRouter Credential Store", 1)
 
     private const val SERVICE_NAME = "OpenRouter IntelliJ Plugin"
     private const val API_KEY = "apiKey"
@@ -61,9 +70,16 @@ object PasswordSafeKeyStorage {
     }
 
     /**
-     * Preloads keys from PasswordSafe into cache.
-     * Called synchronously during plugin startup to ensure keys are available
-     * before any startup activity reads them.
+     * Warms the cache from PasswordSafe, off the EDT.
+     *
+     * Its only caller is the dynamic-plugin listener, and the platform loads plugins "in EDT and
+     * under write action", so reading the credential store straight from there was the same
+     * violation the setters used to commit - two of them, one per key, on every install, update or
+     * enable without a restart. The comment at that call site already promised a background
+     * thread; this is where the promise is kept, so no caller has to arrange it.
+     *
+     * Nothing waits on the result. A reader that arrives before the warm-up finishes falls back to
+     * loading the key it needs itself, which is the behaviour it had anyway.
      */
     @Suppress("TooGenericExceptionCaught")
     fun preloadKeys() {
@@ -71,15 +87,25 @@ object PasswordSafeKeyStorage {
             return
         }
 
+        val application = ApplicationManager.getApplication()
+        if (application == null) {
+            apiKeyCacheInitialized.set(true)
+            provisioningKeyCacheInitialized.set(true)
+            return
+        }
+
+        if (application.isDispatchThread) {
+            credentialStoreExecutor.execute { loadBothKeys() }
+        } else {
+            loadBothKeys()
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private fun loadBothKeys() {
         try {
-            val application = ApplicationManager.getApplication()
-            if (application != null) {
-                loadApiKeyFromPasswordSafe()
-                loadProvisioningKeyFromPasswordSafe()
-            } else {
-                apiKeyCacheInitialized.set(true)
-                provisioningKeyCacheInitialized.set(true)
-            }
+            loadApiKeyFromPasswordSafe()
+            loadProvisioningKeyFromPasswordSafe()
         } catch (_: Exception) {
             apiKeyCacheInitialized.set(true)
             provisioningKeyCacheInitialized.set(true)
@@ -166,11 +192,7 @@ object PasswordSafeKeyStorage {
     private fun writeApiKeyToPasswordSafe(apiKey: String) {
         try {
             val attributes = createCredentialAttributes(API_KEY)
-            if (apiKey.isBlank()) {
-                PasswordSafe.instance.set(attributes, null)
-            } else {
-                PasswordSafe.instance.set(attributes, Credentials("", apiKey))
-            }
+            persist(attributes, if (apiKey.isBlank()) null else Credentials("", apiKey))
         } catch (_: Exception) {
             // Silently fail - cache and in-memory storage are already updated
         }
@@ -222,13 +244,45 @@ object PasswordSafeKeyStorage {
     private fun writeProvisioningKeyToPasswordSafe(provisioningKey: String) {
         try {
             val attributes = createCredentialAttributes(PROVISIONING_KEY)
-            if (provisioningKey.isBlank()) {
-                PasswordSafe.instance.set(attributes, null)
-            } else {
-                PasswordSafe.instance.set(attributes, Credentials("", provisioningKey))
-            }
+            persist(attributes, if (provisioningKey.isBlank()) null else Credentials("", provisioningKey))
         } catch (_: Exception) {
             // Silently fail - cache and in-memory storage are already updated
+        }
+    }
+
+    /**
+     * Hands a credential to the OS store, off the EDT.
+     *
+     * `PasswordSafe.set` reaches the macOS Keychain, Windows Credential Manager or libsecret, so
+     * the platform forbids it on the EDT and logs "Slow operations are prohibited on EDT" for every
+     * call. Both writers used to call it inline, which meant any caller running on the EDT - the
+     * status-bar logout, the setup wizard's step transition - produced that error without either
+     * of them doing anything obviously wrong.
+     *
+     * Only the store hop is deferred. The cache and the in-memory map are already updated by the
+     * time this runs, so a setter's value is readable the moment it returns, and nothing observes
+     * the difference except the credential store itself.
+     *
+     * A single-threaded executor rather than a plain pooled task: two writes to the SAME key,
+     * dispatched in order and completing out of order, would persist the older value. Serialising
+     * them keeps the store's final state equal to the last value set.
+     *
+     * Off the EDT the write stays inline, so background callers keep their existing ordering and
+     * a test that drives them sees the effect without waiting.
+     */
+    private fun persist(attributes: CredentialAttributes, credentials: Credentials?) {
+        val application = ApplicationManager.getApplication()
+        if (application == null || !application.isDispatchThread) {
+            PasswordSafe.instance.set(attributes, credentials)
+            return
+        }
+
+        credentialStoreExecutor.execute {
+            try {
+                PasswordSafe.instance.set(attributes, credentials)
+            } catch (e: RuntimeException) {
+                PluginLogger.Service.debug("Deferred credential write failed: ${e.message}")
+            }
         }
     }
 

@@ -69,13 +69,12 @@ object StatusBarStatsFormatter {
     }
 
     private fun formatStatusTooltip(params: TooltipParams): String {
-        val usedText = "$${String.format(Locale.US, "%.3f", params.used)}"
-        val totalText = if (params.total > 0) {
-            "$${String.format(Locale.US, "%.2f", params.total)}"
-        } else {
-            "Unlimited"
-        }
-        val remaining = if (params.total > 0) params.total - params.used else 0.0
+        val hasLimit = params.total > 0
+        val totalText = if (hasLimit) "$${String.format(Locale.US, "%.2f", params.total)}" else "Unlimited"
+        val remaining = if (hasLimit) params.total - params.used else 0.0
+        // What is left is the number a glance at the status bar is actually asking for; what has
+        // been spent is the same fact stated backwards, and only useful next to the total.
+        val remainingText = if (hasLimit) "$${String.format(Locale.US, "%.3f", remaining)}" else "Unlimited"
 
         val activityRows = if (params.activityList != null) {
             calculateActivityRowsWithHistory(
@@ -98,8 +97,8 @@ object StatusBarStatsFormatter {
               <tr height='8'><td></td></tr>
               <tr><td colspan='2'><b>Credits</b></td></tr>
               <tr height='2'><td></td></tr>
-              <tr><td>Used:</td><td align='right' style='padding-left: 30px;'>$usedText</td></tr>
               <tr><td>Total:</td><td align='right' style='padding-left: 30px;'>$totalText</td></tr>
+              <tr><td>Remaining:</td><td align='right' style='padding-left: 30px;'>$remainingText</td></tr>
               $activityRows
             </table>
             </html>
@@ -246,7 +245,7 @@ object StatusBarStatsFormatter {
           <tr><td>Today:</td><td align='right' style='padding-left: 30px;'>$todayText</td></tr>
           <tr><td>Yesterday:</td><td align='right' style='padding-left: 30px;'>$yesterdayText</td></tr>
           <tr><td>7 Days:</td><td align='right' style='padding-left: 30px;'>$lastWeekText</td></tr>
-          <tr><td>Remaining:</td><td align='right' style='padding-left: 30px;'>$daysText</td></tr>
+          <tr><td>Days Left:</td><td align='right' style='padding-left: 30px;'>$daysText</td></tr>
         """.trimIndent()
     }
 }

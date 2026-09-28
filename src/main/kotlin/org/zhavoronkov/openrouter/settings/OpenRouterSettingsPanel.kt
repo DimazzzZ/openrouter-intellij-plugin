@@ -10,7 +10,6 @@ import com.intellij.ui.ToolbarDecorator
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.dsl.builder.Align
-import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.RowLayout
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.table.JBTable
@@ -436,7 +435,10 @@ class OpenRouterSettingsPanel {
                 // the setting where they expect it instead of hunting through release notes.
                 group("Enterprise") {
                     row("Data region:") {
-                        cell(dataRegionSection.comboBox).align(AlignX.FILL)
+                        // Sized to its content, not stretched: there are three regions with short
+                        // names, and a combo filling the dialog's width is empty space with an
+                        // arrow at the far end.
+                        cell(dataRegionSection.comboBox)
                     }
                     row {
                         cell(dataRegionSection.comment)

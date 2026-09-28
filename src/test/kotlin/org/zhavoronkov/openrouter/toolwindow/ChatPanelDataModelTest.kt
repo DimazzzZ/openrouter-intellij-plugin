@@ -3,6 +3,7 @@ package org.zhavoronkov.openrouter.toolwindow
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -29,6 +30,34 @@ class ChatPanelDataModelTest {
 
             assertTrue(json.contains("\"role\":\"user\""))
             assertTrue(json.contains("\"content\":\"Hello, world!\""))
+        }
+
+        @Test
+        @DisplayName("ChatMessageData should carry which model answered across a save and reload")
+        fun `ChatMessageData should carry which model answered across a save and reload`() {
+            val message = ChatPanel.ChatMessageData(
+                role = "assistant",
+                content = "Hi there!",
+                footnote = "deepseek/deepseek-v4-flash-0731"
+            )
+
+            val reloaded = gson.fromJson(gson.toJson(message), ChatPanel.ChatMessageData::class.java)
+
+            assertEquals(
+                "deepseek/deepseek-v4-flash-0731",
+                reloaded.footnote,
+                "reopening a chat must still say which model wrote each reply"
+            )
+        }
+
+        @Test
+        @DisplayName("ChatMessageData should load chats saved before the footnote existed")
+        fun `ChatMessageData should load chats saved before the footnote existed`() {
+            val json = """{"role":"assistant","content":"Hi there!"}"""
+
+            val message = gson.fromJson(json, ChatPanel.ChatMessageData::class.java)
+
+            assertNull(message.footnote, "an older chat has no footnote to show, and must still load")
         }
 
         @Test

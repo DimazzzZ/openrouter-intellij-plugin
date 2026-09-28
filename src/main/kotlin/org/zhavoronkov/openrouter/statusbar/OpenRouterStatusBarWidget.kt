@@ -24,6 +24,7 @@ import org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.OpenRouterStatsCache
+import org.zhavoronkov.openrouter.settings.OpenRouterConfigurable
 import org.zhavoronkov.openrouter.ui.OpenRouterStatsPopup
 import org.zhavoronkov.openrouter.utils.applicationServiceOrNull
 import java.awt.event.MouseEvent
@@ -217,7 +218,7 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
     private fun openSettings() {
         ApplicationManager.getApplication().invokeLater {
-            ShowSettingsUtil.getInstance().showSettingsDialog(project, "OpenRouter")
+            ShowSettingsUtil.getInstance().showSettingsDialog(project, OpenRouterConfigurable::class.java)
         }
     }
 
@@ -310,6 +311,20 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         updateStatusBar()
     }
 
+    /**
+     * Account data is unavailable in this configuration, which is not a fault.
+     *
+     * An ordinary API key cannot read credits; only a Management Key can. Chat and the proxy work
+     * regardless, so the status stays whatever configuration says it is - the menu's own
+     * "Monitoring Disabled" is where that limitation belongs, and it already said so while the
+     * status beside it read "Error".
+     */
+    private fun onStatsUnavailable(reason: String) {
+        updateConnectionStatus()
+        currentTooltip = "$currentTooltip<br>Account monitoring: $reason"
+        updateStatusBar()
+    }
+
     private fun updateConnectionStatus() {
         connectionStatus = if (settingsService.isConfigured()) {
             ConnectionStatus.READY
@@ -362,6 +377,10 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
 
                 override fun onStatsLoading() {
                     this@OpenRouterStatusBarWidget.onStatsLoading()
+                }
+
+                override fun onStatsUnavailable(reason: String) {
+                    this@OpenRouterStatusBarWidget.onStatsUnavailable(reason)
                 }
 
                 override fun onStatsError(errorMessage: String) {

@@ -16,16 +16,6 @@ class SetupWizardConfigTest {
     inner class DialogDimensionsTests {
 
         @Test
-        fun `DIALOG_WIDTH is 700`() {
-            assertEquals(700, SetupWizardConfig.DIALOG_WIDTH)
-        }
-
-        @Test
-        fun `DIALOG_HEIGHT is 500`() {
-            assertEquals(500, SetupWizardConfig.DIALOG_HEIGHT)
-        }
-
-        @Test
         fun `MODELS_TABLE_WIDTH is 650`() {
             assertEquals(650, SetupWizardConfig.MODELS_TABLE_WIDTH)
         }

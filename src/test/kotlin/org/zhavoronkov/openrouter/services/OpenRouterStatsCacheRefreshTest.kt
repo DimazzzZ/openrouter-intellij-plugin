@@ -63,6 +63,12 @@ class OpenRouterStatsCacheRefreshTest {
                 """"created_at":"2026-01-01T00:00:00Z","updated_at":null,"hash":"h"}]}"""
         )
 
+    private var keyInfoResponse = MockResponse().setResponseCode(200)
+        .setBody(
+            """{"data":{"label":"sk-or-v1-...abc","usage":3.5,"limit":20.0,"limit_remaining":16.5,""" +
+                """"is_free_tier":false,"allowed_data_regions":["global"]}}"""
+        )
+
     @BeforeEach
     fun setUp() {
         server = MockWebServer()
@@ -70,9 +76,11 @@ class OpenRouterStatsCacheRefreshTest {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 val path = request.path.orEmpty()
                 return when {
+                    // Order matters: "/keys" contains "/key", so the plural must be matched first.
+                    path.contains("/keys") -> apiKeysResponse
+                    path.contains("/key") -> keyInfoResponse
                     path.contains("/credits") -> creditsResponse
                     path.contains("/activity") -> activityResponse
-                    path.contains("/keys") -> apiKeysResponse
                     else -> MockResponse().setResponseCode(404).setBody("{}")
                 }
             }
@@ -139,8 +147,42 @@ class OpenRouterStatsCacheRefreshTest {
             val job = cache.refresh()
 
             assertNull(job, "no work should be launched")
-            assertEquals("Management Key required", cache.getLastError())
             assertEquals(0, server.requestCount, "a missing key is an answer, not a reason to ask")
+        }
+
+        @Test
+        @DisplayName("a regular key still reports its own spend cap, which that key can read")
+        fun regularKeyStillReportsItsOwnCap() {
+            // GET /keys - the whole key list - is Management-Key-only, which is why the cap used
+            // to read "Needs a Management Key". GET /key is not: it describes the key making the
+            // request, and the setup wizard already validates ordinary keys through it. So the cap
+            // of the key in hand is readable with the key in hand.
+            `when`(settingsService.getProvisioningKey()).thenReturn("")
+            val cache = cache()
+
+            runBlocking { cache.refreshCurrentKey()?.join() }
+
+            val key = cache.getCurrentKeyInfo()
+            assertNotNull(key, "the key's own data should have been fetched")
+            assertEquals(20.0, key!!.limit)
+            assertEquals(3.5, key.usage)
+            assertEquals(16.5, key.limitRemaining)
+        }
+
+        @Test
+        @DisplayName("a regular key without a Management Key is a limitation, not an error")
+        fun noManagementKeyIsNotAnError() {
+            // An ordinary API key is a supported way to run the plugin - it just cannot read
+            // account-level data. Reporting that through the error channel put "Status: Error" in
+            // the status bar for a setup that works, right next to the menu's own, correct
+            // "Monitoring Disabled".
+            `when`(settingsService.getProvisioningKey()).thenReturn("")
+            val cache = cache()
+
+            cache.refresh()
+
+            assertNull(cache.getLastError(), "nothing went wrong, so nothing should be reported as an error")
+            assertEquals("Management Key required", cache.getUnavailableReason())
         }
     }
 

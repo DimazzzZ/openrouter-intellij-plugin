@@ -24,6 +24,7 @@ import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatComposer
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatConversationView
+import org.zhavoronkov.openrouter.toolwindow.chat.ChatFileWriter
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatListView
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatParamsPopup
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatToolbar
@@ -346,7 +347,7 @@ class ChatPanel(
         for (msg in chat.messages) {
             when (msg.role) {
                 "user" -> conversationView.addMessage(msg.content, isUser = true)
-                "assistant" -> conversationView.addMessage(msg.content, isUser = false)
+                "assistant" -> conversationView.addMessage(msg.content, isUser = false, footnote = msg.footnote)
                 "system" -> conversationView.addSystemMessage(msg.content)
             }
         }
@@ -428,9 +429,11 @@ class ChatPanel(
 
     private fun saveChats() {
         try {
+            // Serialised here, written on a background thread: this runs on the EDT after every
+            // finished reply and on every chat create/delete, and the file grows with the
+            // conversation. See ChatFileWriter.
             val json = gson.toJson(chatSessions)
-            val file = getChatsFile()
-            file.writeText(json)
+            ChatFileWriter.write(getChatsFile(), json)
         } catch (e: IOException) {
             PluginLogger.warn("Failed to save chat sessions: ${e.message}")
         }
@@ -561,7 +564,7 @@ class ChatPanel(
             val settings = mutableMapOf<String, String>()
             settings["selectedModel"] = selected
             val json = gson.toJson(settings)
-            getSettingsFile().writeText(json)
+            ChatFileWriter.write(getSettingsFile(), json)
         } catch (e: IOException) {
             PluginLogger.warn("Failed to save selected model: ${e.message}")
         }
@@ -806,11 +809,11 @@ class ChatPanel(
         }
 
         val messageText = extractMessageText(assistantMessage)
-        // For routers, echo which underlying model OpenRouter resolved to as a
-        // small footnote attached under the reply (not a separate system line).
-        val routedFootnote = RouterRequestBuilder.resolvedModelLabel(requestedModel, response.model)
-        addAssistantMessage(messageText, footnote = routedFootnote)
-        currentChat?.messages?.add(ChatMessageData("assistant", messageText))
+        // Which model answered, echoed under the reply as a small footnote rather than as a
+        // separate system line. Saved with the message so reopening the chat does not lose it.
+        val answeredBy = RouterRequestBuilder.answeringModelLabel(requestedModel, response.model)
+        addAssistantMessage(messageText, footnote = answeredBy)
+        currentChat?.messages?.add(ChatMessageData("assistant", messageText, footnote = answeredBy))
 
         val usage = response.usage
         if (usage != null) {
@@ -880,7 +883,16 @@ class ChatPanel(
         coroutineScope.cancel()
     }
 
-    data class ChatMessageData(val role: String, val content: String)
+    /**
+     * [footnote] is what the message's own line under the text says - for a reply, which model
+     * answered it. Stored with the message rather than derived on display, because by the time a
+     * chat is reopened the only model the panel still knows about is the one selected now, which
+     * is the wrong answer for every message that predates the last time the picker changed.
+     *
+     * It is nullable and defaults to null so chats saved before this existed still load: Gson
+     * leaves an absent field at its default.
+     */
+    data class ChatMessageData(val role: String, val content: String, val footnote: String? = null)
 
     data class ChatSession(
         val id: String,

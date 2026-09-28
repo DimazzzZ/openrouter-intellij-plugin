@@ -8,7 +8,7 @@ import javax.swing.JEditorPane
 import javax.swing.SwingUtilities
 
 private const val LAYOUT_WIDTH = 400
-private const val HUG_MAX_FRACTION = 0.8
+private const val USER_BUBBLE_FRACTION = 0.9
 private const val LONG_REPLY_WORD_COUNT = 200
 
 /**
@@ -56,9 +56,6 @@ class MessageViewLayoutPlatformTest : BasePlatformTestCase() {
     private fun centerOf(container: Container): Container =
         (container.layout as BorderLayout).getLayoutComponent(container, BorderLayout.CENTER) as Container
 
-    private fun westOf(container: Container): Container =
-        (container.layout as BorderLayout).getLayoutComponent(container, BorderLayout.WEST) as Container
-
     private fun <T> findDescendant(root: java.awt.Component, type: Class<T>): T? {
         if (type.isInstance(root)) {
             @Suppress("UNCHECKED_CAST")
@@ -72,32 +69,33 @@ class MessageViewLayoutPlatformTest : BasePlatformTestCase() {
         return null
     }
 
-    // --- Item 1: the tinted block hugs its content -------------------------
+    // --- A user message's bubble is a fixed fraction of the row ------------
 
-    fun testShortUserMessageHugsItsTextInsteadOfFillingTheRow() {
-        val view = MessageView("pareto", isUser = true, footnote = null)
-        layoutInPanel(view)
+    /**
+     * Both lengths, because a width that depends on the text is the exact thing being ruled out:
+     * a bubble that merely fits inside the fraction satisfies any upper bound the long case can
+     * state, and one that fills the row satisfies any lower bound the short case can state. Only
+     * asserting that the two come out the same width says the content has no say in it.
+     */
+    fun testAUserBubbleTakesTheSameFractionOfTheRowWhateverItSays() {
+        val short = MessageView("pareto", isUser = true, footnote = null)
+        val long = MessageView("pareto ".repeat(60).trim(), isUser = true, footnote = null)
+        layoutInPanel(short)
+        layoutInPanel(long)
 
-        val tinted = westOf(centerOf(view.component))
+        val shortWidth = centerOf(short.component).width
+        val longWidth = centerOf(long.component).width
+        val expected = (LAYOUT_WIDTH * USER_BUBBLE_FRACTION).toInt()
 
-        assertTrue(
-            "a one-word user message must not span the row, was ${tinted.width}px of $LAYOUT_WIDTH",
-            tinted.width < LAYOUT_WIDTH / 2
+        assertEquals(
+            "a one-word and a sixty-word user message must come out the same width",
+            longWidth,
+            shortWidth
         )
-    }
-
-    fun testLongUserMessageIsCappedAtEightyPercentOfTheRow() {
-        val longText = "pareto ".repeat(60).trim()
-        val view = MessageView(longText, isUser = true, footnote = null)
-        layoutInPanel(view)
-
-        val row = centerOf(view.component)
-        val tinted = westOf(row)
-        val cap = (row.width * HUG_MAX_FRACTION).toInt()
-
         assertTrue(
-            "a long user message must wrap at the 80% cap ($cap), not fill the row (${tinted.width})",
-            tinted.width <= cap + JBUI_TOLERANCE
+            "a user bubble must take ${'$'}USER_BUBBLE_FRACTION of the ${'$'}LAYOUT_WIDTH row (about " +
+                "${'$'}{expected}px), was ${'$'}{shortWidth}px",
+            kotlin.math.abs(shortWidth - expected) <= JBUI_TOLERANCE + MESSAGE_GAP_ALLOWANCE
         )
     }
 
@@ -223,7 +221,7 @@ class MessageViewLayoutPlatformTest : BasePlatformTestCase() {
         val second = MessageView("hi", isUserSecond, footnote = null)
         layoutInPanel(first, second)
 
-        return textTopAbsoluteY(second) - stripBottomAbsoluteY(first)
+        return textTopAbsoluteY(second) - contentBottomAbsoluteY(first)
     }
 
     // --- Width-then-height audit: no descendant clipped by the message's own
@@ -271,13 +269,16 @@ class MessageViewLayoutPlatformTest : BasePlatformTestCase() {
         assertNoDescendantClippedByBottomEdge(view.component)
     }
 
-    private fun southOf(container: Container): Container =
-        (container.layout as BorderLayout).getLayoutComponent(container, BorderLayout.SOUTH) as Container
-
-    private fun stripBottomAbsoluteY(view: MessageView): Int {
-        val strip = southOf(view.component)
-        return view.component.y + strip.y + strip.height
-    }
+    /**
+     * The bottom of the message's content, below which only its own padding remains.
+     *
+     * Measured from the message rather than from its footnote strip: the strip only exists when
+     * there is a footnote, now that the copy button floats over the message instead of sitting in
+     * that strip. The property under test - a uniform gap between messages whoever spoke - is the
+     * same either way.
+     */
+    private fun contentBottomAbsoluteY(view: MessageView): Int =
+        view.component.y + view.component.height - view.component.insets.bottom
 
     private fun textTopAbsoluteY(view: MessageView): Int =
         view.component.y + leftEdgeAndTopOfText(view).y
@@ -289,7 +290,10 @@ class MessageViewLayoutPlatformTest : BasePlatformTestCase() {
     }
 
     private companion object {
-        /** Rounding slack for the 80% cap computed from an already-scaled row width. */
+        /** Rounding slack for a fraction computed from an already-scaled row width. */
         const val JBUI_TOLERANCE = 2
+
+        /** The left and right gaps between the bubble and the row, which the fraction sits inside. */
+        const val MESSAGE_GAP_ALLOWANCE = 16
     }
 }

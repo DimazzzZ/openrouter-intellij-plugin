@@ -36,4 +36,13 @@ interface OpenRouterStatsListener {
      * @param errorMessage The error message describing the failure
      */
     fun onStatsError(errorMessage: String) {}
+
+    /**
+     * Called when this configuration has no account data to show - not when something failed.
+     *
+     * An ordinary API key cannot read credits, activity or the key list; only a Management Key
+     * can. That is a supported setup rather than a fault, so it has its own callback: a listener
+     * that treats it as an error tells the user their working plugin is broken.
+     */
+    fun onStatsUnavailable(reason: String) {}
 }
