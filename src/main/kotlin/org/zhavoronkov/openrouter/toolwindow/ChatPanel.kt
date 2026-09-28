@@ -8,6 +8,7 @@ import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
+import com.intellij.ui.components.JBCheckBox
 import com.intellij.util.ui.JBUI
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +16,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import org.zhavoronkov.openrouter.models.ApiResult
+import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatMessage
 import org.zhavoronkov.openrouter.proxy.routing.RouterCatalog
 import org.zhavoronkov.openrouter.proxy.routing.RouterRequestBuilder
@@ -26,7 +28,6 @@ import org.zhavoronkov.openrouter.toolwindow.chat.ChatExchange
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatFileWriter
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatListView
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatParamsPopup
-import org.zhavoronkov.openrouter.toolwindow.chat.ChatRequestOptions
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatToolbar
 import org.zhavoronkov.openrouter.toolwindow.chat.ReplySummary
 import org.zhavoronkov.openrouter.ui.ModelVariantChipRenderer
@@ -96,9 +97,13 @@ class ChatPanel(
     private val verbosityComboBox: ComboBox<String>
     private val routerParamComboBox: ComboBox<String>
 
-    // The send parameters (reasoning, verbosity, router param), in a popup off
-    // the composer's gear button (Task 10). Owns no state of its own beyond
-    // what these three combo boxes already hold.
+    // Deliberately never reset after a send: a follow-up question in the same investigation should
+    // not need the box ticked again, the same way Reasoning and Verbosity stay as they were left.
+    private val webSearchCheckBox: JBCheckBox
+
+    // The send parameters (reasoning, verbosity, router param, web search), in
+    // a popup off the composer's gear button. Owns no state of its own beyond
+    // what these controls already hold.
     private lateinit var paramsPopup: ChatParamsPopup
 
     // Remembers which router-param the combo box currently reflects, so
@@ -175,8 +180,9 @@ class ChatPanel(
         verbosityComboBox = ComboBox<String>()
         routerParamComboBox = ComboBox<String>()
         routerParamComboBox.isEditable = true
+        webSearchCheckBox = JBCheckBox()
 
-        paramsPopup = ChatParamsPopup(reasoningComboBox, verbosityComboBox, routerParamComboBox)
+        paramsPopup = ChatParamsPopup(reasoningComboBox, verbosityComboBox, routerParamComboBox, webSearchCheckBox)
         composer.onSettingsClick = { paramsPopup.show(composer.settingsComponent()) }
         // Any selection change on a send parameter can flip whether it is
         // "non-default", so the gear badge/tooltip has to be recomputed from
@@ -186,6 +192,7 @@ class ChatPanel(
         reasoningComboBox.addActionListener { refreshParamsBadge() }
         verbosityComboBox.addActionListener { refreshParamsBadge() }
         routerParamComboBox.addActionListener { refreshParamsBadge() }
+        webSearchCheckBox.addActionListener { refreshParamsBadge() }
 
         // Create main panel with CardLayout
         cardLayout = CardLayout()
@@ -250,11 +257,10 @@ class ChatPanel(
     private fun createChatView(): JPanel {
         val panel = JPanel(BorderLayout())
 
-        // Reasoning / Verbosity / router-param combos no longer sit in a row
-        // in this panel — Task 10 moved them into ChatParamsPopup, opened from
-        // the composer's gear button. ChatPanel still owns the combo boxes
-        // (their model, enabled state and selection feed sendChatRequest), it
-        // just no longer places them directly.
+        // The send-parameter controls are placed by ChatParamsPopup, opened
+        // from the composer's gear button, not by this panel. ChatPanel still
+        // owns them: their model and enabled state are set here, and the
+        // popup reads their selection into each request.
         // The choices come from ChatExchange rather than from lists here, because it is what
         // turns them into a request: a label this panel offers but that module cannot translate
         // would be dropped from the request silently instead of failing to compile.
@@ -743,17 +749,14 @@ class ChatPanel(
             val request = ChatExchange.buildRequest(
                 model = model,
                 messages = messages,
-                options = ChatRequestOptions(
-                    reasoning = reasoningComboBox.selectedItem as? String,
-                    verbosity = verbosityComboBox.selectedItem as? String,
-                    routerParam = routerParamComboBox.selectedItem as? String
-                )
+                options = paramsPopup.requestOptions(),
+                webSearch = settingsService.webSearchManager.current()
             )
 
             val result = openRouterService.createChatCompletion(request)
 
             SwingUtilities.invokeLater {
-                handleChatResponse(result, currentChat, model)
+                handleChatResponse(result, currentChat, request)
             }
         } catch (e: IOException) {
             SwingUtilities.invokeLater {
@@ -766,13 +769,13 @@ class ChatPanel(
     private fun handleChatResponse(
         result: ApiResult<org.zhavoronkov.openrouter.models.ChatCompletionResponse>,
         currentChat: ChatSession?,
-        requestedModel: String
+        request: ChatCompletionRequest
     ) {
         setLoading(false)
         composer.requestFocusInInput()
 
         when (result) {
-            is ApiResult.Success -> handleSuccessResponse(result.data, currentChat, requestedModel)
+            is ApiResult.Success -> handleSuccessResponse(result.data, currentChat, request)
             is ApiResult.Error -> conversationView.showError("Error: ${result.message}")
         }
     }
@@ -780,7 +783,7 @@ class ChatPanel(
     private fun handleSuccessResponse(
         response: org.zhavoronkov.openrouter.models.ChatCompletionResponse,
         currentChat: ChatSession?,
-        requestedModel: String
+        request: ChatCompletionRequest
     ) {
         val assistantMessage = response.choices?.firstOrNull()?.message?.content
         if (assistantMessage == null) {
@@ -792,7 +795,7 @@ class ChatPanel(
         // How the reply was produced, echoed under it as a small footnote rather than as a
         // separate system line. Shown from the saved message itself, so a live reply and a
         // reopened one go through the same rendering and cannot disagree.
-        val reply = ChatMessageData.reply(messageText, ChatExchange.summarizeReply(requestedModel, response))
+        val reply = ChatMessageData.reply(messageText, ChatExchange.summarizeReply(request, response))
         showAssistantMessage(reply)
         currentChat?.messages?.add(reply)
 

@@ -4,7 +4,9 @@ import com.google.gson.Gson
 import com.google.gson.JsonParser
 import com.google.gson.JsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
@@ -150,6 +152,83 @@ class ChatExchangeTest {
     // asserted in RouterRequestBuilderTest. What belongs here is that the user's selection reaches
     // it and that its answer reaches the request.
 
+    // --- Web Search ------------------------------------------------------------
+
+    @Test
+    @DisplayName("Web Search sends the bare web plugin entry, carrying nothing but its id")
+    fun `Web Search sends the bare web plugin entry`() {
+        val request = ChatExchange.buildRequest("openai/gpt-5.2", messages, ChatRequestOptions(webSearch = true))
+
+        assertEquals(
+            JsonParser.parseString("""[{"id": "web"}]"""),
+            Gson().toJsonTree(request.plugins),
+            "with no tuning configured the entry must leave every choice to OpenRouter"
+        )
+    }
+
+    /**
+     * Every combination of the toggle and the Router selection, written as the plugins array
+     * OpenRouter receives. The Router's block and the web entry share one array, and neither may
+     * overwrite the other.
+     */
+    @ParameterizedTest(name = "{0}, routerParam={1}, webSearch={2}")
+    @CsvSource(
+        nullValues = ["NULL"],
+        textBlock = """
+        openai/gpt-5.2,  NULL,   false, NULL
+        openai/gpt-5.2,  NULL,   true,  '[{"id":"web"}]'
+        openai/gpt-5.2,  medium, false, NULL
+        openai/gpt-5.2,  medium, true,  '[{"id":"web"}]'
+        openrouter/auto, NULL,   false, NULL
+        openrouter/auto, NULL,   true,  '[{"id":"web"}]'
+        openrouter/auto, medium, false, '[{"id":"auto-router","cost_tier":"medium"}]'
+        openrouter/auto, medium, true,  '[{"id":"auto-router","cost_tier":"medium"},{"id":"web"}]'"""
+    )
+    @DisplayName("the plugins array for every combination of Web Search and Router selection")
+    fun `the plugins array for every combination of Web Search and Router selection`(
+        model: String,
+        routerParam: String?,
+        webSearch: Boolean,
+        expected: String?
+    ) {
+        val options = ChatRequestOptions(routerParam = routerParam, webSearch = webSearch)
+
+        val plugins = ChatExchange.buildRequest(model, messages, options).plugins
+
+        if (expected == null) {
+            assertNull(plugins, "nothing to attach must leave the plugins field out, not send an empty array")
+        } else {
+            assertEquals(JsonParser.parseString(expected), Gson().toJsonTree(plugins))
+        }
+    }
+
+    @Test
+    @DisplayName("a reply to a request that web search says so in its footer")
+    fun `a reply to a request that web search says so in its footer`() {
+        val reply = ChatCompletionResponse(
+            model = "openai/gpt-5.2",
+            provider = "OpenAI",
+            usage = ChatUsage(cost = 0.01)
+        )
+
+        val summary = ChatExchange.summarizeReply(sent("openai/gpt-5.2", ChatRequestOptions(webSearch = true)), reply)
+
+        assertTrue(summary.searched)
+        assertEquals("openai/gpt-5.2 · OpenAI · \$0.01 · web search", summary.facts)
+    }
+
+    @Test
+    @DisplayName("a reply to a request that did not search the web carries no search marker")
+    fun `a reply to a request that did not search the web carries no search marker`() {
+        val reply = ChatCompletionResponse(model = "openrouter/auto")
+        val request = sent("openrouter/auto", ChatRequestOptions(routerParam = "medium"))
+
+        val summary = ChatExchange.summarizeReply(request, reply)
+
+        assertFalse(summary.searched, "a Router's own plugin entry is not a web search")
+        assertFalse(summary.facts.contains("web"))
+    }
+
     // --- The vocabulary the controls offer -----------------------------------
 
     @Test
@@ -239,6 +318,9 @@ class ChatExchangeTest {
 
     // --- Reading a reply back ------------------------------------------------
 
+    private fun sent(model: String, options: ChatRequestOptions = ChatRequestOptions()) =
+        ChatExchange.buildRequest(model, messages, options)
+
     private fun response(json: String): ChatCompletionResponse =
         Gson().fromJson(json, ChatCompletionResponse::class.java)
 
@@ -261,7 +343,7 @@ class ChatExchangeTest {
             """
         )
 
-        val summary = ChatExchange.summarizeReply("anthropic/claude-sonnet-4.5", reply)
+        val summary = ChatExchange.summarizeReply(sent("anthropic/claude-sonnet-4.5"), reply)
 
         assertEquals(
             ReplySummary(
@@ -281,7 +363,7 @@ class ChatExchangeTest {
     fun `a Router's reply keeps the Routed to wording`() {
         val reply = ChatCompletionResponse(model = "anthropic/claude-sonnet-4.5", provider = "Anthropic")
 
-        val summary = ChatExchange.summarizeReply("openrouter/auto", reply)
+        val summary = ChatExchange.summarizeReply(sent("openrouter/auto"), reply)
 
         assertEquals("Routed to anthropic/claude-sonnet-4.5", summary.answeringModel)
         assertEquals("Routed to anthropic/claude-sonnet-4.5 · Anthropic", summary.facts)
@@ -290,7 +372,9 @@ class ChatExchangeTest {
     @Test
     @DisplayName("a directly chosen Model's reply reports its own slug")
     fun `a directly chosen Model's reply reports its own slug`() {
-        val summary = ChatExchange.summarizeReply("openai/gpt-5.2", ChatCompletionResponse(model = "openai/gpt-5.2"))
+        val reply = ChatCompletionResponse(model = "openai/gpt-5.2")
+
+        val summary = ChatExchange.summarizeReply(sent("openai/gpt-5.2"), reply)
 
         assertEquals("openai/gpt-5.2", summary.answeringModel)
     }
@@ -300,7 +384,9 @@ class ChatExchangeTest {
     @ValueSource(strings = ["", "   "])
     @DisplayName("a reply that does not name its model reports the model that was asked for")
     fun `a reply that does not name its model reports the model that was asked for`(responseModel: String?) {
-        val summary = ChatExchange.summarizeReply("openai/gpt-5.2", ChatCompletionResponse(model = responseModel))
+        val reply = ChatCompletionResponse(model = responseModel)
+
+        val summary = ChatExchange.summarizeReply(sent("openai/gpt-5.2"), reply)
 
         assertEquals("openai/gpt-5.2", summary.answeringModel)
     }
@@ -310,7 +396,7 @@ class ChatExchangeTest {
     fun `provider and cost are left out when the reply does not carry them`() {
         val reply = ChatCompletionResponse(model = "openai/gpt-5.2", provider = " ", usage = ChatUsage(totalTokens = 3))
 
-        val summary = ChatExchange.summarizeReply("openai/gpt-5.2", reply)
+        val summary = ChatExchange.summarizeReply(sent("openai/gpt-5.2"), reply)
 
         assertNull(summary.provider)
         assertNull(summary.cost)
@@ -323,7 +409,9 @@ class ChatExchangeTest {
     fun `a reported cost of zero is shown`() {
         val reply = ChatCompletionResponse(model = "openai/gpt-oss:free", usage = ChatUsage(cost = 0.0))
 
-        assertEquals("openai/gpt-oss:free · \$0", ChatExchange.summarizeReply("openai/gpt-oss:free", reply).facts)
+        val summary = ChatExchange.summarizeReply(sent("openai/gpt-oss:free"), reply)
+
+        assertEquals("openai/gpt-oss:free · \$0", summary.facts)
     }
 
     @ParameterizedTest
@@ -351,7 +439,7 @@ class ChatExchangeTest {
     fun `a reply that stopped normally carries no warning`(finishReason: String?) {
         val reply = ChatCompletionResponse(choices = listOf(ChatChoice(finishReason = finishReason)))
 
-        assertNull(ChatExchange.summarizeReply("openai/gpt-5.2", reply).warning)
+        assertNull(ChatExchange.summarizeReply(sent("openai/gpt-5.2"), reply).warning)
     }
 
     @ParameterizedTest
@@ -365,7 +453,7 @@ class ChatExchangeTest {
     fun `a reply that did not stop normally warns naming why`(finishReason: String, expected: String) {
         val reply = ChatCompletionResponse(choices = listOf(ChatChoice(finishReason = finishReason)))
 
-        val summary = ChatExchange.summarizeReply("openai/gpt-5.2", reply)
+        val summary = ChatExchange.summarizeReply(sent("openai/gpt-5.2"), reply)
 
         assertEquals(finishReason, summary.finishReason)
         assertEquals(expected, summary.warning)

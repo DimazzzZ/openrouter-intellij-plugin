@@ -43,10 +43,9 @@ this file says.
   as their translation, so a label the request cannot express cannot exist.
   Distinct from the **Proxy layer**, which translates for a **Consumer**; this
   is the plugin's own chat window talking for the human.
-- **Reply Summary** — what a reply reports about how it was produced, shown in the footer under it: the answering model (a **Router**'s reply keeps its "Routed to X" wording), the provider that served the call, what it cost, and why generation stopped. Provider and cost are left out when the response does not carry them; the stop reason becomes a warning only when it is not a normal stop. Built by the **Chat Exchange**.
-- **PluginConfig** — the `{ id, params }` block attached to a request's
-  `plugins` field to pass a router's parameter (e.g. `auto-router` +
-  `cost_tier`). Emitted only when the user picks a valid value.
+- **Reply Summary** — what a reply reports about how it was produced, shown in the footer under it: the answering model (a **Router**'s reply keeps its "Routed to X" wording), the provider that served the call, what it cost, and why generation stopped, plus a marker when the request carried a **Web Search**. Provider and cost are left out when the response does not carry them; the stop reason becomes a warning only when it is not a normal stop. Built by the **Chat Exchange**.
+- **PluginConfig** — one `{ id, params }` entry in a request's `plugins` array. It passes a **Router**'s parameter (e.g. `auto-router` + `cost_tier`, emitted only when the user picks a valid value) or turns on **Web Search** (`web`); both can sit in the same array.
+- **Web Search** — OpenRouter's `web` plugin, turned on per message by a checkbox in the chat's send-parameters popup. Charged per request on top of inference, which the control says where it sits. The toggle stays as the user left it across sends, like Reasoning and Verbosity. How a search is tuned — engine, result count, included and excluded domains, and a mode for the engines that take one — is a separate decision made once on the Web Search settings page; anything left at its default is left out of the request. The UI spells it "Web search", sentence case, like its sibling labels.
 - **Proxy Server** — local Jetty server that translates AI-Assistant-style
   OpenAI requests into OpenRouter requests. Runs on 127.0.0.1 only.
 - **AI Assistant** — JetBrains' built-in AI feature (`com.intellij.ml.llm`).

@@ -16,10 +16,11 @@ import com.intellij.util.ui.JBUI
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.Point
+import javax.swing.JCheckBox
 import javax.swing.JComponent
 
 /**
- * The send parameters (reasoning, verbosity, router param), in a popup form.
+ * The send parameters (reasoning, verbosity, router param, web search), in a popup form.
  *
  * They used to be a right-aligned FlowLayout row nested in a BoxLayout.Y_AXIS
  * panel. FlowLayout can wrap, but BoxLayout asks it for its preferred height
@@ -78,8 +79,13 @@ import javax.swing.JComponent
 class ChatParamsPopup(
     private val reasoning: ComboBox<String>,
     private val verbosity: ComboBox<String>,
-    private val routerParam: ComboBox<String>
+    private val routerParam: ComboBox<String>,
+    private val webSearch: JCheckBox
 ) {
+
+    init {
+        webSearch.text = WEB_SEARCH_TEXT
+    }
 
     private var reasoningComment: String = ""
     private var verbosityComment: String = ""
@@ -103,6 +109,14 @@ class ChatParamsPopup(
         routerVisible = visible
     }
 
+    /** What the controls currently say, as the next request's options. */
+    fun requestOptions(): ChatRequestOptions = ChatRequestOptions(
+        reasoning = reasoning.selectedItem as? String,
+        verbosity = verbosity.selectedItem as? String,
+        routerParam = routerParam.selectedItem as? String,
+        webSearch = webSearch.isSelected
+    )
+
     fun hasNonDefaultSelection(): Boolean = ChatParamsState.hasNonDefaultSelection(currentSelection())
 
     fun activeSummary(): String = ChatParamsState.activeSummary(currentSelection())
@@ -114,7 +128,8 @@ class ChatParamsPopup(
         verbosityValue = verbosity.selectedItem as? String,
         routerVisible = routerVisible,
         routerLabel = routerLabel,
-        routerValue = routerParam.selectedItem as? String
+        routerValue = routerParam.selectedItem as? String,
+        webSearch = webSearch.isSelected
     )
 
     /**
@@ -235,6 +250,7 @@ class ChatParamsPopup(
                 .customize(TIGHT_ROW_GAP)
                 .withComment(routerComment.orEmpty())
         }
+        row(WEB_SEARCH_LABEL) { cell(webSearch) }.customize(TIGHT_ROW_GAP)
     }.apply {
         // The border must be set BEFORE the width is clamped and the height is
         // measured: it shrinks the interior width the DSL grid actually has to
@@ -304,6 +320,14 @@ class ChatParamsPopup(
          */
         private const val REASONING_LABEL = "Reasoning:"
         private const val VERBOSITY_LABEL = "Verbosity:"
+        private const val WEB_SEARCH_LABEL = "Web search:"
+
+        /**
+         * The cost is said on the control itself rather than in a comment beneath it: a search is
+         * billed per request on top of inference, and that has to be read before the box is
+         * ticked, not discovered on the invoice. On the checkbox it costs the form no extra line.
+         */
+        private const val WEB_SEARCH_TEXT = "Search the web (charged per request)"
 
         /**
          * Extra top gap above the second/third row is dropped to

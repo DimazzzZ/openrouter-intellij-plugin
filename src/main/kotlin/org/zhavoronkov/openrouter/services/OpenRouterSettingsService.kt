@@ -15,6 +15,7 @@ import org.zhavoronkov.openrouter.services.settings.ProxySettingsManager
 import org.zhavoronkov.openrouter.services.settings.RouterDefaultsManager
 import org.zhavoronkov.openrouter.services.settings.SetupStateManager
 import org.zhavoronkov.openrouter.services.settings.UIPreferencesManager
+import org.zhavoronkov.openrouter.services.settings.WebSearchSettingsManager
 import org.zhavoronkov.openrouter.utils.PluginLogger
 
 /**
@@ -47,6 +48,9 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
     lateinit var routerDefaultsManager: RouterDefaultsManager
         private set
 
+    lateinit var webSearchManager: WebSearchSettingsManager
+        private set
+
     init {
         initializeManagers()
     }
@@ -60,6 +64,7 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
         presetsManager = PresetsManager(settings) { notifyStateChanged() }
         providerRoutingManager = ProviderRoutingManager(settings) { notifyStateChanged() }
         routerDefaultsManager = RouterDefaultsManager(settings) { notifyStateChanged() }
+        webSearchManager = WebSearchSettingsManager(settings) { notifyStateChanged() }
     }
 
     companion object {

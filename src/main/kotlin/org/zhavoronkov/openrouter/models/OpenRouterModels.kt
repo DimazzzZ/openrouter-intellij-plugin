@@ -550,6 +550,15 @@ data class OpenRouterSettings(
     // settings file edited by hand, degrades to the global region instead of failing to
     // deserialize the whole settings object. Empty means the same as "global".
     var dataRegion: String = DataRegion.GLOBAL.apiName,
+    // Web Search tuning, applied whenever the chat's Web Search toggle is on. Stored raw, like
+    // dataRegion, so a value this build does not recognise degrades to OpenRouter's own choice
+    // rather than failing to load the whole settings object. Empty engine and mode mean "let
+    // OpenRouter choose"; see WebSearchSettingsManager for how the raw values are read.
+    var webSearchEngine: String = "",
+    var webSearchMaxResults: Int = WebSearchSettings.DEFAULT_MAX_RESULTS,
+    var webSearchIncludeDomains: MutableList<String> = mutableListOf(),
+    var webSearchExcludeDomains: MutableList<String> = mutableListOf(),
+    var webSearchMode: String = "",
 )
 
 /**

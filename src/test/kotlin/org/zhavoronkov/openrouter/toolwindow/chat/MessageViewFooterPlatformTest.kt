@@ -90,6 +90,21 @@ class MessageViewFooterPlatformTest : BasePlatformTestCase() {
     /** How far a colour is from grey: zero for any shade of grey, large for a saturated hue. */
     private fun Color.chroma(): Int = maxOf(red, green, blue) - minOf(red, green, blue)
 
+    private fun Color.luminance(): Double = LUMA_R * red + LUMA_G * green + LUMA_B * blue
+
+    /**
+     * The colour of the strokes themselves: the mean chroma of the darkest quarter of the ink.
+     *
+     * Edge pixels are blended with the background, and under subpixel antialiasing - the default
+     * on Linux - they carry red and blue fringes even for grey text, so no single pixel's colour
+     * says what colour the text is. A stroke's fully covered core does: it is the foreground.
+     */
+    private fun List<Color>.strokeChroma(): Int {
+        if (isEmpty()) return 0
+        val core = sortedBy { it.luminance() }.take(maxOf(1, size / CORE_FRACTION))
+        return core.sumOf { it.chroma() } / core.size
+    }
+
     private fun onOneLine(a: Rectangle, b: Rectangle) = a.y < b.y + b.height && b.y < a.y + a.height
 
     fun testProviderAndCostArePaintedOnTheCopyButtonsLine() {
@@ -116,6 +131,19 @@ class MessageViewFooterPlatformTest : BasePlatformTestCase() {
         )
     }
 
+    fun testTheFooterMarksASearchOnlyWhenOneRan() {
+        val searched = render(summary.copy(searched = true))
+        val facts = searched.label(summary.copy(searched = true).facts)
+
+        assertNotNull("a reply that web search must say so in its footer", facts)
+        assertTrue(facts!!.text.endsWith("web search"))
+        assertTrue("the search marker must be painted", searched.ink(searched.boundsOf(facts)).isNotEmpty())
+        assertTrue(
+            "a reply that did not search must carry no search marker",
+            descendants(render(summary).root, JBLabel::class.java).none { it.text.contains("web search") }
+        )
+    }
+
     fun testANormalStopPaintsNoWarning() {
         val rendered = render(summary.copy(finishReason = "stop"))
 
@@ -127,7 +155,7 @@ class MessageViewFooterPlatformTest : BasePlatformTestCase() {
         val wholeMessage = Rectangle(0, 0, rendered.image.width, rendered.image.height)
         assertTrue(
             "nothing in a normally-stopped reply may be painted in a warning colour",
-            rendered.ink(wholeMessage).none { it.chroma() > MAX_GREY_CHROMA }
+            rendered.ink(wholeMessage).strokeChroma() <= MAX_GREY_CHROMA
         )
     }
 
@@ -146,11 +174,11 @@ class MessageViewFooterPlatformTest : BasePlatformTestCase() {
         )
         assertTrue(
             "the warning must be painted in a colour, not in the facts' grey",
-            rendered.ink(warningBounds).count { it.chroma() > MAX_GREY_CHROMA } > MIN_COLOURED_PIXELS
+            rendered.ink(warningBounds).strokeChroma() >= MIN_WARNING_CHROMA
         )
         assertTrue(
             "the facts must stay grey beside a warning, so the two are told apart",
-            rendered.ink(factsBounds).none { it.chroma() > MAX_GREY_CHROMA }
+            rendered.ink(factsBounds).strokeChroma() <= MAX_GREY_CHROMA
         )
     }
 
@@ -175,7 +203,8 @@ class MessageViewFooterPlatformTest : BasePlatformTestCase() {
             respondingModel = "anthropic/claude-sonnet-4.5-20250929",
             provider = "Amazon Bedrock",
             cost = 0.0123,
-            finishReason = "length"
+            finishReason = "length",
+            searched = true
         )
         val rendered = render(longSummary, NARROW)
         val facts = rendered.label(longSummary.facts)!!
@@ -207,10 +236,20 @@ class MessageViewFooterPlatformTest : BasePlatformTestCase() {
     }
 
     private companion object {
-        /** Well clear of the tint antialiasing puts on grey text, well short of a warning hue. */
+        /**
+         * Grey strokes measure about 20 under Linux's subpixel antialiasing, whose individual edge
+         * pixels reach about 90 - which is why single pixels are not what gets measured.
+         */
         const val MAX_GREY_CHROMA = 60
 
-        /** Enough coloured pixels to be a glyph or an icon rather than a stray fringe. */
-        const val MIN_COLOURED_PIXELS = 20
+        /** The warning's strokes measure about 140; this leaves room for a theme to shift the hue. */
+        const val MIN_WARNING_CHROMA = 100
+
+        /** The darkest quarter of the ink stands for the strokes' cores. */
+        const val CORE_FRACTION = 4
+
+        const val LUMA_R = 0.299
+        const val LUMA_G = 0.587
+        const val LUMA_B = 0.114
     }
 }

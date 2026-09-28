@@ -390,6 +390,13 @@
             instance="org.zhavoronkov.openrouter.settings.RouterDefaultsConfigurable"
             id="org.zhavoronkov.openrouter.settings.RouterDefaultsConfigurable"
             displayName="Router Defaults"/>
+
+        <!-- Web Search sub-page -->
+        <applicationConfigurable
+            parentId="org.zhavoronkov.openrouter.settings.OpenRouterConfigurable"
+            instance="org.zhavoronkov.openrouter.settings.WebSearchConfigurable"
+            id="org.zhavoronkov.openrouter.settings.WebSearchConfigurable"
+            displayName="Web Search"/>
         
         <!-- Status bar widget -->
         <statusBarWidgetFactory

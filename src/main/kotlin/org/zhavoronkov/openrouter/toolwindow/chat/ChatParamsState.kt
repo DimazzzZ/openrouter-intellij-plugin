@@ -28,6 +28,8 @@ object ChatParamsState {
      * currently shown. [routerVisible] gates whether a router value counts at
      * all — a value left over from a previously shown router must NOT count
      * once the control is hidden (the model changed away from that router).
+     * [webSearch] always counts when on: a search is charged per request, so
+     * a toggle left on is exactly what the badge exists to keep in sight.
      */
     data class Selection(
         val reasoningIndex: Int,
@@ -36,13 +38,15 @@ object ChatParamsState {
         val verbosityValue: String?,
         val routerVisible: Boolean,
         val routerLabel: String?,
-        val routerValue: String?
+        val routerValue: String?,
+        val webSearch: Boolean = false
     )
 
     fun hasNonDefaultSelection(selection: Selection): Boolean =
         selection.reasoningIndex > 0 ||
             selection.verbosityIndex > 0 ||
-            (selection.routerVisible && !selection.routerValue.isNullOrBlank())
+            (selection.routerVisible && !selection.routerValue.isNullOrBlank()) ||
+            selection.webSearch
 
     fun activeSummary(selection: Selection): String {
         val parts = mutableListOf<String>()
@@ -51,6 +55,7 @@ object ChatParamsState {
         if (selection.routerVisible && !selection.routerValue.isNullOrBlank()) {
             parts += "${selection.routerLabel.orEmpty()}: ${selection.routerValue}"
         }
+        if (selection.webSearch) parts += "Web search"
         return if (parts.isEmpty()) "Send parameters" else parts.joinToString(" · ")
     }
 }

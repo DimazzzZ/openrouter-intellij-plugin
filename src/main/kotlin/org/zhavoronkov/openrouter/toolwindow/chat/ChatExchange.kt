@@ -3,7 +3,9 @@ package org.zhavoronkov.openrouter.toolwindow.chat
 import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatCompletionResponse
 import org.zhavoronkov.openrouter.models.ChatMessage
+import org.zhavoronkov.openrouter.models.PluginConfig
 import org.zhavoronkov.openrouter.models.ReasoningConfig
+import org.zhavoronkov.openrouter.models.WebSearchSettings
 import org.zhavoronkov.openrouter.proxy.routing.RouterRequestBuilder
 import java.math.BigDecimal
 import java.math.MathContext
@@ -22,15 +24,17 @@ import java.util.Locale
 data class ChatRequestOptions(
     val reasoning: String? = null,
     val verbosity: String? = null,
-    val routerParam: String? = null
+    val routerParam: String? = null,
+    val webSearch: Boolean = false
 )
 
 /**
  * What a reply says about how it was produced, as shown in the footer under it.
  *
- * The fields are the facts as OpenRouter reported them, never footer wording: [requestedModel] is
- * what the chat asked for and [respondingModel] what the response named, and [answeringModel],
- * [facts] and [warning] are rendered from them each time they are read. Saved chats store this
+ * The fields are facts, never footer wording: [requestedModel] is what the chat asked for,
+ * [searched] whether that request carried a web search, and [respondingModel], [provider], [cost]
+ * and [finishReason] what OpenRouter reported back. [answeringModel], [facts] and [warning] are
+ * rendered from them each time they are read. Saved chats store this
  * class as it is, so its property names are a storage format, and keeping wording out of it is
  * what lets the footer's wording change without stranding a saved message.
  *
@@ -44,7 +48,8 @@ data class ReplySummary(
     val respondingModel: String? = null,
     val provider: String? = null,
     val cost: Double? = null,
-    val finishReason: String? = null
+    val finishReason: String? = null,
+    val searched: Boolean = false
 ) {
     /**
      * Which model actually answered.
@@ -60,9 +65,18 @@ data class ReplySummary(
             ?: respondingModel?.takeIf { it.isNotBlank() }
             ?: requestedModel
 
-    /** The footer's line of facts: the answering model, then the provider and cost when known. */
+    /**
+     * The footer's line of facts: the answering model, then the provider and cost when known, then
+     * a marker when the request carried a web search - so an answer drawn from the web can be told
+     * from one drawn from the model.
+     */
     val facts: String
-        get() = listOfNotNull(answeringModel, provider, cost?.let(::formatCost)).joinToString(FACT_SEPARATOR)
+        get() = listOfNotNull(
+            answeringModel,
+            provider,
+            cost?.let(::formatCost),
+            SEARCHED_MARKER.takeIf { searched }
+        ).joinToString(FACT_SEPARATOR)
 
     /**
      * What the footer warns about a reply that did not stop normally, or null when it did.
@@ -82,6 +96,7 @@ data class ReplySummary(
 
     private companion object {
         const val FACT_SEPARATOR = " · "
+        const val SEARCHED_MARKER = "web search"
         const val COST_SIGNIFICANT_FIGURES = 2
 
         /**
@@ -124,10 +139,15 @@ data class ReplySummary(
  */
 object ChatExchange {
 
+    /**
+     * [webSearch] is how a search is tuned, applied only when [options] turns Web Search on for
+     * this message; its defaults leave every choice to OpenRouter.
+     */
     fun buildRequest(
         model: String,
         messages: List<ChatMessage>,
-        options: ChatRequestOptions
+        options: ChatRequestOptions,
+        webSearch: WebSearchSettings = WebSearchSettings()
     ): ChatCompletionRequest = ChatCompletionRequest(
         model = model,
         messages = messages,
@@ -136,14 +156,37 @@ object ChatExchange {
         stream = false,
         reasoning = reasoningConfig(options.reasoning),
         verbosity = verbosity(options.verbosity),
-        plugins = RouterRequestBuilder.buildPlugins(model, options.routerParam)
+        plugins = plugins(model, options, webSearch)
     )
 
-    /** What [response] says about how it was produced, for a request that asked for [requestedModel]. */
-    fun summarizeReply(requestedModel: String, response: ChatCompletionResponse): ReplySummary =
+    /**
+     * The Router's parameter block and the web plugin entry share OpenRouter's one `plugins`
+     * array, side by side. Nothing to attach leaves the field out rather than sending it empty.
+     *
+     * The web entry carries its id plus whatever [webSearch] tunes away from OpenRouter's defaults,
+     * so an untouched configuration sends the id and nothing else.
+     */
+    private fun plugins(model: String, options: ChatRequestOptions, webSearch: WebSearchSettings): List<PluginConfig>? {
+        val router = RouterRequestBuilder.buildPlugins(model, options.routerParam).orEmpty()
+        val web = if (options.webSearch) {
+            listOf(PluginConfig(id = WEB_PLUGIN_ID, params = webSearch.pluginParams()))
+        } else {
+            emptyList()
+        }
+        return (router + web).ifEmpty { null }
+    }
+
+    /**
+     * What [response] says about how it was produced, given the [request] that asked for it.
+     *
+     * Whether a search ran is read off the request that was actually sent rather than passed in
+     * beside it, so the footer's marker cannot disagree with what OpenRouter was asked for.
+     */
+    fun summarizeReply(request: ChatCompletionRequest, response: ChatCompletionResponse): ReplySummary =
         ReplySummary(
-            requestedModel = requestedModel,
+            requestedModel = request.model,
             respondingModel = response.model,
+            searched = request.plugins.orEmpty().any { it.id == WEB_PLUGIN_ID },
             provider = response.provider?.takeIf { it.isNotBlank() },
             cost = response.usage?.cost,
             finishReason = response.choices?.firstOrNull()?.finishReason
@@ -177,6 +220,9 @@ object ChatExchange {
     /** The chat window reads replies whole; the streaming path belongs to the Proxy Server. */
     private const val MAX_TOKENS = 4096
     private const val TEMPERATURE = 0.7
+
+    /** OpenRouter's web search plugin; see the web search guide in OpenRouter's documentation. */
+    private const val WEB_PLUGIN_ID = "web"
 
     /** How both combo boxes spell "the user changed nothing", and the first choice each offers. */
     const val UNCHANGED = "Default"

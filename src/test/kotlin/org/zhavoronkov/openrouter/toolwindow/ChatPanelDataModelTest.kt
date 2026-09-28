@@ -60,7 +60,8 @@ class ChatPanelDataModelTest {
                     "respondingModel": "anthropic/claude-sonnet-4.5",
                     "provider": "Google Vertex",
                     "cost": 0.00042,
-                    "finishReason": "length"
+                    "finishReason": "length",
+                    "searched": false
                   }
                 }
             """
@@ -80,6 +81,26 @@ class ChatPanelDataModelTest {
             assertEquals(summary.facts, reloaded.footerFacts)
             assertEquals(summary.warning, reloaded.footerWarning)
             assertNotNull(reloaded.footerWarning, "a truncated reply must still warn after reopening")
+        }
+
+        @Test
+        @DisplayName("a reply that web search still says so after reopening")
+        fun `a reply that web search still says so after reopening`() {
+            val reloaded = reload(ChatPanel.ChatMessageData.reply("Hi there!", summary.copy(searched = true)))
+
+            assertEquals(true, reloaded.summary?.searched)
+            assertTrue(reloaded.footerFacts!!.endsWith("web search"), "got '${reloaded.footerFacts}'")
+        }
+
+        @Test
+        @DisplayName("a reply saved before Web Search existed loads as one that did not search")
+        fun `a reply saved before Web Search existed loads as one that did not search`() {
+            val json = """{"role":"assistant","content":"Hi","summary":{"requestedModel":"openai/gpt-5.2"}}"""
+
+            val message = gson.fromJson(json, ChatPanel.ChatMessageData::class.java)
+
+            assertEquals(false, message.summary?.searched)
+            assertEquals("openai/gpt-5.2", message.footerFacts)
         }
 
         @Test

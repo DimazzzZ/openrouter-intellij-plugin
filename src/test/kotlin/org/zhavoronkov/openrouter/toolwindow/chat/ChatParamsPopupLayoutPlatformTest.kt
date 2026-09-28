@@ -2,12 +2,22 @@ package org.zhavoronkov.openrouter.toolwindow.chat
 
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import com.intellij.ui.components.JBCheckBox
 import com.intellij.util.ui.JBUI
 import java.awt.Point
 import javax.swing.JComponent
 
 private const val EXPECTED_FORM_WIDTH = 324
-private const val MAX_SANE_FORM_HEIGHT_PX = 210
+
+/**
+ * Four rows: Reasoning, Verbosity, the router parameter and Web Search. Measured at 221px with
+ * every comment showing, on macOS and on Linux (DejaVu Sans) alike. This is a coarse guard
+ * against the form ballooning; a single wrapped comment can still fit under it, which is why
+ * [ChatParamsPopupLayoutPlatformTest.testEveryCommentIsLaidOutWideEnoughToRenderOnOneLine]
+ * catches the wrap itself directly.
+ */
+private const val MAX_SANE_FORM_HEIGHT_PX = 250
+
 private const val GEAR_BUTTON_HEIGHT = 24
 private const val CONTENT_HEIGHT = 186
 private const val EXTRA_ROOM_PX = 40
@@ -89,7 +99,7 @@ class ChatParamsPopupLayoutPlatformTest : BasePlatformTestCase() {
         val router = ComboBox(arrayOf("x"))
         val naturalWidth = reasoning.preferredSize.width
 
-        val popup = ChatParamsPopup(reasoning, verbosity, router)
+        val popup = ChatParamsPopup(reasoning, verbosity, router, JBCheckBox())
         val form = layoutAtPreferredSize(buildForm(popup))
 
         assertTrue("expected the form to be laid out at a real width, got ${form.width}", form.width > 0)
@@ -112,7 +122,7 @@ class ChatParamsPopupLayoutPlatformTest : BasePlatformTestCase() {
     }
 
     fun testFormPreferredWidthMatchesIntendedValueAndHeightStaysUnderSaneCeiling() {
-        val popup = ChatParamsPopup(ComboBox(arrayOf("a")), ComboBox(arrayOf("b")), ComboBox(arrayOf("c")))
+        val popup = newPopup()
         // Worst case: both comments visible (unsupported reason text) plus the
         // router row with its longest comment, so the height ceiling is
         // checked against the tallest the form actually gets.
@@ -128,7 +138,7 @@ class ChatParamsPopupLayoutPlatformTest : BasePlatformTestCase() {
             form.preferredSize.width
         )
         assertTrue(
-            "expected the three-field, two-column form's height (${form.preferredSize.height}) " +
+            "expected the two-column form's height (${form.preferredSize.height}) " +
                 "to stay compact (<= $MAX_SANE_FORM_HEIGHT_PX), not balloon back into the " +
                 "label-above-control form's dialog-sized territory",
             form.preferredSize.height <= JBUI.scale(MAX_SANE_FORM_HEIGHT_PX)
@@ -152,7 +162,7 @@ class ChatParamsPopupLayoutPlatformTest : BasePlatformTestCase() {
      * itself, on whichever platform the suite runs.
      */
     fun testEveryCommentIsLaidOutWideEnoughToRenderOnOneLine() {
-        val popup = ChatParamsPopup(ComboBox(arrayOf("a")), ComboBox(arrayOf("b")), ComboBox(arrayOf("c")))
+        val popup = newPopup()
         popup.setReasoningSupport(supported = false, reason = UNSUPPORTED_REASON)
         popup.setVerbositySupport(supported = false, reason = UNSUPPORTED_REASON)
         popup.setRouterParam(label = ROUTER_LABEL, description = ROUTER_DESCRIPTION, visible = true)
@@ -211,7 +221,7 @@ class ChatParamsPopupLayoutPlatformTest : BasePlatformTestCase() {
      * regressing.
      */
     fun testRouterCommentSecondLineIsNotClippedByFormBottomEdge() {
-        val popup = ChatParamsPopup(ComboBox(arrayOf("a")), ComboBox(arrayOf("b")), ComboBox(arrayOf("c")))
+        val popup = newPopup()
         popup.setRouterParam(label = ROUTER_LABEL, description = ROUTER_DESCRIPTION, visible = true)
 
         val form = layoutAtPreferredSize(buildForm(popup))
@@ -259,7 +269,8 @@ class ChatParamsPopupLayoutPlatformTest : BasePlatformTestCase() {
         )
     }
 
-    private fun newPopup() = ChatParamsPopup(ComboBox(arrayOf("a")), ComboBox(arrayOf("b")), ComboBox(arrayOf("c")))
+    private fun newPopup() =
+        ChatParamsPopup(ComboBox(arrayOf("a")), ComboBox(arrayOf("b")), ComboBox(arrayOf("c")), JBCheckBox())
 
     /**
      * Room below the gear: anchors at the button's bottom-left corner, like a
