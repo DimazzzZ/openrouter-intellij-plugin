@@ -6,8 +6,6 @@ package org.zhavoronkov.openrouter.ui
  */
 object SetupWizardConfig {
     // Dialog dimensions
-    const val DIALOG_WIDTH = 700
-    const val DIALOG_HEIGHT = 500
     const val MODELS_TABLE_WIDTH = 650
     const val MODELS_TABLE_HEIGHT = 280
 

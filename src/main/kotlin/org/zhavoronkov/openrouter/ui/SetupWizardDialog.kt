@@ -178,7 +178,11 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
     }
 
     override fun createCenterPanel(): JComponent {
-        cardPanel.preferredSize = Dimension(DIALOG_WIDTH, DIALOG_HEIGHT)
+        // No fixed size: CardLayout already reports the largest of its cards, which is the same
+        // "one size, the most demanding step" rule a hard-coded number was trying to express -
+        // except it stays true when a step changes. The number it replaced (700x500) had drifted
+        // from every step it covered: measured, the cards want 289, 486, 544 and 639px of height,
+        // so Welcome was given 211px it had no use for while Setup Complete was squeezed by 139.
         return cardPanel
     }
 
@@ -1087,8 +1091,6 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
 
     companion object {
         // Use SetupWizardConfig for all constants
-        private val DIALOG_WIDTH = SetupWizardConfig.DIALOG_WIDTH
-        private val DIALOG_HEIGHT = SetupWizardConfig.DIALOG_HEIGHT
         private val MODELS_TABLE_WIDTH = SetupWizardConfig.MODELS_TABLE_WIDTH
         private val MODELS_TABLE_HEIGHT = SetupWizardConfig.MODELS_TABLE_HEIGHT
         private val TABLE_ROW_HEIGHT = SetupWizardConfig.TABLE_ROW_HEIGHT
