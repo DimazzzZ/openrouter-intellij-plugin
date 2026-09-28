@@ -9,7 +9,7 @@ Before you begin, ensure you have:
 1. **IntelliJ IDEA** (or any JetBrains IDE) version 2025.3 or later (this plugin's minimum; older IDEs are not supported)
 2. **OpenRouter Plugin** installed and configured
 3. **JetBrains AI Assistant Plugin** installed ([Get it here](https://plugins.jetbrains.com/plugin/22282-jetbrains-ai-assistant))
-4. **OpenRouter Account** with a Management Key ([Sign up here](https://openrouter.ai))
+4. **OpenRouter Account** with an API key ([Sign up here](https://openrouter.ai)) — a Management Key additionally unlocks the account data in the Status tab, see below
 
 ## 🚀 Quick Start
 
@@ -18,7 +18,7 @@ Before you begin, ensure you have:
 1. Open **Settings** → **Tools** → **OpenRouter**
 2. Enter your **Management Key** from [OpenRouter Management Keys](https://openrouter.ai/settings/provisioning-keys)
    - OpenRouter's settings page is still titled "Provisioning Keys" - same key, older name.
-   - An ordinary API key (`sk-or-v1-...` from the "API Keys" page) will not do: it can spend, but it cannot read your balance or usage, which the Status tab needs.
+   - **A Management Key reads your account; an ordinary API key reads itself.** An ordinary key (`sk-or-v1-...` from the "API Keys" page) drives the proxy and the chat perfectly well, and the Status tab will show that key's own spend and cap — but your credit balance, per-model breakdown and activity history belong to the account, and only a Management Key can read them.
 3. Click **Apply** and **OK**
 
 ![OpenRouter Settings](images/openrouter-settings.png)

@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### New Features
 
+#### 🔑 The Status Tab With an Ordinary API Key
+- **A Management Key reads your account; an ordinary API key reads itself** - either key sends chat requests, and this distinction is now stated wherever the keys are explained rather than left to be discovered from an empty tab
+- **Your key's own spend cap is shown again** - it used to read "Needs a Management Key", because the tab asked `GET /keys` (the whole account's key list, which is Management-Key-only). `GET /key` describes the key making the request, an ordinary key reads it fine, and it carries that key's usage, limit and remaining balance
+- **The "no Management Key" state stopped repeating itself** - the same fact was stated seven times across a status word, a notice title, a paragraph, a button, a chart label and two per-block placeholders. What remains names only what is genuinely missing: credit balance, per-model breakdown and activity history
+- **An ordinary key is no longer reported as an error** - the status bar read "Status: Error" directly above its own menu entry correctly saying "Monitoring Disabled". A supported configuration that simply does less now says so instead of claiming a fault
+
 #### 🌍 In-Region Routing
 - **Data Region Selector** - A new `Enterprise` group at the bottom of `Tools → OpenRouter` pins every OpenRouter request to a data region, swapping the base URL for `eu.openrouter.ai` or `us.openrouter.ai`. It covers the whole plugin, not just inference: model lists, credits, analytics and key management all follow the region
 - **Availability Read From Your Key, Not Guessed** - The regions offered come from `allowed_data_regions` on OpenRouter's `/api/v1/key`, which already accounts for both the guardrail policy on the key and your account's regional-routing entitlement. Both configured keys are asked and the answers intersected, because pinning a region moves account reads as well as inference. In-region routing is a Business/Enterprise feature, so for most accounts the control is shown disabled with the reason rather than hidden - if you upgrade, the setting is where you expect it
