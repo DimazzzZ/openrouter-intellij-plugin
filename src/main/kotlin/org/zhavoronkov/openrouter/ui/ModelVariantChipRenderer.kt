@@ -87,16 +87,16 @@ object ModelVariantChipRenderer {
      * Graphics2D-based renderer that paints real rounded rectangles (Swing's
      * HTML/CSS engine cannot draw `border-radius`).
      */
-    fun chipBackground(variant: ModelVariant): Color = (VARIANT_COLORS[variant] ?: UNKNOWN_CHIP_COLOR).bgColor()
+    private fun chipBackground(variant: ModelVariant): Color = (VARIANT_COLORS[variant] ?: UNKNOWN_CHIP_COLOR).bgColor()
 
     /** Theme-aware foreground (text) color for a known variant chip. */
-    fun chipForeground(variant: ModelVariant): Color = (VARIANT_COLORS[variant] ?: UNKNOWN_CHIP_COLOR).fgColor()
+    private fun chipForeground(variant: ModelVariant): Color = (VARIANT_COLORS[variant] ?: UNKNOWN_CHIP_COLOR).fgColor()
 
     /** Background color for the "unknown variant" chip. */
-    fun unknownChipBackground(): Color = UNKNOWN_CHIP_COLOR.bgColor()
+    private fun unknownChipBackground(): Color = UNKNOWN_CHIP_COLOR.bgColor()
 
     /** Foreground color for the "unknown variant" chip. */
-    fun unknownChipForeground(): Color = UNKNOWN_CHIP_COLOR.fgColor()
+    private fun unknownChipForeground(): Color = UNKNOWN_CHIP_COLOR.fgColor()
 
     /**
      * Every chip a model id carries, in display order: its variant (known, or
@@ -122,9 +122,6 @@ object ModelVariantChipRenderer {
             if (parsed.latest) Chip(LATEST_LABEL, LATEST_CHIP_COLOR.bgColor(), LATEST_CHIP_COLOR.fgColor()) else null
         )
     }
-
-    /** The labels of [chipsFor], in the same order. */
-    fun chipLabelsFor(modelId: String): List<String> = chipsFor(modelId).map { it.label }
 
     /**
      * Render a model ID as HTML with an inline variant chip when applicable.
@@ -157,15 +154,6 @@ object ModelVariantChipRenderer {
     }
 
     /**
-     * Render a variant chip fragment for a known variant.
-     * Returns just the chip HTML span (no wrapping <html>) so it can be composed.
-     */
-    fun chipFor(variant: ModelVariant): String {
-        val color = VARIANT_COLORS[variant] ?: UNKNOWN_CHIP_COLOR
-        return buildChip(variant.displayName, color)
-    }
-
-    /**
      * Tooltip text for a model ID, describing its variant (if any).
      */
     fun tooltipFor(modelId: String): String {
@@ -183,8 +171,6 @@ object ModelVariantChipRenderer {
             else -> parsed.provider
         }
     }
-
-    private fun buildChip(label: String, color: ChipColor): String = chipSpan(label, color.bg(), color.fg())
 
     private fun hex(color: Color): String = "#%06x".format(color.rgb and RGB_MASK)
 

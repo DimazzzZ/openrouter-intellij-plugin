@@ -621,4 +621,13 @@ class ModelProviderUtilsTest {
 
         assertEquals(listOf("OpenAI"), ModelProviderUtils.getUniqueProviders(models))
     }
+
+    @Test
+    fun `authorSlug is the author as OpenRouter spells it, whatever marks the id`() {
+        assertEquals("openai", ModelProviderUtils.authorSlug("openai/gpt-4o"))
+        assertEquals("x-ai", ModelProviderUtils.authorSlug("x-ai/grok-4-fast:free"))
+        assertEquals("openai", ModelProviderUtils.authorSlug("~openai/gpt-astra-latest"))
+        assertEquals("google", ModelProviderUtils.authorSlug("~google/gemini-flash-latest:free"))
+        assertNull(ModelProviderUtils.authorSlug("gpt-4o"), "a bare id has no author")
+    }
 }

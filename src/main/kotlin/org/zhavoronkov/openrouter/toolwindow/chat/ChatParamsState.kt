@@ -39,14 +39,16 @@ object ChatParamsState {
         val routerVisible: Boolean,
         val routerLabel: String?,
         val routerValue: String?,
-        val webSearch: Boolean = false
+        val webSearch: Boolean = false,
+        val outputMode: OutputMode = OutputMode.Off
     )
 
     fun hasNonDefaultSelection(selection: Selection): Boolean =
         selection.reasoningIndex > 0 ||
             selection.verbosityIndex > 0 ||
             (selection.routerVisible && !selection.routerValue.isNullOrBlank()) ||
-            selection.webSearch
+            selection.webSearch ||
+            selection.outputMode != OutputMode.Off
 
     fun activeSummary(selection: Selection): String {
         val parts = mutableListOf<String>()
@@ -56,6 +58,7 @@ object ChatParamsState {
             parts += "${selection.routerLabel.orEmpty()}: ${selection.routerValue}"
         }
         if (selection.webSearch) parts += "Web search"
+        if (selection.outputMode != OutputMode.Off) parts += "Output mode: ${selection.outputMode.label}"
         return if (parts.isEmpty()) "Send parameters" else parts.joinToString(" · ")
     }
 }

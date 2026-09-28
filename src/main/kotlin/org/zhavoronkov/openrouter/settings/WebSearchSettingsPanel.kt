@@ -1,6 +1,5 @@
 package org.zhavoronkov.openrouter.settings
 
-import com.intellij.openapi.Disposable
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.ui.JBIntSpinner
 import com.intellij.ui.SimpleListCellRenderer
@@ -33,7 +32,7 @@ import javax.swing.JPanel
  */
 class WebSearchSettingsPanel(
     private val manager: WebSearchSettingsManager = OpenRouterSettingsService.getInstance().webSearchManager
-) : Disposable {
+) : SettingsPage {
 
     internal val engine = ComboBox(choices(WebSearchEngine.entries.map { it.apiName }))
     internal val maxResults = JBIntSpinner(
@@ -55,7 +54,7 @@ class WebSearchSettingsPanel(
         refreshModes()
     }
 
-    fun createPanel(): JPanel {
+    override fun createPanel(): JPanel {
         reset()
         return panel {
             row {
@@ -90,11 +89,11 @@ class WebSearchSettingsPanel(
         mode = chosen(mode)
     )
 
-    fun isModified(): Boolean = snapshot() != manager.current()
+    override fun isModified(): Boolean = snapshot() != manager.current()
 
-    fun apply() = manager.replace(snapshot())
+    override fun apply() = manager.replace(snapshot())
 
-    fun reset() {
+    override fun reset() {
         val stored = manager.current()
         engine.selectedItem = stored.engine?.apiName ?: UNSET
         refreshModes()
@@ -125,8 +124,6 @@ class WebSearchSettingsPanel(
             "Default is ${current.displayName}'s own, ${current.defaultMode}."
         }
     }
-
-    override fun dispose() = Unit
 
     internal companion object {
         /** How both combos spell "nothing chosen" internally; never stored or sent. */

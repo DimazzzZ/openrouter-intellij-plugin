@@ -231,8 +231,6 @@ class MessageView(text: String, isUser: Boolean, footnote: String?, warning: Str
             const val FOOTER_GAP_V = 4
             const val FOOTER_GAP_H = 6
 
-            val WARNING_FOREGROUND = JBColor.namedColor("Chat.replyWarningForeground", JBColor(0x9E6A00, 0xE0A94A))
-
             fun footnoteLabel(footnote: String) = JBLabel(footnote).apply {
                 foreground = UIUtil.getContextHelpForeground()
                 font = JBUI.Fonts.smallFont()
@@ -242,7 +240,7 @@ class MessageView(text: String, isUser: Boolean, footnote: String?, warning: Str
             }
 
             fun warningLabel(warning: String) = JBLabel(warning, AllIcons.General.Warning, SwingConstants.RIGHT).apply {
-                foreground = WARNING_FOREGROUND
+                foreground = CHAT_WARNING_FOREGROUND
                 font = JBUI.Fonts.smallFont()
                 border = JBUI.Borders.empty(0, 0, FOOTER_GAP_V, FOOTER_GAP_H)
                 toolTipText = warning

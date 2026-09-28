@@ -284,7 +284,7 @@ class ModelsServlet(
         if (!provider.isNullOrBlank()) {
             filteredModels = filteredModels.filter { model ->
                 model.ownedBy.equals(provider, ignoreCase = true) ||
-                    model.id.removePrefix(ModelProviderUtils.LATEST_MARKER).startsWith("$provider/", ignoreCase = true)
+                    ModelProviderUtils.authorSlug(model.id).equals(provider, ignoreCase = true)
             }
         }
 
@@ -334,14 +334,8 @@ class ModelsServlet(
      * `~openai/gpt-astra-latest` resolves to "openai" rather than to an organisation
      * called "~openai".
      */
-    private fun extractProvider(modelId: String): String {
-        val stripped = ModelProviderUtils.stripVariant(modelId).removePrefix(ModelProviderUtils.LATEST_MARKER)
-        return if (stripped.contains("/")) {
-            stripped.substringBefore("/")
-        } else {
-            "openai" // Default to openai for compatibility
-        }
-    }
+    private fun extractProvider(modelId: String): String =
+        ModelProviderUtils.authorSlug(modelId) ?: "openai" // Default to openai for compatibility
 
     private fun createDefaultPermission(): OpenAIPermission {
         return OpenAIPermission(

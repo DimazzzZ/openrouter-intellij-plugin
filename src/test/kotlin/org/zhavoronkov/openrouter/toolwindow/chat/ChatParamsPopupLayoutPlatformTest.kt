@@ -4,19 +4,21 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.util.ui.JBUI
+import org.zhavoronkov.openrouter.models.OutputSchema
 import java.awt.Point
 import javax.swing.JComponent
 
 private const val EXPECTED_FORM_WIDTH = 324
 
 /**
- * Four rows: Reasoning, Verbosity, the router parameter and Web Search. Measured at 221px with
- * every comment showing, on macOS and on Linux (DejaVu Sans) alike. This is a coarse guard
+ * Five rows: Reasoning, Verbosity, the router parameter, Web Search and Output, plus the line
+ * under Output. Measured at 286px on macOS with every comment showing, and under this ceiling on
+ * Linux (DejaVu Sans) as well. This is a coarse guard
  * against the form ballooning; a single wrapped comment can still fit under it, which is why
  * [ChatParamsPopupLayoutPlatformTest.testEveryCommentIsLaidOutWideEnoughToRenderOnOneLine]
  * catches the wrap itself directly.
  */
-private const val MAX_SANE_FORM_HEIGHT_PX = 250
+private const val MAX_SANE_FORM_HEIGHT_PX = 300
 
 private const val GEAR_BUTTON_HEIGHT = 24
 private const val CONTENT_HEIGHT = 186
@@ -63,6 +65,9 @@ private const val ROUTER_DESCRIPTION = "One of: low, medium, high, xhigh, max"
  * where the popup lands - rather than asserting nothing about [ChatParamsPopup.show].
  */
 class ChatParamsPopupLayoutPlatformTest : BasePlatformTestCase() {
+
+    private fun modes(model: String, declared: List<String>?, schemas: List<OutputSchema> = emptyList()) =
+        ChatExchange.outputModes(OutputModeContext(model, declared, schemas))
 
     private fun buildForm(popup: ChatParamsPopup): JComponent {
         val method = ChatParamsPopup::class.java.getDeclaredMethod("buildForm")
@@ -206,6 +211,63 @@ class ChatParamsPopupLayoutPlatformTest : BasePlatformTestCase() {
         }
         walk(root)
         return found
+    }
+
+    /**
+     * The line under the Output control is a plain label that never wraps, so a text too long for
+     * the form would be cut off rather than reflowed. Both of its texts must fit at the form's width.
+     */
+    fun testTheOutputLineFitsTheFormWhicheverTextItShows() {
+        val capable = modes("capable/model", listOf("response_format"))
+        val incapable = modes("anthropic/claude-sonnet-4.5-20250929", listOf("tools"))
+        val cases = listOf<(ChatParamsPopup) -> Unit>(
+            { it.setOutputModes(incapable) },
+            {
+                it.setOutputModes(capable)
+                it.outputMode.selectedItem = OutputMode.PlainJson
+                it.setOutputModes(incapable)
+            }
+        )
+        val seen = mutableSetOf<String>()
+        cases.forEach { arrange ->
+            val popup = newPopup()
+            arrange(popup)
+            layoutAtPreferredSize(buildForm(popup))
+            val line = popup.outputComment
+            seen += line.text
+
+            assertTrue(
+                "the line <${line.text}> is ${line.width}px wide but needs ${line.preferredSize.width}px",
+                line.width >= line.preferredSize.width
+            )
+        }
+        assertEquals(setOf(ChatParamsPopup.OUTPUT_UNAVAILABLE_TEXT, ChatParamsPopup.OUTPUT_BLOCKED_TEXT), seen)
+    }
+
+    /**
+     * A schema name can be 64 characters and the Output mode control lists names as they are; the
+     * form must keep its width and let the control cut the name short rather than grow sideways.
+     */
+    fun testALongSchemaNameDoesNotWidenTheForm() {
+        val longName = "a".repeat(64)
+        val popup = newPopup()
+        popup.setOutputModes(
+            modes("capable/model", listOf("structured_outputs"), listOf(OutputSchema(longName, schema = "{}")))
+        )
+        popup.outputMode.selectedItem = OutputMode.Schema(longName)
+
+        val form = layoutAtPreferredSize(buildForm(popup))
+
+        assertEquals(
+            "the form must keep its width with a long schema name selected",
+            JBUI.scale(EXPECTED_FORM_WIDTH),
+            form.preferredSize.width
+        )
+        assertTrue(
+            "the Output mode control (right edge ${popup.outputMode.x + popup.outputMode.width}) must stay inside " +
+                "the form (width ${form.width})",
+            popup.outputMode.x + popup.outputMode.width <= form.width
+        )
     }
 
     /**

@@ -280,6 +280,15 @@ object ModelProviderUtils {
     }
 
     /**
+     * The author part of a model ID as OpenRouter spells it - lowercase, with a Latest Model's `~`
+     * and any variant left out - or null for an ID with no author. Unlike [parseModelId]'s
+     * provider this is not a display name: `x-ai/grok-4:free` gives "x-ai", not "xAI".
+     */
+    fun authorSlug(id: String): String? =
+        stripVariant(id).removePrefix(LATEST_MARKER).substringBefore(PROVIDER_SEPARATOR, missingDelimiterValue = "")
+            .lowercase().takeIf { it.isNotEmpty() }
+
+    /**
      * Strip the variant suffix from a model ID, returning just the base model.
      * Examples:
      * - "x-ai/grok-4-fast:free" → "x-ai/grok-4-fast"

@@ -363,7 +363,28 @@ data class ChatCompletionRequest(
     @SerializedName("tool_choice") val toolChoice: ToolChoice? = null,
     val provider: ProviderRoutingPreferences? = null,
     val models: List<String>? = null, // Fallback model list
-    val plugins: List<PluginConfig>? = null // OpenRouter model-routing plugins
+    val plugins: List<PluginConfig>? = null, // OpenRouter model-routing plugins
+    @SerializedName("response_format") val responseFormat: ResponseFormat? = null
+)
+
+/**
+ * The `response_format` a chat request asks for: `{"type": "json_object"}` for a plain JSON
+ * object with no schema to follow, or `{"type": "json_schema", "json_schema": {...}}` for a reply
+ * in the shape of a saved Output Schema.
+ */
+data class ResponseFormat(
+    val type: String,
+    @SerializedName("json_schema") val jsonSchema: JsonSchemaFormat? = null
+)
+
+/**
+ * The `json_schema` object of a schema response format: an Output Schema's name, strict flag and
+ * body.
+ */
+data class JsonSchemaFormat(
+    val name: String,
+    val strict: Boolean,
+    val schema: JsonElement
 )
 
 /**
@@ -559,6 +580,8 @@ data class OpenRouterSettings(
     var webSearchIncludeDomains: MutableList<String> = mutableListOf(),
     var webSearchExcludeDomains: MutableList<String> = mutableListOf(),
     var webSearchMode: String = "",
+    // Output Schemas the user saved, in the order the Output Schemas page lists them.
+    var outputSchemas: MutableList<OutputSchema> = mutableListOf(),
 )
 
 /**

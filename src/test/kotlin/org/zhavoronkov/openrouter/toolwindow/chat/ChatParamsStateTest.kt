@@ -18,7 +18,8 @@ class ChatParamsStateTest {
         routerVisible: Boolean = false,
         routerLabel: String? = null,
         routerValue: String? = null,
-        webSearch: Boolean = false
+        webSearch: Boolean = false,
+        outputMode: OutputMode = OutputMode.Off
     ) = ChatParamsState.Selection(
         reasoningIndex = reasoningIndex,
         reasoningValue = reasoningValue,
@@ -27,12 +28,19 @@ class ChatParamsStateTest {
         routerVisible = routerVisible,
         routerLabel = routerLabel,
         routerValue = routerValue,
-        webSearch = webSearch
+        webSearch = webSearch,
+        outputMode = outputMode
     )
 
     @Nested
     @DisplayName("hasNonDefaultSelection")
     inner class HasNonDefaultSelection {
+
+        @Test
+        @DisplayName("an Output Mode other than Off is flagged")
+        fun `an Output Mode other than Off is flagged`() {
+            assertTrue(ChatParamsState.hasNonDefaultSelection(defaults(outputMode = OutputMode.PlainJson)))
+        }
 
         @Test
         @DisplayName("Web Search alone is flagged")
@@ -128,6 +136,13 @@ class ChatParamsStateTest {
         fun `Web Search is reported when it is on`() {
             val selection = defaults(reasoningIndex = 3, reasoningValue = "High", webSearch = true)
             assertEquals("Reasoning: High · Web search", ChatParamsState.activeSummary(selection))
+        }
+
+        @Test
+        @DisplayName("an Output Mode other than Off is reported by its label")
+        fun `an Output Mode other than Off is reported by its label`() {
+            val selection = defaults(outputMode = OutputMode.PlainJson)
+            assertEquals("Output mode: JSON (no schema)", ChatParamsState.activeSummary(selection))
         }
 
         @Test

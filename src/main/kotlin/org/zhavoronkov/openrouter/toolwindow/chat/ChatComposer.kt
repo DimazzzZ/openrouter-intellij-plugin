@@ -205,9 +205,31 @@ class ChatComposer {
 
     fun setInputTokens(text: String) { inputTokensLabel.text = text }
 
+    private var busy = false
+    private var sendBlockedReason: String? = null
+
     fun setBusy(busy: Boolean) {
-        sendButton.isEnabled = !busy
+        this.busy = busy
         inputArea.isEnabled = !busy
+        refreshSendButton()
+    }
+
+    /**
+     * Blocks sending for [reason], or unblocks it when [reason] is null. Independent of [setBusy]:
+     * a reply arriving must not re-enable a Send that a selection is still blocking. The reason is
+     * the button's tooltip, which is where someone looking at a disabled Send looks for why.
+     */
+    fun setSendBlocked(reason: String?) {
+        sendBlockedReason = reason
+        refreshSendButton()
+    }
+
+    /** Whether a send would go through right now; the caller checks it on Enter as well. */
+    val canSend: Boolean get() = !busy && sendBlockedReason == null
+
+    private fun refreshSendButton() {
+        sendButton.isEnabled = canSend
+        sendButton.toolTipText = sendBlockedReason
     }
 
     fun requestFocusInInput() { inputArea.requestFocusInWindow() }

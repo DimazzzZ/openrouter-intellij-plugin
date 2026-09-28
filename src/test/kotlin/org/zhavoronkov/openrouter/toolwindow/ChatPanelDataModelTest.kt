@@ -68,7 +68,7 @@ class ChatPanelDataModelTest {
             assertEquals(
                 JsonParser.parseString(expected),
                 json,
-                "a reply must store the facts rather than footer wording, and must not write the old footnote field"
+                "a reply must store the facts rather than footer wording, and must not write the footnote field"
             )
         }
 

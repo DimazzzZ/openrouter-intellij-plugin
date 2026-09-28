@@ -17,9 +17,20 @@ import org.zhavoronkov.openrouter.models.ChatChoice
 import org.zhavoronkov.openrouter.models.ChatCompletionResponse
 import org.zhavoronkov.openrouter.models.ChatMessage
 import org.zhavoronkov.openrouter.models.ChatUsage
+import org.zhavoronkov.openrouter.models.OutputSchema
 
 @DisplayName("ChatExchange")
 class ChatExchangeTest {
+
+    private fun modes(model: String, declared: List<String>?, schemas: List<OutputSchema> = emptyList()) =
+        ChatExchange.outputModes(OutputModeContext(model, declared, schemas))
+
+    private fun blocked(
+        mode: OutputMode,
+        model: String,
+        declared: List<String>?,
+        schemas: List<OutputSchema> = emptyList()
+    ) = ChatExchange.sendBlockedReason(mode, OutputModeContext(model, declared, schemas))
 
     private val messages = listOf(ChatMessage(role = "user", content = JsonPrimitive("hi")))
 
@@ -99,8 +110,8 @@ class ChatExchangeTest {
     /**
      * Deliberately asymmetric with reasoning, and pinned so the asymmetry is a decision rather
      * than a surprise: verbosity passes anything but "Default" through, lower-cased, while an
-     * unrecognised reasoning effort is dropped. The asymmetry is inherited, not chosen; this
-     * fails if anyone changes one side without deciding about the other.
+     * unrecognised reasoning effort is dropped. This fails if either side changes without a
+     * decision about the other.
      */
     @Test
     @DisplayName("an unrecognised verbosity is passed through lower-cased, unlike reasoning")
@@ -227,6 +238,248 @@ class ChatExchangeTest {
 
         assertFalse(summary.searched, "a Router's own plugin entry is not a web search")
         assertFalse(summary.facts.contains("web"))
+    }
+
+    // --- Output Mode ----------------------------------------------------------
+
+    @Test
+    @DisplayName("Off sends no response format")
+    fun `Off sends no response format`() {
+        val options = ChatRequestOptions(outputMode = OutputMode.Off)
+
+        val request = ChatExchange.buildRequest("openai/gpt-5.2", messages, options)
+
+        assertNull(request.responseFormat)
+    }
+
+    @Test
+    @DisplayName("plain JSON asks OpenRouter for a JSON object")
+    fun `plain JSON asks OpenRouter for a JSON object`() {
+        val options = ChatRequestOptions(outputMode = OutputMode.PlainJson)
+
+        val request = ChatExchange.buildRequest("openai/gpt-5.2", messages, options)
+
+        assertEquals(
+            JsonParser.parseString("""{"type": "json_object"}"""),
+            Gson().toJsonTree(request).asJsonObject["response_format"]
+        )
+    }
+
+    /**
+     * The four combinations of the two flags a model can declare, and a Model whose declarations are
+     * not known. Plain JSON is gated on `response_format` alone: `structured_outputs` is a separate
+     * capability, and the catalogue has models declaring it without `response_format`, which a
+     * single shared gate would get wrong.
+     */
+    @ParameterizedTest(name = "{0}")
+    @CsvSource(
+        nullValues = ["NULL"],
+        textBlock = """
+        'response_format structured_outputs', true
+        'response_format',                    true
+        'structured_outputs',                 false
+        'tools',                              false
+        NULL,                                 false"""
+    )
+    @DisplayName("plain JSON is offered exactly when the Model declares response_format")
+    fun `plain JSON is offered exactly when the Model declares response_format`(
+        declared: String?,
+        jsonOffered: Boolean
+    ) {
+        val choices = modes("some/model", declared?.split(' '))
+
+        assertEquals(listOf(OutputMode.Off, OutputMode.PlainJson), choices.map { it.mode })
+        assertNull(choices.first().unsupportedReason, "Off is always available")
+        assertEquals(jsonOffered, choices.last().unsupportedReason == null)
+    }
+
+    @Test
+    @DisplayName("an unavailable Output Mode says why, naming the Model")
+    fun `an unavailable Output Mode says why naming the Model`() {
+        val json = modes("some/model", listOf("tools"))
+            .single { it.mode == OutputMode.PlainJson }
+
+        assertEquals("some/model does not support JSON output", json.unsupportedReason)
+    }
+
+    /**
+     * A Router, a preset or a Model still loading has no declarations to read. That is not the same
+     * as lacking the capability, and the reason must not claim it is.
+     */
+    @Test
+    @DisplayName("a Model whose declarations are not known is not said to lack JSON")
+    fun `a Model whose declarations are not known is not said to lack JSON`() {
+        val json = modes("openrouter/auto", null)
+            .single { it.mode == OutputMode.PlainJson }
+
+        assertEquals("JSON output support is not known for openrouter/auto", json.unsupportedReason)
+    }
+
+    @Test
+    @DisplayName("a selection the Model can serve does not block sending")
+    fun `a selection the Model can serve does not block sending`() {
+        assertNull(blocked(OutputMode.Off, "some/model", null))
+        assertNull(
+            blocked(OutputMode.PlainJson, "some/model", listOf("response_format"))
+        )
+    }
+
+    /**
+     * Kept and blocked rather than reset: silently sending without the JSON the user asked for would
+     * make them think the reply is constrained when it is not, and sending it anyway would only have
+     * the server refuse it.
+     */
+    @Test
+    @DisplayName("a selection the Model cannot serve blocks sending and says why")
+    fun `a selection the Model cannot serve blocks sending and says why`() {
+        assertEquals(
+            "some/model does not support JSON output. Choose another output mode to send.",
+            blocked(OutputMode.PlainJson, "some/model", listOf("tools"))
+        )
+    }
+
+    // --- Output Schemas ---------------------------------------------------------
+
+    private val features = OutputSchema(
+        name = "features",
+        strict = true,
+        schema = """{"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}"""
+    )
+    private val summary = OutputSchema(name = "summary", strict = false, schema = """{"type": "object"}""")
+    private val saved = listOf(features, summary)
+
+    @Test
+    @DisplayName("a saved schema is sent with its own name, strict flag and body")
+    fun `a saved schema is sent with its own name strict flag and body`() {
+        val options = ChatRequestOptions(outputMode = OutputMode.Schema("features"))
+
+        val request = ChatExchange.buildRequest("openai/gpt-5.2", messages, options, schemas = saved)
+
+        val expected = """
+            {
+              "type": "json_schema",
+              "json_schema": {
+                "name": "features",
+                "strict": true,
+                "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}
+              }
+            }
+        """
+        assertEquals(JsonParser.parseString(expected), Gson().toJsonTree(request).asJsonObject["response_format"])
+    }
+
+    @Test
+    @DisplayName("a schema's strict flag is sent as it was saved, false included")
+    fun `a schema's strict flag is sent as it was saved false included`() {
+        val options = ChatRequestOptions(outputMode = OutputMode.Schema("summary"))
+
+        val request = ChatExchange.buildRequest("openai/gpt-5.2", messages, options, schemas = saved)
+
+        val jsonSchema = Gson().toJsonTree(request).asJsonObject["response_format"].asJsonObject["json_schema"]
+        assertEquals(JsonPrimitive(false), jsonSchema.asJsonObject["strict"])
+        assertEquals(JsonPrimitive("summary"), jsonSchema.asJsonObject["name"])
+    }
+
+    /**
+     * Every capability combination. The two gates are independent: `response_format` gates plain
+     * JSON and `structured_outputs` gates the schemas, and the catalogue has models declaring
+     * either without the other, which a shared gate would get wrong in both directions.
+     */
+    @ParameterizedTest(name = "{0}")
+    @CsvSource(
+        nullValues = ["NULL"],
+        textBlock = """
+        'response_format structured_outputs', true,  true
+        'response_format',                    true,  false
+        'structured_outputs',                 false, true
+        'tools',                              false, false
+        NULL,                                 false, false"""
+    )
+    @DisplayName("which Output Modes are offered for each capability combination")
+    fun `which Output Modes are offered for each capability combination`(
+        declared: String?,
+        jsonOffered: Boolean,
+        schemasOffered: Boolean
+    ) {
+        val choices = modes("some/model", declared?.split(' '), saved)
+
+        assertEquals(
+            listOf(OutputMode.Off, OutputMode.PlainJson, OutputMode.Schema("features"), OutputMode.Schema("summary")),
+            choices.map { it.mode },
+            "every saved schema is listed by name, after Off and plain JSON"
+        )
+        assertTrue(choices[0].supported, "Off is always available")
+        assertEquals(jsonOffered, choices[1].supported)
+        assertEquals(listOf(schemasOffered, schemasOffered), choices.drop(2).map { it.supported })
+    }
+
+    @Test
+    @DisplayName("a schema the Model cannot take says why")
+    fun `a schema the Model cannot take says why`() {
+        val choice = modes("some/model", listOf("response_format"), saved)
+            .single { it.mode == OutputMode.Schema("features") }
+
+        assertEquals("some/model does not support schema-constrained output", choice.unsupportedReason)
+    }
+
+    @Test
+    @DisplayName("a saved body that parses but is not an object is not offered either")
+    fun `a saved body that parses but is not an object is not offered either`() {
+        val notAnObject = OutputSchema(name = "list", schema = "[]")
+
+        val choice = modes("some/model", listOf("structured_outputs"), listOf(notAnObject)).last()
+
+        assertFalse(choice.supported)
+    }
+
+    @Test
+    @DisplayName("a schema whose saved body no longer parses is not offered")
+    fun `a schema whose saved body no longer parses is not offered`() {
+        val broken = OutputSchema(name = "broken", schema = "{ not json")
+
+        val choice = modes("some/model", listOf("structured_outputs"), listOf(broken)).last()
+
+        assertEquals("broken is not a valid JSON object; fix it in Settings", choice.unsupportedReason)
+    }
+
+    @Test
+    @DisplayName("switching to a Model that cannot take the selected schema blocks sending")
+    fun `switching to a Model that cannot take the selected schema blocks sending`() {
+        val selected = OutputMode.Schema("features")
+
+        assertNull(blocked(selected, "able/model", listOf("structured_outputs"), saved))
+        assertEquals(
+            "plain/model does not support schema-constrained output. Choose another output mode to send.",
+            blocked(selected, "plain/model", listOf("response_format"), saved)
+        )
+    }
+
+    /**
+     * Deleting the schema that is selected must not leave a request naming a schema that no longer
+     * exists; the selection stays, and sending waits for the user to choose again.
+     */
+    @Test
+    @DisplayName("a selected schema that was deleted blocks sending rather than being sent")
+    fun `a selected schema that was deleted blocks sending rather than being sent`() {
+        val deleted = OutputMode.Schema("gone")
+
+        assertEquals(
+            "gone is no longer available. Choose another output mode to send.",
+            blocked(deleted, "able/model", listOf("structured_outputs"), saved)
+        )
+    }
+
+    /** Names are unique without regard to case, so a selection finds its schema the same way. */
+    @Test
+    @DisplayName("a selected schema is found by name whatever the case")
+    fun `a selected schema is found by name whatever the case`() {
+        val options = ChatRequestOptions(outputMode = OutputMode.Schema("Features"))
+
+        assertNull(
+            blocked(options.outputMode, "able/model", listOf("structured_outputs"), saved)
+        )
+        val request = ChatExchange.buildRequest("able/model", messages, options, schemas = saved)
+        assertEquals("features", request.responseFormat?.jsonSchema?.name)
     }
 
     // --- The vocabulary the controls offer -----------------------------------

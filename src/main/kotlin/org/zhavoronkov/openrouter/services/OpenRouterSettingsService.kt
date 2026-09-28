@@ -9,6 +9,7 @@ import org.zhavoronkov.openrouter.models.DataRegion
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
 import org.zhavoronkov.openrouter.services.settings.ApiKeySettingsManager
 import org.zhavoronkov.openrouter.services.settings.FavoriteModelsManager
+import org.zhavoronkov.openrouter.services.settings.OutputSchemasManager
 import org.zhavoronkov.openrouter.services.settings.PresetsManager
 import org.zhavoronkov.openrouter.services.settings.ProviderRoutingManager
 import org.zhavoronkov.openrouter.services.settings.ProxySettingsManager
@@ -51,6 +52,9 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
     lateinit var webSearchManager: WebSearchSettingsManager
         private set
 
+    lateinit var outputSchemasManager: OutputSchemasManager
+        private set
+
     init {
         initializeManagers()
     }
@@ -65,6 +69,7 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
         providerRoutingManager = ProviderRoutingManager(settings) { notifyStateChanged() }
         routerDefaultsManager = RouterDefaultsManager(settings) { notifyStateChanged() }
         webSearchManager = WebSearchSettingsManager(settings) { notifyStateChanged() }
+        outputSchemasManager = OutputSchemasManager(settings) { notifyStateChanged() }
     }
 
     companion object {

@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatMessage
+import org.zhavoronkov.openrouter.models.OutputSchema
 import org.zhavoronkov.openrouter.proxy.routing.RouterCatalog
 import org.zhavoronkov.openrouter.proxy.routing.RouterRequestBuilder
 import org.zhavoronkov.openrouter.services.OpenRouterService
@@ -28,7 +29,10 @@ import org.zhavoronkov.openrouter.toolwindow.chat.ChatExchange
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatFileWriter
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatListView
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatParamsPopup
+import org.zhavoronkov.openrouter.toolwindow.chat.ChatRequestOptions
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatToolbar
+import org.zhavoronkov.openrouter.toolwindow.chat.OutputModeContext
+import org.zhavoronkov.openrouter.toolwindow.chat.OutputModeGate
 import org.zhavoronkov.openrouter.toolwindow.chat.ReplySummary
 import org.zhavoronkov.openrouter.ui.ModelVariantChipRenderer
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
@@ -105,6 +109,13 @@ class ChatPanel(
     // a popup off the composer's gear button. Owns no state of its own beyond
     // what these controls already hold.
     private lateinit var paramsPopup: ChatParamsPopup
+
+    // Keeps the Output mode control and Send in step with what the selected Model can serve.
+    private lateinit var outputModeGate: OutputModeGate
+
+    // What the selected Model declares in the catalogue, or null when it is not known; read by the
+    // Output Mode gating every time the selection or the Model changes.
+    private var selectedModelParameters: List<String>? = null
 
     // Remembers which router-param the combo box currently reflects, so
     // non-selection-driven refresh paths (favorites reload, async init
@@ -193,6 +204,8 @@ class ChatPanel(
         verbosityComboBox.addActionListener { refreshParamsBadge() }
         routerParamComboBox.addActionListener { refreshParamsBadge() }
         webSearchCheckBox.addActionListener { refreshParamsBadge() }
+        outputModeGate = OutputModeGate(paramsPopup, composer)
+        outputModeGate.onSelectionChanged = { refreshParamsBadge() }
 
         // Create main panel with CardLayout
         cardLayout = CardLayout()
@@ -257,13 +270,12 @@ class ChatPanel(
     private fun createChatView(): JPanel {
         val panel = JPanel(BorderLayout())
 
-        // The send-parameter controls are placed by ChatParamsPopup, opened
-        // from the composer's gear button, not by this panel. ChatPanel still
-        // owns them: their model and enabled state are set here, and the
-        // popup reads their selection into each request.
-        // The choices come from ChatExchange rather than from lists here, because it is what
-        // turns them into a request: a label this panel offers but that module cannot translate
-        // would be dropped from the request silently instead of failing to compile.
+        // The send-parameter controls are placed by ChatParamsPopup, opened from the composer's
+        // gear button, not by this panel. ChatPanel still owns them: their model and enabled state
+        // are set here, and the popup reads their selection into each request. The choices come
+        // from ChatExchange rather than from lists here, because it is what turns them into a
+        // request: a label this panel offers but that module cannot translate would be dropped
+        // from the request silently instead of failing to compile.
         reasoningComboBox.model = DefaultComboBoxModel(ChatExchange.REASONING_CHOICES.toTypedArray())
         reasoningComboBox.toolTipText = "Reasoning effort (for supported models)"
 
@@ -620,6 +632,8 @@ class ChatPanel(
 
         paramsPopup.setReasoningSupport(supportsReasoning, PARAM_NOT_SUPPORTED_REASON)
         paramsPopup.setVerbositySupport(supportsVerbosity, PARAM_NOT_SUPPORTED_REASON)
+        selectedModelParameters = modelInfo?.supportedParameters
+        outputModeGate.update(OutputModeContext(selectedModel, selectedModelParameters, savedSchemas()))
 
         reasoningComboBox.toolTipText = if (supportsReasoning) {
             "Reasoning effort"
@@ -633,6 +647,10 @@ class ChatPanel(
             "$selectedModel does not support verbosity"
         }
 
+        // Reset rather than kept and blocked, unlike an Output Mode. Reasoning and verbosity are
+        // hints about how to answer; a Model without them still answers the same question, and
+        // the disabled control says why it reads Default. An Output Mode is a promise about the
+        // reply's shape, which the user would otherwise believe was kept.
         if (!supportsReasoning) reasoningComboBox.selectedIndex = 0
         if (!supportsVerbosity) verbosityComboBox.selectedIndex = 0
 
@@ -641,6 +659,8 @@ class ChatPanel(
         // reasoning/verbosity changes and its own router-param change).
         updateRouterParamState(selectedModel)
     }
+
+    private fun savedSchemas(): List<OutputSchema> = settingsService.outputSchemasManager.all()
 
     /** Recomputes the gear badge/tooltip from the current combo selections (spec D7). */
     private fun refreshParamsBadge() {
@@ -694,6 +714,8 @@ class ChatPanel(
 
     @Suppress("ReturnCount")
     private fun sendMessage() {
+        // Not composer.canSend: Enter reaches here with Send disabled, and a blocked send must say
+        // why below rather than do nothing.
         if (isLoading) return
 
         val userMessage = composer.text.trim()
@@ -709,6 +731,18 @@ class ChatPanel(
             conversationView.showError("OpenRouter is not configured. Please set your API key in settings.")
             return
         }
+
+        // Read on the EDT, at the moment of sending, and checked against the same rule that blocks
+        // Send: what goes out is exactly what the controls showed when the user sent it. The saved
+        // schemas are re-read first, so a schema deleted since the popup was last brought up to
+        // date blocks this send - and says why - rather than being sent or silently ignored.
+        val context = OutputModeContext(selectedModel, selectedModelParameters, savedSchemas())
+        outputModeGate.update(context)
+        outputModeGate.blockedReason()?.let { reason ->
+            conversationView.showError(reason)
+            return
+        }
+        val options = paramsPopup.requestOptions()
 
         composer.text = ""
         composer.requestFocusInInput()
@@ -728,7 +762,7 @@ class ChatPanel(
         setLoading(true)
 
         coroutineScope.launch {
-            sendChatRequest(selectedModel, currentChat)
+            sendChatRequest(selectedModel, currentChat, options, context.schemas)
         }
     }
 
@@ -740,7 +774,12 @@ class ChatPanel(
         }
     }
 
-    private suspend fun sendChatRequest(model: String, currentChat: ChatSession?) {
+    private suspend fun sendChatRequest(
+        model: String,
+        currentChat: ChatSession?,
+        options: ChatRequestOptions,
+        schemas: List<OutputSchema>
+    ) {
         try {
             val messages = currentChat?.messages?.map { msg ->
                 ChatMessage(role = msg.role, content = JsonPrimitive(msg.content))
@@ -749,8 +788,9 @@ class ChatPanel(
             val request = ChatExchange.buildRequest(
                 model = model,
                 messages = messages,
-                options = paramsPopup.requestOptions(),
-                webSearch = settingsService.webSearchManager.current()
+                options = options,
+                webSearch = settingsService.webSearchManager.current(),
+                schemas = schemas
             )
 
             val result = openRouterService.createChatCompletion(request)
@@ -762,6 +802,17 @@ class ChatPanel(
             SwingUtilities.invokeLater {
                 conversationView.showError("Network error: ${e.message}")
                 setLoading(false)
+            }
+        } catch (e: IllegalArgumentException) {
+            // ChatExchange refuses to build a request whose Output Mode it cannot express, which
+            // sendMessage's check rules out for the snapshot it passes here; reaching this means a
+            // caller skipped that check. Said plainly, and the chat is left usable rather than
+            // stuck waiting for a reply that is never requested.
+            PluginLogger.warn("Could not build the chat request: ${e.message}")
+            SwingUtilities.invokeLater {
+                conversationView.showError("Could not send: ${e.message}")
+                setLoading(false)
+                outputModeGate.update(outputModeGate.context)
             }
         }
     }

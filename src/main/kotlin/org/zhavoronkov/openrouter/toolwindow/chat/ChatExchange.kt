@@ -3,8 +3,11 @@ package org.zhavoronkov.openrouter.toolwindow.chat
 import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatCompletionResponse
 import org.zhavoronkov.openrouter.models.ChatMessage
+import org.zhavoronkov.openrouter.models.JsonSchemaFormat
+import org.zhavoronkov.openrouter.models.OutputSchema
 import org.zhavoronkov.openrouter.models.PluginConfig
 import org.zhavoronkov.openrouter.models.ReasoningConfig
+import org.zhavoronkov.openrouter.models.ResponseFormat
 import org.zhavoronkov.openrouter.models.WebSearchSettings
 import org.zhavoronkov.openrouter.proxy.routing.RouterRequestBuilder
 import java.math.BigDecimal
@@ -25,8 +28,55 @@ data class ChatRequestOptions(
     val reasoning: String? = null,
     val verbosity: String? = null,
     val routerParam: String? = null,
-    val webSearch: Boolean = false
+    val webSearch: Boolean = false,
+    val outputMode: OutputMode = OutputMode.Off
 )
+
+/**
+ * What shape the user asked a reply to take. [label] is how the send-parameters popup names it.
+ */
+sealed class OutputMode(val label: String) {
+    /** No `response_format`: the model answers however it likes. */
+    data object Off : OutputMode("Off")
+
+    /** A JSON object, with no schema for it to follow. */
+    data object PlainJson : OutputMode("JSON (no schema)")
+
+    /**
+     * A reply in the shape of the saved Output Schema called [name]. Only the name is held: the
+     * schema itself is read from the saved ones when the request is built, so an edit on the
+     * settings page applies to the next message, and a schema deleted there is noticed rather
+     * than sent from a stale copy.
+     *
+     * Two are equal when their names are equal without regard to case, since that is how saved
+     * schema names are kept unique; a schema renamed only in case is still the same selection.
+     */
+    class Schema(val name: String) : OutputMode(name) {
+        override fun equals(other: Any?): Boolean = other is Schema && OutputSchema.sameName(other.name, name)
+
+        override fun hashCode(): Int = OutputSchema.nameKey(name).hashCode()
+
+        override fun toString(): String = "Schema($name)"
+    }
+}
+
+/**
+ * What decides which Output Modes can be served: the selected [model], what it declares in the
+ * catalogue - [supportedParameters], or null when that is not known - and the saved [schemas].
+ */
+data class OutputModeContext(
+    val model: String,
+    val supportedParameters: List<String>?,
+    val schemas: List<OutputSchema>
+)
+
+/**
+ * One entry the Output Mode control offers, and why the selected Model cannot serve it, or null
+ * when it can.
+ */
+data class OutputModeChoice(val mode: OutputMode, val unsupportedReason: String?) {
+    val supported: Boolean get() = unsupportedReason == null
+}
 
 /**
  * What a reply says about how it was produced, as shown in the footer under it.
@@ -34,9 +84,9 @@ data class ChatRequestOptions(
  * The fields are facts, never footer wording: [requestedModel] is what the chat asked for,
  * [searched] whether that request carried a web search, and [respondingModel], [provider], [cost]
  * and [finishReason] what OpenRouter reported back. [answeringModel], [facts] and [warning] are
- * rendered from them each time they are read. Saved chats store this
- * class as it is, so its property names are a storage format, and keeping wording out of it is
- * what lets the footer's wording change without stranding a saved message.
+ * rendered from them each time they are read. Saved chats store this class as it is, so its
+ * property names are a storage format, and keeping wording out of it is what lets the footer's
+ * wording change without stranding a saved message.
  *
  * [provider] and [cost] are null when the response did not carry them, so the footer leaves them
  * out instead of showing a zero or a blank. [finishReason] is OpenRouter's normalised reason, kept
@@ -123,9 +173,9 @@ data class ReplySummary(
  * What the chat window sends to OpenRouter, what it makes of the reply, and the vocabulary its
  * controls offer.
  *
- * Everything here is a pure function of the user's selections and of the reply, so it runs in the fast headless
- * test task - the same reason [MessageSegmenter] is pure and lives beside the chat UI rather than
- * inside it. A request assembled inside a Swing class cannot be read back without a running IDE,
+ * Everything here is a pure function of the user's selections and of the reply, so it runs in
+ * the fast headless test task - the same reason [MessageSegmenter] is pure and lives beside the
+ * chat UI rather than inside it. A request assembled inside a Swing class cannot be read back without a running IDE,
  * and therefore cannot be asserted on at all.
  *
  * This is also the single place that knows what the send-parameters controls may offer: the combo
@@ -147,17 +197,100 @@ object ChatExchange {
         model: String,
         messages: List<ChatMessage>,
         options: ChatRequestOptions,
-        webSearch: WebSearchSettings = WebSearchSettings()
+        webSearch: WebSearchSettings = WebSearchSettings(),
+        schemas: List<OutputSchema> = emptyList()
     ): ChatCompletionRequest = ChatCompletionRequest(
         model = model,
         messages = messages,
         maxTokens = MAX_TOKENS,
         temperature = TEMPERATURE,
+        // The chat window reads replies whole; the streaming path belongs to the Proxy Server.
         stream = false,
         reasoning = reasoningConfig(options.reasoning),
         verbosity = verbosity(options.verbosity),
-        plugins = plugins(model, options, webSearch)
+        plugins = plugins(model, options, webSearch),
+        responseFormat = responseFormat(options.outputMode, schemas)
     )
+
+    /**
+     * A selected schema that cannot be found, or whose body does not parse, fails here rather than
+     * being dropped from the request: [sendBlockedReason] refuses both before a request is built,
+     * so reaching this means that check was skipped, and sending without the schema would be the
+     * silent downgrade it exists to prevent.
+     */
+    private fun responseFormat(mode: OutputMode, schemas: List<OutputSchema>): ResponseFormat? = when (mode) {
+        OutputMode.Off -> null
+        OutputMode.PlainJson -> ResponseFormat(type = "json_object")
+        is OutputMode.Schema -> {
+            val schema = requireNotNull(findSchema(mode, schemas)) { "No saved Output Schema named ${mode.name}" }
+            val body = requireNotNull(schema.parsedBody()) { "The Output Schema ${schema.name} is not a JSON object" }
+            ResponseFormat(
+                type = "json_schema",
+                jsonSchema = JsonSchemaFormat(name = schema.name, strict = schema.strict, schema = body)
+            )
+        }
+    }
+
+    /** Names are unique without regard to case, so that is how a selection finds its schema. */
+    private fun findSchema(mode: OutputMode.Schema, schemas: List<OutputSchema>): OutputSchema? =
+        schemas.firstOrNull { OutputSchema.sameName(it.name, mode.name) }
+
+    /**
+     * Every Output Mode the popup offers for [context], in the order it offers them, each marked
+     * with whether the Model can serve it, the saved schemas listed by name after Off and plain
+     * JSON.
+     *
+     * This is the one place that knows the gating, and the popup renders its answer rather than
+     * deriving its own. The two gates are independent: plain JSON is gated on `response_format`
+     * and every saved schema on `structured_outputs`, neither a superset of the other, and the
+     * catalogue has models declaring either one without the other.
+     *
+     * When the Model's declarations are not known - a Router, a preset, or any Model while the
+     * catalogue is still loading - only Off is offered, and the reason says the support is not
+     * known rather than that it is missing. A Router picks its Model per request, so nothing can
+     * promise that the one it picks will honour a response format; sending one anyway would be
+     * the request the server may refuse.
+     */
+    fun outputModes(context: OutputModeContext): List<OutputModeChoice> {
+        val (model, declared, schemas) = context
+        val jsonReason = capabilityReason(model, declared, RESPONSE_FORMAT, "JSON output")
+        val schemaReason = capabilityReason(model, declared, STRUCTURED_OUTPUTS, "schema-constrained output")
+        return listOf(
+            OutputModeChoice(OutputMode.Off, null),
+            OutputModeChoice(OutputMode.PlainJson, jsonReason)
+        ) + schemas.map { schema ->
+            // The settings page saves only a JSON object, but a settings file edited by hand, or a
+            // newer build's, can hold anything; a body that is not one is never sent.
+            val bodyReason = if (schema.parsedBody() == null) "${schema.name} $BROKEN_SCHEMA" else null
+            OutputModeChoice(OutputMode.Schema(schema.name), bodyReason ?: schemaReason)
+        }
+    }
+
+    private fun capabilityReason(model: String, declared: List<String>?, parameter: String, what: String): String? =
+        when {
+            declared == null -> "${what.replaceFirstChar { it.uppercase() }} support is not known for $model"
+            parameter in declared -> null
+            else -> "$model does not support $what"
+        }
+
+    /**
+     * The reason given for a selection that is no longer among the modes offered at all. It blocks
+     * sending like any other unservable selection, so a mode that has gone away is never sent.
+     */
+    fun noLongerOfferedReason(mode: OutputMode): String = "${mode.label} is no longer available"
+
+    /**
+     * Why a message cannot be sent with [selected] in [context], or null when it can.
+     *
+     * A selection that was valid can stop being so when the Model changes. It is kept and sending
+     * is blocked, rather than the selection being reset or the request sent anyway: reset, the user
+     * believes the reply is constrained when it is not; sent, the server refuses it.
+     */
+    fun sendBlockedReason(selected: OutputMode, context: OutputModeContext): String? {
+        val choice = outputModes(context).firstOrNull { it.mode == selected }
+        val reason = if (choice == null) noLongerOfferedReason(selected) else choice.unsupportedReason
+        return reason?.let { "$it. Choose another output mode to send." }
+    }
 
     /**
      * The Router's parameter block and the web plugin entry share OpenRouter's one `plugins`
@@ -194,8 +327,8 @@ object ChatExchange {
 
     /**
      * Unlike [reasoningConfig] this checks nothing but "did the user change it", passing anything
-     * else through lower-cased. The asymmetry is inherited rather than chosen, and is pinned by a
-     * test so that changing it is a decision someone makes rather than one that happens.
+     * else through lower-cased. The asymmetry is pinned by a test, so that changing either side
+     * is a decision about both rather than an accident on one.
      */
     private fun verbosity(chosen: String?): String? =
         chosen?.takeIf { it != UNCHANGED }?.lowercase()
@@ -217,9 +350,18 @@ object ChatExchange {
         "XHigh" to "xhigh"
     )
 
-    /** The chat window reads replies whole; the streaming path belongs to the Proxy Server. */
+    /** The longest reply the chat window asks for. */
     private const val MAX_TOKENS = 4096
     private const val TEMPERATURE = 0.7
+
+    /** The `supported_parameters` entry that declares plain JSON output. */
+    private const val RESPONSE_FORMAT = "response_format"
+
+    /** Why a saved schema whose body is not a JSON object is not offered. */
+    private const val BROKEN_SCHEMA = "is not a valid JSON object; fix it in Settings"
+
+    /** The `supported_parameters` entry that declares schema-constrained output. */
+    private const val STRUCTURED_OUTPUTS = "structured_outputs"
 
     /** OpenRouter's web search plugin; see the web search guide in OpenRouter's documentation. */
     private const val WEB_PLUGIN_ID = "web"
