@@ -139,8 +139,23 @@ class OpenRouterStatsCacheRefreshTest {
             val job = cache.refresh()
 
             assertNull(job, "no work should be launched")
-            assertEquals("Management Key required", cache.getLastError())
             assertEquals(0, server.requestCount, "a missing key is an answer, not a reason to ask")
+        }
+
+        @Test
+        @DisplayName("a regular key without a Management Key is a limitation, not an error")
+        fun noManagementKeyIsNotAnError() {
+            // An ordinary API key is a supported way to run the plugin - it just cannot read
+            // account-level data. Reporting that through the error channel put "Status: Error" in
+            // the status bar for a setup that works, right next to the menu's own, correct
+            // "Monitoring Disabled".
+            `when`(settingsService.getProvisioningKey()).thenReturn("")
+            val cache = cache()
+
+            cache.refresh()
+
+            assertNull(cache.getLastError(), "nothing went wrong, so nothing should be reported as an error")
+            assertEquals("Management Key required", cache.getUnavailableReason())
         }
     }
 

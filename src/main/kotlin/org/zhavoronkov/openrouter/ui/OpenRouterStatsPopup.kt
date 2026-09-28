@@ -355,6 +355,16 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
                     }
                 }
 
+                override fun onStatsUnavailable(reason: String) {
+                    // NOT_CONFIGURED rather than ERROR: the plugin is working, this setup just
+                    // does not include account data. See OpenRouterStatsListener.onStatsUnavailable.
+                    application.invokeLater {
+                        if (!isDisposed) {
+                            showErrorState(LabelState.NOT_CONFIGURED, reason)
+                        }
+                    }
+                }
+
                 override fun onStatsError(errorMessage: String) {
                     application.invokeLater {
                         if (!isDisposed) {

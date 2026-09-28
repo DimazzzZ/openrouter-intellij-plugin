@@ -69,6 +69,14 @@ class OpenRouterStatsCache(
     @Volatile
     private var lastError: String? = null
 
+    /**
+     * Why there is nothing to fetch, when that is a property of the configuration rather than a
+     * failure. Distinct from [lastError] because the two mean opposite things to a user: one says
+     * something went wrong, the other says this setup does less - see [notifyUnavailable].
+     */
+    @Volatile
+    private var unavailableReason: String? = null
+
     @Volatile
     private var lastUpdateTimestamp: Long = 0
 
@@ -86,6 +94,9 @@ class OpenRouterStatsCache(
     /** Returns the last error message, or null if no error. */
     fun getLastError(): String? = lastError
 
+    /** Why account data is unavailable in this configuration, or null when it is available. */
+    fun getUnavailableReason(): String? = unavailableReason
+
     /** Returns the timestamp of the last successful update. */
     fun getLastUpdateTimestamp(): Long = lastUpdateTimestamp
 
@@ -102,6 +113,13 @@ class OpenRouterStatsCache(
     @Suppress("ReturnCount")
     fun refresh(): Job? {
         PluginLogger.Service.info("Stats cache: refresh() called")
+
+        val unavailable = unavailableInThisConfiguration()
+        if (unavailable != null) {
+            PluginLogger.Service.debug("Stats cache: nothing to fetch - $unavailable")
+            notifyUnavailable(unavailable)
+            return null
+        }
 
         val validationResult = validateRefreshPreconditions()
         if (validationResult != null) {
@@ -145,16 +163,6 @@ class OpenRouterStatsCache(
             PluginLogger.Service.debug("Stats cache: Not configured, skipping refresh")
             lastError = "Not configured"
             return "Not configured"
-        }
-
-        // Everything this cache fetches - credits, activity, the key list - is Management-Key-only,
-        // so without one there is nothing to go and get. Refusing here is not a restriction, it is
-        // the honest answer: firing three requests that can only answer 403 would spend the user's
-        // rate limit to learn what the missing key already told us.
-        if (settingsService.getProvisioningKey().isBlank()) {
-            PluginLogger.Service.debug("Stats cache: No Management Key, skipping refresh")
-            lastError = "Management Key required"
-            return "Management Key required"
         }
 
         return null
@@ -381,6 +389,42 @@ class OpenRouterStatsCache(
             .sumOf { it.usage ?: 0.0 }
 
         return if (todayUsage > 0) todayUsage else null
+    }
+
+    /**
+     * Reports that this configuration has no account data to show, which is not a failure.
+     *
+     * Everything this cache fetches - credits, activity, the key list - is Management-Key-only, so
+     * an ordinary API key has nothing to go and get. That is a supported way to run the plugin:
+     * chat and the proxy work, only monitoring does not. Sending it down the error channel put
+     * "Status: Error" in the status bar for a setup that works, directly above the same menu's
+     * own, correct "Monitoring Disabled".
+     */
+    private fun notifyUnavailable(reason: String) {
+        unavailableReason = reason
+        lastError = null
+
+        val application = ApplicationManager.getApplication()
+        application?.invokeLater {
+            application.messageBus
+                .syncPublisher(OpenRouterStatsListener.TOPIC)
+                .onStatsUnavailable(reason)
+        }
+    }
+
+    /**
+     * Why account data cannot be fetched in this configuration, or null when it can.
+     *
+     * Separate from [validateRefreshPreconditions] because the answers differ in kind: that one
+     * reports things that are wrong, this one reports what this setup simply does not include.
+     */
+    private fun unavailableInThisConfiguration(): String? {
+        val settingsService = getSettingsServiceSafely() ?: return null
+        if (!settingsService.isConfigured()) return null
+
+        // Firing three requests that can only answer 403 would spend the user's rate limit to
+        // learn what the missing key already told us.
+        return if (settingsService.getProvisioningKey().isBlank()) "Management Key required" else null
     }
 
     private fun notifyError(message: String) {
