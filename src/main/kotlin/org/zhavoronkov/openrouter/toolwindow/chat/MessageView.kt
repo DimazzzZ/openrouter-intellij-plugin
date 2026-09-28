@@ -312,6 +312,6 @@ class MessageView(text: String, isUser: Boolean, footnote: String?) {
         const val MESSAGE_GAP_H = 6
 
         /** How much of the row a user message's bubble takes; a reply takes all of it. */
-        const val USER_BUBBLE_FRACTION = 0.8
+        const val USER_BUBBLE_FRACTION = 0.9
     }
 }

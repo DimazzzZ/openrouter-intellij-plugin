@@ -8,7 +8,7 @@ import javax.swing.JEditorPane
 import javax.swing.SwingUtilities
 
 private const val LAYOUT_WIDTH = 400
-private const val USER_BUBBLE_FRACTION = 0.8
+private const val USER_BUBBLE_FRACTION = 0.9
 private const val LONG_REPLY_WORD_COUNT = 200
 
 /**
@@ -73,9 +73,9 @@ class MessageViewLayoutPlatformTest : BasePlatformTestCase() {
 
     /**
      * Both lengths, because a width that depends on the text is the exact thing being ruled out:
-     * a bubble that merely fits inside 80% satisfies any upper bound the long case can state, and
-     * one that fills the row satisfies any lower bound the short case can state. Only asserting
-     * that the two come out the same width says the content has no say in it.
+     * a bubble that merely fits inside the fraction satisfies any upper bound the long case can
+     * state, and one that fills the row satisfies any lower bound the short case can state. Only
+     * asserting that the two come out the same width says the content has no say in it.
      */
     fun testAUserBubbleTakesTheSameFractionOfTheRowWhateverItSays() {
         val short = MessageView("pareto", isUser = true, footnote = null)
@@ -290,7 +290,7 @@ class MessageViewLayoutPlatformTest : BasePlatformTestCase() {
     }
 
     private companion object {
-        /** Rounding slack for the 80% cap computed from an already-scaled row width. */
+        /** Rounding slack for a fraction computed from an already-scaled row width. */
         const val JBUI_TOLERANCE = 2
 
         /** The left and right gaps between the bubble and the row, which the fraction sits inside. */
