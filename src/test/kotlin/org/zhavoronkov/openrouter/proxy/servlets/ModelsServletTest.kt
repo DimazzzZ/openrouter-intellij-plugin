@@ -2,6 +2,7 @@ package org.zhavoronkov.openrouter.proxy.servlets
 
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
@@ -241,6 +242,41 @@ class ModelsServletTest {
         servlet.doGet(req, resp)
 
         assertFalse(writer.toString().contains("anthropic/claude"))
+    }
+
+    /**
+     * A Latest Model's `~` marks latest resolution, not the organisation: `~openai/gpt-astra-latest`
+     * is owned by `openai`, and a consumer asking for OpenAI's models must get it.
+     */
+    @Test
+    fun `doGet all mode files latest slugs under their real owner`() = kotlinx.coroutines.runBlocking {
+        val openRouterService = mock(OpenRouterService::class.java)
+        val models = OpenRouterModelsResponse(
+            data = listOf(
+                OpenRouterModelInfo(id = "~openai/gpt-astra-latest", name = "GPT Astra Latest", created = 1L),
+                OpenRouterModelInfo(id = "anthropic/claude", name = "Claude", created = 2L)
+            )
+        )
+        `when`(openRouterService.getModels()).thenReturn(ApiResult.Success(models, 200))
+        val servlet = ModelsServlet(openRouterService, { emptyList() }, { emptyList() })
+
+        val req = mock(HttpServletRequest::class.java)
+        `when`(req.getParameter("mode")).thenReturn("all")
+        `when`(req.getParameter("provider")).thenReturn("openai")
+        `when`(req.getHeader("User-Agent")).thenReturn("test")
+        `when`(req.requestURI).thenReturn("/models")
+        `when`(req.remoteAddr).thenReturn("127.0.0.1")
+        `when`(req.headerNames).thenReturn(java.util.Collections.emptyEnumeration())
+        val resp = mock(HttpServletResponse::class.java)
+        val writer = StringWriter()
+        `when`(resp.writer).thenReturn(PrintWriter(writer))
+
+        servlet.doGet(req, resp)
+
+        val body = com.google.gson.JsonParser.parseString(writer.toString()).asJsonObject
+        val listed = body.getAsJsonArray("data").map { it.asJsonObject }
+        assertEquals(listOf("~openai/gpt-astra-latest"), listed.map { it["id"].asString })
+        assertEquals("openai", listed.single()["owned_by"].asString)
     }
 
     @Test

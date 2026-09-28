@@ -284,7 +284,7 @@ class ModelsServlet(
         if (!provider.isNullOrBlank()) {
             filteredModels = filteredModels.filter { model ->
                 model.ownedBy.equals(provider, ignoreCase = true) ||
-                    model.id.startsWith("$provider/", ignoreCase = true)
+                    model.id.removePrefix(ModelProviderUtils.LATEST_MARKER).startsWith("$provider/", ignoreCase = true)
             }
         }
 
@@ -330,10 +330,12 @@ class ModelsServlet(
      * display name from [ModelProviderUtils.extractProvider]) because the OpenAI models
      * API convention expects a lowercase organization identifier. Variant suffixes are
      * stripped via [ModelProviderUtils.stripVariant] so `x-ai/grok:free` and `x-ai/grok`
-     * both resolve to "x-ai".
+     * both resolve to "x-ai", and a Latest Model's `~` marker is dropped so
+     * `~openai/gpt-astra-latest` resolves to "openai" rather than to an organisation
+     * called "~openai".
      */
     private fun extractProvider(modelId: String): String {
-        val stripped = ModelProviderUtils.stripVariant(modelId)
+        val stripped = ModelProviderUtils.stripVariant(modelId).removePrefix(ModelProviderUtils.LATEST_MARKER)
         return if (stripped.contains("/")) {
             stripped.substringBefore("/")
         } else {

@@ -577,4 +577,48 @@ class ModelProviderUtilsTest {
         val parsed = ModelProviderUtils.parseModelId("@preset/email-copywriter")
         assertEquals("@preset/email-copywriter", parsed.toFullId())
     }
+
+    // --- Latest Models: ~author/family-latest ---
+
+    @Test
+    fun `parseModelId files a latest slug under its real author`() {
+        val result = ModelProviderUtils.parseModelId("~openai/gpt-astra-latest")
+
+        assertEquals("OpenAI", result.provider, "the ~ marks latest resolution, it is not part of the author")
+        assertEquals("gpt-astra-latest", result.baseName, "the name keeps its -latest ending")
+        assertTrue(result.latest)
+        assertNull(result.variant)
+        assertNull(result.unknownVariant)
+    }
+
+    @Test
+    fun `parseModelId resolves a latest slug's author through the known-author table`() {
+        assertEquals("Meta", ModelProviderUtils.parseModelId("~meta-llama/llama-latest").provider)
+        assertEquals("xAI", ModelProviderUtils.parseModelId("~x-ai/grok-latest").provider)
+    }
+
+    @Test
+    fun `parseModelId keeps both facts for a latest slug with a catalog variant`() {
+        val result = ModelProviderUtils.parseModelId("~google/gemini-flash-latest:free")
+
+        assertEquals("Google", result.provider)
+        assertEquals("gemini-flash-latest", result.baseName)
+        assertTrue(result.latest)
+        assertEquals(ModelProviderUtils.ModelVariant.FREE, result.variant)
+    }
+
+    @Test
+    fun `parseModelId reports an ordinary slug as not latest`() {
+        val result = ModelProviderUtils.parseModelId("openai/gpt-4o:free")
+
+        assertEquals(ModelProviderUtils.ModelId("OpenAI", "gpt-4o", ModelProviderUtils.ModelVariant.FREE, null), result)
+        assertFalse(result.latest)
+    }
+
+    @Test
+    fun `getUniqueProviders does not split an author in two over its latest slugs`() {
+        val models = listOf(createModel("openai/gpt-4o"), createModel("~openai/gpt-astra-latest"))
+
+        assertEquals(listOf("OpenAI"), ModelProviderUtils.getUniqueProviders(models))
+    }
 }

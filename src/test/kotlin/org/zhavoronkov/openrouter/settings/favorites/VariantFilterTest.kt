@@ -47,9 +47,10 @@ class VariantFilterTest {
     }
 
     @Test
-    fun `entries are ordered ANY, BASE_ONLY, known variants in enum order, OTHER`() {
+    fun `entries are ordered ANY, BASE_ONLY, known variants in enum order, LATEST, OTHER`() {
         val expected = listOf(VariantFilter.ANY, VariantFilter.BASE_ONLY) +
             ModelVariant.entries.map { VariantFilter.forVariant(it) } +
+            VariantFilter.LATEST +
             VariantFilter.OTHER
         assertEquals(expected, VariantFilter.entries.toList())
     }
@@ -59,5 +60,24 @@ class VariantFilterTest {
         val names = VariantFilter.entries.map { it.displayName }
         assertTrue(names.all { it.isNotBlank() })
         assertEquals(names.size, names.toSet().size)
+    }
+
+    @Test
+    fun `LATEST matches exactly the latest slugs`() {
+        assertTrue(VariantFilter.LATEST.matches("~openai/gpt-astra-latest"))
+        assertTrue(VariantFilter.LATEST.matches("~google/gemini-flash-latest:free"))
+        assertFalse(VariantFilter.LATEST.matches("openai/gpt-4o"))
+        assertFalse(VariantFilter.LATEST.matches("openai/gpt-4o:free"))
+    }
+
+    /** A latest slug carries a marker, so it is not what someone asking for base models means. */
+    @Test
+    fun `BASE_ONLY leaves latest slugs out`() {
+        assertFalse(VariantFilter.BASE_ONLY.matches("~openai/gpt-astra-latest"))
+    }
+
+    @Test
+    fun `a latest slug with a catalog variant still matches that variant's filter`() {
+        assertTrue(VariantFilter.FREE.matches("~google/gemini-flash-latest:free"))
     }
 }

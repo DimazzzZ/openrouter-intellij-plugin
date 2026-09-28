@@ -100,4 +100,17 @@ class OpenRouterSettingsServiceMigrationTest {
 
         assertEquals(listOf("openai/gpt-4o"), service.getState().favoriteModels)
     }
+
+    @Test
+    fun `a favorited latest slug survives a restart untouched`() {
+        val service = OpenRouterSettingsService()
+        val state = OpenRouterSettings(favoriteModels = mutableListOf("~openai/gpt-astra-latest", "openai/gpt-4o"))
+
+        service.loadState(state)
+
+        assertEquals(
+            listOf("~openai/gpt-astra-latest", "openai/gpt-4o"),
+            service.favoriteModelsManager.getFavoriteModels()
+        )
+    }
 }

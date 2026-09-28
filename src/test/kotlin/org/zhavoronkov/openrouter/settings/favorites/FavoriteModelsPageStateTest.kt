@@ -214,6 +214,36 @@ class FavoriteModelsPageStateTest {
         }
 
         @Test
+        fun `a catalog with latest slugs offers the Latest filter`() {
+            val s = state(
+                catalog = listOf(
+                    FavoriteModelsFixtures.model("openai/gpt-4o"),
+                    FavoriteModelsFixtures.model("~openai/gpt-astra-latest")
+                )
+            )
+
+            assertEquals(
+                listOf(VariantFilter.ANY, VariantFilter.BASE_ONLY, VariantFilter.LATEST),
+                s.availableVariantFilters()
+            )
+        }
+
+        @Test
+        fun `filtering by author includes that author's latest slugs`() {
+            val s = state(
+                catalog = listOf(
+                    FavoriteModelsFixtures.model("openai/gpt-4o"),
+                    FavoriteModelsFixtures.model("~openai/gpt-astra-latest"),
+                    FavoriteModelsFixtures.model("anthropic/claude-sonnet-4.5")
+                )
+            )
+
+            val openAi = s.catalog.filter { ModelFilterCriteria(provider = "OpenAI").matches(it) }.map { it.id }
+
+            assertEquals(listOf("openai/gpt-4o", "~openai/gpt-astra-latest"), openAi)
+        }
+
+        @Test
         fun `an empty catalog offers only Any`() {
             assertEquals(listOf(VariantFilter.ANY), FavoriteModelsPageState().availableVariantFilters())
         }

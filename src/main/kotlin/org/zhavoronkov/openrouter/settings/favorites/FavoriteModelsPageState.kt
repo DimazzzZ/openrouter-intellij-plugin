@@ -69,15 +69,10 @@ class FavoriteModelsPageState(initialFavorites: List<String> = emptyList()) {
      * `:nitro`, `:floor` and `:exacto` are request-time routing shortcuts that never
      * appear in the catalog — offering them would guarantee an empty table.
      */
-    fun availableVariantFilters(): List<VariantFilter> = buildList {
-        add(VariantFilter.ANY)
-        val present = catalog.map { ModelProviderUtils.parseModelId(it.id) }
-        if (present.any { it.variant == null && it.unknownVariant == null }) add(VariantFilter.BASE_ONLY)
-        VariantFilter.entries
-            .filter { filter -> filter.variant != null && present.any { it.variant == filter.variant } }
-            .forEach(::add)
-        if (present.any { it.unknownVariant != null }) add(VariantFilter.OTHER)
-    }
+    fun availableVariantFilters(): List<VariantFilter> =
+        VariantFilter.entries.filter { filter ->
+            filter == VariantFilter.ANY || catalog.any { filter.matches(it.id) }
+        }
 
     // --- favorites -------------------------------------------------------------------------
 

@@ -28,6 +28,7 @@ this file says.
   and seeing whether it answers.
 - **Model** — an OpenRouter model identifier (e.g. `openai/gpt-4o`,
   `anthropic/claude-3.5-sonnet`). Vendor-prefixed, always lowercase.
+- **Latest Model** — a `~author/family-latest` slug, which OpenRouter resolves to the newest model in that family at request time, so what answers can change while the id stays the same. The `~` is a marker of latest resolution, not part of the author: a Latest Model files, filters and groups under its real author, and carries a Latest chip beside the variant chips. It is a flag on the parsed id rather than a variant, because variants are suffixes and this is a prefix; a Latest Model can carry a variant as well.
 - **Router** — an `openrouter/`-namespaced model slug that OpenRouter itself
   resolves to an underlying model at request time (e.g. `openrouter/auto`,
   `openrouter/fusion`, `openrouter/pareto-code`). A router may take one tunable

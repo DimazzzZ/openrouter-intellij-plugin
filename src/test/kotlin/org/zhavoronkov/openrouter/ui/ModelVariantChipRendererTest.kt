@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
-import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
@@ -88,19 +87,19 @@ class ModelVariantChipRendererTest {
     // --- Graphics2D chip seams (used by the rounded-corner table renderer) ---
 
     @Test
-    fun `chipLabelFor returns display name for known variant`() {
-        assertEquals("Free", ModelVariantChipRenderer.chipLabelFor("x-ai/grok-4-fast:free"))
-        assertEquals("Batch", ModelVariantChipRenderer.chipLabelFor("openai/gpt-4o:batch"))
+    fun `chipLabelsFor returns display name for known variant`() {
+        assertEquals(listOf("Free"), ModelVariantChipRenderer.chipLabelsFor("x-ai/grok-4-fast:free"))
+        assertEquals(listOf("Batch"), ModelVariantChipRenderer.chipLabelsFor("openai/gpt-4o:batch"))
     }
 
     @Test
-    fun `chipLabelFor returns null for base model`() {
-        assertNull(ModelVariantChipRenderer.chipLabelFor("openai/gpt-4o"))
+    fun `chipLabelsFor returns nothing for base model`() {
+        assertEquals(emptyList<String>(), ModelVariantChipRenderer.chipLabelsFor("openai/gpt-4o"))
     }
 
     @Test
-    fun `chipLabelFor prefixes unknown variant`() {
-        assertEquals("? brand-new", ModelVariantChipRenderer.chipLabelFor("some/model:brand-new"))
+    fun `chipLabelsFor prefixes unknown variant`() {
+        assertEquals(listOf("? brand-new"), ModelVariantChipRenderer.chipLabelsFor("some/model:brand-new"))
     }
 
     @Test
@@ -154,5 +153,32 @@ class ModelVariantChipRendererTest {
             val view = label.getClientProperty(BasicHTML.propertyKey)
             assertNotNull(view, "Swing failed to build an HTML view for id=$id")
         }
+    }
+
+    @Test
+    fun `a latest slug gets a Latest chip`() {
+        assertEquals(listOf("Latest"), ModelVariantChipRenderer.chipLabelsFor("~openai/gpt-astra-latest"))
+        assertTrue(ModelVariantChipRenderer.renderRow("~openai/gpt-astra-latest").contains("Latest"))
+    }
+
+    @Test
+    fun `a latest slug with a catalog variant gets both chips, variant first`() {
+        val labels = ModelVariantChipRenderer.chipLabelsFor("~google/gemini-flash-latest:free")
+
+        assertEquals(listOf("Free", "Latest"), labels)
+    }
+
+    @Test
+    fun `an ordinary slug gets no Latest chip`() {
+        assertEquals(listOf("Free"), ModelVariantChipRenderer.chipLabelsFor("x-ai/grok-4-fast:free"))
+        assertEquals(emptyList<String>(), ModelVariantChipRenderer.chipLabelsFor("openai/gpt-4o"))
+    }
+
+    @Test
+    fun `tooltipFor a latest slug names its real author and says it moves`() {
+        val tooltip = ModelVariantChipRenderer.tooltipFor("~openai/gpt-astra-latest")
+
+        assertTrue(tooltip.startsWith("OpenAI"), tooltip)
+        assertTrue(tooltip.contains("newest"), tooltip)
     }
 }

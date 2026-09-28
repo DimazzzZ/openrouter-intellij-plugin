@@ -3,7 +3,6 @@ package org.zhavoronkov.openrouter.ui
 import com.intellij.ui.JBColor
 import com.intellij.util.ui.JBUI
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
-import java.awt.Color
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.Graphics
@@ -15,8 +14,8 @@ import javax.swing.JTable
 import javax.swing.table.TableCellRenderer
 
 /**
- * Table cell renderer that paints a model id followed by a variant chip with
- * real rounded corners.
+ * Table cell renderer that paints a model id followed by its chips - a variant,
+ * and Latest for a Latest Model - with real rounded corners.
  *
  * Why not HTML? Swing's [javax.swing.text.html.CSS] only understands a CSS1
  * subset and throws an NPE on `border-radius`, which is why
@@ -30,9 +29,7 @@ class VariantChipTableCellRenderer(
 ) : JLabel(), TableCellRenderer {
 
     private var modelId: String = ""
-    private var chipLabel: String? = null
-    private var chipBg: Color = JBColor.GRAY
-    private var chipFg: Color = JBColor.WHITE
+    private var chips: List<ModelVariantChipRenderer.Chip> = emptyList()
 
     init {
         isOpaque = true
@@ -49,19 +46,7 @@ class VariantChipTableCellRenderer(
     ): Component {
         val id = value as? String ?: ""
         modelId = ModelProviderUtils.stripVariant(id)
-        chipLabel = ModelVariantChipRenderer.chipLabelFor(id)
-
-        val parsed = ModelProviderUtils.parseModelId(id)
-        when {
-            parsed.variant != null -> {
-                chipBg = ModelVariantChipRenderer.chipBackground(parsed.variant)
-                chipFg = ModelVariantChipRenderer.chipForeground(parsed.variant)
-            }
-            parsed.unknownVariant != null -> {
-                chipBg = ModelVariantChipRenderer.unknownChipBackground()
-                chipFg = ModelVariantChipRenderer.unknownChipForeground()
-            }
-        }
+        chips = ModelVariantChipRenderer.chipsFor(id)
 
         text = modelId
         val available = isAvailable(id)
@@ -81,39 +66,41 @@ class VariantChipTableCellRenderer(
 
     override fun getPreferredSize(): Dimension {
         val base = super.getPreferredSize()
-        val label = chipLabel ?: return base
-        return Dimension(base.width + CELL_GAP + chipWidthFor(label), base.height)
+        return Dimension(base.width + chips.sumOf { CELL_GAP + chipWidthFor(it.label) }, base.height)
     }
 
     override fun paintComponent(g: Graphics) {
         super.paintComponent(g)
-        val label = chipLabel ?: return
+        if (chips.isEmpty()) return
         val g2 = g.create() as Graphics2D
         try {
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
             val fm = getFontMetrics(font)
-            val textWidth = fm.stringWidth(modelId)
-            val chipWidth = chipWidthFor(label)
             val chipHeight = fm.height + 2 * CHIP_V_PADDING
-            val chipX = insets.left + textWidth + CELL_GAP
             val chipY = (height - chipHeight) / 2
             val arc = JBUI.scale(CHIP_ARC).toFloat()
-            val shape = RoundRectangle2D.Float(
-                chipX.toFloat(),
-                chipY.toFloat(),
-                chipWidth.toFloat(),
-                chipHeight.toFloat(),
-                arc,
-                arc
-            )
-            g2.color = chipBg
-            g2.fill(shape)
-            g2.color = chipFg
-            g2.drawString(
-                label,
-                chipX + JBUI.scale(CHIP_H_PADDING),
-                chipY + CHIP_V_PADDING + fm.ascent
-            )
+            var chipX = insets.left + fm.stringWidth(modelId)
+            for (chip in chips) {
+                chipX += CELL_GAP
+                val chipWidth = chipWidthFor(chip.label)
+                val shape = RoundRectangle2D.Float(
+                    chipX.toFloat(),
+                    chipY.toFloat(),
+                    chipWidth.toFloat(),
+                    chipHeight.toFloat(),
+                    arc,
+                    arc
+                )
+                g2.color = chip.background
+                g2.fill(shape)
+                g2.color = chip.foreground
+                g2.drawString(
+                    chip.label,
+                    chipX + JBUI.scale(CHIP_H_PADDING),
+                    chipY + CHIP_V_PADDING + fm.ascent
+                )
+                chipX += chipWidth
+            }
         } finally {
             g2.dispose()
         }

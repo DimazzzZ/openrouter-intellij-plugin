@@ -42,6 +42,24 @@ object ModelVariantChipRenderer {
         )
     )
 
+    /**
+     * The Latest chip: a quiet blue-grey, since it marks how a model resolves
+     * rather than a tier.
+     */
+    private val LATEST_CHIP_COLOR = ChipColor(
+        bgLight = "#ECEFF1",
+        bgDark = "#37474F",
+        fgLight = "#37474F",
+        fgDark = "#ECEFF1"
+    )
+
+    private const val LATEST_LABEL = "Latest"
+    private const val LATEST_TOOLTIP =
+        "Latest — resolves to the newest model in this family, so what answers can change while the id stays the same"
+
+    /** One chip as a painted renderer draws it. */
+    data class Chip(val label: String, val background: Color, val foreground: Color)
+
     private val UNKNOWN_CHIP_COLOR = ChipColor(
         bgLight = "#FFF9C4",
         bgDark = "#F57F17",
@@ -67,8 +85,7 @@ object ModelVariantChipRenderer {
     /**
      * Theme-aware background color for a known variant chip, for use by a
      * Graphics2D-based renderer that paints real rounded rectangles (Swing's
-     * HTML/CSS engine cannot draw `border-radius`). Returns null for a base
-     * model that has no chip.
+     * HTML/CSS engine cannot draw `border-radius`).
      */
     fun chipBackground(variant: ModelVariant): Color = (VARIANT_COLORS[variant] ?: UNKNOWN_CHIP_COLOR).bgColor()
 
@@ -82,17 +99,32 @@ object ModelVariantChipRenderer {
     fun unknownChipForeground(): Color = UNKNOWN_CHIP_COLOR.fgColor()
 
     /**
-     * The short label shown inside a chip for a model id, or null when the id
-     * has no variant. Unknown variants use a `? suffix` label.
+     * Every chip a model id carries, in display order: its variant (known, or
+     * an unknown `? suffix`), then Latest for a Latest Model. A latest slug with
+     * a catalog variant carries both, since those are two separate facts.
      */
-    fun chipLabelFor(modelId: String): String? {
+    fun chipsFor(modelId: String): List<Chip> {
         val parsed = ModelProviderUtils.parseModelId(modelId)
-        return when {
-            parsed.variant != null -> parsed.variant.displayName
-            parsed.unknownVariant != null -> "? " + parsed.unknownVariant.removePrefix(":")
-            else -> null
-        }
+        return listOfNotNull(
+            when {
+                parsed.variant != null -> Chip(
+                    parsed.variant.displayName,
+                    chipBackground(parsed.variant),
+                    chipForeground(parsed.variant)
+                )
+                parsed.unknownVariant != null -> Chip(
+                    "? " + parsed.unknownVariant.removePrefix(":"),
+                    unknownChipBackground(),
+                    unknownChipForeground()
+                )
+                else -> null
+            },
+            if (parsed.latest) Chip(LATEST_LABEL, LATEST_CHIP_COLOR.bgColor(), LATEST_CHIP_COLOR.fgColor()) else null
+        )
     }
+
+    /** The labels of [chipsFor], in the same order. */
+    fun chipLabelsFor(modelId: String): List<String> = chipsFor(modelId).map { it.label }
 
     /**
      * Render a model ID as HTML with an inline variant chip when applicable.
@@ -103,20 +135,16 @@ object ModelVariantChipRenderer {
      * @param baseTextColor optional foreground color for the base ID (defaults to inherit)
      */
     fun renderRow(modelId: String, baseTextColor: Color? = null): String {
-        val parsed = ModelProviderUtils.parseModelId(modelId)
         val baseDisplay = escapeHtml(ModelProviderUtils.stripVariant(modelId))
 
         val baseHtml = if (baseTextColor != null) {
-            val hex = "#%06x".format(baseTextColor.rgb and RGB_MASK)
-            "<span style='color:$hex'>$baseDisplay</span>"
+            "<span style='color:${hex(baseTextColor)}'>$baseDisplay</span>"
         } else {
             baseDisplay
         }
 
-        val chipHtml = when {
-            parsed.variant != null -> chipFor(parsed.variant)
-            parsed.unknownVariant != null -> unknownChip(parsed.unknownVariant)
-            else -> ""
+        val chipHtml = chipsFor(modelId).joinToString(" &nbsp; ") {
+            chipSpan(escapeHtml(it.label), hex(it.background), hex(it.foreground))
         }
 
         // white-space:nowrap keeps the base id and its chip on a single line inside
@@ -138,19 +166,15 @@ object ModelVariantChipRenderer {
     }
 
     /**
-     * Render an "Unknown" chip for a variant this plugin doesn't recognize
-     * (typically a brand-new OpenRouter variant introduced after this build).
-     */
-    fun unknownChip(rawSuffix: String): String {
-        val label = escapeHtml(rawSuffix.removePrefix(":"))
-        return buildChip("? $label", UNKNOWN_CHIP_COLOR)
-    }
-
-    /**
      * Tooltip text for a model ID, describing its variant (if any).
      */
     fun tooltipFor(modelId: String): String {
         val parsed = ModelProviderUtils.parseModelId(modelId)
+        val variantTooltip = variantTooltipFor(parsed)
+        return if (parsed.latest) "$variantTooltip — $LATEST_TOOLTIP" else variantTooltip
+    }
+
+    private fun variantTooltipFor(parsed: ModelProviderUtils.ModelId): String {
         return when {
             parsed.variant != null -> "${parsed.provider} — ${parsed.variant.tooltip}"
             parsed.unknownVariant != null ->
@@ -160,9 +184,11 @@ object ModelVariantChipRenderer {
         }
     }
 
-    private fun buildChip(label: String, color: ChipColor): String {
-        val bg = color.bg()
-        val fg = color.fg()
+    private fun buildChip(label: String, color: ChipColor): String = chipSpan(label, color.bg(), color.fg())
+
+    private fun hex(color: Color): String = "#%06x".format(color.rgb and RGB_MASK)
+
+    private fun chipSpan(label: String, bg: String, fg: String): String {
         // Swing's javax.swing.text.html.CSS only understands a CSS1 subset. Two
         // properties we previously emitted make it throw an NPE from
         // CSS.getInternalCSSValue when the HTML is set on a JLabel-backed cell
