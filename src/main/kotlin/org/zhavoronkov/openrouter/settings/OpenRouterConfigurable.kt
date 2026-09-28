@@ -111,12 +111,14 @@ class OpenRouterConfigurable : Configurable {
             settingsService.uiPreferencesManager.autoRefresh = panel.isAutoRefreshEnabled()
             settingsService.uiPreferencesManager.refreshInterval = panel.getRefreshInterval()
             settingsService.uiPreferencesManager.showCosts = panel.shouldShowCosts()
+            settingsService.uiPreferencesManager.requestWarningBalloons = panel.warningBalloonsCheckBox.isSelected
             settingsService.uiPreferencesManager.balanceProviderEnabled = panel.isBalanceProviderEnabled()
             applyDataRegion(panel.getDataRegion())
         } else {
             panel.setAutoRefresh(settingsService.uiPreferencesManager.autoRefresh)
             panel.setRefreshInterval(settingsService.uiPreferencesManager.refreshInterval)
             panel.setShowCosts(settingsService.uiPreferencesManager.showCosts)
+            panel.warningBalloonsCheckBox.isSelected = settingsService.uiPreferencesManager.requestWarningBalloons
             panel.setBalanceProviderEnabled(settingsService.uiPreferencesManager.balanceProviderEnabled)
             panel.setDataRegion(settingsService.getDataRegion())
             panel.onDataRegionChosen { region -> loadFavoritesImpact(panel, region) }
@@ -215,6 +217,7 @@ class OpenRouterConfigurable : Configurable {
         return panel.isAutoRefreshEnabled() != settingsService.uiPreferencesManager.autoRefresh ||
             panel.getRefreshInterval() != settingsService.uiPreferencesManager.refreshInterval ||
             panel.shouldShowCosts() != settingsService.uiPreferencesManager.showCosts ||
+            panel.warningBalloonsCheckBox.isSelected != settingsService.uiPreferencesManager.requestWarningBalloons ||
             panel.isBalanceProviderEnabled() != settingsService.uiPreferencesManager.balanceProviderEnabled ||
             isSettingModified(panel, SettingType.DEFAULT_MAX_TOKENS) ||
             isSettingModified(panel, SettingType.PROXY_SETTINGS) ||

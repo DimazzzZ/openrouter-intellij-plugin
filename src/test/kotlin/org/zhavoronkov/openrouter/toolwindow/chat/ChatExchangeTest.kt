@@ -216,13 +216,25 @@ class ChatExchangeTest {
     fun `a reply whose response reports searches says so in its footer`() {
         val reply = response(
             """{"model": "openai/gpt-5.2", "provider": "OpenAI",
-                "usage": {"cost": 0.01, "server_tool_use": {"web_search_requests": 2}}}"""
+                "usage": {"cost": 0.01, "server_tool_use_details": {"web_search_requests": 2}}}"""
         )
 
         val summary = ChatExchange.summarizeReply(sent("openai/gpt-5.2", ChatRequestOptions(webSearch = true)), reply)
 
         assertEquals(2, summary.webSearches)
         assertEquals("openai/gpt-5.2 · OpenAI · \$0.01 · 2 web searches", summary.facts)
+    }
+
+    /** With a server tool the reply's provider field names OpenAI whatever served it. */
+    @Test
+    @DisplayName("a reply whose provider cannot be believed is summarised without one")
+    fun `a reply whose provider cannot be believed is summarised without one`() {
+        val reply = response("""{"model": "openai/gpt-5.2", "provider": "OpenAI", "usage": {"cost": 0.01}}""")
+
+        val request = sent("openai/gpt-5.2", ChatRequestOptions())
+        val summary = ChatExchange.summarizeReply(request, reply, replyNamesProvider = false)
+
+        assertEquals("openai/gpt-5.2 · \$0.01", summary.facts)
     }
 
     @Test

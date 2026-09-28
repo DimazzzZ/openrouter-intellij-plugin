@@ -116,4 +116,46 @@ class PasswordSafeKeyStorageEdtPlatformTest : BasePlatformTestCase() {
         )
         assertFalse("the credential store was read on the EDT: $readingThreads", readingThreads.any { it })
     }
+
+    /**
+     * Reported: the status bar asked whether the plugin is configured while it was being installed,
+     * on the EDT, before anything had warmed the cache, and the key was read from the store right
+     * there. The EDT is told "not known yet" instead, the store is read in the background, and the
+     * settings listeners hear once the key is known.
+     */
+    fun testAKeyAskedForOnTheEdtBeforeTheCacheIsWarmIsReadInTheBackground() {
+        val readOnEdt = java.util.concurrent.CopyOnWriteArrayList<Boolean>()
+        val stored = mock(
+            PasswordSafe::class.java,
+            Answer { invocation ->
+                if (invocation.method.name == "getPassword") {
+                    readOnEdt += ApplicationManager.getApplication().isDispatchThread
+                    "stored-key"
+                } else {
+                    null
+                }
+            }
+        )
+        ApplicationManager.getApplication().replaceService(PasswordSafe::class.java, stored, testRootDisposable)
+        PasswordSafeKeyStorage.resetCacheForTesting()
+        val heard = java.util.concurrent.atomic.AtomicInteger()
+        ApplicationManager.getApplication().messageBus.connect(testRootDisposable).subscribe(
+            org.zhavoronkov.openrouter.listeners.OpenRouterSettingsListener.TOPIC,
+            object : org.zhavoronkov.openrouter.listeners.OpenRouterSettingsListener {
+                override fun onSettingsChanged() {
+                    heard.incrementAndGet()
+                }
+            }
+        )
+
+        assertNull("not known yet, rather than read on the EDT", PasswordSafeKeyStorage.getApiKey())
+
+        com.intellij.testFramework.PlatformTestUtil.waitWithEventsDispatching(
+            "the key was never loaded",
+            { PasswordSafeKeyStorage.getApiKey() != null && heard.get() > 0 },
+            WRITE_TIMEOUT_SECONDS.toInt()
+        )
+        assertEquals("stored-key", PasswordSafeKeyStorage.getApiKey())
+        assertFalse("the credential store was read on the EDT: $readOnEdt", readOnEdt.any { it })
+    }
 }

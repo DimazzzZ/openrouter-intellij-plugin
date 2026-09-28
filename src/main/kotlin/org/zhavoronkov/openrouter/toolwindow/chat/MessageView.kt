@@ -77,6 +77,8 @@ class MessageView(text: String, isUser: Boolean, footnote: String?, warning: Str
 
     val component: JComponent
 
+    private val footer: MessageFooter
+
     init {
         val body = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
@@ -94,7 +96,8 @@ class MessageView(text: String, isUser: Boolean, footnote: String?, warning: Str
         }
 
         val copyButton = copyButton(text)
-        val bubble = MessageBubble(body, filled = isUser, footer = MessageFooter(footnote, warning, copyButton))
+        footer = MessageFooter(footnote, warning, copyButton)
+        val bubble = MessageBubble(body, filled = isUser, footer = footer)
 
         component = JPanel(BorderLayout()).apply {
             isOpaque = false
@@ -214,17 +217,37 @@ class MessageView(text: String, isUser: Boolean, footnote: String?, warning: Str
      * and every message below would shift up. Unpainted, the button keeps its slot and hovering
      * moves nothing.
      */
+    /** Replaces the footer's line of facts, for a fact learned after the reply was shown. */
+    fun setFootnote(footnote: String?) {
+        footer.setFootnote(footnote)
+    }
+
+    /** The footer's line of facts as shown now, or null when it shows none. */
+    internal val footnote: String? get() = footer.footnote
+
     private class MessageFooter(
         footnote: String?,
         warning: String?,
         copyButton: JComponent
     ) : JPanel(BorderLayout()) {
+        private var footnoteLabel: JBLabel? = null
+
         init {
             isOpaque = false
             border = JBUI.Borders.emptyTop(FOOTER_GAP_V)
             warning?.takeIf { it.isNotBlank() }?.let { add(warningLabel(it), BorderLayout.NORTH) }
-            footnote?.takeIf { it.isNotBlank() }?.let { add(footnoteLabel(it), BorderLayout.CENTER) }
+            setFootnote(footnote)
             add(copyButton, BorderLayout.EAST)
+        }
+
+        val footnote: String? get() = footnoteLabel?.text
+
+        fun setFootnote(footnote: String?) {
+            footnoteLabel?.let(::remove)
+            footnoteLabel = footnote?.takeIf { it.isNotBlank() }?.let(::footnoteLabel)
+            footnoteLabel?.let { add(it, BorderLayout.CENTER) }
+            revalidate()
+            repaint()
         }
 
         private companion object {

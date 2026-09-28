@@ -1,6 +1,8 @@
 package org.zhavoronkov.openrouter.services
 
 import com.google.gson.Gson
+import com.google.gson.JsonParseException
+import com.google.gson.JsonParser
 import com.google.gson.JsonSyntaxException
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
@@ -166,6 +168,32 @@ open class OpenRouterService(
             } catch (e: IOException) {
                 handleNetworkError(e, "Error getting generation stats")
                 ApiResult.Error(message = e.message ?: "Network error", throwable = e)
+            }
+        }
+
+    /**
+     * The provider OpenRouter's generation record names for [generationId], or null when there is
+     * no record yet, no key, or anything else goes wrong: a caller retries, and never shows an error.
+     */
+    suspend fun getGenerationProvider(generationId: String): String? =
+        withContext(Dispatchers.IO) {
+            try {
+                val request = OpenRouterRequestBuilder.buildGetRequest(
+                    url = "${getGenerationEndpoint()}?id=$generationId",
+                    authType = OpenRouterRequestBuilder.AuthType.API_KEY,
+                    authToken = settingsService.getApiKey()
+                )
+                val (response, body) = client.newCall(request).awaitWithBody()
+                if (!response.isSuccessful) return@withContext null
+                JsonParser.parseString(body).takeIf { it.isJsonObject }?.asJsonObject
+                    ?.getAsJsonObject("data")?.get("provider_name")
+                    ?.takeIf { it.isJsonPrimitive }?.asString
+            } catch (e: IOException) {
+                null
+            } catch (e: JsonParseException) {
+                null
+            } catch (e: ClassCastException) {
+                null
             }
         }
 

@@ -131,6 +131,19 @@ class MessageViewFooterPlatformTest : BasePlatformTestCase() {
         )
     }
 
+    /** A provider learned from the generation record after the reply was shown replaces the line. */
+    fun testAFootnoteSetLaterReplacesTheFacts() {
+        val unknown = summary.copy(provider = null)
+        val view = MessageView("A short reply.", isUser = false, footnote = unknown.facts)
+
+        view.setFootnote(summary.facts)
+
+        assertEquals(summary.facts, view.footnote)
+        val labels = descendants(view.component, JBLabel::class.java).map { it.text }
+        assertTrue("the new line is shown", summary.facts in labels)
+        assertFalse("the old line is gone", unknown.facts in labels)
+    }
+
     fun testTheFooterMarksASearchOnlyWhenOneRan() {
         val searched = render(summary.copy(webSearches = 2))
         val facts = searched.label(summary.copy(webSearches = 2).facts)

@@ -49,10 +49,13 @@ class ChatConversationView {
 
     val component: JComponent get() = scrollPane
 
-    fun addMessage(text: String, isUser: Boolean, footnote: String? = null, warning: String? = null) {
-        messagesPanel.add(MessageView(text, isUser, footnote, warning).component)
+    /** Shows a message at the bottom; the view it returns can have its footer updated later. */
+    fun addMessage(text: String, isUser: Boolean, footnote: String? = null, warning: String? = null): MessageView {
+        val view = MessageView(text, isUser, footnote, warning)
+        messagesPanel.add(view.component)
         remeasure()
         scrollToBottom()
+        return view
     }
 
     fun addSystemMessage(message: String) {

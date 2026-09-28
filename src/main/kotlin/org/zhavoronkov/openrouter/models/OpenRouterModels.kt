@@ -508,8 +508,12 @@ data class ChatUsage(
     @SerializedName("total_tokens") val totalTokens: Int? = null,
     /** What the call cost in credits. OpenRouter reports it on every response unasked. */
     val cost: Double? = null,
-    /** What OpenRouter's server tools did while answering, when any were offered. */
-    @SerializedName("server_tool_use") val serverToolUse: ServerToolUse? = null
+    /**
+     * What OpenRouter's server tools did while answering, when any were offered. A live reply names
+     * it `server_tool_use_details`; the older name is still read.
+     */
+    @SerializedName(value = "server_tool_use_details", alternate = ["server_tool_use"])
+    val serverToolUse: ServerToolUse? = null
 )
 
 /** How often each server tool ran for one response. */
@@ -595,6 +599,11 @@ data class OpenRouterSettings(
     var webSearchMode: String = "",
     // Output Schemas the user saved, in the order the Output Schemas page lists them.
     var outputSchemas: MutableList<OutputSchema> = mutableListOf(),
+    // How many requests the Requests tab keeps, most recent first.
+    var requestLogLimit: Int = 1000,
+    // Whether a Consumer's request that failed or stopped early raises a balloon; the Requests
+    // tab counts it either way.
+    var requestWarningBalloons: Boolean = true,
 )
 
 /**

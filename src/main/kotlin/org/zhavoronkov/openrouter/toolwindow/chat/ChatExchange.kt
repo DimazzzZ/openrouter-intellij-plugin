@@ -11,6 +11,7 @@ import org.zhavoronkov.openrouter.models.ReasoningConfig
 import org.zhavoronkov.openrouter.models.ResponseFormat
 import org.zhavoronkov.openrouter.models.WebSearchSettings
 import org.zhavoronkov.openrouter.proxy.routing.RouterRequestBuilder
+import org.zhavoronkov.openrouter.requests.stopWarning
 import java.math.BigDecimal
 import java.math.MathContext
 import java.math.RoundingMode
@@ -136,25 +137,12 @@ data class ReplySummary(
         else -> "$webSearches web searches"
     }
 
-    /**
-     * What the footer warns about a reply that did not stop normally, or null when it did.
-     *
-     * `tool_calls` counts as normal: the model stopped because it chose to, just as with `stop`.
-     * A reason not listed here is still named rather than hidden, since a reason OpenRouter adds
-     * later is as much a reply that ended early as the ones listed.
-     */
-    val warning: String?
-        get() = when (finishReason) {
-            null, "stop", "tool_calls" -> null
-            "length" -> "Cut off at the token limit"
-            "content_filter" -> "Stopped by a content filter"
-            "error" -> "Stopped by an error at the provider"
-            else -> "Stopped early ($finishReason)"
-        }
+    /** What the footer warns about a reply that did not stop normally, or null when it did. */
+    val warning: String? get() = stopWarning(finishReason)
 
-    private companion object {
-        const val FACT_SEPARATOR = " · "
-        const val COST_SIGNIFICANT_FIGURES = 2
+    companion object {
+        private const val FACT_SEPARATOR = " · "
+        private const val COST_SIGNIFICANT_FIGURES = 2
 
         /**
          * At most two significant figures below a dollar, because a single reply usually costs a
@@ -318,14 +306,19 @@ object ChatExchange {
      * What [response] says about how it was produced, given the [request] that asked for it.
      *
      * How many web searches ran is read from the response's usage rather than inferred from the
-     * request: allowing a search does not mean one happened.
+     * request: allowing a search does not mean one happened. The response's provider is left out
+     * when [replyNamesProvider] is false - see [org.zhavoronkov.openrouter.requests.ReplyProvider].
      */
-    fun summarizeReply(request: ChatCompletionRequest, response: ChatCompletionResponse): ReplySummary =
+    fun summarizeReply(
+        request: ChatCompletionRequest,
+        response: ChatCompletionResponse,
+        replyNamesProvider: Boolean = true
+    ): ReplySummary =
         ReplySummary(
             requestedModel = request.model,
             respondingModel = response.model,
             webSearches = response.usage?.serverToolUse?.webSearchRequests ?: 0,
-            provider = response.provider?.takeIf { it.isNotBlank() },
+            provider = response.provider?.takeIf { it.isNotBlank() && replyNamesProvider },
             cost = response.usage?.cost,
             finishReason = response.choices?.firstOrNull()?.finishReason
         )

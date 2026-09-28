@@ -10,6 +10,22 @@ class UIPreferencesManager(
     private val onStateChanged: () -> Unit
 ) {
 
+    /** How many requests the Requests tab keeps; never below one. */
+    var requestLogLimit: Int
+        get() = settings.requestLogLimit.coerceAtLeast(1)
+        set(value) {
+            settings.requestLogLimit = value.coerceAtLeast(1)
+            onStateChanged()
+        }
+
+    /** Whether a Consumer's request that went wrong raises a balloon. */
+    var requestWarningBalloons: Boolean
+        get() = settings.requestWarningBalloons
+        set(value) {
+            settings.requestWarningBalloons = value
+            onStateChanged()
+        }
+
     var autoRefresh: Boolean
         get() = settings.autoRefresh
         set(value) {

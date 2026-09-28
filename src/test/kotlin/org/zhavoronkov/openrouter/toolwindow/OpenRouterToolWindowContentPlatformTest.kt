@@ -1,10 +1,17 @@
 package org.zhavoronkov.openrouter.toolwindow
 
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.util.Disposer
+import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
+import org.zhavoronkov.openrouter.requests.ReplyFacts
+import org.zhavoronkov.openrouter.requests.RequestLogListener
+import org.zhavoronkov.openrouter.requests.RequestRecord
+import org.zhavoronkov.openrouter.requests.RequestSource
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.toolwindow.requests.RequestsNavigator
 import org.zhavoronkov.openrouter.toolwindow.status.StatusTabPanel
 import org.zhavoronkov.openrouter.toolwindow.status.StatusTabState
 
@@ -98,6 +105,70 @@ class OpenRouterToolWindowContentPlatformTest : BasePlatformTestCase() {
     }
 
     /**
+     * A Consumer's warning is counted on the Requests tab until the user looks at it; a normal reply
+     * is not, and neither is the chat's own, whose warning is already under the reply.
+     */
+    fun testAWarningIsCountedOnTheRequestsTabUntilItIsLookedAt() {
+        val content = OpenRouterToolWindowContent(project)
+        try {
+            val tabs = content.getTabbedPaneForTest()
+            val bus = ApplicationManager.getApplication().messageBus.syncPublisher(RequestLogListener.TOPIC)
+            fun record(finishReason: String) = RequestRecord(
+                startedAtMillis = 0,
+                durationMillis = 1,
+                source = RequestSource.PROXY,
+                sender = "Junie",
+                requestedModel = "m",
+                reply = ReplyFacts(finishReason = finishReason)
+            )
+
+            bus.changed(record("length"))
+            bus.changed(record("stop"))
+            bus.changed(record("content_filter"))
+            bus.changed(record("length").copy(source = RequestSource.CHAT, sender = "Chat"))
+            PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+            assertEquals("Requests (2)", tabs.getTitleAt(1))
+
+            tabs.selectedIndex = 1
+            assertEquals("Requests", tabs.getTitleAt(1))
+
+            tabs.selectedIndex = 0
+            bus.changed(record("length"))
+            bus.changed(null)
+            PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+            assertEquals("clearing the log clears the count", "Requests", tabs.getTitleAt(1))
+        } finally {
+            Disposer.dispose(content)
+        }
+    }
+
+    fun testRevealingARequestOpensTheRequestsTab() {
+        val content = OpenRouterToolWindowContent(project)
+        try {
+            val record = RequestRecord(0, 1, RequestSource.PROXY, "Junie", "m")
+
+            project.messageBus.syncPublisher(RequestsNavigator.TOPIC).reveal(record)
+
+            assertEquals(1, content.getTabbedPaneForTest().selectedIndex)
+        } finally {
+            Disposer.dispose(content)
+        }
+    }
+
+    fun testTheTabsAreChatThenRequestsThenStatus() {
+        val content = OpenRouterToolWindowContent(project)
+        try {
+            val tabbedPane = content.getTabbedPaneForTest()
+            val titles = (0 until tabbedPane.tabCount).map { tabbedPane.getTitleAt(it) }
+
+            assertEquals(listOf("Chat", "Requests", "Status"), titles)
+            assertEquals("the chat stays the tab the tool window opens on", 0, tabbedPane.selectedIndex)
+        } finally {
+            Disposer.dispose(content)
+        }
+    }
+
+    /**
      * Fix round 1, finding 3: the `ChangeListener` wiring `onActivated()` to tab selection had
      * zero coverage - deleting it, or inverting its `selectedComponent === statusTab.component`
      * check so it fires for Chat instead, both left every other test passing.
@@ -129,14 +200,14 @@ class OpenRouterToolWindowContentPlatformTest : BasePlatformTestCase() {
                 statusTab.getOnActivatedCallCountForTest()
             )
 
-            tabbedPane.selectedIndex = 0 // Status
+            tabbedPane.selectedIndex = 2 // Status
             assertEquals(
                 "selecting the Status tab must call onActivated() through the ChangeListener",
                 1,
                 statusTab.getOnActivatedCallCountForTest()
             )
 
-            tabbedPane.selectedIndex = 1 // Chat
+            tabbedPane.selectedIndex = 0 // Chat
             assertEquals(
                 "selecting the Chat tab must NOT call onActivated() again - the listener must " +
                     "check WHICH tab is now selected, not fire unconditionally",

@@ -17,6 +17,7 @@ import org.zhavoronkov.openrouter.services.settings.RouterDefaultsManager
 import org.zhavoronkov.openrouter.services.settings.SetupStateManager
 import org.zhavoronkov.openrouter.services.settings.UIPreferencesManager
 import org.zhavoronkov.openrouter.services.settings.WebSearchSettingsManager
+import org.zhavoronkov.openrouter.utils.PasswordSafeKeyStorage
 import org.zhavoronkov.openrouter.utils.PluginLogger
 
 /**
@@ -57,6 +58,8 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
 
     init {
         initializeManagers()
+        // Warm the key cache in the background, before the first widget asks on the EDT
+        PasswordSafeKeyStorage.preloadKeys()
     }
 
     private fun initializeManagers() {

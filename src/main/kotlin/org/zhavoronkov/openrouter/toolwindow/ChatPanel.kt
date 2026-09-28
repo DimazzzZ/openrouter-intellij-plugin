@@ -21,6 +21,11 @@ import org.zhavoronkov.openrouter.models.ChatMessage
 import org.zhavoronkov.openrouter.models.OutputSchema
 import org.zhavoronkov.openrouter.proxy.routing.RouterCatalog
 import org.zhavoronkov.openrouter.proxy.routing.RouterRequestBuilder
+import org.zhavoronkov.openrouter.requests.GenerationProviderLookup
+import org.zhavoronkov.openrouter.requests.ReplyProvider
+import org.zhavoronkov.openrouter.requests.RequestLogService
+import org.zhavoronkov.openrouter.requests.RequestSource
+import org.zhavoronkov.openrouter.requests.RequestTrace
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatComposer
@@ -31,6 +36,7 @@ import org.zhavoronkov.openrouter.toolwindow.chat.ChatListView
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatParamsPopup
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatRequestOptions
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatToolbar
+import org.zhavoronkov.openrouter.toolwindow.chat.MessageView
 import org.zhavoronkov.openrouter.toolwindow.chat.OutputModeContext
 import org.zhavoronkov.openrouter.toolwindow.chat.OutputModeGate
 import org.zhavoronkov.openrouter.toolwindow.chat.ReplySummary
@@ -70,6 +76,9 @@ class ChatPanel(
         private const val PANEL_BORDER = 4
         private const val ACTIVE_CHAT_KEY = "openrouter.chat.activeSession"
         private const val CHATS_FILENAME = "openrouter-chats.json"
+
+        /** How the chat's own requests are named on the Requests tab. */
+        private const val CHAT_SENDER = "Chat"
         private const val SETTINGS_FILENAME = "openrouter-chat-settings.json"
         private const val CHARS_PER_TOKEN = 4.0
         private const val CARD_LIST = "list"
@@ -780,6 +789,13 @@ class ChatPanel(
         options: ChatRequestOptions,
         schemas: List<OutputSchema>
     ) {
+        // The chat's requests are Requests entries too; the log writes them off the EDT itself.
+        val trace = RequestTrace(
+            source = RequestSource.CHAT,
+            sender = CHAT_SENDER,
+            requestedModel = model,
+            record = { RequestLogService.getInstance().record(it) }
+        )
         try {
             val messages = currentChat?.messages?.map { msg ->
                 ChatMessage(role = msg.role, content = JsonPrimitive(msg.content))
@@ -793,12 +809,18 @@ class ChatPanel(
                 schemas = schemas
             )
 
+            trace.sent(gson.toJsonTree(request).asJsonObject)
             val result = openRouterService.createChatCompletion(request)
+            when (result) {
+                is ApiResult.Success -> trace.observe(gson.toJsonTree(result.data).asJsonObject)
+                is ApiResult.Error -> trace.fail(result.message)
+            }
 
             SwingUtilities.invokeLater {
                 handleChatResponse(result, currentChat, request)
             }
         } catch (e: IOException) {
+            trace.fail("Network error: ${e.message}")
             SwingUtilities.invokeLater {
                 conversationView.showError("Network error: ${e.message}")
                 setLoading(false)
@@ -809,11 +831,14 @@ class ChatPanel(
             // caller skipped that check. Said plainly, and the chat is left usable rather than
             // stuck waiting for a reply that is never requested.
             PluginLogger.warn("Could not build the chat request: ${e.message}")
+            trace.fail("Could not build the request: ${e.message}")
             SwingUtilities.invokeLater {
                 conversationView.showError("Could not send: ${e.message}")
                 setLoading(false)
                 outputModeGate.update(outputModeGate.context)
             }
+        } finally {
+            trace.finish()
         }
     }
 
@@ -846,9 +871,12 @@ class ChatPanel(
         // How the reply was produced, echoed under it as a small footnote rather than as a
         // separate system line. Shown from the saved message itself, so a live reply and a
         // reopened one go through the same rendering and cannot disagree.
-        val reply = ChatMessageData.reply(messageText, ChatExchange.summarizeReply(request, response))
-        showAssistantMessage(reply)
+        val replyNamesProvider = ReplyProvider.trusted(gson.toJsonTree(request).asJsonObject)
+        val summary = ChatExchange.summarizeReply(request, response, replyNamesProvider)
+        val reply = ChatMessageData.reply(messageText, summary)
+        val view = showAssistantMessage(reply)
         currentChat?.messages?.add(reply)
+        if (!replyNamesProvider) response.id?.let { fillProviderLater(it, reply, view, currentChat) }
 
         val usage = response.usage
         if (usage != null) {
@@ -879,7 +907,33 @@ class ChatPanel(
         }
     }
 
-    private fun addUserMessage(message: String) = conversationView.addMessage(message, isUser = true)
+    private fun addUserMessage(message: String) {
+        conversationView.addMessage(message, isUser = true)
+    }
+
+    /**
+     * Reads the provider of [generationId] from its generation record, which the reply could not
+     * name, then shows it in [view]'s footer, keeps it on the saved [reply] and on its Requests
+     * entry. Nothing waits for it, and when no record names one the footer stays without it.
+     */
+    private fun fillProviderLater(generationId: String, reply: ChatMessageData, view: MessageView, chat: ChatSession?) {
+        coroutineScope.launch {
+            val provider = providerLookup.providerOf(generationId) ?: return@launch
+            RequestLogService.getInstance().fillProvider(generationId, provider)
+            SwingUtilities.invokeLater {
+                val filled = reply.copy(summary = reply.summary?.copy(provider = provider))
+                chat?.messages?.let { messages ->
+                    val index = messages.indexOf(reply)
+                    if (index >= 0) messages[index] = filled
+                }
+                view.setFootnote(filled.footerFacts)
+                saveChats()
+            }
+        }
+    }
+
+    private val providerLookup = GenerationProviderLookup(fetch = openRouterService::getGenerationProvider)
+
     private fun showAssistantMessage(message: ChatMessageData) =
         conversationView.addMessage(
             message.content,

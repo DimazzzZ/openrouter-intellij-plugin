@@ -15,6 +15,11 @@ import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
 import org.zhavoronkov.openrouter.proxy.routing.ProviderRoutingInjector
 import org.zhavoronkov.openrouter.proxy.routing.RouterPluginsInjector
 import org.zhavoronkov.openrouter.proxy.validation.MultimodalContentValidator
+import org.zhavoronkov.openrouter.requests.ConsumerNames
+import org.zhavoronkov.openrouter.requests.RequestLogService
+import org.zhavoronkov.openrouter.requests.RequestRecord
+import org.zhavoronkov.openrouter.requests.RequestSource
+import org.zhavoronkov.openrouter.requests.RequestTrace
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.ErrorPatterns
 import org.zhavoronkov.openrouter.utils.KeyValidator
@@ -39,7 +44,8 @@ data class StreamingErrorContext(
     val requestId: String,
     val apiKey: String,
     val jsonBody: String,
-    val request: Request
+    val request: Request,
+    val trace: RequestTrace? = null
 )
 
 /**
@@ -50,7 +56,8 @@ data class StreamingErrorContext(
  */
 data class ParsedChatRequest(
     val typedRequest: OpenAIChatCompletionRequest,
-    val rawJson: JsonObject
+    val rawJson: JsonObject,
+    val trace: RequestTrace? = null
 )
 
 /**
@@ -72,7 +79,10 @@ class ChatCompletionServlet(
     private val httpClient: OkHttpClient = defaultHttpClient(),
     settingsServiceProvider: () -> OpenRouterSettingsService = { OpenRouterSettingsService.getInstance() },
     private val openRouterApiUrl: () -> String = ::defaultChatCompletionsUrl,
-    multimodalValidatorProvider: () -> MultimodalContentValidator = { MultimodalContentValidator() }
+    multimodalValidatorProvider: () -> MultimodalContentValidator = { MultimodalContentValidator() },
+    private val requestRecorder: () -> (RequestRecord) -> Unit = { RequestLogService.getInstance()::record },
+    /** Finds, later, the provider of a generation whose reply could not say which one served it. */
+    private val providerLookup: () -> (String) -> Unit = { RequestLogService.getInstance()::fillProviderLater }
 ) : HttpServlet() {
 
     companion object {
@@ -203,17 +213,30 @@ class ChatCompletionServlet(
 
         logRequestBoundary(requestId, isStart = true, requestNumber = requestNumber)
 
+        // Every request becomes one Requests entry, however handling ends: `finish` in the finally
+        // emits it once, with whatever the reply or the first failure reported.
+        val trace = RequestTrace(
+            source = RequestSource.PROXY,
+            sender = ConsumerNames.fromUserAgent(req.getHeader("User-Agent")),
+            record = ::recordSafely,
+            lookUpProvider = ::lookUpProviderSafely
+        )
         try {
-            processRequest(req, resp, requestId, startNs)
+            processRequest(req, resp, requestId, startNs, trace)
         } catch (e: IOException) {
+            trace.fail("Network error: ${e.message}")
             handleException(e, resp, requestId)
         } catch (e: IllegalArgumentException) {
+            trace.fail("Invalid request: ${e.message}")
             handleException(e, resp, requestId)
         } catch (e: IllegalStateException) {
+            trace.fail("Internal error: ${e.message}")
             handleException(e, resp, requestId)
         } catch (e: JsonSyntaxException) {
+            trace.fail("Invalid request: ${e.message}")
             handleException(e, resp, requestId)
         } finally {
+            trace.finish()
             val durationMs = (System.nanoTime() - startNs) / NANOS_PER_MILLIS
             logRequestBoundary(requestId, isStart = false, durationMs = durationMs)
         }
@@ -241,13 +264,34 @@ class ChatCompletionServlet(
     }
 
     /**
+     * A request log that cannot be written must not fail the request it describes - and in a test
+     * with no application, there is no log to write to.
+     */
+    private fun recordSafely(record: RequestRecord) {
+        try {
+            requestRecorder()(record)
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            PluginLogger.Service.debug("Could not record the request: ${e.message}")
+        }
+    }
+
+    private fun lookUpProviderSafely(generationId: String) {
+        try {
+            providerLookup()(generationId)
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            PluginLogger.Service.debug("Could not look up the provider: ${e.message}")
+        }
+    }
+
+    /**
      * Process the chat completion request
      */
     private fun processRequest(
         req: HttpServletRequest,
         resp: HttpServletResponse,
         requestId: String,
-        startNs: Long
+        startNs: Long,
+        trace: RequestTrace
     ) {
         logRequestDiagnostics(req, requestId)
 
@@ -255,24 +299,25 @@ class ChatCompletionServlet(
         checkForDuplicateRequest(requestBody, req, requestId)
 
         val apiKey = validateAndGetApiKey(resp, requestId)
-        if (apiKey != null) {
-            val parsed = parseRequestBody(requestBody, resp, requestId)
-            if (parsed != null) {
-                val openAIRequest = parsed.typedRequest
-                PluginLogger.Service.info("[Chat-$requestId] 📝 Model: '${openAIRequest.model}'")
+            ?: return trace.fail("API key not configured")
+        val parsed = parseRequestBody(requestBody, resp, requestId)?.copy(trace = trace)
+            ?: return trace.fail("Invalid request body")
+        val openAIRequest = parsed.typedRequest
+        trace.requestedModel(openAIRequest.model)
+        PluginLogger.Service.info("[Chat-$requestId] 📝 Model: '${openAIRequest.model}'")
 
-                // Pre-validate multimodal content against model capabilities
-                val validationResult = multimodalValidator.validate(openAIRequest, requestId)
-                if (validationResult is MultimodalContentValidator.ValidationResult.Invalid) {
-                    PluginLogger.Service.warn(
-                        "[Chat-$requestId] ⚠️ Pre-validation failed: ${validationResult.contentType.displayName} " +
-                            "not supported by model '${validationResult.modelId}'"
-                    )
-                    sendMultimodalValidationError(resp, validationResult, requestId)
-                } else {
-                    routeRequest(resp, parsed, apiKey, requestId, startNs)
-                }
-            }
+        // Pre-validate multimodal content against model capabilities
+        val validationResult = multimodalValidator.validate(openAIRequest, requestId)
+        if (validationResult is MultimodalContentValidator.ValidationResult.Invalid) {
+            val input = validationResult.contentType.displayName
+            PluginLogger.Service.warn(
+                "[Chat-$requestId] ⚠️ Pre-validation failed: $input not supported by model " +
+                    "'${validationResult.modelId}'"
+            )
+            trace.fail("$input input is not supported by ${validationResult.modelId}")
+            sendMultimodalValidationError(resp, validationResult, requestId)
+        } else {
+            routeRequest(resp, parsed, apiKey, requestId, startNs)
         }
     }
 
@@ -368,16 +413,20 @@ class ChatCompletionServlet(
         writer.flush() // Flush headers immediately
 
         try {
-            val jsonBody = prepareRequest(parsed.rawJson, requestId, isStreaming = true)
+            val jsonBody = prepareRequest(parsed.rawJson, requestId, isStreaming = true, trace = parsed.trace)
             val request = buildOpenRouterRequest(jsonBody, apiKey)
-            executeStreamingRequest(request, writer, requestId, apiKey, jsonBody)
+            executeStreamingRequest(request, writer, requestId, apiKey, jsonBody, parsed.trace)
         } catch (e: IOException) {
+            parsed.trace?.fail("Network error: ${e.message}")
             handleStreamingError(e, writer, requestId)
         } catch (e: JsonSyntaxException) {
+            parsed.trace?.fail("Invalid response: ${e.message}")
             handleStreamingError(e, writer, requestId)
         } catch (e: IllegalStateException) {
+            parsed.trace?.fail("Internal error: ${e.message}")
             handleStreamingError(e, writer, requestId)
         } catch (e: IllegalArgumentException) {
+            parsed.trace?.fail("Invalid request: ${e.message}")
             handleStreamingError(e, writer, requestId)
         }
     }
@@ -392,10 +441,12 @@ class ChatCompletionServlet(
     private fun prepareRequest(
         rawJson: JsonObject,
         requestId: String,
-        isStreaming: Boolean
+        isStreaming: Boolean,
+        trace: RequestTrace?
     ): String {
         // Apply configured defaults only when not already present in the request
         applyConfiguredDefaults(rawJson, requestId)
+        trace?.sent(rawJson)
 
         val jsonBody = gson.toJson(rawJson)
         val bodyPreview = jsonBody.take(STREAMING_TIMEOUT_MS.toInt())
@@ -493,18 +544,19 @@ class ChatCompletionServlet(
         writer: PrintWriter,
         requestId: String,
         apiKey: String,
-        jsonBody: String
+        jsonBody: String,
+        trace: RequestTrace?
     ) {
         httpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                val errorContext = StreamingErrorContext(response, writer, requestId, apiKey, jsonBody, request)
+                val errorContext = StreamingErrorContext(response, writer, requestId, apiKey, jsonBody, request, trace)
                 handleStreamingErrorResponse(errorContext)
                 return
             }
 
             logOpenRouterMetadata(response, requestId)
             PluginLogger.Service.info("[Chat-$requestId] Streaming response from OpenRouter...")
-            streamResponseToClient(response, writer, requestId)
+            streamResponseToClient(response, writer, requestId, trace)
         }
     }
 
@@ -540,6 +592,7 @@ class ChatCompletionServlet(
 
         // Create user-friendly error message
         val userFriendlyMessage = createUserFriendlyErrorMessage(errorBody, context.response.code)
+        context.trace?.fail(userFriendlyMessage)
 
         // Send error as OpenAI-compatible streaming chunk
         // This ensures AI Assistant can parse and display the error properly
@@ -730,8 +783,13 @@ class ChatCompletionServlet(
     /**
      * Stream the response from OpenRouter to the client
      */
-    private fun streamResponseToClient(response: Response, writer: PrintWriter, requestId: String) {
-        streamingHandler.streamResponseToClient(response, writer, requestId)
+    private fun streamResponseToClient(
+        response: Response,
+        writer: PrintWriter,
+        requestId: String,
+        trace: RequestTrace?
+    ) {
+        streamingHandler.streamResponseToClient(response, writer, requestId, trace)
     }
 
     private fun handleStreamingError(e: Exception, writer: PrintWriter, requestId: String) {
@@ -748,14 +806,15 @@ class ChatCompletionServlet(
         requestId: String,
         startNs: Long
     ) {
-        val requestBody = prepareRequest(parsed.rawJson, requestId, isStreaming = false)
+        val requestBody = prepareRequest(parsed.rawJson, requestId, isStreaming = false, trace = parsed.trace)
         nonStreamingHandler.handleNonStreamingRequest(
             resp = resp,
             requestBody = requestBody,
             apiKey = apiKey,
             originalModel = parsed.typedRequest.model,
             requestId = requestId,
-            startNs = startNs
+            startNs = startNs,
+            trace = parsed.trace
         )
     }
 

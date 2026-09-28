@@ -9,6 +9,7 @@ import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -24,6 +25,9 @@ import org.zhavoronkov.openrouter.models.WebSearchEngine
 import org.zhavoronkov.openrouter.models.WebSearchSettings
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
 import org.zhavoronkov.openrouter.proxy.validation.MultimodalContentValidator
+import org.zhavoronkov.openrouter.requests.ReplyFacts
+import org.zhavoronkov.openrouter.requests.RequestRecord
+import org.zhavoronkov.openrouter.requests.RequestSource
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.settings.ApiKeySettingsManager
 import org.zhavoronkov.openrouter.services.settings.OutputSchemasManager
@@ -91,6 +95,11 @@ class ChatCompletionServletProxyingTest {
 
     private fun anyString(): String = org.mockito.ArgumentMatchers.anyString()
 
+    private val recorded = mutableListOf<RequestRecord>()
+
+    /** Generations whose provider the servlet asked to be looked up later. */
+    private val lookedUp = mutableListOf<String>()
+
     private fun servlet(): ChatCompletionServlet {
         val client = OkHttpClient.Builder().build()
         clients += client
@@ -98,7 +107,9 @@ class ChatCompletionServletProxyingTest {
             httpClient = client,
             settingsServiceProvider = { settingsService },
             openRouterApiUrl = { server.url("/api/v1/chat/completions").toString() },
-            multimodalValidatorProvider = { multimodalValidator }
+            multimodalValidatorProvider = { multimodalValidator },
+            requestRecorder = { { recorded += it } },
+            providerLookup = { { lookedUp += it } }
         )
     }
 
@@ -272,6 +283,218 @@ class ChatCompletionServletProxyingTest {
             servlet.service(request(chatBody()), exchange.resp)
 
             assertTrue(exchange.body.isNotBlank(), "a dead upstream must still answer the client")
+        }
+    }
+
+    /**
+     * Every proxied request becomes one Requests entry: who sent it, what it asked for, and what
+     * the reply reported - read from OpenRouter's own body, not the translated one - or its error.
+     */
+    @Nested
+    @DisplayName("Recording")
+    inner class Recording {
+
+        /** With a server tool the reply's provider names OpenAI whatever served it. */
+        @Test
+        @DisplayName("a request with web search is recorded without the reply's provider, which is looked up")
+        fun serverToolProvider() {
+            server.enqueue(
+                MockResponse().setResponseCode(200).setHeader("Content-Type", "application/json").setBody(
+                    """{"id":"gen-7","object":"chat.completion","created":1700000000,
+                        "model":"openai/gpt-4o-mini","provider":"OpenAI",
+                        "choices":[{"index":0,"message":{"role":"assistant","content":"hello"},"finish_reason":"stop"}]}"""
+                )
+            )
+            val body = chatBody().replace("}]", """}],"tools":[{"type":"openrouter:web_search"}]""")
+
+            servlet().service(request(body), response().resp)
+
+            assertNull(recorded.single().reply.provider)
+            assertEquals(listOf("gen-7"), lookedUp)
+        }
+
+        @Test
+        @DisplayName("a non-streaming request is recorded with its Consumer and the reply's facts")
+        fun recordsNonStreaming() {
+            server.enqueue(
+                MockResponse().setResponseCode(200).setHeader("Content-Type", "application/json").setBody(
+                    """{"id":"gen-1","object":"chat.completion","created":1700000000,
+                        "model":"openai/gpt-4o-mini","provider":"OpenAI",
+                        "choices":[{"index":0,"message":{"role":"assistant","content":"hello"},
+                          "finish_reason":"stop"}],
+                        "usage":{"prompt_tokens":3,"completion_tokens":1,"total_tokens":4,"cost":0.0001}}"""
+                )
+            )
+
+            servlet().service(request(chatBody(), headers = mapOf("User-Agent" to "Junie/1.2")), response().resp)
+
+            val record = recorded.single()
+            assertEquals(RequestSource.PROXY, record.source)
+            assertEquals("Junie", record.sender)
+            assertEquals("openai/gpt-4o-mini", record.requestedModel)
+            assertEquals(
+                ReplyFacts(
+                    generationId = "gen-1",
+                    answeringModel = "openai/gpt-4o-mini",
+                    provider = "OpenAI",
+                    promptTokens = 3,
+                    completionTokens = 1,
+                    cost = 0.0001,
+                    finishReason = "stop"
+                ),
+                record.reply
+            )
+            assertEquals(null, record.error)
+        }
+
+        @Test
+        @DisplayName("a streaming request is recorded from its chunks, usage from the last")
+        fun recordsStreaming() {
+            val chunks = listOf(
+                """{"id":"gen-2","model":"m","provider":"P","choices":[{"delta":{"content":"he"}}]}""",
+                """{"id":"gen-2","model":"m","choices":[{"delta":{},"finish_reason":"length"}]}""",
+                """{"id":"gen-2","model":"m","choices":[],"usage":{"cost":0.03}}"""
+            )
+            server.enqueue(
+                MockResponse().setResponseCode(200).setHeader("Content-Type", "text/event-stream")
+                    .setBody(chunks.joinToString("") { "data: $it\n\n" } + "data: [DONE]\n\n")
+            )
+
+            servlet().service(request(chatBody(stream = true)), response().resp)
+
+            val reply = recorded.single().reply
+            assertEquals("gen-2", reply.generationId)
+            assertEquals("P", reply.provider)
+            assertEquals("length", reply.finishReason)
+            assertEquals(0.03, reply.cost)
+        }
+
+        @Test
+        @DisplayName("a request OpenRouter refuses is recorded with the error")
+        fun recordsRefusal() {
+            server.enqueue(
+                MockResponse().setResponseCode(402).setBody("""{"error":{"message":"Insufficient credits"}}""")
+            )
+
+            servlet().service(request(chatBody()), response().resp)
+
+            val error = recorded.single().error
+            assertTrue(error != null && error.contains("Insufficient credits"), "got: $error")
+        }
+
+        @Test
+        @DisplayName("a request that never reaches OpenRouter is still recorded, once")
+        fun recordsEarlyFailure() {
+            `when`(apiKeyManager.getStoredApiKey()).thenReturn("")
+
+            servlet().service(request(chatBody()), response().resp)
+
+            assertEquals("API key not configured", recorded.single().error)
+        }
+
+        @Test
+        @DisplayName("a streaming request's tokens and searches come from the usage in its last chunk")
+        fun recordsStreamingUsage() {
+            val chunks = listOf(
+                """{"id":"gen-3","model":"m","choices":[{"delta":{"content":"hi"},"finish_reason":"stop"}]}""",
+                """{"id":"gen-3","model":"m","choices":[],"usage":{"prompt_tokens":12,"completion_tokens":7,
+                   "cost":0.002,"server_tool_use":{"web_search_requests":2}}}""".replace("\n", "")
+            )
+            server.enqueue(
+                MockResponse().setResponseCode(200).setHeader("Content-Type", "text/event-stream")
+                    .setBody(chunks.joinToString("") { "data: $it\n\n" } + "data: [DONE]\n\n")
+            )
+
+            servlet().service(request(chatBody(stream = true)), response().resp)
+
+            val reply = recorded.single().reply
+            assertEquals(12, reply.promptTokens)
+            assertEquals(7, reply.completionTokens)
+            assertEquals(2, reply.webSearches)
+            assertEquals(null, recorded.single().error)
+        }
+
+        @Test
+        @DisplayName("an error chunk in a stream is recorded as the request's error")
+        fun recordsStreamErrorChunk() {
+            server.enqueue(
+                MockResponse().setResponseCode(200).setHeader("Content-Type", "text/event-stream")
+                    .setBody("data: {\"error\":{\"message\":\"Provider overloaded\",\"code\":502}}\n\ndata: [DONE]\n\n")
+            )
+
+            servlet().service(request(chatBody(stream = true)), response().resp)
+
+            val error = recorded.single().error
+            assertTrue(error != null && error.contains("Provider overloaded"), "got: $error")
+        }
+
+        @Test
+        @DisplayName("a stream that carries nothing is recorded as an error")
+        fun recordsEmptyStream() {
+            server.enqueue(
+                MockResponse().setResponseCode(200).setHeader("Content-Type", "text/event-stream").setBody("")
+            )
+
+            servlet().service(request(chatBody(stream = true)), response().resp)
+
+            val error = recorded.single().error
+            assertTrue(error != null && error.startsWith("No response received from model"), "got: $error")
+        }
+
+        @Test
+        @DisplayName("content the model cannot accept is recorded with the reason, once")
+        fun recordsMultimodalRefusal() {
+            `when`(multimodalValidator.validate(any(), anyString())).thenReturn(
+                MultimodalContentValidator.ValidationResult.Invalid(
+                    contentType = MultimodalContentValidator.ContentType.IMAGE,
+                    modelId = "openai/gpt-4o-mini",
+                    errorMessage = "Model openai/gpt-4o-mini does not accept image input"
+                )
+            )
+
+            servlet().service(request(chatBody()), response().resp)
+
+            val record = recorded.single()
+            assertEquals("openai/gpt-4o-mini", record.requestedModel)
+            assertTrue(record.error!!.contains("not supported by openai/gpt-4o-mini"), "got: ${record.error}")
+        }
+
+        @Test
+        @DisplayName("an upstream that cannot be reached is recorded as a network error, once")
+        fun recordsNetworkError() {
+            val deadUrl = server.url("/api/v1/chat/completions").toString()
+            server.shutdown()
+            val client = OkHttpClient.Builder().build()
+            clients += client
+            val servlet = ChatCompletionServlet(
+                httpClient = client,
+                settingsServiceProvider = { settingsService },
+                openRouterApiUrl = { deadUrl },
+                multimodalValidatorProvider = { multimodalValidator },
+                requestRecorder = { { recorded += it } }
+            )
+
+            servlet.service(request(chatBody()), response().resp)
+
+            val error = recorded.single().error
+            assertTrue(error != null && error.startsWith("Network error"), "got: $error")
+        }
+
+        /** An upstream body can echo the prompt back; only its error message may reach the log. */
+        @Test
+        @DisplayName("a refusal is recorded by its message, never by the body around it")
+        fun recordsRefusalWithoutItsBody() {
+            server.enqueue(
+                MockResponse().setResponseCode(403).setBody(
+                    """{"error":{"message":"Input flagged","metadata":{"flagged_input":"secret prompt"}}}"""
+                )
+            )
+
+            servlet().service(request(chatBody()), response().resp)
+
+            val error = recorded.single().error!!
+            assertTrue(error.contains("Input flagged"), "got: $error")
+            assertFalse(error.contains("secret prompt"), "got: $error")
         }
     }
 

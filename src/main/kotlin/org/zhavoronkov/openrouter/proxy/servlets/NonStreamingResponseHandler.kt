@@ -1,12 +1,14 @@
 package org.zhavoronkov.openrouter.proxy.servlets
 
 import com.google.gson.Gson
+import com.google.gson.JsonObject
 import com.google.gson.JsonSyntaxException
 import jakarta.servlet.http.HttpServletResponse
 import okhttp3.OkHttpClient
 import org.zhavoronkov.openrouter.models.ChatCompletionResponse
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionResponse
 import org.zhavoronkov.openrouter.proxy.translation.ResponseTranslator
+import org.zhavoronkov.openrouter.requests.RequestTrace
 import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.io.IOException
@@ -34,10 +36,11 @@ class NonStreamingResponseHandler(
         apiKey: String,
         originalModel: String,
         requestId: String,
-        startNs: Long
+        startNs: Long,
+        trace: RequestTrace? = null
     ) {
-        val openRouterResponse = executeOpenRouterRequest(requestBody, apiKey, resp, requestId) ?: return
-        val openAIResponse = translateResponse(openRouterResponse, originalModel, resp, requestId) ?: return
+        val openRouterResponse = executeOpenRouterRequest(requestBody, apiKey, resp, requestId, trace) ?: return
+        val openAIResponse = translateResponse(openRouterResponse, originalModel, resp, requestId, trace) ?: return
         sendSuccessResponse(resp, openAIResponse, startNs, requestId)
     }
 
@@ -45,7 +48,8 @@ class NonStreamingResponseHandler(
         requestBody: String,
         apiKey: String,
         resp: HttpServletResponse,
-        requestId: String
+        requestId: String,
+        trace: RequestTrace?
     ): ChatCompletionResponse? {
         PluginLogger.Service.info("[Chat-$requestId] Dispatching request to OpenRouter API…")
 
@@ -58,9 +62,10 @@ class NonStreamingResponseHandler(
 
         return try {
             httpClient.newCall(request).execute().use { response ->
-                handleOpenRouterResponse(response, resp, requestId)
+                handleOpenRouterResponse(response, resp, requestId, trace)
             }
         } catch (e: IOException) {
+            trace?.fail("Network error calling OpenRouter: ${e.message}")
             PluginLogger.Service.error("[Chat-$requestId] Network error calling OpenRouter: ${e.message}", e)
             sendErrorResponse(
                 resp,
@@ -69,6 +74,7 @@ class NonStreamingResponseHandler(
             )
             null
         } catch (e: JsonSyntaxException) {
+            trace?.fail("Failed to parse OpenRouter response: ${e.message}")
             PluginLogger.Service.error("[Chat-$requestId] JSON parsing error: ${e.message}", e)
             sendErrorResponse(
                 resp,
@@ -82,7 +88,8 @@ class NonStreamingResponseHandler(
     private fun handleOpenRouterResponse(
         response: okhttp3.Response,
         resp: HttpServletResponse,
-        requestId: String
+        requestId: String,
+        trace: RequestTrace?
     ): ChatCompletionResponse? {
         // Log OpenRouter-specific metadata headers at debug level
         logOpenRouterMetadata(response, requestId)
@@ -93,20 +100,23 @@ class NonStreamingResponseHandler(
                 PluginLogger.Service.error(
                     "[Chat-$requestId] OpenRouter returned error: ${response.code} - $errorBody"
                 )
+                trace?.fail("OpenRouter API error ${response.code}: $errorBody")
                 sendErrorResponse(resp, "OpenRouter API error: $errorBody", response.code)
                 null
             }
-            else -> parseOpenRouterResponseBody(response, resp, requestId)
+            else -> parseOpenRouterResponseBody(response, resp, requestId, trace)
         }
     }
 
     private fun parseOpenRouterResponseBody(
         response: okhttp3.Response,
         resp: HttpServletResponse,
-        requestId: String
+        requestId: String,
+        trace: RequestTrace?
     ): ChatCompletionResponse? {
         val responseBody = response.body?.string()
         return if (responseBody == null) {
+            trace?.fail("No response body from OpenRouter")
             PluginLogger.Service.error("[Chat-$requestId] OpenRouter returned null response body")
             sendErrorResponse(
                 resp,
@@ -115,7 +125,11 @@ class NonStreamingResponseHandler(
             )
             null
         } else {
-            val openRouterResponse = gson.fromJson(responseBody, ChatCompletionResponse::class.java)
+            // Read from the body OpenRouter sent, not the translated one: translation keeps only
+            // what an OpenAI client expects, and the provider, cost and search count are not that.
+            val tree = gson.fromJson(responseBody, JsonObject::class.java)
+            tree?.let { trace?.observe(it) }
+            val openRouterResponse = gson.fromJson(tree, ChatCompletionResponse::class.java)
             PluginLogger.Service.info("[Chat-$requestId] Received response from OpenRouter")
             openRouterResponse
         }
@@ -125,7 +139,8 @@ class NonStreamingResponseHandler(
         openRouterResponse: ChatCompletionResponse,
         originalModel: String,
         resp: HttpServletResponse,
-        requestId: String
+        requestId: String,
+        trace: RequestTrace?
     ): OpenAIChatCompletionResponse? {
         val openAIResponse = ResponseTranslator.translateChatCompletionResponse(
             openRouterResponse,
@@ -136,6 +151,7 @@ class NonStreamingResponseHandler(
 
         if (!ResponseTranslator.validateTranslatedResponse(openAIResponse)) {
             PluginLogger.Service.error("[Chat-$requestId] Response validation failed")
+            trace?.fail("Invalid response format")
             sendErrorResponse(resp, "Invalid response format", HttpServletResponse.SC_INTERNAL_SERVER_ERROR)
             return null
         }

@@ -5,6 +5,7 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonSyntaxException
 import jakarta.servlet.http.HttpServletResponse
 import okhttp3.Response
+import org.zhavoronkov.openrouter.requests.RequestTrace
 import org.zhavoronkov.openrouter.utils.ErrorPatterns
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import java.io.BufferedReader
@@ -55,22 +56,41 @@ class StreamingResponseHandler {
     @Suppress("unused")
     internal fun getAccumulatorForTesting(): ToolCallAccumulator = toolCallAccumulator
 
-    fun streamResponseToClient(response: Response, writer: PrintWriter, requestId: String) {
+    /**
+     * [trace], when given, is told what each chunk carries and any error in the stream, so the
+     * request's Requests entry reads the same as for a whole response. It is fed from the chunks
+     * already being forwarded, so it never delays the stream.
+     */
+    fun streamResponseToClient(
+        response: Response,
+        writer: PrintWriter,
+        requestId: String,
+        trace: RequestTrace? = null
+    ) {
         // Reset accumulator state for this stream
         toolCallAccumulator.reset()
         response.body?.use { responseBody ->
             val reader = BufferedReader(responseBody.charStream())
-            processStreamLines(reader, writer, requestId)
+            processStreamLines(reader, writer, requestId, trace)
         } ?: run {
             // No response body - send error chunk
             PluginLogger.Service.warn("[Chat-$requestId] Empty response body from OpenRouter")
-            sendErrorChunk(writer, "No response received from model. The model may not support this request type.")
+            sendErrorChunk(
+                writer,
+                "No response received from model. The model may not support this request type.",
+                trace
+            )
             sendDoneMarker(writer)
         }
     }
 
     @Suppress("LongMethod", "CyclomaticComplexMethod")
-    private fun processStreamLines(reader: BufferedReader, writer: PrintWriter, requestId: String) {
+    private fun processStreamLines(
+        reader: BufferedReader,
+        writer: PrintWriter,
+        requestId: String,
+        trace: RequestTrace?
+    ) {
         var validChunksSent = 0
         var errorDetected = false
         val nonDataLines = StringBuilder()
@@ -90,9 +110,11 @@ class StreamingResponseHandler {
                 when (validationResult) {
                     is ChunkValidationResult.Valid -> {
                         validChunksSent++
+                        trace?.observe(validationResult.json)
                     }
                     is ChunkValidationResult.Error -> {
                         errorDetected = true
+                        trace?.fail(validationResult.message)
                         validationResult.message
                         // Transform error into OpenAI-compatible streaming chunk
                         // AI Assistant expects chat.completion.chunk format, not raw error JSON
@@ -127,12 +149,13 @@ class StreamingResponseHandler {
             if (nonDataContent.isNotEmpty()) {
                 PluginLogger.Service.warn("[Chat-$requestId] No SSE data received. Non-data content: $nonDataContent")
                 val extractedError = extractErrorFromContent(nonDataContent)
-                sendErrorChunk(writer, extractedError ?: "Unexpected response format from model")
+                sendErrorChunk(writer, extractedError ?: "Unexpected response format from model", trace)
             } else {
                 PluginLogger.Service.warn("[Chat-$requestId] Empty stream - no data received from model")
                 sendErrorChunk(
                     writer,
-                    "No response received from model. The model may be unavailable or doesn't support this request."
+                    "No response received from model. The model may be unavailable or doesn't support this request.",
+                    trace
                 )
             }
         }
@@ -232,7 +255,9 @@ class StreamingResponseHandler {
     /**
      * Sends an error chunk in OpenAI-compatible streaming format
      */
-    private fun sendErrorChunk(writer: PrintWriter, message: String) {
+    /** Sends [message] as an error chunk, and reports it to [trace] as the request's error. */
+    private fun sendErrorChunk(writer: PrintWriter, message: String, trace: RequestTrace? = null) {
+        trace?.fail(message)
         val errorChunk = createErrorStreamChunk(message)
         writer.println("$DATA_PREFIX$errorChunk")
         writer.println()
