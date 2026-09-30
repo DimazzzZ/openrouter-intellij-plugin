@@ -19,6 +19,9 @@ import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
+import org.zhavoronkov.openrouter.models.DataRegion
+import org.zhavoronkov.openrouter.models.FixPage
+import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
 import org.zhavoronkov.openrouter.models.OutputSchema
 import org.zhavoronkov.openrouter.models.WebSearchEngine
@@ -100,6 +103,9 @@ class ChatCompletionServletProxyingTest {
     /** Generations whose provider the servlet asked to be looked up later. */
     private val lookedUp = mutableListOf<String>()
 
+    /** The catalogue the Consumer request checks see; null, as before the first load, checks nothing about the model. */
+    private var consumerCatalogue: List<OpenRouterModelInfo>? = null
+
     private fun servlet(): ChatCompletionServlet {
         val client = OkHttpClient.Builder().build()
         clients += client
@@ -109,7 +115,8 @@ class ChatCompletionServletProxyingTest {
             openRouterApiUrl = { server.url("/api/v1/chat/completions").toString() },
             multimodalValidatorProvider = { multimodalValidator },
             requestRecorder = { { recorded += it } },
-            providerLookup = { { lookedUp += it } }
+            providerLookup = { { lookedUp += it } },
+            catalogueProvider = { consumerCatalogue }
         )
     }
 
@@ -495,6 +502,91 @@ class ChatCompletionServletProxyingTest {
             val error = recorded.single().error!!
             assertTrue(error.contains("Input flagged"), "got: $error")
             assertFalse(error.contains("secret prompt"), "got: $error")
+        }
+    }
+
+    /** What the proxy can tell is wrong before sending: refused with a clear error, never forwarded. */
+    @Nested
+    @DisplayName("Consumer request checks")
+    inner class ConsumerChecks {
+
+        private val settings = OpenRouterSettings()
+
+        @BeforeEach
+        fun stubSettings() {
+            `when`(settingsService.getDataRegion()).thenReturn(DataRegion.GLOBAL)
+            `when`(settingsService.outputSchemasManager).thenReturn(OutputSchemasManager(settings) {})
+            consumerCatalogue = listOf(
+                OpenRouterModelInfo(id = "openai/gpt-4o-mini", name = "", created = 0, supportedParameters = listOf("tools"))
+            )
+        }
+
+        private fun errorOf(exchange: Exchange) =
+            JsonParser.parseString(exchange.body).asJsonObject["error"].asJsonObject
+
+        @Test
+        @DisplayName("a response format the model does not declare is refused with its code, and recorded")
+        fun unsupportedFormat() {
+            val exchange = response()
+
+            val body = chatBody().replace("}]", """}],"response_format":{"type":"json_object"}""")
+            servlet().service(request(body), exchange.resp)
+
+            verify(exchange.resp).status = HttpServletResponse.SC_BAD_REQUEST
+            assertEquals("response_format_not_supported", errorOf(exchange)["code"].asString)
+            assertTrue(errorOf(exchange)["message"].asString.startsWith("OpenRouter plugin: "))
+            assertEquals(0, server.requestCount)
+            assertTrue(recorded.single().error!!.contains("does not support JSON output"))
+            assertEquals(FixPage.FAVORITE_MODELS, recorded.single().fixAt)
+        }
+
+        @Test
+        @DisplayName("a json_schema naming no saved schema is refused")
+        fun missingSchema() {
+            val exchange = response()
+            val format = ""","response_format":{"type":"json_schema","json_schema":{"name":"gone"}}"""
+
+            servlet().service(request(chatBody().replace("}]", "}]$format")), exchange.resp)
+
+            assertEquals("output_schema_not_found", errorOf(exchange)["code"].asString)
+            assertEquals(0, server.requestCount)
+        }
+
+        @Test
+        @DisplayName("a model the region does not serve is refused, naming the region")
+        fun outsideTheRegion() {
+            `when`(settingsService.getDataRegion()).thenReturn(DataRegion.EUROPE)
+            val exchange = response()
+
+            servlet().service(request(chatBody(model = "x-ai/grok-4")), exchange.resp)
+
+            assertEquals("model_not_in_region", errorOf(exchange)["code"].asString)
+            assertTrue(errorOf(exchange)["message"].asString.contains("European Union"))
+            assertEquals(0, server.requestCount)
+        }
+
+        @Test
+        @DisplayName("a streaming request is refused with the same 400, before any SSE is written")
+        fun streamingRefusedBeforeSse() {
+            val exchange = response()
+
+            servlet().service(request(chatBody(stream = true, model = "gone/model")), exchange.resp)
+
+            verify(exchange.resp).status = HttpServletResponse.SC_BAD_REQUEST
+            assertEquals("model_not_found", errorOf(exchange)["code"].asString)
+            assertFalse(exchange.body.contains("data:"))
+            assertEquals(0, server.requestCount)
+        }
+
+        @Test
+        @DisplayName("nothing about the model is refused while the catalogue has not loaded")
+        fun catalogueNotLoaded() {
+            consumerCatalogue = null
+            enqueueCompletion()
+
+            servlet().service(request(chatBody(model = "gone/model")), response().resp)
+
+            assertEquals(1, server.requestCount)
         }
     }
 

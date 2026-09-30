@@ -92,6 +92,21 @@ class RequestLogTest {
         assertEquals(emptyList<RequestRecord>(), RequestLog(file(), limit = { 10 }).recent())
     }
 
+    /** A page renamed or removed since a line was written loads as none, not as a lost record. */
+    @Test
+    @DisplayName("a line naming a fix page this version does not know loads without one")
+    fun `an unknown fix page loads as none`() {
+        val line = """{"startedAtMillis":1,"durationMillis":5,"source":"PROXY","sender":"Junie",""" +
+            """"requestedModel":"m1","reply":{"webSearches":0},"error":"refused","fixAt":"GONE_PAGE"}"""
+        Files.createDirectories(file().parent)
+        Files.writeString(file(), line + "\n")
+
+        val loaded = RequestLog(file(), limit = { 10 }).recent().single()
+
+        assertEquals("refused", loaded.error)
+        assertEquals(null, loaded.fixAt)
+    }
+
     /** Gson fills a missing field with null whatever Kotlin declares, so such a line is skipped. */
     @Test
     @DisplayName("a line missing a field is skipped rather than loaded with a null in it")

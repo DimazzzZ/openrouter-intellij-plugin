@@ -101,6 +101,7 @@ object RequestsView {
             "Duration" to duration(record.durationMillis),
             reply.generationId?.let { "Generation" to it },
             record.error?.let { "Error" to it },
+            record.fixAt?.let { "Fix in" to it.path },
             stopWarning(reply.finishReason)?.let { "Warning" to it }
         )
     }

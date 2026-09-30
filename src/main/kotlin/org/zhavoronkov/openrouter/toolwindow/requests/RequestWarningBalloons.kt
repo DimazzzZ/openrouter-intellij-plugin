@@ -11,6 +11,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.util.messages.Topic
+import org.zhavoronkov.openrouter.models.FixPage
 import org.zhavoronkov.openrouter.requests.RequestLogListener
 import org.zhavoronkov.openrouter.requests.RequestRecord
 import org.zhavoronkov.openrouter.requests.WarningAnnouncement
@@ -57,6 +58,9 @@ class RequestWarningBalloons(
 ) : Disposable {
     private var current: Notification? = null
 
+    /** The page that fixes the latest refusal in the current burst, kept when a later warning folds in. */
+    private var burstFix: FixPage? = null
+
     fun onRecord(record: RequestRecord) {
         if (!enabled()) return
         val announcement = burst.onRecord(record) ?: return
@@ -64,6 +68,8 @@ class RequestWarningBalloons(
     }
 
     private fun announce(announcement: WarningAnnouncement) {
+        val latestFix = announcement.latest.fixAt
+        burstFix = if (announcement is WarningAnnouncement.Raise) latestFix else latestFix ?: burstFix
         val previous = current
         val group = when {
             announcement is WarningAnnouncement.Raise -> GROUP_ID
@@ -74,9 +80,23 @@ class RequestWarningBalloons(
         current = notification(group, announcement).also(notify)
     }
 
+    /**
+     * The balloon for [announcement]: "Show" opens the Requests tab at the latest request, and a
+     * burst holding a request the plugin refused itself also offers the settings page that fixes
+     * the latest such refusal.
+     */
     private fun notification(group: String, announcement: WarningAnnouncement): Notification {
         val record = announcement.latest
-        return Notification(group, title(announcement), content(announcement), NotificationType.WARNING).addAction(
+        val balloon = Notification(group, title(announcement), content(announcement), NotificationType.WARNING)
+        burstFix?.let { page ->
+            balloon.addAction(
+                NotificationAction.create(FixPageSettings.actionText(page)) { event, notification ->
+                    FixPageSettings.open(event.project, page)
+                    notification.expire()
+                }
+            )
+        }
+        return balloon.addAction(
             NotificationAction.create("Show") { event, notification ->
                 event.project?.let { RequestsNavigator.reveal(it, record) }
                 notification.expire()

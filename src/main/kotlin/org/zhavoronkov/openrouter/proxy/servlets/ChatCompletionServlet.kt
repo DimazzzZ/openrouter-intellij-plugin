@@ -9,8 +9,11 @@ import jakarta.servlet.http.HttpServletResponse
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
+import org.zhavoronkov.openrouter.proxy.checks.ConsumerRequestChecks
 import org.zhavoronkov.openrouter.proxy.defaults.SavedSchemaInjector
 import org.zhavoronkov.openrouter.proxy.defaults.WebSearchTuningInjector
+import org.zhavoronkov.openrouter.proxy.errors.ClearError
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
 import org.zhavoronkov.openrouter.proxy.routing.ProviderRoutingInjector
 import org.zhavoronkov.openrouter.proxy.routing.RouterPluginsInjector
@@ -20,6 +23,7 @@ import org.zhavoronkov.openrouter.requests.RequestLogService
 import org.zhavoronkov.openrouter.requests.RequestRecord
 import org.zhavoronkov.openrouter.requests.RequestSource
 import org.zhavoronkov.openrouter.requests.RequestTrace
+import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.ErrorPatterns
 import org.zhavoronkov.openrouter.utils.KeyValidator
@@ -27,6 +31,7 @@ import org.zhavoronkov.openrouter.utils.ModelAvailabilityNotifier
 import org.zhavoronkov.openrouter.utils.ModelSuggestions
 import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import org.zhavoronkov.openrouter.utils.applicationServiceOrNull
 import java.io.IOException
 import java.io.PrintWriter
 import java.util.concurrent.TimeUnit
@@ -82,7 +87,11 @@ class ChatCompletionServlet(
     multimodalValidatorProvider: () -> MultimodalContentValidator = { MultimodalContentValidator() },
     private val requestRecorder: () -> (RequestRecord) -> Unit = { RequestLogService.getInstance()::record },
     /** Finds, later, the provider of a generation whose reply could not say which one served it. */
-    private val providerLookup: () -> (String) -> Unit = { RequestLogService.getInstance()::fillProviderLater }
+    private val providerLookup: () -> (String) -> Unit = { RequestLogService.getInstance()::fillProviderLater },
+    /** The loaded model catalogue - the selected Data Region's - or null while it has not loaded. */
+    private val catalogueProvider: () -> List<OpenRouterModelInfo>? = {
+        applicationServiceOrNull(FavoriteModelsService::class.java)?.getCachedModels()
+    }
 ) : HttpServlet() {
 
     companion object {
@@ -302,8 +311,9 @@ class ChatCompletionServlet(
             ?: return trace.fail("API key not configured")
         val parsed = parseRequestBody(requestBody, resp, requestId)?.copy(trace = trace)
             ?: return trace.fail("Invalid request body")
+        trace.requestedModel(parsed.typedRequest.model)
+        consumerRequestProblem(parsed)?.let { return refuse(resp, requestId, trace, it, parsed.typedRequest.model) }
         val openAIRequest = parsed.typedRequest
-        trace.requestedModel(openAIRequest.model)
         PluginLogger.Service.info("[Chat-$requestId] 📝 Model: '${openAIRequest.model}'")
 
         // Pre-validate multimodal content against model capabilities
@@ -867,6 +877,33 @@ class ChatCompletionServlet(
             "[Chat-$requestId] Returning pre-validation error for ${validationResult.contentType.displayName}"
         )
         resp.writer.write(gson.toJson(errorResponse))
+    }
+
+    /** What the proxy can tell is wrong with the request before sending it, or null. */
+    private fun consumerRequestProblem(parsed: ParsedChatRequest): ClearError? = ConsumerRequestChecks.problem(
+        body = parsed.rawJson,
+        model = parsed.typedRequest.model,
+        catalogue = catalogueProvider(),
+        region = settingsService::getDataRegion,
+        schemas = { settingsService.outputSchemasManager.all() }
+    )
+
+    /**
+     * Refuses the request with [error], before anything was sent - streaming or not, no SSE is
+     * written - and records it as the request's error.
+     */
+    private fun refuse(
+        resp: HttpServletResponse,
+        requestId: String,
+        trace: RequestTrace,
+        error: ClearError,
+        requested: String
+    ) {
+        PluginLogger.Service.warn("[Chat-$requestId] Refused '$requested': ${error.message}")
+        trace.refuse(error.prefixedMessage, error.fixAt)
+        resp.contentType = "application/json"
+        resp.status = HttpServletResponse.SC_BAD_REQUEST
+        resp.writer.write(gson.toJson(error.body()))
     }
 
     private fun sendErrorResponse(resp: HttpServletResponse, message: String, statusCode: Int) {

@@ -15,12 +15,14 @@ class OutputModeGatePlatformTest : BasePlatformTestCase() {
     private lateinit var popup: ChatParamsPopup
     private lateinit var composer: ChatComposer
     private lateinit var gate: OutputModeGate
+    private lateinit var webSearch: JBCheckBox
 
     private val features = OutputSchema("features", schema = """{"type":"object"}""")
 
     override fun setUp() {
         super.setUp()
-        popup = ChatParamsPopup(ComboBox(arrayOf("a")), ComboBox(arrayOf("b")), ComboBox(arrayOf("c")), JBCheckBox())
+        webSearch = JBCheckBox()
+        popup = ChatParamsPopup(ComboBox(arrayOf("a")), ComboBox(arrayOf("b")), ComboBox(arrayOf("c")), webSearch)
         composer = ChatComposer().apply { attachModelCombo(ComboBox(arrayOf("m"))) }
         gate = OutputModeGate(popup, composer)
     }
@@ -76,6 +78,35 @@ class OutputModeGatePlatformTest : BasePlatformTestCase() {
         popup.outputMode.selectedItem = OutputMode.PlainJson
 
         assertTrue("the caller refreshes the gear badge from this", reported > 0)
+    }
+
+    /** OpenRouter's web search drops plain JSON, so turning it on blocks a plain JSON selection. */
+    fun testTurningWebSearchOnBlocksPlainJsonAndOffUnblocksIt() {
+        gate.update(capable())
+        popup.outputMode.selectedItem = OutputMode.PlainJson
+        var reported = 0
+        gate.onSelectionChanged = { reported++ }
+
+        webSearch.isSelected = true
+
+        assertEquals("${ChatExchange.WEB_SEARCH_DROPS_JSON}. Choose another output mode to send.", gate.blockedReason())
+        assertEquals(ChatParamsPopup.OUTPUT_DROPPED_BY_SEARCH_TEXT, popup.outputComment.text)
+        assertTrue("the caller hears that Send was re-decided", reported > 0)
+
+        webSearch.isSelected = false
+
+        assertNull(gate.blockedReason())
+    }
+
+    fun testASchemaWithWebSearchIsSentWithAWarning() {
+        gate.update(capable())
+        popup.outputMode.selectedItem = OutputMode.Schema("features")
+
+        webSearch.isSelected = true
+
+        assertNull(gate.blockedReason())
+        assertEquals(ChatParamsPopup.OUTPUT_SEARCH_WARNING_TEXT, popup.outputComment.text)
+        assertEquals(true, gate.context?.webSearch)
     }
 
     fun testWithNoModelKnownNothingIsBlocked() {

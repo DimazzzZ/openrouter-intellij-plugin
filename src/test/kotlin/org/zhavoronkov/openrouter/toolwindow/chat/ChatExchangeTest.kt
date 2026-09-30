@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
@@ -33,6 +34,54 @@ class ChatExchangeTest {
     ) = ChatExchange.sendBlockedReason(mode, OutputModeContext(model, declared, schemas))
 
     private val messages = listOf(ChatMessage(role = "user", content = JsonPrimitive("hi")))
+
+    /** Measured against OpenRouter, `.research/openrouter-presets-apply-config.md`. */
+    @Nested
+    @DisplayName("with web search")
+    inner class WithWebSearch {
+        private val both = listOf("response_format", "structured_outputs")
+        private val schema = OutputSchema("answer", schema = """{"type":"object"}""")
+        private fun searching(declared: List<String>? = both) =
+            OutputModeContext("m", declared, listOf(schema), webSearch = true)
+
+        @Test
+        @DisplayName("plain JSON cannot be sent, and the reason names web search")
+        fun plainJsonBlocked() {
+            val json = ChatExchange.outputModes(searching()).single { it.mode == OutputMode.PlainJson }
+
+            assertEquals(ChatExchange.WEB_SEARCH_DROPS_JSON, json.unsupportedReason)
+            assertTrue(ChatExchange.sendBlockedReason(OutputMode.PlainJson, searching())!!.contains("web search"))
+        }
+
+        @Test
+        @DisplayName("a schema can be sent, with a warning that it may be dropped")
+        fun schemaWarned() {
+            val choice = ChatExchange.outputModes(searching()).single { it.mode == OutputMode.Schema("answer") }
+
+            assertNull(choice.unsupportedReason)
+            assertEquals(ChatExchange.WEB_SEARCH_SCHEMA_WARNING, choice.warning)
+            assertNull(ChatExchange.sendBlockedReason(OutputMode.Schema("answer"), searching()))
+        }
+
+        @Test
+        @DisplayName("what the model does not declare is still the reason given, not web search")
+        fun capabilityFirst() {
+            val choices = ChatExchange.outputModes(searching(declared = listOf("tools")))
+
+            val json = choices.single { it.mode == OutputMode.PlainJson }
+            val schema = choices.single { it.mode == OutputMode.Schema("answer") }
+            assertEquals("m does not support JSON output", json.unsupportedReason)
+            assertNull(schema.warning, "an unservable entry has no warning")
+        }
+
+        @Test
+        @DisplayName("without web search nothing is blocked or warned for it")
+        fun offChangesNothing() {
+            val choices = ChatExchange.outputModes(searching().copy(webSearch = false))
+
+            assertTrue(choices.all { it.supported && it.warning == null })
+        }
+    }
 
     @Test
     @DisplayName("a request carries the model, the conversation and the chat's fixed sampling settings")

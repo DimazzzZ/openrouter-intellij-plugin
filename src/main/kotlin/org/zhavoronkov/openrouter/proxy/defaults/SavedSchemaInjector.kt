@@ -2,6 +2,7 @@ package org.zhavoronkov.openrouter.proxy.defaults
 
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
+import org.zhavoronkov.openrouter.models.EntryNames
 import org.zhavoronkov.openrouter.models.OutputSchema
 
 /**
@@ -23,7 +24,7 @@ object SavedSchemaInjector {
         val jsonSchema = format.get(JSON_SCHEMA_KEY)?.asObjectOrNull() ?: return false
         if (jsonSchema.has(SCHEMA_KEY)) return false
         val name = jsonSchema.get(NAME_KEY)?.asStringOrNull() ?: return false
-        val saved = schemas.firstOrNull { OutputSchema.sameName(it.name, name) } ?: return false
+        val saved = schemas.firstOrNull { EntryNames.same(it.name, name) } ?: return false
         val schemaBody = saved.parsedBody() ?: return false
         jsonSchema.add(SCHEMA_KEY, schemaBody)
         if (!jsonSchema.has(STRICT_KEY)) jsonSchema.addProperty(STRICT_KEY, saved.strict)

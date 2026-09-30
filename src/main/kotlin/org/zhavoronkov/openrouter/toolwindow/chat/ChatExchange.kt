@@ -5,9 +5,11 @@ import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatCompletionResponse
 import org.zhavoronkov.openrouter.models.ChatMessage
 import org.zhavoronkov.openrouter.models.ChatTool
+import org.zhavoronkov.openrouter.models.EntryNames
 import org.zhavoronkov.openrouter.models.JsonSchemaFormat
 import org.zhavoronkov.openrouter.models.OutputSchema
 import org.zhavoronkov.openrouter.models.ReasoningConfig
+import org.zhavoronkov.openrouter.models.RequestChoices
 import org.zhavoronkov.openrouter.models.ResponseFormat
 import org.zhavoronkov.openrouter.models.WebSearchSettings
 import org.zhavoronkov.openrouter.proxy.routing.RouterRequestBuilder
@@ -54,9 +56,9 @@ sealed class OutputMode(val label: String) {
      * schema names are kept unique; a schema renamed only in case is still the same selection.
      */
     class Schema(val name: String) : OutputMode(name) {
-        override fun equals(other: Any?): Boolean = other is Schema && OutputSchema.sameName(other.name, name)
+        override fun equals(other: Any?): Boolean = other is Schema && EntryNames.same(other.name, name)
 
-        override fun hashCode(): Int = OutputSchema.nameKey(name).hashCode()
+        override fun hashCode(): Int = EntryNames.key(name).hashCode()
 
         override fun toString(): String = "Schema($name)"
     }
@@ -64,19 +66,21 @@ sealed class OutputMode(val label: String) {
 
 /**
  * What decides which Output Modes can be served: the selected [model], what it declares in the
- * catalogue - [supportedParameters], or null when that is not known - and the saved [schemas].
+ * catalogue - [supportedParameters], or null when that is not known - the saved [schemas], and
+ * whether the request lets the model search the web, which OpenRouter's web search changes.
  */
 data class OutputModeContext(
     val model: String,
     val supportedParameters: List<String>?,
-    val schemas: List<OutputSchema>
+    val schemas: List<OutputSchema>,
+    val webSearch: Boolean = false
 )
 
 /**
  * One entry the Output Mode control offers, and why the selected Model cannot serve it, or null
- * when it can.
+ * when it can. [warning] is what may still go wrong with an entry that can be sent.
  */
-data class OutputModeChoice(val mode: OutputMode, val unsupportedReason: String?) {
+data class OutputModeChoice(val mode: OutputMode, val unsupportedReason: String?, val warning: String? = null) {
     val supported: Boolean get() = unsupportedReason == null
 }
 
@@ -229,7 +233,7 @@ object ChatExchange {
 
     /** Names are unique without regard to case, so that is how a selection finds its schema. */
     private fun findSchema(mode: OutputMode.Schema, schemas: List<OutputSchema>): OutputSchema? =
-        schemas.firstOrNull { OutputSchema.sameName(it.name, mode.name) }
+        schemas.firstOrNull { EntryNames.same(it.name, mode.name) }
 
     /**
      * Every Output Mode the popup offers for [context], in the order it offers them, each marked
@@ -246,11 +250,16 @@ object ChatExchange {
      * known rather than that it is missing. A Router picks its Model per request, so nothing can
      * promise that the one it picks will honour a response format; sending one anyway would be
      * the request the server may refuse.
+     *
+     * With web search on, OpenRouter drops plain JSON every time, so it cannot be sent; a schema
+     * holds only where the provider searches natively, so it is sent with [WEB_SEARCH_SCHEMA_WARNING].
      */
     fun outputModes(context: OutputModeContext): List<OutputModeChoice> {
         val (model, declared, schemas) = context
-        val jsonReason = capabilityReason(model, declared, RESPONSE_FORMAT, "JSON output")
-        val schemaReason = capabilityReason(model, declared, STRUCTURED_OUTPUTS, "schema-constrained output")
+        val jsonReason = responseFormatProblem(model, declared, schema = false)
+            ?: WEB_SEARCH_DROPS_JSON.takeIf { context.webSearch }
+        val schemaReason = responseFormatProblem(model, declared, schema = true)
+        val schemaWarning = WEB_SEARCH_SCHEMA_WARNING.takeIf { context.webSearch }
         return listOf(
             OutputModeChoice(OutputMode.Off, null),
             OutputModeChoice(OutputMode.PlainJson, jsonReason)
@@ -258,9 +267,34 @@ object ChatExchange {
             // The settings page saves only a JSON object, but a settings file edited by hand, or a
             // newer build's, can hold anything; a body that is not one is never sent.
             val bodyReason = if (schema.parsedBody() == null) "${schema.name} $BROKEN_SCHEMA" else null
-            OutputModeChoice(OutputMode.Schema(schema.name), bodyReason ?: schemaReason)
+            val reason = bodyReason ?: schemaReason
+            OutputModeChoice(OutputMode.Schema(schema.name), reason, schemaWarning.takeIf { reason == null })
         }
     }
+
+    /**
+     * Measured against OpenRouter: with the web search server tool a `json_schema` is kept only
+     * when the provider runs its own search (OpenAI's, say); with Exa, the search every other
+     * model gets, it is dropped without an error.
+     */
+    const val WEB_SEARCH_SCHEMA_WARNING =
+        "With web search, the schema holds only where the provider searches natively; otherwise the reply is plain text"
+
+    /** Measured against OpenRouter: the web search server tool drops `json_object` whatever searches. */
+    const val WEB_SEARCH_DROPS_JSON =
+        "OpenRouter drops plain JSON when the model may search the web; turn web search off"
+
+    /**
+     * Why [model], declaring [declared], cannot give plain JSON - or, when [schema], a reply in the
+     * shape of a schema - or null when it can: the rule the Output mode control applies, for a
+     * response format a Consumer sent itself.
+     */
+    fun responseFormatProblem(model: String, declared: List<String>?, schema: Boolean): String? =
+        if (schema) {
+            capabilityReason(model, declared, STRUCTURED_OUTPUTS, "schema-constrained output")
+        } else {
+            capabilityReason(model, declared, RESPONSE_FORMAT, "JSON output")
+        }
 
     private fun capabilityReason(model: String, declared: List<String>?, parameter: String, what: String): String? =
         when {
@@ -331,22 +365,9 @@ object ChatExchange {
     private fun verbosity(chosen: String?): String? =
         chosen?.takeIf { it != UNCHANGED }?.lowercase()
 
-    /**
-     * Efforts are listed rather than lowercased blindly: every one of them happens to be its own
-     * label in lower case, but that is a coincidence of the current list, and an unrecognised
-     * value must reach OpenRouter as nothing rather than as a guess.
-     */
+    /** Only a listed effort is sent; see [RequestChoices.REASONING_EFFORTS]. */
     private fun reasoningConfig(chosen: String?): ReasoningConfig? =
-        REASONING_EFFORTS[chosen]?.let { ReasoningConfig(effort = it) }
-
-    private val REASONING_EFFORTS = mapOf(
-        "None" to "none",
-        "Minimal" to "minimal",
-        "Low" to "low",
-        "Medium" to "medium",
-        "High" to "high",
-        "XHigh" to "xhigh"
-    )
+        RequestChoices.REASONING_EFFORTS[chosen]?.let { ReasoningConfig(effort = it) }
 
     /** The longest reply the chat window asks for. */
     private const val MAX_TOKENS = 4096
@@ -367,11 +388,11 @@ object ChatExchange {
     private val GSON = Gson()
 
     /** How both combo boxes spell "the user changed nothing", and the first choice each offers. */
-    const val UNCHANGED = "Default"
+    const val UNCHANGED = RequestChoices.UNCHANGED
 
     /** Every reasoning effort the popup offers, in the order it offers them. */
-    val REASONING_CHOICES: List<String> = listOf(UNCHANGED) + REASONING_EFFORTS.keys
+    val REASONING_CHOICES: List<String> = listOf(UNCHANGED) + RequestChoices.REASONING_EFFORTS.keys
 
     /** Every verbosity the popup offers, in the order it offers them. */
-    val VERBOSITY_CHOICES: List<String> = listOf(UNCHANGED, "Low", "Medium", "High", "XHigh", "Max")
+    val VERBOSITY_CHOICES: List<String> = listOf(UNCHANGED) + RequestChoices.VERBOSITIES
 }

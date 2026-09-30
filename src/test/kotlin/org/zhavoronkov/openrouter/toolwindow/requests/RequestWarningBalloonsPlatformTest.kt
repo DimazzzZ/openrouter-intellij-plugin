@@ -3,6 +3,7 @@ package org.zhavoronkov.openrouter.toolwindow.requests
 import com.intellij.notification.Notification
 import com.intellij.notification.NotificationType
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import org.zhavoronkov.openrouter.models.FixPage
 import org.zhavoronkov.openrouter.requests.ReplyFacts
 import org.zhavoronkov.openrouter.requests.RequestRecord
 import org.zhavoronkov.openrouter.requests.RequestSource
@@ -108,5 +109,39 @@ class RequestWarningBalloonsPlatformTest : BasePlatformTestCase() {
         balloons.onRecord(record())
 
         assertTrue(raised.isEmpty())
+    }
+
+    /** A request the plugin refused offers the page that fixes it, beside Show. */
+    fun testARefusalOffersThePageThatFixesIt() {
+        val refused = record(error = "OpenRouter plugin: 'x/y' is not in OpenRouter's model catalogue")
+        balloons.onRecord(refused.copy(fixAt = FixPage.FAVORITE_MODELS))
+
+        assertEquals(listOf("Open Favorite Models", "Show"), raised.single().actions.map { it.templateText })
+    }
+
+    fun testAWarningThePluginDidNotRaiseOffersOnlyShow() {
+        balloons.onRecord(record(error = "Provider overloaded"))
+
+        assertEquals(listOf("Show"), raised.single().actions.map { it.templateText })
+    }
+
+    /** Refusals in a burst fold like any other warning, and the balloon offers the latest one's page. */
+    fun testRefusalsAreAnnouncedOncePerBurst() {
+        balloons.onRecord(record(error = "refused").copy(fixAt = FixPage.FAVORITE_MODELS))
+        now = 5_000
+        balloons.onRecord(record(error = "refused again").copy(fixAt = FixPage.OUTPUT_SCHEMAS))
+
+        assertEquals("the second folds into the first, replacing it only in the log", 2, raised.size)
+        assertEquals(RequestWarningBalloons.LOG_ONLY_GROUP_ID, raised.last().groupId)
+        assertEquals(listOf("Open Output Schemas", "Show"), raised.last().actions.map { it.templateText })
+    }
+
+    /** A later warning of another kind folds in, and the burst still offers the refusal's fix. */
+    fun testAWarningFoldingIntoARefusalKeepsTheFix() {
+        balloons.onRecord(record(error = "refused").copy(fixAt = FixPage.OUTPUT_SCHEMAS))
+        now = 5_000
+        balloons.onRecord(record(finishReason = "length"))
+
+        assertEquals(listOf("Open Output Schemas", "Show"), raised.last().actions.map { it.templateText })
     }
 }

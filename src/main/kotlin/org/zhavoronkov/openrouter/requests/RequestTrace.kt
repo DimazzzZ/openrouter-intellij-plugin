@@ -3,6 +3,7 @@ package org.zhavoronkov.openrouter.requests
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.gson.JsonSyntaxException
+import org.zhavoronkov.openrouter.models.FixPage
 
 /**
  * Follows one request from the moment it arrives to the moment its reply is done, and hands the
@@ -31,6 +32,7 @@ class RequestTrace(
     private val collector = ReplyFactsCollector()
     private var error: String? = null
     private var observed = false
+    private var fixAt: FixPage? = null
     private var finished = false
     private var replyNamesProvider = true
 
@@ -56,6 +58,13 @@ class RequestTrace(
         if (error == null) error = messageOnly(message).take(MAX_ERROR_LENGTH)
     }
 
+    /** The plugin refused the request itself, with [message]; [page] is the settings page that fixes it. */
+    fun refuse(message: String, page: FixPage) {
+        if (error != null) return
+        fail(message)
+        fixAt = page
+    }
+
     fun finish() {
         if (finished) return
         finished = true
@@ -68,7 +77,8 @@ class RequestTrace(
                 sender = sender,
                 requestedModel = requestedModel,
                 reply = facts,
-                error = error ?: NO_REPLY.takeUnless { observed }
+                error = error ?: NO_REPLY.takeUnless { observed },
+                fixAt = fixAt
             )
         )
         if (!replyNamesProvider) facts.generationId?.let(lookUpProvider)

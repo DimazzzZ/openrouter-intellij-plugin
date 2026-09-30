@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.zhavoronkov.openrouter.models.FixPage
 import org.zhavoronkov.openrouter.requests.ReplyFacts
 import org.zhavoronkov.openrouter.requests.RequestRecord
 import org.zhavoronkov.openrouter.requests.RequestSource
@@ -149,6 +150,15 @@ class RequestsViewTest {
                 ),
                 RequestsView.details(record, zone)
             )
+        }
+
+        @Test
+        @DisplayName("a request the plugin refused names the page that fixes it")
+        fun fixIn() {
+            val refused = record(reply = ReplyFacts(), error = "OpenRouter plugin: ...").copy(fixAt = FixPage.FAVORITE_MODELS)
+
+            val fixIn = RequestsView.details(refused, zone).toMap()["Fix in"]
+            assertEquals("Settings → Tools → OpenRouter → Favorite Models", fixIn)
         }
 
         @Test

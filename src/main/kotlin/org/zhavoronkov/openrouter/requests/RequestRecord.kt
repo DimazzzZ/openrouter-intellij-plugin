@@ -1,5 +1,7 @@
 package org.zhavoronkov.openrouter.requests
 
+import org.zhavoronkov.openrouter.models.FixPage
+
 /** Where a recorded request came from: a Consumer through the proxy, or the plugin's own chat. */
 enum class RequestSource { PROXY, CHAT }
 
@@ -25,7 +27,8 @@ data class ReplyFacts(
  * Facts only: never the prompt, the reply or a header. [sender] is who sent it - a Consumer named
  * from its User-Agent, or the chat. [requestedModel] is the id the sender asked for, before the
  * proxy did anything to it; [reply] is what came back, and [error] is set instead when the request
- * failed. Stored as it is, so its property names are a storage format.
+ * failed - with [fixAt], the settings page that fixes it, when the plugin itself refused the
+ * request. Stored as it is, so its property names are a storage format.
  */
 data class RequestRecord(
     val startedAtMillis: Long,
@@ -34,7 +37,8 @@ data class RequestRecord(
     val sender: String,
     val requestedModel: String,
     val reply: ReplyFacts = ReplyFacts(),
-    val error: String? = null
+    val error: String? = null,
+    val fixAt: FixPage? = null
 )
 
 /** Why [this] deserves a look - its error, or a reply that did not stop normally - or null. */

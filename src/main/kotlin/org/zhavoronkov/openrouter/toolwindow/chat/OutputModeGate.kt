@@ -11,13 +11,22 @@ package org.zhavoronkov.openrouter.toolwindow.chat
  */
 class OutputModeGate(private val popup: ChatParamsPopup, private val composer: ChatComposer) {
 
-    /** What the controls were last brought in line with, or null before a Model is known. */
-    var context: OutputModeContext? = null
-        private set
+    private var modelContext: OutputModeContext? = null
+
+    /**
+     * What the controls were last brought in line with, or null before a Model is known - with
+     * the popup's web search switch as it is now, since web search changes what can be served.
+     */
+    val context: OutputModeContext?
+        get() = modelContext?.copy(webSearch = popup.requestOptions().webSearch)
 
     init {
         popup.onOutputModeChanged = {
             refresh()
+            onSelectionChanged()
+        }
+        popup.onWebSearchChanged = {
+            update(modelContext)
             onSelectionChanged()
         }
     }
@@ -27,8 +36,8 @@ class OutputModeGate(private val popup: ChatParamsPopup, private val composer: C
 
     /** The Model or the saved schemas changed: re-mark the popup and re-decide Send. */
     fun update(context: OutputModeContext?) {
-        this.context = context
-        val choices = context?.let(ChatExchange::outputModes) ?: listOf(OutputModeChoice(OutputMode.Off, null))
+        modelContext = context
+        val choices = this.context?.let(ChatExchange::outputModes) ?: listOf(OutputModeChoice(OutputMode.Off, null))
         popup.setOutputModes(choices)
         refresh()
     }

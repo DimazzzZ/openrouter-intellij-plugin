@@ -94,6 +94,9 @@ class ChatParamsPopup(
     /** Set by the caller; invoked whenever the Output Mode selection changes. */
     var onOutputModeChanged: () -> Unit = {}
 
+    /** Invoked whenever the web search switch changes, by the user or by setting the controls. */
+    var onWebSearchChanged: () -> Unit = {}
+
     /**
      * The Output Mode control. Owned here rather than by the caller: nothing but this popup shows
      * it, and the caller reads it through [requestOptions] like every other control.
@@ -122,12 +125,16 @@ class ChatParamsPopup(
                 // that is blocking the send, and says so.
                 label.icon = if (index == -1) AllIcons.General.Warning else null
                 label.toolTipText = choice.unsupportedReason
+            } else if (choice?.warning != null) {
+                label.toolTipText = choice.warning
             }
         }
         outputMode.addActionListener {
             refreshOutputComment()
             onOutputModeChanged()
         }
+        // An item listener, so setting the switch from a pair's settings is heard as well
+        webSearch.addItemListener { onWebSearchChanged() }
         refreshOutputComment()
     }
 
@@ -156,12 +163,16 @@ class ChatParamsPopup(
     private fun selectedOutputChoice(): OutputModeChoice = choiceFor(selectedMode())
 
     private fun refreshOutputComment() {
-        val blocked = !selectedOutputChoice().supported
+        val choice = selectedOutputChoice()
+        val blocked = !choice.supported
         outputComment.text = when {
+            blocked && choice.unsupportedReason == ChatExchange.WEB_SEARCH_DROPS_JSON -> OUTPUT_DROPPED_BY_SEARCH_TEXT
             blocked -> OUTPUT_BLOCKED_TEXT
+            choice.warning != null -> OUTPUT_SEARCH_WARNING_TEXT
             outputChoices.any { !it.supported } -> OUTPUT_UNAVAILABLE_TEXT
             else -> ""
         }
+        outputComment.toolTipText = choice.unsupportedReason ?: choice.warning
         outputComment.foreground = if (blocked) CHAT_WARNING_FOREGROUND else UIUtil.getContextHelpForeground()
     }
 
@@ -449,6 +460,8 @@ class ChatParamsPopup(
          */
         const val OUTPUT_BLOCKED_TEXT = "Not supported by this model. Pick another."
         const val OUTPUT_UNAVAILABLE_TEXT = "Greyed out: not supported by this model."
+        const val OUTPUT_DROPPED_BY_SEARCH_TEXT = "Dropped with web search. Turn it off or pick a schema."
+        const val OUTPUT_SEARCH_WARNING_TEXT = "With web search, may come back as plain text."
 
         /**
          * The cost is said on the control itself rather than in a comment beneath it: each search

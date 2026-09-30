@@ -73,37 +73,15 @@ data class OutputSchema(
         }
 
         /**
-         * Why [name] cannot be used, or null when it can. [existing] are the names already taken,
-         * not counting the schema being edited. Compared without case, since two entries in a
-         * drop-down that differ only in case read as the same one.
+         * Why [name] cannot be used, or null when it can, by the rule every saved name follows
+         * ([EntryNames]). [existing] are the names already taken, not counting the schema being
+         * edited. "Off" is the Output mode control's own entry, so no schema may repeat it; "JSON
+         * (no schema)" cannot be a name at all.
          */
-        fun nameProblem(name: String, existing: List<String>): String? {
-            val trimmed = name.trim()
-            if (trimmed.isEmpty()) return "A schema needs a name"
-            if (!NAME_PATTERN.matches(trimmed)) return NAME_RULE
-            RESERVED_NAMES.firstOrNull { sameName(it, trimmed) }?.let {
-                return "'$it' is already an entry of the Output mode control"
-            }
-            val clash = existing.firstOrNull { sameName(it, trimmed) }
-            return clash?.let { "A schema named '$it' already exists" }
-        }
+        fun nameProblem(name: String, existing: List<String>): String? =
+            EntryNames.problem(name, existing, "A schema", RESERVED_NAMES)
 
-        /**
-         * Whether two schema names name the same schema: compared trimmed and without case, since
-         * two entries in a drop-down that differ only in case read as the same one. Every place
-         * that matches names - uniqueness here, a selection finding its schema, two selections
-         * being equal - goes through this.
-         */
-        fun sameName(a: String, b: String): Boolean = a.trim().equals(b.trim(), ignoreCase = true)
-
-        /** The key [sameName] compares by, for anything that hashes names. */
-        fun nameKey(name: String): String = name.trim().lowercase()
-
-        /**
-         * Entries the Output mode control lists besides the saved schemas, which a schema name
-         * must not repeat. "JSON (no schema)" cannot be a name at all, so only Off is listed.
-         */
-        private val RESERVED_NAMES = listOf("Off")
+        private val RESERVED_NAMES = mapOf("Off" to "'Off' is already an entry of the Output mode control")
 
         private sealed interface Parsed {
             data class Element(val element: JsonElement) : Parsed
@@ -138,15 +116,6 @@ data class OutputSchema(
 
         private val POSITION = Regex("""at line (\d+) column (\d+)""")
         private const val TRAILING_CONTENT = "there is more after the schema ends"
-
-        /**
-         * The name is sent to whichever provider serves the request. OpenRouter documents no rule
-         * for it, but OpenAI's API accepts only letters, digits, underscores and hyphens, up to 64
-         * of them, and refuses the request otherwise - so a name outside that set would save here
-         * and fail at request time on those endpoints.
-         */
-        private val NAME_PATTERN = Regex("[A-Za-z0-9_-]{1,64}")
-        private const val NAME_RULE = "Use only letters, digits, _ and - (no spaces), up to 64 characters"
 
         /**
          * Strict mode refuses a second top-level value by throwing from peek() itself, so a failure
