@@ -1,6 +1,7 @@
 package org.zhavoronkov.openrouter.services
 
 import com.google.gson.Gson
+import com.google.gson.JsonObject
 import com.google.gson.JsonParseException
 import com.google.gson.JsonParser
 import com.google.gson.JsonSyntaxException
@@ -927,6 +928,34 @@ open class OpenRouterService(
         }
 
     /**
+     * [slug]'s designated version as OpenRouter sent it - `system_prompt` and `config` among its
+     * fields - or null when it cannot be read. The JSON is kept as sent, so a number stays the number
+     * it was; the typed [getPreset] reads config through a map, which turns every number into a double.
+     */
+    suspend fun getPresetVersionJson(slug: String): JsonObject? =
+        withContext(Dispatchers.IO) {
+            val apiKey = settingsService.apiKeyManager.getStoredApiKey()
+            if (apiKey.isNullOrBlank()) return@withContext null
+            try {
+                val request = OpenRouterRequestBuilder.buildGetRequest(
+                    url = getPresetEndpoint(slug),
+                    authType = OpenRouterRequestBuilder.AuthType.API_KEY,
+                    authToken = apiKey
+                )
+                val (response, body) = client.newCall(request).awaitWithBody()
+                if (!response.isSuccessful) return@withContext null
+                JsonParser.parseString(body).takeIf { it.isJsonObject }?.asJsonObject
+                    ?.getAsJsonObject("data")?.getAsJsonObject("designated_version")
+            } catch (e: IOException) {
+                null
+            } catch (e: JsonParseException) {
+                null
+            } catch (e: ClassCastException) {
+                null
+            }
+        }
+
+    /**
      * Read a single preset (including its designated_version + untyped config).
      */
     suspend fun getPreset(slug: String): ApiResult<GetPresetResponse> =
@@ -965,6 +994,16 @@ open class OpenRouterService(
      * untyped map merged verbatim into the body so unknown keys survive a round-trip;
      * [systemPrompt] is added as system_prompt when non-null. There is no delete endpoint.
      */
+    suspend fun createOrUpdatePreset(
+        slug: String,
+        config: JsonObject,
+        systemPrompt: String?
+    ): ApiResult<GetPresetResponse> = createOrUpdatePreset(
+        slug,
+        config.entrySet().associate { (key, value) -> key to value },
+        systemPrompt
+    )
+
     suspend fun createOrUpdatePreset(
         slug: String,
         config: Map<String, Any?>,

@@ -118,6 +118,22 @@ class ProviderRoutingManager(
     }
 
     /**
+     * Stores [preferences] as the global routing, the inverse of [toPreferences]: a field left
+     * null goes back to OpenRouter's default. The master switch and the fallback models are not
+     * routing preferences and are left as they are.
+     */
+    fun update(preferences: ProviderRoutingPreferences) {
+        order = preferences.order.orEmpty().toMutableList()
+        allowFallbacks = preferences.allowFallbacks != false
+        sort = preferences.sort.orEmpty()
+        requireParameters = preferences.requireParameters == true
+        dataCollection = preferences.dataCollection.orEmpty()
+        quantizations = preferences.quantizations.orEmpty().toMutableList()
+        only = preferences.only.orEmpty().toMutableList()
+        ignore = preferences.ignore.orEmpty().toMutableList()
+    }
+
+    /**
      * Build the provider routing as a [JsonObject] for raw-JSON injection
      * in [org.zhavoronkov.openrouter.proxy.servlets.ChatCompletionServlet.applyConfiguredDefaults].
      * Returns null if no routing is configured.

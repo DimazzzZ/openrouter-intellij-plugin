@@ -2,9 +2,10 @@ package org.zhavoronkov.openrouter.models
 
 /**
  * The reasoning efforts and verbosities a request can be given, by the labels the user picks them
- * by. The chat's send-parameters popup offers them, and
- * [org.zhavoronkov.openrouter.toolwindow.chat.ChatExchange] translates them into a request - both
- * from these lists, so a label nothing can translate cannot exist.
+ * by. The chat's send-parameters popup and the preset dialog offer them, and
+ * [org.zhavoronkov.openrouter.toolwindow.chat.ChatExchange] translates them into a request - all
+ * from these lists, so a label nothing can translate cannot exist. A preset stores OpenRouter's
+ * value, never the label, so a label can be renamed here freely.
  */
 object RequestChoices {
 
@@ -28,4 +29,10 @@ object RequestChoices {
 
     /** Every verbosity, in the order the controls offer them. */
     val VERBOSITIES: List<String> = listOf("Low", "Medium", "High", "XHigh", "Max")
+
+    /** OpenRouter's value for the reasoning effort labelled [label], or null for one not listed. */
+    fun reasoningEffort(label: String?): String? = REASONING_EFFORTS[label]
+
+    /** OpenRouter's value for the verbosity labelled [label]: the label in lower case, when it is one listed. */
+    fun verbosity(label: String?): String? = label?.takeIf { it in VERBOSITIES }?.lowercase()
 }

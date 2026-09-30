@@ -49,6 +49,31 @@ class OpenRouterServicePresetsTest {
         mockWebServer.shutdown()
     }
 
+    /** The copy of the presets keeps a config as OpenRouter sent it: an integer stays an integer. */
+    @Test
+    @DisplayName("getPresetVersionJson returns the designated version as sent")
+    fun getPresetVersionJsonKeepsNumbers() = runBlocking {
+        mockWebServer.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"data":{"slug":"probe","designated_version":{"system_prompt":null,
+                    "config":{"max_tokens":40,"provider":{"only":["azure"]}}}}}"""
+            )
+        )
+
+        val version = service.getPresetVersionJson("probe")!!
+
+        assertEquals("/api/v1/presets/probe", mockWebServer.takeRequest().path)
+        assertEquals("40", version.getAsJsonObject("config").get("max_tokens").toString())
+    }
+
+    @Test
+    @DisplayName("getPresetVersionJson gives null for a preset it cannot read")
+    fun getPresetVersionJsonMissing() = runBlocking {
+        mockWebServer.enqueue(MockResponse().setResponseCode(404).setBody("""{"error":{"message":"not found"}}"""))
+
+        assertEquals(null, service.getPresetVersionJson("gone"))
+    }
+
     @Test
     @DisplayName("getPresets parses the list, uses API key auth on GET /presets")
     fun getPresetsReadPath() = runBlocking {
