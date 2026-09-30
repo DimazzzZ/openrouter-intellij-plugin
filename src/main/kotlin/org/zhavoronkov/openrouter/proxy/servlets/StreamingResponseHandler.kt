@@ -60,18 +60,23 @@ class StreamingResponseHandler {
      * [trace], when given, is told what each chunk carries and any error in the stream, so the
      * request's Requests entry reads the same as for a whole response. It is fed from the chunks
      * already being forwarded, so it never delays the stream.
+     *
+     * [shownModel], when given, is the model id each chunk names to the client in place of the
+     * one OpenRouter sent - a pair's id, so a Consumer's stream names what it asked for, as a
+     * whole reply does. The trace still sees the model that answered.
      */
     fun streamResponseToClient(
         response: Response,
         writer: PrintWriter,
         requestId: String,
-        trace: RequestTrace? = null
+        trace: RequestTrace? = null,
+        shownModel: String? = null
     ) {
         // Reset accumulator state for this stream
         toolCallAccumulator.reset()
         response.body?.use { responseBody ->
             val reader = BufferedReader(responseBody.charStream())
-            processStreamLines(reader, writer, requestId, trace)
+            processStreamLines(reader, writer, requestId, trace, shownModel)
         } ?: run {
             // No response body - send error chunk
             PluginLogger.Service.warn("[Chat-$requestId] Empty response body from OpenRouter")
@@ -89,7 +94,8 @@ class StreamingResponseHandler {
         reader: BufferedReader,
         writer: PrintWriter,
         requestId: String,
-        trace: RequestTrace?
+        trace: RequestTrace?,
+        shownModel: String?
     ) {
         var validChunksSent = 0
         var errorDetected = false
@@ -106,7 +112,7 @@ class StreamingResponseHandler {
                 }
 
                 // Validate and process the chunk
-                val validationResult = validateAndProcessChunk(data, writer, requestId)
+                val validationResult = validateAndProcessChunk(data, writer, requestId, shownModel)
                 when (validationResult) {
                     is ChunkValidationResult.Valid -> {
                         validChunksSent++
@@ -178,7 +184,12 @@ class StreamingResponseHandler {
     /**
      * Validates a chunk and writes it to the client if valid
      */
-    private fun validateAndProcessChunk(data: String, writer: PrintWriter, requestId: String): ChunkValidationResult {
+    private fun validateAndProcessChunk(
+        data: String,
+        writer: PrintWriter,
+        requestId: String,
+        shownModel: String?
+    ): ChunkValidationResult {
         return try {
             val json = gson.fromJson(data, JsonObject::class.java)
 
@@ -201,8 +212,13 @@ class StreamingResponseHandler {
             // is used to track state and can be inspected for verification/logging.
             processToolCallDeltas(json, requestId)
 
-            // Write the valid chunk
-            writer.println("$DATA_PREFIX$data")
+            // Write the valid chunk, naming the model the client asked for when that differs
+            val written = if (shownModel != null && json.has("model")) {
+                gson.toJson(json.deepCopy().apply { addProperty("model", shownModel) })
+            } else {
+                data
+            }
+            writer.println("$DATA_PREFIX$written")
             writer.println()
             writer.flush()
 

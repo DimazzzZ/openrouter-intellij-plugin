@@ -301,6 +301,17 @@ object ModelProviderUtils {
     }
 
     /**
+     * [model]'s entry in [catalogue]: its own, else its base model's - a routing variant such as
+     * `:nitro` is not listed on its own, and serves what its base model does. Catalogue ids are
+     * lower case, so an id typed otherwise names the same model.
+     */
+    fun catalogueEntry(model: String, catalogue: List<OpenRouterModelInfo>): OpenRouterModelInfo? {
+        val base = stripVariant(model)
+        return catalogue.firstOrNull { it.id.equals(model, ignoreCase = true) }
+            ?: catalogue.firstOrNull { it.id.equals(base, ignoreCase = true) }
+    }
+
+    /**
      * Suffixes OpenRouter has retired. They are no longer valid model-ID variants,
      * so the plugin drops them entirely (parsing, chips, and saved favorites).
      */

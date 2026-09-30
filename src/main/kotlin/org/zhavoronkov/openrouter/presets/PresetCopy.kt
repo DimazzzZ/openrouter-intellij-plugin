@@ -8,6 +8,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -93,6 +94,21 @@ class PresetCopy(
             null
         }
     }
+
+    /**
+     * [find], for a caller about to refuse a request for [slug]: when the lookup asks for a read,
+     * it waits up to [timeoutMillis] for it, so a preset made on OpenRouter since the last read
+     * is found rather than refused once. Right after a read nothing is asked for or waited for.
+     */
+    suspend fun findAfterRead(slug: String, timeoutMillis: Long): PresetEntry? {
+        find(slug)?.let { return it }
+        val read = runningRead() ?: return null
+        withTimeoutOrNull(timeoutMillis) { read.join() }
+        return current?.find(slug)
+    }
+
+    @Synchronized
+    private fun runningRead(): Job? = refreshing?.takeIf { it.isActive }
 
     /** Reads the presets again in the background, unless a read is already running. */
     @Synchronized

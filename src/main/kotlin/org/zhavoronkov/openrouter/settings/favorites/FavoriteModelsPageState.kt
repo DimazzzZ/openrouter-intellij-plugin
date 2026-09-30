@@ -1,6 +1,7 @@
 package org.zhavoronkov.openrouter.settings.favorites
 
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
+import org.zhavoronkov.openrouter.models.PresetPair
 import org.zhavoronkov.openrouter.settings.ModelFilterCriteria
 import org.zhavoronkov.openrouter.settings.ModelPresets
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
@@ -17,7 +18,11 @@ import org.zhavoronkov.openrouter.utils.ModelProviderUtils
  * positionally, and reordering is only offered in [Mode.FAVORITES_ONLY], where
  * row indices equal stored positions.
  */
-class FavoriteModelsPageState(initialFavorites: List<String> = emptyList()) {
+class FavoriteModelsPageState(
+    initialFavorites: List<String> = emptyList(),
+    /** Why a favourite pair cannot be sent with its preset, or null when it can or is not a pair. */
+    private val pairProblemOf: (String) -> String? = { null },
+) {
 
     enum class Mode { CATALOG, FAVORITES_ONLY }
 
@@ -83,6 +88,15 @@ class FavoriteModelsPageState(initialFavorites: List<String> = emptyList()) {
         val changed = if (on) favoriteIds.add(id) else favoriteIds.remove(id)
         if (changed) fireChanged()
         return changed
+    }
+
+    /**
+     * Adds [modelId] paired with [preset] to the end of the favorites, as a pair of the model
+     * itself when [modelId] is already a pair; returns the pair's id, or null when it was there.
+     */
+    fun addPair(modelId: String, preset: String): String? {
+        val pair = PresetPair(PresetPair.modelOf(modelId), preset).id
+        return pair.takeIf { setFavorite(it, true) }
     }
 
     /** Flips the favorite state of [id] and returns the new state. */
@@ -157,18 +171,33 @@ class FavoriteModelsPageState(initialFavorites: List<String> = emptyList()) {
     }
 
     /**
-     * Resolve a favorite id to catalog data: exact id, else the base model with the
-     * variant id kept (so pricing survives), else a bare placeholder.
+     * Resolve a favorite id to catalog data: exact id, else the model a pair sends, else the base
+     * model - in every case with the favorite's own id kept, so pricing survives - else a bare
+     * placeholder.
      */
     fun resolve(id: String): OpenRouterModelInfo {
         catalog.firstOrNull { it.id == id }?.let { return it }
-        val base = catalog.firstOrNull { it.id == ModelProviderUtils.stripVariant(id) }
-        return base?.copy(id = id, name = id) ?: OpenRouterModelInfo(id = id, name = id, created = 0L)
+        val found = ModelProviderUtils.catalogueEntry(PresetPair.modelOf(id), catalog)
+        return found?.copy(id = id, name = id) ?: OpenRouterModelInfo(id = id, name = id, created = 0L)
     }
 
+    /** The presets were read again: every pair is judged afresh. */
+    fun presetsChanged() {
+        pairProblems.clear()
+        fireChanged()
+    }
+
+    /** Each pair's problem, asked once and kept until anything on the page changes. */
+    private val pairProblems = mutableMapOf<String, String?>()
+
+    /** Why the favourite [id] - a pair - cannot be sent, for its warning mark, or null. */
+    fun pairProblem(id: String): String? =
+        if (PresetPair.isPair(id)) pairProblems.getOrPut(id) { pairProblemOf(id) } else null
+
     fun isAvailable(id: String): Boolean {
-        val baseId = ModelProviderUtils.stripVariant(id)
-        return catalog.any { it.id == id || it.id == baseId }
+        val model = PresetPair.modelOf(id)
+        val baseId = ModelProviderUtils.stripVariant(model)
+        return catalog.any { it.id == model || it.id == baseId }
     }
 
     fun statusText(): String {
@@ -215,6 +244,7 @@ class FavoriteModelsPageState(initialFavorites: List<String> = emptyList()) {
     }
 
     private fun fireChanged() {
+        pairProblems.clear()
         onChanged?.invoke()
     }
 

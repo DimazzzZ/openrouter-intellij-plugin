@@ -268,19 +268,26 @@ openrouter-intellij-plugin/
 │   ├── integration/                 # AI Assistant integration helpers
 │   ├── listeners/                   # Application/project lifecycle listeners
 │   ├── models/                      # Data models & DTOs (+ value/ for value objects)
+│   ├── presets/                     # The plugin's copy of the user's OpenRouter presets
 │   ├── proxy/                       # OpenAI-compatible proxy server
+│   │   ├── checks/                  # Clear errors for requests that cannot work
+│   │   ├── defaults/                # Plugin defaults added to a Consumer's request
 │   │   ├── models/                  # Proxy-specific request/response models
+│   │   ├── pairs/                   # A model with a preset: availability, preset wins
 │   │   ├── routing/                 # Provider routing preferences
 │   │   ├── servlets/                # HTTP request handlers (chat, models, health, …)
 │   │   ├── translation/             # Request/response translation
 │   │   └── validation/              # Request validation
+│   ├── requests/                    # Request records and their log, behind the Requests tab
 │   ├── services/                    # Core business logic (application-level)
 │   │   └── settings/                # Settings sub-managers
 │   ├── settings/                    # Settings UI components
-│   │   └── favorites/               # Favorite models page state + table (ADR-0004)
+│   │   ├── favorites/               # Favorite models page state + table (ADR-0004)
+│   │   ├── presets/                 # Presets page dialog and its model
+│   │   └── schemas/                 # Output Schemas page and dialog
 │   ├── startup/                     # Startup activities
 │   ├── statusbar/                   # Status bar widget
-│   ├── toolwindow/                  # Chat Tool Window (added in v0.5.0)
+│   ├── toolwindow/                  # Tool window: Chat, Requests and Status tabs
 │   ├── ui/                          # Setup wizard, stats popup, dialogs
 │   └── utils/                       # PluginLogger, model utils, EncryptionUtil, …
 ├── src/main/resources/

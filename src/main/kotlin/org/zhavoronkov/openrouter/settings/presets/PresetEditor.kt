@@ -89,7 +89,7 @@ class PresetEditor(
 
     val component: JComponent = panel {
         row("Slug:") { cell(slug).align(AlignX.FILL) }
-        row("Model:") { cell(model).align(AlignX.FILL).comment("Empty: the model the request names") }
+        row("Model:") { cell(model).align(AlignX.FILL).comment("Empty: the model a pair names") }
         row("Web search:") { cell(webSearch) }
         row("Output:") { cell(output) }
         row("Reasoning:") { cell(reasoning) }

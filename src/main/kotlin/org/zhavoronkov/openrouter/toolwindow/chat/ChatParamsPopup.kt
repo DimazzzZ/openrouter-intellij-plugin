@@ -2,10 +2,12 @@ package org.zhavoronkov.openrouter.toolwindow.chat
 
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.ui.ComboBox
+import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.ScreenUtil
 import com.intellij.ui.SimpleListCellRenderer
 import com.intellij.ui.awt.RelativePoint
+import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.Cell
@@ -96,6 +98,18 @@ class ChatParamsPopup(
 
     /** Invoked whenever the web search switch changes, by the user or by setting the controls. */
     var onWebSearchChanged: () -> Unit = {}
+
+    /** Set by the caller; invoked by "Save as Preset…", to save the controls as a preset. */
+    var onSaveAsPreset: () -> Unit = {}
+
+    /** The popup on screen, if any, closed before "Save as Preset…" opens its dialog. */
+    private var shown: JBPopup? = null
+
+    /** The popup's "Save as Preset…" link. */
+    internal val saveAsPreset = ActionLink(SAVE_AS_PRESET_TEXT) {
+        shown?.cancel()
+        onSaveAsPreset()
+    }
 
     /**
      * The Output Mode control. Owned here rather than by the caller: nothing but this popup shows
@@ -204,6 +218,12 @@ class ChatParamsPopup(
             if (!choiceFor(mode).supported && mode != selectedItem) return
             super.setSelectedItem(mode)
         }
+
+        /** Selects [mode] whether or not the Model can serve it, listing it when it is not offered. */
+        fun keep(mode: OutputMode) {
+            if (getIndexOf(mode) < 0) addElement(mode)
+            super.setSelectedItem(mode)
+        }
     }
 
     private var reasoningComment: String = ""
@@ -227,6 +247,24 @@ class ChatParamsPopup(
         routerComment = description
         routerVisible = visible
     }
+
+    /**
+     * Sets every control from [controls], as picking a pair does: a setting its preset leaves
+     * unset goes back to its default, so nothing is left over from an earlier message. The user may
+     * still change a control afterwards, for the messages that follow.
+     */
+    fun applyControls(controls: ChatControls) {
+        reasoning.selectedItem = controls.reasoning
+        verbosity.selectedItem = controls.verbosity
+        webSearch.isSelected = controls.webSearch
+        // Chosen even when the Model cannot give it: kept and marked, it blocks sending and says
+        // why, rather than the pair going out with an output its model does not declare
+        (outputMode.model as OutputModeModel).keep(controls.outputMode)
+        refreshOutputComment()
+    }
+
+    /** Every control back to its default, as leaving a pair for a plain model does. */
+    fun resetControls() = applyControls(ChatControls())
 
     /** What the controls currently say, as the next request's options. */
     fun requestOptions(): ChatRequestOptions = ChatRequestOptions(
@@ -280,6 +318,7 @@ class ChatParamsPopup(
             .createComponentPopupBuilder(form, reasoning)
             .setResizable(false)
             .createPopup()
+            .also { shown = it }
             .show(RelativePoint(under, anchor))
     }
 
@@ -381,6 +420,7 @@ class ChatParamsPopup(
         row(WEB_SEARCH_LABEL) { cell(webSearch) }.customize(TIGHT_ROW_GAP)
         row(OUTPUT_LABEL) { filling(outputMode) }.customize(TIGHT_ROW_GAP)
         row { cell(outputComment) }
+        row { cell(saveAsPreset) }.customize(TIGHT_ROW_GAP)
     }.apply {
         // The border must be set BEFORE the width is clamped and the height is
         // measured: it shrinks the interior width the DSL grid actually has to
@@ -442,6 +482,8 @@ class ChatParamsPopup(
         if (comment.isEmpty()) this else rowComment(comment, MAX_LINE_LENGTH_WORD_WRAP)
 
     internal companion object {
+        const val SAVE_AS_PRESET_TEXT = "Save as Preset…"
+
         /**
          * Trailing colon matches [RouterDefaultsSettingsPanel]'s
          * `row("${def.displayName}:")` convention for the same three

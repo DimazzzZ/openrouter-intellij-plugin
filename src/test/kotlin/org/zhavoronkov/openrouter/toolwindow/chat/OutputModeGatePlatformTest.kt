@@ -115,4 +115,19 @@ class OutputModeGatePlatformTest : BasePlatformTestCase() {
         assertNull(gate.blockedReason())
         assertTrue(composer.canSend)
     }
+
+    /** The switch cannot take away a preset's web search tool, so the gate judges both. */
+    fun testAPresetThatSearchesBlocksPlainJsonWithTheSwitchOff() {
+        gate.update(capable())
+        popup.outputMode.selectedItem = OutputMode.PlainJson
+
+        gate.update(capable().copy(presetSearches = true))
+
+        assertFalse(webSearch.isSelected)
+        assertEquals(
+            "${ChatExchange.WEB_SEARCH_PRESET_DROPS_JSON}. Choose another output mode to send.",
+            gate.blockedReason()
+        )
+        assertFalse(composer.canSend)
+    }
 }

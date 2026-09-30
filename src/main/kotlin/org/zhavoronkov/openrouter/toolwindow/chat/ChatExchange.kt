@@ -8,6 +8,7 @@ import org.zhavoronkov.openrouter.models.ChatTool
 import org.zhavoronkov.openrouter.models.EntryNames
 import org.zhavoronkov.openrouter.models.JsonSchemaFormat
 import org.zhavoronkov.openrouter.models.OutputSchema
+import org.zhavoronkov.openrouter.models.PresetPair
 import org.zhavoronkov.openrouter.models.ReasoningConfig
 import org.zhavoronkov.openrouter.models.RequestChoices
 import org.zhavoronkov.openrouter.models.ResponseFormat
@@ -67,13 +68,16 @@ sealed class OutputMode(val label: String) {
 /**
  * What decides which Output Modes can be served: the selected [model], what it declares in the
  * catalogue - [supportedParameters], or null when that is not known - the saved [schemas], and
- * whether the request lets the model search the web, which OpenRouter's web search changes.
+ * whether the request lets the model search the web, which OpenRouter's web search changes:
+ * through the Web search switch, [webSearch], or through a pair's preset, [presetSearches], which
+ * the switch cannot take away.
  */
 data class OutputModeContext(
     val model: String,
     val supportedParameters: List<String>?,
     val schemas: List<OutputSchema>,
-    val webSearch: Boolean = false
+    val webSearch: Boolean = false,
+    val presetSearches: Boolean = false
 )
 
 /**
@@ -189,27 +193,38 @@ data class ReplySummary(
 object ChatExchange {
 
     /**
-     * [webSearch] is how a search is tuned, applied only when [options] turns Web Search on for
-     * this message; its defaults leave every choice to OpenRouter.
+     * The chat's request. [webSearch] is how a search is tuned, applied only when [options] turns
+     * Web Search on for this message; its defaults leave every choice to OpenRouter.
+     * [presetFields] are the fields a pair's preset sets: the chat's own fixed sampling settings
+     * stay out of them, since OpenRouter lets a request's field override the preset's. [preset] is
+     * what the preset shows in the controls: a control still at the preset's value sends nothing,
+     * so the preset's own field - a reasoning budget beside its effort, say - applies whole.
      */
     fun buildRequest(
         model: String,
         messages: List<ChatMessage>,
         options: ChatRequestOptions,
         webSearch: WebSearchSettings = WebSearchSettings(),
-        schemas: List<OutputSchema> = emptyList()
+        schemas: List<OutputSchema> = emptyList(),
+        presetFields: Set<String> = emptySet(),
+        preset: ChatControls? = null
     ): ChatCompletionRequest = ChatCompletionRequest(
         model = model,
         messages = messages,
-        maxTokens = MAX_TOKENS,
-        temperature = TEMPERATURE,
+        maxTokens = MAX_TOKENS.takeUnless { "max_tokens" in presetFields },
+        temperature = TEMPERATURE.takeUnless { "temperature" in presetFields },
         // The chat window reads replies whole; the streaming path belongs to the Proxy Server.
         stream = false,
-        reasoning = reasoningConfig(options.reasoning),
-        verbosity = verbosity(options.verbosity),
-        plugins = RouterRequestBuilder.buildPlugins(model, options.routerParam),
-        tools = webSearchTools(options, webSearch),
-        responseFormat = responseFormat(options.outputMode, schemas)
+        reasoning = reasoningConfig(options.reasoning).takeUnless { options.reasoning == preset?.reasoning },
+        verbosity = verbosity(options.verbosity).takeUnless { options.verbosity == preset?.verbosity },
+        // A pair names its router in front of the preset
+        plugins = RouterRequestBuilder.buildPlugins(PresetPair.modelOf(model), options.routerParam)
+            .takeUnless { "plugins" in presetFields },
+        tools = webSearchTools(options, webSearch).takeUnless { options.webSearch && preset?.webSearch == true },
+        responseFormat = responseFormat(
+            options.outputMode,
+            schemas
+        ).takeUnless { options.outputMode == preset?.outputMode }
     )
 
     /**
@@ -256,10 +271,14 @@ object ChatExchange {
      */
     fun outputModes(context: OutputModeContext): List<OutputModeChoice> {
         val (model, declared, schemas) = context
-        val jsonReason = responseFormatProblem(model, declared, schema = false)
-            ?: WEB_SEARCH_DROPS_JSON.takeIf { context.webSearch }
+        val searchReason = when {
+            context.presetSearches -> WEB_SEARCH_PRESET_DROPS_JSON
+            context.webSearch -> WEB_SEARCH_DROPS_JSON
+            else -> null
+        }
+        val jsonReason = responseFormatProblem(model, declared, schema = false) ?: searchReason
         val schemaReason = responseFormatProblem(model, declared, schema = true)
-        val schemaWarning = WEB_SEARCH_SCHEMA_WARNING.takeIf { context.webSearch }
+        val schemaWarning = WEB_SEARCH_SCHEMA_WARNING.takeIf { searchReason != null }
         return listOf(
             OutputModeChoice(OutputMode.Off, null),
             OutputModeChoice(OutputMode.PlainJson, jsonReason)
@@ -283,6 +302,10 @@ object ChatExchange {
     /** Measured against OpenRouter: the web search server tool drops `json_object` whatever searches. */
     const val WEB_SEARCH_DROPS_JSON =
         "OpenRouter drops plain JSON when the model may search the web; turn web search off"
+
+    /** [WEB_SEARCH_DROPS_JSON] for a pair whose preset searches, which no switch turns off. */
+    const val WEB_SEARCH_PRESET_DROPS_JSON =
+        "OpenRouter drops plain JSON when the model may search the web, and this pair's preset lets it"
 
     /**
      * Why [model], declaring [declared], cannot give plain JSON - or, when [schema], a reply in the
@@ -367,7 +390,7 @@ object ChatExchange {
 
     /** Only a listed effort is sent; see [RequestChoices.REASONING_EFFORTS]. */
     private fun reasoningConfig(chosen: String?): ReasoningConfig? =
-        RequestChoices.REASONING_EFFORTS[chosen]?.let { ReasoningConfig(effort = it) }
+        RequestChoices.reasoningEffort(chosen)?.let { ReasoningConfig(effort = it) }
 
     /** The longest reply the chat window asks for. */
     private const val MAX_TOKENS = 4096

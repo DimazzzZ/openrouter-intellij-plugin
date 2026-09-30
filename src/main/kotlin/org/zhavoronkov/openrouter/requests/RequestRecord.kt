@@ -26,9 +26,11 @@ data class ReplyFacts(
  *
  * Facts only: never the prompt, the reply or a header. [sender] is who sent it - a Consumer named
  * from its User-Agent, or the chat. [requestedModel] is the id the sender asked for, before the
- * proxy did anything to it; [reply] is what came back, and [error] is set instead when the request
- * failed - with [fixAt], the settings page that fixes it, when the plugin itself refused the
- * request. Stored as it is, so its property names are a storage format.
+ * proxy did anything to it - a pair's id, when a Consumer picked one; [preset] is then the
+ * preset it was sent with, and [replaced] the Consumer's own request fields removed so that the
+ * preset's held. [reply] is what came back, and [error] is set instead when the request failed - with
+ * [fixAt], the settings page that fixes it, when the plugin itself refused the request. Stored as
+ * it is, so its property names are a storage format.
  */
 data class RequestRecord(
     val startedAtMillis: Long,
@@ -38,6 +40,8 @@ data class RequestRecord(
     val requestedModel: String,
     val reply: ReplyFacts = ReplyFacts(),
     val error: String? = null,
+    val preset: String? = null,
+    val replaced: List<String> = emptyList(),
     val fixAt: FixPage? = null
 )
 

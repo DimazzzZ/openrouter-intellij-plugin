@@ -8,6 +8,7 @@ import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
+import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.util.ui.JBUI
 import kotlinx.coroutines.CoroutineScope
@@ -19,6 +20,11 @@ import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatMessage
 import org.zhavoronkov.openrouter.models.OutputSchema
+import org.zhavoronkov.openrouter.models.PresetPair
+import org.zhavoronkov.openrouter.presets.PresetCopyService
+import org.zhavoronkov.openrouter.presets.PresetEntry
+import org.zhavoronkov.openrouter.proxy.errors.ClearError
+import org.zhavoronkov.openrouter.proxy.pairs.PairAvailability
 import org.zhavoronkov.openrouter.proxy.routing.RouterCatalog
 import org.zhavoronkov.openrouter.proxy.routing.RouterRequestBuilder
 import org.zhavoronkov.openrouter.requests.GenerationProviderLookup
@@ -28,12 +34,17 @@ import org.zhavoronkov.openrouter.requests.RequestSource
 import org.zhavoronkov.openrouter.requests.RequestTrace
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.settings.presets.PresetDialog
+import org.zhavoronkov.openrouter.settings.presets.PresetWriter
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatComposer
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatConversationView
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatExchange
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatFileWriter
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatListView
+import org.zhavoronkov.openrouter.toolwindow.chat.ChatModelChoice
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatParamsPopup
+import org.zhavoronkov.openrouter.toolwindow.chat.ChatPresetControls
+import org.zhavoronkov.openrouter.toolwindow.chat.ChatPresetSaver
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatRequestOptions
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatToolbar
 import org.zhavoronkov.openrouter.toolwindow.chat.MessageView
@@ -126,6 +137,11 @@ class ChatPanel(
     // Output Mode gating every time the selection or the Model changes.
     private var selectedModelParameters: List<String>? = null
 
+    private var stopWatchingPresets: () -> Unit = {}
+
+    /** The preset last applied to the send-parameters controls, to tell a changed one - or a pair left - from none. */
+    private var appliedPreset: PresetEntry? = null
+
     // Remembers which router-param the combo box currently reflects, so
     // non-selection-driven refresh paths (favorites reload, async init
     // callback) do NOT rebuild the model and silently wipe the user's
@@ -203,6 +219,9 @@ class ChatPanel(
         webSearchCheckBox = JBCheckBox()
 
         paramsPopup = ChatParamsPopup(reasoningComboBox, verbosityComboBox, routerParamComboBox, webSearchCheckBox)
+        paramsPopup.onSaveAsPreset = ::saveAsPreset
+        // A preset edited on the Presets page, or saved from here, reaches the controls
+        stopWatchingPresets = presetCopy.addListener { SwingUtilities.invokeLater(::followPickedPreset) }
         composer.onSettingsClick = { paramsPopup.show(composer.settingsComponent()) }
         // Any selection change on a send parameter can flip whether it is
         // "non-default", so the gear badge/tooltip has to be recomputed from
@@ -258,8 +277,10 @@ class ChatPanel(
                 }
                 saveSelectedModel()
                 updateReasoningVerbosityState()
+                followPickedPreset()
             }
         }
+        followPickedPreset()
 
         // Set initial reasoning/verbosity state after model is restored
         coroutineScope.launch {
@@ -487,6 +508,8 @@ class ChatPanel(
 
     fun refreshModels() {
         loadFavoriteModels()
+        // A preset edited in Settings reaches the controls; an unchanged one leaves them alone
+        followPickedPreset()
         coroutineScope.launch {
             try {
                 org.zhavoronkov.openrouter.services.FavoriteModelsService.getInstance()
@@ -625,8 +648,10 @@ class ChatPanel(
     }
 
     private fun updateReasoningVerbosityState() {
-        val selectedModel = modelComboBox.selectedItem as? String ?: return
-        if (selectedModel.startsWith(SEPARATOR_PREFIX)) return
+        val picked = modelComboBox.selectedItem as? String ?: return
+        if (picked.startsWith(SEPARATOR_PREFIX)) return
+        // A pair is judged by the model it sends
+        val selectedModel = PresetPair.modelOf(picked)
 
         val favoriteModelsService = org.zhavoronkov.openrouter.services.FavoriteModelsService.getInstance()
         val modelInfo = favoriteModelsService.getModelById(selectedModel)
@@ -642,7 +667,10 @@ class ChatPanel(
         paramsPopup.setReasoningSupport(supportsReasoning, PARAM_NOT_SUPPORTED_REASON)
         paramsPopup.setVerbositySupport(supportsVerbosity, PARAM_NOT_SUPPORTED_REASON)
         selectedModelParameters = modelInfo?.supportedParameters
-        outputModeGate.update(OutputModeContext(selectedModel, selectedModelParameters, savedSchemas()))
+        val presetSearches = pickedChoice()?.presetSearches == true
+        outputModeGate.update(
+            OutputModeContext(selectedModel, selectedModelParameters, savedSchemas(), presetSearches = presetSearches)
+        )
 
         reasoningComboBox.toolTipText = if (supportsReasoning) {
             "Reasoning effort"
@@ -659,9 +687,12 @@ class ChatPanel(
         // Reset rather than kept and blocked, unlike an Output Mode. Reasoning and verbosity are
         // hints about how to answer; a Model without them still answers the same question, and
         // the disabled control says why it reads Default. An Output Mode is a promise about the
-        // reply's shape, which the user would otherwise believe was kept.
-        if (!supportsReasoning) reasoningComboBox.selectedIndex = 0
-        if (!supportsVerbosity) verbosityComboBox.selectedIndex = 0
+        // reply's shape, which the user would otherwise believe was kept. A pair keeps its
+        // preset's values until the catalogue says its Model lacks them, not merely while the
+        // catalogue is still loading.
+        val supportUnknownForPair = modelInfo == null && PresetPair.isPair(picked)
+        if (!supportsReasoning && !supportUnknownForPair) reasoningComboBox.selectedIndex = 0
+        if (!supportsVerbosity && !supportUnknownForPair) verbosityComboBox.selectedIndex = 0
 
         // updateRouterParamState refreshes the gear badge itself (it always
         // runs, so it's the single place that has to cover both this method's
@@ -670,6 +701,69 @@ class ChatPanel(
     }
 
     private fun savedSchemas(): List<OutputSchema> = settingsService.outputSchemasManager.all()
+
+    /**
+     * "Save as Preset…": the send-parameters controls as a preset, named and edited in the preset
+     * dialog and saved to OpenRouter - without a model, so it pairs with any.
+     */
+    private fun saveAsPreset() {
+        val schemas = savedSchemas()
+        val draft = ChatPresetControls.draftOf(paramsPopup.requestOptions(), schemas)
+        val taken = presetCopy.snapshot()?.presets?.map { it.slug }.orEmpty()
+        val saver = ChatPresetSaver(
+            edit = { edited, takenSlugs ->
+                PresetDialog.edit(mainPanel, edited, isNew = true, takenSlugs = takenSlugs, schemas = schemas)
+            },
+            confirmReplace = ::confirmReplacingPreset
+        )
+        val saved = saver.choose(draft, taken) ?: return
+        coroutineScope.launch {
+            val error = PresetWriter.save(saved)
+            SwingUtilities.invokeLater {
+                if (error != null) conversationView.showError("Could not save the preset: $error")
+            }
+        }
+    }
+
+    private fun confirmReplacingPreset(slug: String): Boolean = Messages.showOkCancelDialog(
+        mainPanel,
+        "A preset named '$slug' already exists on OpenRouter. Saving gives it a new version with these " +
+            "settings, which replace what it sets now.",
+        "Save as Preset",
+        "Replace",
+        Messages.getCancelButton(),
+        null
+    ) == Messages.OK
+
+    private val presetCopy get() = PresetCopyService.getInstance().copy
+
+    private fun presetConfig(slug: String) = presetCopy.snapshot()?.find(slug)?.config
+
+    /** What the model picker holds now, or null while it holds nothing to send to. */
+    private fun pickedChoice(): ChatModelChoice? {
+        val picked = modelComboBox.selectedItem as? String ?: return null
+        if (picked.startsWith(SEPARATOR_PREFIX)) return null
+        return ChatModelChoice.of(picked, PairAvailability.fromSettings())
+    }
+
+    /**
+     * Brings the send-parameters controls in line with the picked model: a pair's preset fills
+     * them, and leaving a pair for a plain model puts them back to their defaults, so nothing of
+     * the preset goes out with a model it was not picked for. The preset already applied is left
+     * alone, and with it whatever the user changed since.
+     */
+    private fun followPickedPreset() {
+        val preset = pickedChoice()?.preset
+        if (!ChatPresetControls.changed(preset, appliedPreset)) return
+        if (preset != null) {
+            paramsPopup.applyControls(ChatPresetControls.of(preset, savedSchemas()))
+        } else {
+            paramsPopup.resetControls()
+        }
+        appliedPreset = preset
+        // Once more, now the preset's values are in: a reasoning the Model is known to lack goes
+        updateReasoningVerbosityState()
+    }
 
     /** Recomputes the gear badge/tooltip from the current combo selections (spec D7). */
     private fun refreshParamsBadge() {
@@ -741,17 +835,30 @@ class ChatPanel(
             return
         }
 
+        val choice = ChatModelChoice.of(selectedModel, PairAvailability.fromSettings())
+        choice.problem?.let { problem ->
+            conversationView.showError(ClearError.of(problem).message)
+            return
+        }
+
         // Read on the EDT, at the moment of sending, and checked against the same rule that blocks
         // Send: what goes out is exactly what the controls showed when the user sent it. The saved
         // schemas are re-read first, so a schema deleted since the popup was last brought up to
         // date blocks this send - and says why - rather than being sent or silently ignored.
-        val context = OutputModeContext(selectedModel, selectedModelParameters, savedSchemas())
+        val context = OutputModeContext(
+            choice.model,
+            selectedModelParameters,
+            savedSchemas(),
+            presetSearches = choice.presetSearches
+        )
         outputModeGate.update(context)
         outputModeGate.blockedReason()?.let { reason ->
             conversationView.showError(reason)
             return
         }
-        val options = paramsPopup.requestOptions()
+        // A preset's routing replaces every routing default, the router's parameter included
+        val controls = paramsPopup.requestOptions()
+        val options = if (choice.presetRouting) controls.copy(routerParam = null) else controls
 
         composer.text = ""
         composer.requestFocusInInput()
@@ -771,7 +878,7 @@ class ChatPanel(
         setLoading(true)
 
         coroutineScope.launch {
-            sendChatRequest(selectedModel, currentChat, options, context.schemas)
+            sendChatRequest(choice, currentChat, options, context.schemas)
         }
     }
 
@@ -784,7 +891,7 @@ class ChatPanel(
     }
 
     private suspend fun sendChatRequest(
-        model: String,
+        choice: ChatModelChoice,
         currentChat: ChatSession?,
         options: ChatRequestOptions,
         schemas: List<OutputSchema>
@@ -793,23 +900,26 @@ class ChatPanel(
         val trace = RequestTrace(
             source = RequestSource.CHAT,
             sender = CHAT_SENDER,
-            requestedModel = model,
+            requestedModel = choice.picked,
             record = { RequestLogService.getInstance().record(it) }
         )
+        PresetPair.parse(choice.picked)?.let { trace.preset(it.preset, emptyList()) }
         try {
             val messages = currentChat?.messages?.map { msg ->
                 ChatMessage(role = msg.role, content = JsonPrimitive(msg.content))
             } ?: emptyList()
 
             val request = ChatExchange.buildRequest(
-                model = model,
+                model = choice.picked,
                 messages = messages,
                 options = options,
                 webSearch = settingsService.webSearchManager.current(),
-                schemas = schemas
+                schemas = schemas,
+                presetFields = choice.preset?.config?.keySet()?.toSet().orEmpty(),
+                preset = choice.preset?.let { ChatPresetControls.of(it, schemas) }
             )
 
-            trace.sent(gson.toJsonTree(request).asJsonObject)
+            trace.sent(gson.toJsonTree(request).asJsonObject, ::presetConfig)
             val result = openRouterService.createChatCompletion(request)
             when (result) {
                 is ApiResult.Success -> trace.observe(gson.toJsonTree(result.data).asJsonObject)
@@ -871,7 +981,7 @@ class ChatPanel(
         // How the reply was produced, echoed under it as a small footnote rather than as a
         // separate system line. Shown from the saved message itself, so a live reply and a
         // reopened one go through the same rendering and cannot disagree.
-        val replyNamesProvider = ReplyProvider.trusted(gson.toJsonTree(request).asJsonObject)
+        val replyNamesProvider = ReplyProvider.trusted(gson.toJsonTree(request).asJsonObject, ::presetConfig)
         val summary = ChatExchange.summarizeReply(request, response, replyNamesProvider)
         val reply = ChatMessageData.reply(messageText, summary)
         val view = showAssistantMessage(reply)
@@ -973,6 +1083,7 @@ class ChatPanel(
     fun getPanel(): JPanel = mainPanel
 
     fun dispose() {
+        stopWatchingPresets()
         saveChats()
         coroutineScope.cancel()
     }

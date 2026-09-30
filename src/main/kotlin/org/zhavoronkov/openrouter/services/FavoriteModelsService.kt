@@ -7,6 +7,7 @@ import kotlinx.coroutines.withTimeout
 import org.zhavoronkov.openrouter.constants.OpenRouterConstants
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
+import org.zhavoronkov.openrouter.models.PresetPair
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -98,8 +99,11 @@ class FavoriteModelsService(
     fun getFavoriteModels(): List<OpenRouterModelInfo> {
         val favoriteIds = settings.favoriteModelsManager.getFavoriteModels()
         return favoriteIds.map { modelId ->
-            // Try to find full model info from cache, otherwise create minimal object
-            cachedModels?.find { it.id == modelId } ?: createMinimalModelInfo(modelId)
+            // Try to find full model info from cache - a pair's is its model's, under the pair's
+            // own id - otherwise create minimal object
+            cachedModels?.find { it.id == modelId }
+                ?: cachedModels?.find { it.id == PresetPair.modelOf(modelId) }?.copy(id = modelId)
+                ?: createMinimalModelInfo(modelId)
         }
     }
 

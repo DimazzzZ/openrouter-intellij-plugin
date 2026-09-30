@@ -63,6 +63,24 @@ class ChatExchangeTest {
             assertNull(ChatExchange.sendBlockedReason(OutputMode.Schema("answer"), searching()))
         }
 
+        /** Unticking Web search sends no tool, so a preset's own search tool still applies. */
+        @Test
+        @DisplayName("a pair's preset that searches blocks plain JSON even with the switch off")
+        fun presetSearchBlocksJson() {
+            val context = searching().copy(webSearch = false, presetSearches = true)
+
+            val choices = ChatExchange.outputModes(context)
+
+            assertEquals(
+                ChatExchange.WEB_SEARCH_PRESET_DROPS_JSON,
+                choices.single { it.mode == OutputMode.PlainJson }.unsupportedReason
+            )
+            assertEquals(
+                ChatExchange.WEB_SEARCH_SCHEMA_WARNING,
+                choices.single { it.mode == OutputMode.Schema("answer") }.warning
+            )
+        }
+
         @Test
         @DisplayName("what the model does not declare is still the reason given, not web search")
         fun capabilityFirst() {

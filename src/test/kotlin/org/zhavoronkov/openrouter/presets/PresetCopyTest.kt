@@ -106,6 +106,29 @@ class PresetCopyTest {
     }
 
     @Test
+    @DisplayName("a caller about to refuse an unknown slug can wait for the read it asks for")
+    fun findAfterRead() = runTest {
+        val copy = copy(this)
+        copy.refresh()
+        listed = listOf(PresetListing("research", "Research"), PresetListing("fresh", "Fresh"))
+        versions["fresh"] = PresetVersion(null, config("""{"temperature":0.1}"""))
+        now += 60_000
+
+        assertEquals("fresh", copy.findAfterRead("fresh", timeoutMillis = 5_000)?.slug)
+    }
+
+    @Test
+    @DisplayName("right after a read an unknown slug is not waited for: no read is asked for")
+    fun findAfterReadThrottled() = runTest {
+        val copy = copy(this)
+        copy.refresh()
+        val afterFirstRead = lists
+
+        assertNull(copy.findAfterRead("fresh", timeoutMillis = 5_000))
+        assertEquals(afterFirstRead, lists)
+    }
+
+    @Test
     @DisplayName("listeners hear every read that succeeds, and stop when removed")
     fun listeners() = runTest {
         val copy = copy(this)

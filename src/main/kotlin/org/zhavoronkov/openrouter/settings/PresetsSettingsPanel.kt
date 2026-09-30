@@ -60,7 +60,9 @@ class PresetsSettingsPanel(
     private val listSlugs: (List<String>) -> Unit = {
         OpenRouterSettingsService.getInstance().presetsManager.setCustomPresets(it)
     },
-    private val autoRefresh: Boolean = true
+    private val autoRefresh: Boolean = true,
+    /** Says that the preset [slug] names cannot be edited, since what it sets could not be read. */
+    private val tellUnreadable: (String) -> Unit = ::showUnreadable
 ) : Disposable {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -91,8 +93,8 @@ class PresetsSettingsPanel(
         root = panel {
             row {
                 comment(
-                    "Presets are OpenRouter's named request settings; OpenRouter applies one to a request " +
-                        "that names it."
+                    "Presets are OpenRouter's named request settings. Pair one with a model in Favorite Models " +
+                        "and a Consumer that can only pick a model gets them."
                 )
             }
             row { cell(decorated).align(AlignX.FILL).align(AlignY.FILL) }.resizableRow()
@@ -149,6 +151,11 @@ class PresetsSettingsPanel(
 
     internal fun editSelected() {
         val entry = list.selectedValue ?: return
+        // Saving writes a whole new version, so a preset whose config is not known would be wiped
+        if (entry.config == null) {
+            tellUnreadable(entry.slug)
+            return
+        }
         val draft = edit(root, PresetDraft.of(entry), false, takenSlugs(), schemas()) ?: return
         store(draft)
     }
@@ -208,6 +215,12 @@ class PresetsSettingsPanel(
             "New Preset",
             null
         )?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+
+        private fun showUnreadable(slug: String) = Messages.showWarningDialog(
+            "What '$slug' sets could not be read from OpenRouter, and saving it would replace it with " +
+                "an empty preset. Open Settings again to read your presets once more, or edit it on openrouter.ai.",
+            "Edit Preset"
+        )
 
         private fun confirmOpeningSite(slug: String): Boolean = Messages.showOkCancelDialog(
             "OpenRouter deletes presets only on its site. Open your presets there to delete '$slug'?",

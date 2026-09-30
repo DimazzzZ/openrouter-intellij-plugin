@@ -25,7 +25,9 @@ class FavoriteModelsTableColumns(private val state: FavoriteModelsPageState) {
 
     private val booleanRenderer by lazy { BooleanTableCellRenderer(SwingConstants.CENTER) }
     private val booleanEditor by lazy { BooleanTableCellEditor() }
-    private val chipRenderer by lazy { VariantChipTableCellRenderer(isAvailable = state::isAvailable) }
+    private val chipRenderer by lazy {
+        VariantChipTableCellRenderer(isAvailable = state::isAvailable, problemOf = state::pairProblem)
+    }
     private val contextRenderer by lazy {
         object : DefaultTableCellRenderer() {
             init {

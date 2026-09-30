@@ -60,6 +60,21 @@ class RegionFavoritesTest {
         }
 
         @Test
+        @DisplayName("a pair is served wherever its model is, variant included")
+        fun `a pair follows its model`() {
+            val missing = RegionFavorites.unavailable(
+                favoriteIds = listOf(
+                    "openai/gpt-4o@preset/research",
+                    "openai/gpt-4o:nitro@preset/quick",
+                    "x-ai/grok-4@preset/q"
+                ),
+                regionModelIds = euModels
+            )
+
+            assertEquals(listOf("x-ai/grok-4@preset/q"), missing)
+        }
+
+        @Test
         @DisplayName("nothing is reported when there are no favorites")
         fun `no favorites reports nothing`() {
             assertEquals(emptyList<String>(), RegionFavorites.unavailable(emptyList(), euModels))

@@ -7,6 +7,7 @@ package org.zhavoronkov.openrouter.models
  * Stored on a Request record by name, so its entries are a storage format.
  */
 enum class FixPage(val title: String, val path: String) {
+    PRESETS("Presets", "Settings → Tools → OpenRouter → Presets"),
     FAVORITE_MODELS("Favorite Models", "Settings → Tools → OpenRouter → Favorite Models"),
     OUTPUT_SCHEMAS("Output Schemas", "Settings → Tools → OpenRouter → Output Schemas"),
 

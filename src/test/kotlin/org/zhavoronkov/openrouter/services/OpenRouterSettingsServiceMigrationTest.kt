@@ -74,6 +74,29 @@ class OpenRouterSettingsServiceMigrationTest {
     }
 
     @Test
+    fun `favorites migration strips a deprecated variant from a pair's model and keeps the pair`() {
+        val service = OpenRouterSettingsService()
+        val state = OpenRouterSettings(favoriteModels = mutableListOf("perplexity/sonar:online@preset/research"))
+
+        service.loadState(state)
+
+        assertEquals(listOf("perplexity/sonar@preset/research"), service.getState().favoriteModels)
+    }
+
+    /** Presets replaced the Profiles of development builds; `@profile/` was never OpenRouter syntax. */
+    @Test
+    fun `favorites migration drops pairs with a Profile`() {
+        val service = OpenRouterSettingsService()
+        val state = OpenRouterSettings(
+            favoriteModels = mutableListOf("openai/gpt-4o", "openai/gpt-5.2@profile/research", "a/b@preset/web")
+        )
+
+        service.loadState(state)
+
+        assertEquals(listOf("openai/gpt-4o", "a/b@preset/web"), service.getState().favoriteModels)
+    }
+
+    @Test
     fun `favorites migration should preserve list when no deprecated suffixes are present`() {
         val service = OpenRouterSettingsService()
         val pristine = mutableListOf("openai/gpt-4o", "anthropic/claude-3.5-sonnet")

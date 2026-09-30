@@ -15,9 +15,9 @@ private const val CELL_HEIGHT = 24
  */
 class VariantChipTableCellRendererPlatformTest : BasePlatformTestCase() {
 
-    private fun paintCell(id: String): BufferedImage {
+    private fun paintCell(id: String, problem: String? = null): BufferedImage {
         val table = JBTable()
-        val cell = VariantChipTableCellRenderer()
+        val cell = VariantChipTableCellRenderer(problemOf = { problem })
             .getTableCellRendererComponent(table, id, false, false, 0, 0)
         cell.setSize(CELL_WIDTH, CELL_HEIGHT)
         val image = BufferedImage(CELL_WIDTH, CELL_HEIGHT, BufferedImage.TYPE_INT_RGB)
@@ -65,6 +65,35 @@ class VariantChipTableCellRendererPlatformTest : BasePlatformTestCase() {
         val latestFill = chip("~openai/gpt-astra-latest", "Latest").background
 
         assertEquals(0, paintCell("openai/gpt-4o:free").pixelsOf(latestFill))
+    }
+
+    fun testAPairPaintsItsPresetChipBesideItsVariantChip() {
+        val id = "x-ai/grok-4-fast:free@preset/research"
+        val image = paintCell(id)
+
+        val presetFill = chip(id, "research").background
+        val freeFill = chip(id, "Free").background
+        assertTrue("the preset chip must be painted", image.pixelsOf(presetFill) > MIN_CHIP_PIXELS)
+        assertTrue("the model's Free chip must be painted too", image.pixelsOf(freeFill) > MIN_CHIP_PIXELS)
+    }
+
+    /** The reason itself is the row's tooltip; the chip is what makes the row stand out. */
+    fun testAPairThatCannotBeSentPaintsAProblemChipAndGivesTheReason() {
+        val id = "openai/gpt-4o@preset/gone"
+        val problemFill = ModelVariantChipRenderer.problemChip().background
+
+        val marked = paintCell(id, "No preset named 'gone' is saved on OpenRouter")
+        assertTrue("the problem chip must be painted", marked.pixelsOf(problemFill) > MIN_CHIP_PIXELS)
+        assertEquals("a pair that can be sent has none", 0, paintCell(id).pixelsOf(problemFill))
+        val cell = VariantChipTableCellRenderer(problemOf = { "No preset named 'gone' is saved on OpenRouter" })
+            .getTableCellRendererComponent(JBTable(), id, false, false, 0, 0) as javax.swing.JComponent
+        assertEquals("No preset named 'gone' is saved on OpenRouter", cell.toolTipText)
+    }
+
+    fun testAPlainModelPaintsNoPresetChip() {
+        val presetFill = chip("openai/gpt-4o@preset/research", "research").background
+
+        assertEquals(0, paintCell("openai/gpt-4o").pixelsOf(presetFill))
     }
 
     private companion object {

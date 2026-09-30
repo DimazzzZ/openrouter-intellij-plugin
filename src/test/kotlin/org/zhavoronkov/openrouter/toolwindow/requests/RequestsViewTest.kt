@@ -155,10 +155,22 @@ class RequestsViewTest {
         @Test
         @DisplayName("a request the plugin refused names the page that fixes it")
         fun fixIn() {
-            val refused = record(reply = ReplyFacts(), error = "OpenRouter plugin: ...").copy(fixAt = FixPage.FAVORITE_MODELS)
+            val refused = record(reply = ReplyFacts(), error = "OpenRouter plugin: ...").copy(fixAt = FixPage.PRESETS)
 
             val fixIn = RequestsView.details(refused, zone).toMap()["Fix in"]
-            assertEquals("Settings → Tools → OpenRouter → Favorite Models", fixIn)
+            assertEquals("Settings → Tools → OpenRouter → Presets", fixIn)
+        }
+
+        @Test
+        @DisplayName("a pair's request names its preset and what was removed for it")
+        fun presetFacts() {
+            val pair = record(model = "openai/gpt-4o@preset/research")
+                .copy(preset = "research", replaced = listOf("reasoning", "provider"))
+
+            val labels = RequestsView.details(pair, zone).toMap()
+
+            assertEquals("research", labels["Preset"])
+            assertEquals("reasoning, provider", labels["Removed for the preset"])
         }
 
         @Test

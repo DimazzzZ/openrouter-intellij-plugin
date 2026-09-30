@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import org.zhavoronkov.openrouter.models.FixPage
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -90,6 +91,35 @@ class RequestLogTest {
 
         assertEquals(emptyList<RequestRecord>(), log.recent())
         assertEquals(emptyList<RequestRecord>(), RequestLog(file(), limit = { 10 }).recent())
+    }
+
+    /** A line written before records kept a preset's replacements still loads, with none. */
+    @Test
+    @DisplayName("a line from before presets loads with no preset and no replacements")
+    fun `a line from before presets loads`() {
+        val older = """{"startedAtMillis":1,"durationMillis":5,"source":"PROXY","sender":"Junie",""" +
+            """"requestedModel":"m1","reply":{"webSearches":0}}"""
+        Files.createDirectories(file().parent)
+        Files.writeString(file(), older + "\n")
+
+        val loaded = RequestLog(file(), limit = { 10 }).recent().single()
+
+        assertEquals(null, loaded.preset)
+        assertEquals(emptyList<String>(), loaded.replaced)
+    }
+
+    @Test
+    @DisplayName("a record's preset and replacements survive a reload")
+    fun `preset facts survive a reload`() {
+        val withPreset = record(1).copy(
+            requestedModel = "m1@preset/p",
+            preset = "p",
+            replaced = listOf("provider"),
+            fixAt = FixPage.PRESETS
+        )
+        RequestLog(file(), limit = { 10 }).add(withPreset)
+
+        assertEquals(listOf(withPreset), RequestLog(file(), limit = { 10 }).recent())
     }
 
     /** A page renamed or removed since a line was written loads as none, not as a lost record. */

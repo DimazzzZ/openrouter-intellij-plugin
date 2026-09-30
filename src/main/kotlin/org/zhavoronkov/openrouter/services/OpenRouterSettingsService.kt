@@ -7,6 +7,7 @@ import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import org.zhavoronkov.openrouter.models.DataRegion
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
+import org.zhavoronkov.openrouter.models.PresetPair
 import org.zhavoronkov.openrouter.services.settings.ApiKeySettingsManager
 import org.zhavoronkov.openrouter.services.settings.FavoriteModelsManager
 import org.zhavoronkov.openrouter.services.settings.OutputSchemasManager
@@ -17,6 +18,7 @@ import org.zhavoronkov.openrouter.services.settings.RouterDefaultsManager
 import org.zhavoronkov.openrouter.services.settings.SetupStateManager
 import org.zhavoronkov.openrouter.services.settings.UIPreferencesManager
 import org.zhavoronkov.openrouter.services.settings.WebSearchSettingsManager
+import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 import org.zhavoronkov.openrouter.utils.PasswordSafeKeyStorage
 import org.zhavoronkov.openrouter.utils.PluginLogger
 
@@ -79,6 +81,8 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
         fun getInstance(): OpenRouterSettingsService {
             return ApplicationManager.getApplication().getService(OpenRouterSettingsService::class.java)
         }
+
+        private const val PROFILE_MARKER = "@profile/"
     }
 
     override fun getState(): OpenRouterSettings {
@@ -105,7 +109,21 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
             settings.authScope = org.zhavoronkov.openrouter.models.AuthScope.EXTENDED
         }
 
+        dropProfileFavorites()
         migrateDeprecatedFavoriteVariants()
+    }
+
+    /**
+     * Development builds paired a model with a Profile, `<model>@profile/<name>`; presets replaced
+     * Profiles, and OpenRouter has no such syntax, so those favourites cannot be sent.
+     */
+    private fun dropProfileFavorites() {
+        val kept = settings.favoriteModels.filterNot { PROFILE_MARKER in it }
+        if (kept.size == settings.favoriteModels.size) return
+        PluginLogger.Service.info(
+            "Migration: dropped ${settings.favoriteModels.size - kept.size} favorites paired with a Profile"
+        )
+        settings.favoriteModels = kept.toMutableList()
     }
 
     /**
@@ -123,7 +141,10 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
         val migrated = LinkedHashSet<String>()
         var changed = false
         for (modelId in favorites) {
-            val stripped = org.zhavoronkov.openrouter.utils.ModelProviderUtils.stripDeprecatedVariant(modelId)
+            // A pair's suffix follows its model's variant, so the model part is what is migrated
+            val pair = PresetPair.parse(modelId)
+            val model = ModelProviderUtils.stripDeprecatedVariant(pair?.model ?: modelId)
+            val stripped = pair?.copy(model = model)?.id ?: model
             if (stripped != modelId) {
                 changed = true
             }

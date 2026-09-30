@@ -175,4 +175,20 @@ class ModelVariantChipRendererTest {
         assertTrue(tooltip.startsWith("OpenAI"), tooltip)
         assertTrue(tooltip.contains("newest"), tooltip)
     }
+
+    @Test
+    fun `a pair shows its model, its variant chip and a preset chip named for the preset`() {
+        val id = "x-ai/grok-4-fast:free@preset/research"
+
+        assertEquals("x-ai/grok-4-fast", ModelVariantChipRenderer.baseIdOf(id))
+        assertEquals(listOf("Free", "research"), ModelVariantChipRenderer.chipsFor(id).map { it.label })
+        assertTrue(ModelVariantChipRenderer.tooltipFor(id).endsWith("sent with the preset 'research'"))
+        val html = ModelVariantChipRenderer.renderRow(id)
+        assertFalse(html.contains("@preset"), "the raw pair suffix should not appear in the display")
+    }
+
+    @Test
+    fun `a plain model carries no preset chip`() {
+        assertTrue(ModelVariantChipRenderer.chipsFor("openai/gpt-4o").isEmpty())
+    }
 }

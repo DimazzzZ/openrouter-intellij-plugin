@@ -48,11 +48,7 @@ object ConsumerRequestChecks {
         region: () -> DataRegion
     ): ClearError? {
         if (catalogue == null || resolvedAtRequestTime(model)) return null
-        // Ids are lowercase in the catalogue; one typed otherwise is the same model
-        val base = ModelProviderUtils.stripVariant(model)
-        val entry = catalogue.firstOrNull { it.id.equals(model, ignoreCase = true) }
-            ?: catalogue.firstOrNull { it.id.equals(base, ignoreCase = true) }
-            ?: return notServed(model, region())
+        val entry = ModelProviderUtils.catalogueEntry(model, catalogue) ?: return notServed(model, region())
         return entry.supportedParameters?.let { unsupportedFormat(format, model, it) }
     }
 

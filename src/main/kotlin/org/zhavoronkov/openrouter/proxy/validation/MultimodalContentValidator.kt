@@ -2,6 +2,7 @@ package org.zhavoronkov.openrouter.proxy.validation
 
 import com.google.gson.JsonElement
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
+import org.zhavoronkov.openrouter.models.PresetPair
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
@@ -185,8 +186,10 @@ class MultimodalContentValidator(
         val favoriteModels = favoriteModelsService.getFavoriteModels()
 
         return favoriteModels
-            .mapNotNull { favorite -> cachedModels.find { it.id == favorite.id } }
-            .filter { ModelProviderUtils.hasCapability(it, capability) }
+            .filter { favorite ->
+                val model = cachedModels.find { it.id == PresetPair.modelOf(favorite.id) }
+                model != null && ModelProviderUtils.hasCapability(model, capability)
+            }
             .map { it.id }
     }
 

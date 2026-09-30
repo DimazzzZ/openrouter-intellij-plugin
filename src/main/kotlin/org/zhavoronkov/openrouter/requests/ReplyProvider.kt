@@ -15,14 +15,31 @@ import kotlinx.coroutines.delay
  */
 object ReplyProvider {
 
-    fun trusted(request: JsonObject): Boolean =
-        !offersServerTool(request) && !namesPreset(request) && !usesLegacySearch(request)
+    /**
+     * Whether [request]'s reply names its provider truly. A preset it names is judged by its
+     * config as [presetConfig] knows it, by slug; a preset that is not known is not believed.
+     */
+    fun trusted(request: JsonObject, presetConfig: (slug: String) -> JsonObject? = { null }): Boolean =
+        mayNameProvider(request) && presetSlugs(request)?.all { slug ->
+            presetConfig(slug)?.let(::mayNameProvider) == true
+        } == true
+
+    private fun mayNameProvider(fields: JsonObject): Boolean = !offersServerTool(fields) && !usesLegacySearch(fields)
 
     private fun offersServerTool(request: JsonObject): Boolean =
         request.arrayOrEmpty("tools").any { it.stringField("type")?.startsWith(SERVER_TOOL_PREFIX) == true }
 
-    private fun namesPreset(request: JsonObject): Boolean =
-        request.has("preset") || request.stringOrNull("model")?.contains(PRESET_MARKER) == true
+    /**
+     * Every preset [request] names: in its model id, and in its own `preset` field, prefixed or
+     * not - or null when that field is not a string, which names nothing a copy can look up.
+     */
+    private fun presetSlugs(request: JsonObject): List<String>? {
+        val field = request.get("preset")
+        val fieldSlug = request.stringOrNull("preset")?.removePrefix(PRESET_MARKER)
+        if (field != null && fieldSlug == null) return null
+        val modelSlug = request.stringOrNull("model")?.takeIf { PRESET_MARKER in it }?.substringAfter(PRESET_MARKER)
+        return listOfNotNull(modelSlug, fieldSlug)
+    }
 
     private fun usesLegacySearch(request: JsonObject): Boolean =
         request.stringOrNull("model")?.endsWith(ONLINE_SUFFIX) == true ||

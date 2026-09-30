@@ -2,7 +2,6 @@ package org.zhavoronkov.openrouter.ui
 
 import com.intellij.ui.JBColor
 import com.intellij.util.ui.JBUI
-import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.Graphics
@@ -26,6 +25,8 @@ import javax.swing.table.TableCellRenderer
  */
 class VariantChipTableCellRenderer(
     private val isAvailable: (String) -> Boolean = { true },
+    /** Why a pair cannot be sent with its preset, or null; such a pair carries a problem chip. */
+    private val problemOf: (String) -> String? = { null },
 ) : JLabel(), TableCellRenderer {
 
     private var modelId: String = ""
@@ -45,12 +46,18 @@ class VariantChipTableCellRenderer(
         column: Int
     ): Component {
         val id = value as? String ?: ""
-        modelId = ModelProviderUtils.stripVariant(id)
-        chips = ModelVariantChipRenderer.chipsFor(id)
+        modelId = ModelVariantChipRenderer.baseIdOf(id)
+        val problem = problemOf(id)
+        chips = ModelVariantChipRenderer.chipsFor(id) +
+            listOfNotNull(problem?.let { ModelVariantChipRenderer.problemChip() })
 
         text = modelId
         val available = isAvailable(id)
-        toolTipText = if (available) ModelVariantChipRenderer.tooltipFor(id) else UNAVAILABLE_TOOLTIP
+        toolTipText = when {
+            problem != null -> problem
+            available -> ModelVariantChipRenderer.tooltipFor(id)
+            else -> UNAVAILABLE_TOOLTIP
+        }
         background = if (isSelected) {
             table?.selectionBackground ?: JBColor.BLUE
         } else {

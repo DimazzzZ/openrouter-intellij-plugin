@@ -30,7 +30,7 @@ class FixPageSettingsTest {
     @Test
     @DisplayName("the action names the page")
     fun actionText() {
-        assertEquals("Open Output Schemas", FixPageSettings.actionText(FixPage.OUTPUT_SCHEMAS))
+        assertEquals("Open Presets", FixPageSettings.actionText(FixPage.PRESETS))
         assertEquals("Open OpenRouter Settings", FixPageSettings.actionText(FixPage.DATA_REGION))
     }
 }

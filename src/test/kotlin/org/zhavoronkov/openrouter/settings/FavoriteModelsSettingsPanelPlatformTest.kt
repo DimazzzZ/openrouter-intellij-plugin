@@ -214,4 +214,33 @@ class FavoriteModelsSettingsPanelPlatformTest : BasePlatformTestCase() {
         assertEquals(state.statusText(), label.text)
         assertTrue(label.text.contains("3 favorites"))
     }
+
+    /** A pair is a favourite of its own, stored after the others and listed in that order. */
+    fun testAModelAddedWithAPresetIsStoredAsAPairInOrder() {
+        val root = createPanel()
+        val table = table(root)
+        val grokRow = (0 until table.model.rowCount).first { table.model.getValueAt(it, 1) == GROK.id }
+        table.setRowSelectionInterval(grokRow, grokRow)
+
+        panel!!.addWithPreset(GROK.id, "research")
+        assertTrue("the status line says where the pair went", statusLabel(root).text.contains("Favorites only"))
+        panel!!.apply()
+
+        assertEquals(listOf(SONNET.id, GPT4O.id, "${GROK.id}@preset/research"), manager.getFavoriteModels())
+        state.mode = Mode.FAVORITES_ONLY
+        assertEquals(
+            listOf(SONNET.id, GPT4O.id, "${GROK.id}@preset/research"),
+            (0 until table.model.rowCount).map { table.model.getValueAt(it, 1) }
+        )
+    }
+
+    fun testAddingThePairAgainSaysItIsAlreadyThere() {
+        val root = createPanel()
+
+        panel!!.addWithPreset(GROK.id, "research")
+        panel!!.addWithPreset(GROK.id, "research")
+
+        assertTrue(statusLabel(root).text.contains("already a favorite"))
+        assertEquals(1, state.favorites.count { it.endsWith("@preset/research") })
+    }
 }

@@ -25,6 +25,8 @@ class PresetsSettingsPanelPlatformTest : BasePlatformTestCase() {
     private val mirrored = mutableListOf<List<String>>()
     private var edited: (PresetDraft) -> PresetDraft? = { it }
     private var opened = 0
+    private var dialogsOpened = 0
+    private val unreadable = mutableListOf<String>()
     private lateinit var copy: PresetCopy
 
     private fun page(configured: Boolean = true): PresetsSettingsPanel {
@@ -39,11 +41,12 @@ class PresetsSettingsPanelPlatformTest : BasePlatformTestCase() {
             isConfigured = { configured },
             schemas = { emptyList() },
             save = { saved += it; versions[it.slug] = PresetVersion(it.systemPrompt, it.config()); listed = (listed.orEmpty() + PresetListing(it.slug, it.slug)).distinctBy { l -> l.slug }; null },
-            edit = { _, draft, _, _, _ -> edited(draft) },
+            edit = { _, draft, _, _, _ -> dialogsOpened++; edited(draft) },
             askSlug = { "web-json" },
             confirmDelete = { true },
             openSite = { opened++ },
             listSlugs = { mirrored += it },
+            tellUnreadable = { unreadable += it },
             autoRefresh = false
         )
         Disposer.register(testRootDisposable, page)
@@ -105,6 +108,20 @@ class PresetsSettingsPanelPlatformTest : BasePlatformTestCase() {
         assertEquals("web-json", saved.single().slug)
         assertEquals("""{"max_tokens":4096}""", saved.single().config().toString())
         assertEquals(listOf("research", "web-json"), (0 until page.listModel.size()).map { page.listModel[it].slug })
+    }
+
+    fun testAPresetWhoseVersionCouldNotBeReadIsNotOpenedSoSavingCannotWipeIt() {
+        versions.remove("research")
+        val page = page()
+        readNow(page)
+        page.list.selectedIndex = 0
+
+        page.editSelected()
+        PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+
+        assertEquals(0, dialogsOpened)
+        assertTrue(saved.isEmpty())
+        assertEquals(listOf("research"), unreadable)
     }
 
     fun testACancelledDialogSavesNothing() {

@@ -12,8 +12,9 @@ import org.zhavoronkov.openrouter.models.OutputSchema
  * IDE without holding a copy of it.
  *
  * Only fills in what the Consumer left out, following the other proxy injectors. A schema body the
- * Consumer sent is never replaced, whatever its name; a name that matches no saved schema is left
- * for OpenRouter to judge; and a saved body that is not a JSON object is never sent.
+ * Consumer sent is never replaced, whatever its name, and a saved body that is not a JSON object
+ * is never sent. A name that matches no usable saved schema does not reach this at all: the
+ * proxy's early checks refuse it with a clear error first.
  */
 object SavedSchemaInjector {
 

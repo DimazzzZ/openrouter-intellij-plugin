@@ -40,6 +40,43 @@ class ReplyProviderTest {
         assertFalse(trusted(json), json)
     }
 
+    private val presets = mapOf(
+        "plain" to JsonParser.parseString("""{"temperature":0.2}""").asJsonObject,
+        "web" to JsonParser.parseString("""{"tools":[{"type":"openrouter:web_search"}]}""").asJsonObject,
+        "legacy" to JsonParser.parseString("""{"plugins":[{"id":"web"}]}""").asJsonObject
+    )
+
+    private fun trustedWithPresets(json: String) =
+        ReplyProvider.trusted(JsonParser.parseString(json).asJsonObject, presets::get)
+
+    @ParameterizedTest
+    @ValueSource(
+        strings = [
+            """{"model":"m@preset/plain"}""",
+            """{"model":"@preset/plain"}""",
+            """{"model":"m","preset":"plain"}""",
+            """{"model":"m","preset":"@preset/plain"}"""
+        ]
+    )
+    @DisplayName("a preset known to offer no server tool is believed")
+    fun knownPlainPreset(json: String) {
+        assertTrue(trustedWithPresets(json), json)
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+        strings = [
+            """{"model":"m@preset/web"}""",
+            """{"model":"m@preset/legacy"}""",
+            """{"model":"m@preset/unknown"}""",
+            """{"model":"m@preset/plain","tools":[{"type":"openrouter:web_search"}]}"""
+        ]
+    )
+    @DisplayName("a preset with a server tool, or one not known, is not believed")
+    fun searchingOrUnknownPreset(json: String) {
+        assertFalse(trustedWithPresets(json), json)
+    }
+
     @Test
     @DisplayName("the generation record is asked until it names a provider")
     fun lookupRetries() = runTest {

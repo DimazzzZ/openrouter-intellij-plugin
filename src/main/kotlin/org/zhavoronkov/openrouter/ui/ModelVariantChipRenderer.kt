@@ -1,6 +1,7 @@
 package org.zhavoronkov.openrouter.ui
 
 import com.intellij.ui.JBColor
+import org.zhavoronkov.openrouter.models.PresetPair
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils.ModelVariant
 import java.awt.Color
@@ -53,6 +54,31 @@ object ModelVariantChipRenderer {
         fgDark = "#ECEFF1"
     )
 
+    /**
+     * The preset chip: a warm rose, set apart from every variant colour, since it names settings
+     * the pair is sent with rather than anything about the model.
+     */
+    private val PRESET_CHIP_COLOR = ChipColor(
+        bgLight = "#FCE4EC",
+        bgDark = "#880E4F",
+        fgLight = "#880E4F",
+        fgDark = "#FCE4EC"
+    )
+
+    /** The chip on a pair that cannot be sent: an alarm red, unlike every informational chip. */
+    private val PROBLEM_CHIP_COLOR = ChipColor(
+        bgLight = "#FFEBEE",
+        bgDark = "#B71C1C",
+        fgLight = "#B71C1C",
+        fgDark = "#FFEBEE"
+    )
+
+    /** What the problem chip says; the reason itself is its row's tooltip. */
+    const val PROBLEM_LABEL = "Can't be sent"
+
+    /** The chip that marks a pair which cannot be sent with its preset. */
+    fun problemChip(): Chip = Chip(PROBLEM_LABEL, PROBLEM_CHIP_COLOR.bgColor(), PROBLEM_CHIP_COLOR.fgColor())
+
     private const val LATEST_LABEL = "Latest"
     private const val LATEST_TOOLTIP =
         "Latest — resolves to the newest model in this family, so what answers can change while the id stays the same"
@@ -100,11 +126,13 @@ object ModelVariantChipRenderer {
 
     /**
      * Every chip a model id carries, in display order: its variant (known, or
-     * an unknown `? suffix`), then Latest for a Latest Model. A latest slug with
-     * a catalog variant carries both, since those are two separate facts.
+     * an unknown `? suffix`), then Latest for a Latest Model, then the preset
+     * for a pair. A latest slug with a catalog variant carries both, since
+     * those are two separate facts; a pair's model is read through [PresetPair].
      */
     fun chipsFor(modelId: String): List<Chip> {
-        val parsed = ModelProviderUtils.parseModelId(modelId)
+        val pair = PresetPair.parse(modelId)
+        val parsed = ModelProviderUtils.parseModelId(PresetPair.modelOf(modelId))
         return listOfNotNull(
             when {
                 parsed.variant != null -> Chip(
@@ -119,9 +147,13 @@ object ModelVariantChipRenderer {
                 )
                 else -> null
             },
-            if (parsed.latest) Chip(LATEST_LABEL, LATEST_CHIP_COLOR.bgColor(), LATEST_CHIP_COLOR.fgColor()) else null
+            if (parsed.latest) Chip(LATEST_LABEL, LATEST_CHIP_COLOR.bgColor(), LATEST_CHIP_COLOR.fgColor()) else null,
+            pair?.let { Chip(it.preset, PRESET_CHIP_COLOR.bgColor(), PRESET_CHIP_COLOR.fgColor()) }
         )
     }
+
+    /** The model id a row shows beside its chips: the model, without its variant or a pair's preset. */
+    fun baseIdOf(modelId: String): String = ModelProviderUtils.stripVariant(PresetPair.modelOf(modelId))
 
     /**
      * Render a model ID as HTML with an inline variant chip when applicable.
@@ -132,7 +164,7 @@ object ModelVariantChipRenderer {
      * @param baseTextColor optional foreground color for the base ID (defaults to inherit)
      */
     fun renderRow(modelId: String, baseTextColor: Color? = null): String {
-        val baseDisplay = escapeHtml(ModelProviderUtils.stripVariant(modelId))
+        val baseDisplay = escapeHtml(baseIdOf(modelId))
 
         val baseHtml = if (baseTextColor != null) {
             "<span style='color:${hex(baseTextColor)}'>$baseDisplay</span>"
@@ -157,9 +189,11 @@ object ModelVariantChipRenderer {
      * Tooltip text for a model ID, describing its variant (if any).
      */
     fun tooltipFor(modelId: String): String {
-        val parsed = ModelProviderUtils.parseModelId(modelId)
+        val parsed = ModelProviderUtils.parseModelId(PresetPair.modelOf(modelId))
         val variantTooltip = variantTooltipFor(parsed)
-        return if (parsed.latest) "$variantTooltip — $LATEST_TOOLTIP" else variantTooltip
+        val withLatest = if (parsed.latest) "$variantTooltip — $LATEST_TOOLTIP" else variantTooltip
+        val pair = PresetPair.parse(modelId) ?: return withLatest
+        return "$withLatest — sent with the preset '${pair.preset}'"
     }
 
     private fun variantTooltipFor(parsed: ModelProviderUtils.ModelId): String {

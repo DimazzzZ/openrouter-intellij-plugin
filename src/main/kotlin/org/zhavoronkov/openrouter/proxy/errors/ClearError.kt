@@ -1,6 +1,7 @@
 package org.zhavoronkov.openrouter.proxy.errors
 
 import org.zhavoronkov.openrouter.models.FixPage
+import org.zhavoronkov.openrouter.proxy.pairs.PairProblem
 
 /**
  * An error the plugin itself answers a Consumer with, before anything is sent: an OpenAI-shaped
@@ -32,5 +33,13 @@ data class ClearError(
 
     companion object {
         const val PREFIX = "OpenRouter plugin: "
+
+        /** The clear error for a pair that cannot be sent with its preset; both are fixed on the Presets page. */
+        fun of(problem: PairProblem): ClearError = when (problem) {
+            is PairProblem.MissingPreset -> ClearError("preset_not_found", problem.message, FixPage.PRESETS)
+            is PairProblem.OutputNotServable -> ClearError("output_not_supported", problem.message, FixPage.PRESETS)
+            is PairProblem.WebSearchDropsJson ->
+                ClearError("output_dropped_by_web_search", problem.message, FixPage.PRESETS)
+        }
     }
 }

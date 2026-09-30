@@ -92,6 +92,8 @@ object RequestsView {
             "Time" to DATE_TIME.format(startedAt(record, zone)),
             "Sent by" to sentBy(record),
             "Requested" to record.requestedModel,
+            record.preset?.let { "Preset" to it },
+            record.replaced.takeIf { it.isNotEmpty() }?.let { "Removed for the preset" to it.joinToString(", ") },
             reply.answeringModel?.takeIf { it.isNotBlank() }?.let { "Answered by" to it },
             reply.provider?.let { "Provider" to it },
             tokens(record)?.let { "Tokens" to it },

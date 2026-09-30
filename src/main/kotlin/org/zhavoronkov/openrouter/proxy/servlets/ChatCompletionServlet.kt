@@ -6,17 +6,20 @@ import com.google.gson.JsonSyntaxException
 import jakarta.servlet.http.HttpServlet
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
+import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
+import org.zhavoronkov.openrouter.models.PresetPair
+import org.zhavoronkov.openrouter.presets.PresetCopyService
 import org.zhavoronkov.openrouter.proxy.checks.ConsumerRequestChecks
-import org.zhavoronkov.openrouter.proxy.defaults.SavedSchemaInjector
-import org.zhavoronkov.openrouter.proxy.defaults.WebSearchTuningInjector
+import org.zhavoronkov.openrouter.proxy.defaults.ConfiguredDefaults
 import org.zhavoronkov.openrouter.proxy.errors.ClearError
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
-import org.zhavoronkov.openrouter.proxy.routing.ProviderRoutingInjector
-import org.zhavoronkov.openrouter.proxy.routing.RouterPluginsInjector
+import org.zhavoronkov.openrouter.proxy.pairs.PairAvailability
+import org.zhavoronkov.openrouter.proxy.pairs.PairProblem
+import org.zhavoronkov.openrouter.proxy.pairs.PresetFields
 import org.zhavoronkov.openrouter.proxy.validation.MultimodalContentValidator
 import org.zhavoronkov.openrouter.requests.ConsumerNames
 import org.zhavoronkov.openrouter.requests.RequestLogService
@@ -58,11 +61,18 @@ data class StreamingErrorContext(
  * (for field-preserving passthrough to OpenRouter). This ensures unknown fields
  * in the incoming request are forwarded verbatim to OpenRouter without being
  * silently dropped by Gson serialization of the typed model.
+ *
+ * [requestedModel] is the id the Consumer asked for, which its reply names back; for a pair it
+ * differs from [typedRequest]'s model, the model the pair names, which validation and the checks
+ * see - the body sent keeps the pair's id. [presetFields] are the fields a pair's preset sets, which
+ * the plugin's defaults stay out of; null for a pair whose preset is not known, empty for a model.
  */
 data class ParsedChatRequest(
     val typedRequest: OpenAIChatCompletionRequest,
     val rawJson: JsonObject,
-    val trace: RequestTrace? = null
+    val trace: RequestTrace? = null,
+    val requestedModel: String = typedRequest.model,
+    val presetFields: Set<String>? = emptySet()
 )
 
 /**
@@ -88,6 +98,14 @@ class ChatCompletionServlet(
     private val requestRecorder: () -> (RequestRecord) -> Unit = { RequestLogService.getInstance()::record },
     /** Finds, later, the provider of a generation whose reply could not say which one served it. */
     private val providerLookup: () -> (String) -> Unit = { RequestLogService.getInstance()::fillProviderLater },
+    private val pairsProvider: () -> PairAvailability = PairAvailability::fromSettings,
+    /**
+     * Waits, briefly, for the read a pair's missing preset asks for, so that one made on
+     * OpenRouter since the last read is sent rather than refused. Called on a request thread.
+     */
+    private val readMissingPreset: (slug: String) -> Unit = { slug ->
+        runBlocking { PresetCopyService.getInstance().copy.findAfterRead(slug, MISSING_PRESET_WAIT_MILLIS) }
+    },
     /** The loaded model catalogue - the selected Data Region's - or null while it has not loaded. */
     private val catalogueProvider: () -> List<OpenRouterModelInfo>? = {
         applicationServiceOrNull(FavoriteModelsService::class.java)?.getCachedModels()
@@ -101,6 +119,9 @@ class ChatCompletionServlet(
             .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .build()
+
+        /** How long a request for a pair waits for a read of a preset the copy does not have. */
+        private const val MISSING_PRESET_WAIT_MILLIS = 5_000L
 
         // Request tracking - thread-safe counter using AtomicInteger
         private val requestCounter = AtomicInteger(0)
@@ -309,10 +330,13 @@ class ChatCompletionServlet(
 
         val apiKey = validateAndGetApiKey(resp, requestId)
             ?: return trace.fail("API key not configured")
-        val parsed = parseRequestBody(requestBody, resp, requestId)?.copy(trace = trace)
+        val body = parseRequestBody(requestBody, resp, requestId)?.copy(trace = trace)
             ?: return trace.fail("Invalid request body")
-        trace.requestedModel(parsed.typedRequest.model)
-        consumerRequestProblem(parsed)?.let { return refuse(resp, requestId, trace, it, parsed.typedRequest.model) }
+        trace.requestedModel(body.typedRequest.model)
+        // Before validation, so every later step - validation, the defaults, logging - sees the
+        // real model rather than the pair
+        val parsed = applyPreset(body, resp, requestId, trace) ?: return
+        consumerRequestProblem(parsed)?.let { return refuse(resp, requestId, trace, it, body.typedRequest.model) }
         val openAIRequest = parsed.typedRequest
         PluginLogger.Service.info("[Chat-$requestId] 📝 Model: '${openAIRequest.model}'")
 
@@ -329,6 +353,42 @@ class ChatCompletionServlet(
         } else {
             routeRequest(resp, parsed, apiKey, requestId, startNs)
         }
+    }
+
+    /**
+     * [parsed] for a pair: refused when it cannot be sent with its preset, else with the
+     * Consumer's own fields the preset sets removed, so the preset wins. The body keeps the pair's
+     * id - OpenRouter applies the preset - while every later step, validation and the checks, sees
+     * the model it names. [parsed] as it is for a plain model; null means the refusal has been answered.
+     */
+    private fun applyPreset(
+        parsed: ParsedChatRequest,
+        resp: HttpServletResponse,
+        requestId: String,
+        trace: RequestTrace
+    ): ParsedChatRequest? {
+        val pair = PresetPair.parse(parsed.typedRequest.model) ?: return parsed
+        var pairs = pairsProvider()
+        if (pairs.problem(pair) is PairProblem.MissingPreset) {
+            readMissingPreset(pair.preset)
+            pairs = pairsProvider()
+        }
+        pairs.problem(pair)?.let {
+            refuse(resp, requestId, trace, ClearError.of(it), pair.id)
+            return null
+        }
+        val config = pairs.presetConfig(pair)
+        val removed = config?.let { PresetFields.strip(parsed.rawJson, it) }.orEmpty()
+        trace.preset(pair.preset, removed)
+        if (removed.isNotEmpty()) {
+            PluginLogger.Service.info(
+                "[Chat-$requestId] '${pair.id}': removed ${removed.joinToString()} set by its preset"
+            )
+        }
+        return parsed.copy(
+            typedRequest = parsed.typedRequest.copy(model = pair.model),
+            presetFields = config?.keySet()?.toSet()
+        )
     }
 
     /**
@@ -423,9 +483,9 @@ class ChatCompletionServlet(
         writer.flush() // Flush headers immediately
 
         try {
-            val jsonBody = prepareRequest(parsed.rawJson, requestId, isStreaming = true, trace = parsed.trace)
+            val jsonBody = prepareRequest(parsed, requestId, isStreaming = true)
             val request = buildOpenRouterRequest(jsonBody, apiKey)
-            executeStreamingRequest(request, writer, requestId, apiKey, jsonBody, parsed.trace)
+            executeStreamingRequest(request, writer, requestId, apiKey, jsonBody, parsed)
         } catch (e: IOException) {
             parsed.trace?.fail("Network error: ${e.message}")
             handleStreamingError(e, writer, requestId)
@@ -449,73 +509,20 @@ class ChatCompletionServlet(
      * for temperature/max_tokens when not already present in the request.
      */
     private fun prepareRequest(
-        rawJson: JsonObject,
+        parsed: ParsedChatRequest,
         requestId: String,
-        isStreaming: Boolean,
-        trace: RequestTrace?
+        isStreaming: Boolean
     ): String {
         // Apply configured defaults only when not already present in the request
-        applyConfiguredDefaults(rawJson, requestId)
-        trace?.sent(rawJson)
+        ConfiguredDefaults.apply(parsed.rawJson, settingsService, gson, requestId, parsed.presetFields)
+        // Asked only of a request that names a preset
+        parsed.trace?.sent(parsed.rawJson) { slug -> pairsProvider().presetConfig(slug) }
 
-        val jsonBody = gson.toJson(rawJson)
+        val jsonBody = gson.toJson(parsed.rawJson)
         val bodyPreview = jsonBody.take(STREAMING_TIMEOUT_MS.toInt())
         val mode = if (isStreaming) "Streaming" else "Non-streaming"
         PluginLogger.Service.debug("[Chat-$requestId] $mode request body (passthrough): $bodyPreview...")
         return jsonBody
-    }
-
-    /**
-     * Apply plugin-configured defaults (max_tokens, provider routing, fallback models, router
-     * parameters, Web Search tuning, saved Output Schemas) to the raw JSON only when the request
-     * doesn't already include them.
-     *
-     * Invariant: if the client already sent `provider` or `models[]`, this
-     * function does NOT overwrite or merge — the client's block is preserved verbatim.
-     * A DEBUG log line records the skip.
-     */
-    private fun applyConfiguredDefaults(rawJson: JsonObject, requestId: String) {
-        try {
-            val defaultMaxTokens = settingsService.uiPreferencesManager.defaultMaxTokens
-            if (defaultMaxTokens > 0 && !rawJson.has("max_tokens")) {
-                rawJson.addProperty("max_tokens", defaultMaxTokens)
-            }
-
-            // Inject global provider routing (invariant: only when absent)
-            ProviderRoutingInjector.inject(
-                rawJson = rawJson,
-                routing = settingsService.providerRoutingManager,
-                gson = gson,
-                requestId = requestId
-            )
-
-            // Inject the saved per-router default plugins block (invariant: only
-            // when the request omits `plugins` and targets a known router).
-            RouterPluginsInjector.inject(
-                rawJson = rawJson,
-                defaults = settingsService.routerDefaultsManager,
-                gson = gson,
-                requestId = requestId
-            )
-
-            // The user's Web Search tuning, into a web search the Consumer asked for itself (invariant:
-            // only keys the entry lacks, and never a search the Consumer did not ask for).
-            if (WebSearchTuningInjector.inject(rawJson, settingsService.webSearchManager.current())) {
-                PluginLogger.Service.debug("[Chat-$requestId] Applied saved Web Search tuning")
-            }
-
-            // A saved Output Schema, for a json_schema response format that names one and carries
-            // no schema of its own (invariant: a Consumer's own schema is never replaced).
-            if (SavedSchemaInjector.inject(rawJson, settingsService.outputSchemasManager.all())) {
-                PluginLogger.Service.debug("[Chat-$requestId] Applied a saved Output Schema by name")
-            }
-        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-            // Settings service may not be available in test environment
-            // (getService can raise IllegalStateException or a class-loading
-            // Error); a broad catch is intentional so defaults are simply
-            // skipped rather than failing the request.
-            PluginLogger.Service.debug("Could not apply configured defaults: ${e.message}")
-        }
     }
 
     /**
@@ -555,8 +562,9 @@ class ChatCompletionServlet(
         requestId: String,
         apiKey: String,
         jsonBody: String,
-        trace: RequestTrace?
+        parsed: ParsedChatRequest
     ) {
+        val trace = parsed.trace
         httpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 val errorContext = StreamingErrorContext(response, writer, requestId, apiKey, jsonBody, request, trace)
@@ -566,7 +574,9 @@ class ChatCompletionServlet(
 
             logOpenRouterMetadata(response, requestId)
             PluginLogger.Service.info("[Chat-$requestId] Streaming response from OpenRouter...")
-            streamResponseToClient(response, writer, requestId, trace)
+            // A pair's stream names the pair, as its whole reply does
+            val shownModel = parsed.requestedModel.takeIf { it != parsed.typedRequest.model }
+            streamingHandler.streamResponseToClient(response, writer, requestId, trace, shownModel)
         }
     }
 
@@ -790,18 +800,6 @@ class ChatCompletionServlet(
         }
     }
 
-    /**
-     * Stream the response from OpenRouter to the client
-     */
-    private fun streamResponseToClient(
-        response: Response,
-        writer: PrintWriter,
-        requestId: String,
-        trace: RequestTrace?
-    ) {
-        streamingHandler.streamResponseToClient(response, writer, requestId, trace)
-    }
-
     private fun handleStreamingError(e: Exception, writer: PrintWriter, requestId: String) {
         streamingHandler.handleStreamingError(e, writer, requestId)
     }
@@ -816,12 +814,12 @@ class ChatCompletionServlet(
         requestId: String,
         startNs: Long
     ) {
-        val requestBody = prepareRequest(parsed.rawJson, requestId, isStreaming = false, trace = parsed.trace)
+        val requestBody = prepareRequest(parsed, requestId, isStreaming = false)
         nonStreamingHandler.handleNonStreamingRequest(
             resp = resp,
             requestBody = requestBody,
             apiKey = apiKey,
-            originalModel = parsed.typedRequest.model,
+            originalModel = parsed.requestedModel,
             requestId = requestId,
             startNs = startNs,
             trace = parsed.trace
@@ -879,7 +877,10 @@ class ChatCompletionServlet(
         resp.writer.write(gson.toJson(errorResponse))
     }
 
-    /** What the proxy can tell is wrong with the request before sending it, or null. */
+    /**
+     * What the proxy can tell is wrong with the request before sending it, or null. Asked of the
+     * request as it will be sent - a pair already expanded to its model.
+     */
     private fun consumerRequestProblem(parsed: ParsedChatRequest): ClearError? = ConsumerRequestChecks.problem(
         body = parsed.rawJson,
         model = parsed.typedRequest.model,

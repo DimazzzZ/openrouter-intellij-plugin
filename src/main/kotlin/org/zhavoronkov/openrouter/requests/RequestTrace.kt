@@ -32,6 +32,8 @@ class RequestTrace(
     private val collector = ReplyFactsCollector()
     private var error: String? = null
     private var observed = false
+    private var preset: String? = null
+    private var replaced: List<String> = emptyList()
     private var fixAt: FixPage? = null
     private var finished = false
     private var replyNamesProvider = true
@@ -41,12 +43,18 @@ class RequestTrace(
         requestedModel = model
     }
 
+    /** The preset a pair was sent with, and the Consumer's fields removed so that the preset's held. */
+    fun preset(slug: String, replacedFields: List<String>) {
+        preset = slug
+        replaced = replacedFields
+    }
+
     /**
      * The request as sent: when [ReplyProvider] says its reply's provider cannot be believed, the
      * record carries none, and the generation's is looked up once the record is made.
      */
-    fun sent(request: JsonObject) {
-        replyNamesProvider = ReplyProvider.trusted(request)
+    fun sent(request: JsonObject, presetConfig: (slug: String) -> JsonObject? = { null }) {
+        replyNamesProvider = ReplyProvider.trusted(request, presetConfig)
     }
 
     fun observe(json: JsonObject) {
@@ -78,6 +86,8 @@ class RequestTrace(
                 requestedModel = requestedModel,
                 reply = facts,
                 error = error ?: NO_REPLY.takeUnless { observed },
+                preset = preset,
+                replaced = replaced,
                 fixAt = fixAt
             )
         )

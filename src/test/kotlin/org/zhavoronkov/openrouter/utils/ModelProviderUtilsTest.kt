@@ -373,6 +373,34 @@ class ModelProviderUtilsTest {
         }
     }
 
+    // --- catalogueEntry tests ---
+
+    private val catalogue = listOf(
+        OpenRouterModelInfo(id = "openai/gpt-4o", name = "GPT-4o", created = 0L),
+        OpenRouterModelInfo(id = "openai/gpt-4o:extended", name = "GPT-4o (extended)", created = 0L)
+    )
+
+    @Test
+    fun `catalogueEntry prefers the variant's own entry`() {
+        val entry = ModelProviderUtils.catalogueEntry("openai/gpt-4o:extended", catalogue)
+        assertEquals("openai/gpt-4o:extended", entry?.id)
+    }
+
+    @Test
+    fun `catalogueEntry falls back to the base model for an unlisted variant`() {
+        assertEquals("openai/gpt-4o", ModelProviderUtils.catalogueEntry("openai/gpt-4o:nitro", catalogue)?.id)
+    }
+
+    @Test
+    fun `catalogueEntry ignores case, since catalogue ids are lower case`() {
+        assertEquals("openai/gpt-4o", ModelProviderUtils.catalogueEntry("OpenAI/GPT-4o:nitro", catalogue)?.id)
+    }
+
+    @Test
+    fun `catalogueEntry is null for a model the catalogue does not list`() {
+        assertNull(ModelProviderUtils.catalogueEntry("meta/llama", catalogue))
+    }
+
     // --- stripVariant tests ---
 
     @Test

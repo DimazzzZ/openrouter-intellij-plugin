@@ -1,11 +1,12 @@
 package org.zhavoronkov.openrouter.models
 
 /**
- * The naming rule for the entries the user names - an Output Schema today - kept apart from any
- * one of them, so that every place that reads or compares a name agrees with the page that saved it.
+ * The naming rule the entries the user names share - an Output Schema, and a preset's slug where a
+ * pair names it - so that a name accepted for one is accepted for the other.
  *
- * The set is letters, digits, underscores and hyphens, up to 64 of them: an Output Schema's name
- * is sent to whichever provider serves the request, and OpenAI's API accepts only that set.
+ * The set is letters, digits, underscores and hyphens, up to 64 of them. An Output Schema's name
+ * is sent to whichever provider serves the request, and OpenAI's API accepts only that set; a
+ * preset's slug becomes part of a model id a Consumer sends back, where the same set is safe.
  * Names are compared trimmed and without case, since two entries in a drop-down that differ only
  * in case read as the same one.
  */
@@ -22,11 +23,14 @@ object EntryNames {
     fun problem(name: String, existing: List<String>, anEntry: String, reserved: Map<String, String>): String? {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return "$anEntry needs a name"
-        if (!PATTERN.matches(trimmed)) return RULE
+        if (!isWellFormed(trimmed)) return RULE
         reserved.entries.firstOrNull { same(it.key, trimmed) }?.let { return it.value }
         val clash = existing.firstOrNull { same(it, trimmed) }
         return clash?.let { "$anEntry named '$it' already exists" }
     }
+
+    /** Whether [name], trimmed, is spelled as the rule allows, whatever else it may clash with. */
+    fun isWellFormed(name: String): Boolean = PATTERN.matches(name.trim())
 
     /**
      * Whether two names name the same entry. Every place that matches names - uniqueness, a

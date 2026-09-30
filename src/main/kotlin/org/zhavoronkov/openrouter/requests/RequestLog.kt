@@ -93,6 +93,8 @@ class RequestLog(private val file: Path, private val limit: () -> Int) {
             ?.takeIf {
                 it.source != null && it.sender != null && it.requestedModel != null && it.reply != null
             }
+            // A line written before a record kept its replacements has none
+            ?.let { if (it.replaced == null) it.copy(replaced = emptyList()) else it }
     } catch (e: JsonParseException) {
         null
     }

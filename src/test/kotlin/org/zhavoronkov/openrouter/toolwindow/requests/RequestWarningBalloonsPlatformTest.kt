@@ -114,9 +114,9 @@ class RequestWarningBalloonsPlatformTest : BasePlatformTestCase() {
     /** A request the plugin refused offers the page that fixes it, beside Show. */
     fun testARefusalOffersThePageThatFixesIt() {
         val refused = record(error = "OpenRouter plugin: 'x/y' is not in OpenRouter's model catalogue")
-        balloons.onRecord(refused.copy(fixAt = FixPage.FAVORITE_MODELS))
+        balloons.onRecord(refused.copy(fixAt = FixPage.PRESETS))
 
-        assertEquals(listOf("Open Favorite Models", "Show"), raised.single().actions.map { it.templateText })
+        assertEquals(listOf("Open Presets", "Show"), raised.single().actions.map { it.templateText })
     }
 
     fun testAWarningThePluginDidNotRaiseOffersOnlyShow() {
@@ -127,7 +127,7 @@ class RequestWarningBalloonsPlatformTest : BasePlatformTestCase() {
 
     /** Refusals in a burst fold like any other warning, and the balloon offers the latest one's page. */
     fun testRefusalsAreAnnouncedOncePerBurst() {
-        balloons.onRecord(record(error = "refused").copy(fixAt = FixPage.FAVORITE_MODELS))
+        balloons.onRecord(record(error = "refused").copy(fixAt = FixPage.PRESETS))
         now = 5_000
         balloons.onRecord(record(error = "refused again").copy(fixAt = FixPage.OUTPUT_SCHEMAS))
 
