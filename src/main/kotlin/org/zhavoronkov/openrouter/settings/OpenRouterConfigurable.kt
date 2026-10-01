@@ -34,7 +34,8 @@ class OpenRouterConfigurable : Configurable {
         private const val DEFAULT_PROXY_PORT = 8880
     }
 
-    private var settingsPanel: OpenRouterSettingsPanel? = null
+    internal var settingsPanel: OpenRouterSettingsPanel? = null
+        private set
     private val settingsService = OpenRouterSettingsService.getInstance()
 
     // Cancelled in disposeUIResources: the lookup outlives nothing, and a settings page closed
@@ -111,14 +112,16 @@ class OpenRouterConfigurable : Configurable {
             settingsService.uiPreferencesManager.autoRefresh = panel.isAutoRefreshEnabled()
             settingsService.uiPreferencesManager.refreshInterval = panel.getRefreshInterval()
             settingsService.uiPreferencesManager.showCosts = panel.shouldShowCosts()
-            settingsService.uiPreferencesManager.requestWarningBalloons = panel.warningBalloonsCheckBox.isSelected
+            settingsService.uiPreferencesManager.requestWarningBalloons = panel.requests.warningBalloons.isSelected
+            settingsService.uiPreferencesManager.requestLogLimit = panel.requests.limit.number
             settingsService.uiPreferencesManager.balanceProviderEnabled = panel.isBalanceProviderEnabled()
             applyDataRegion(panel.getDataRegion())
         } else {
             panel.setAutoRefresh(settingsService.uiPreferencesManager.autoRefresh)
             panel.setRefreshInterval(settingsService.uiPreferencesManager.refreshInterval)
             panel.setShowCosts(settingsService.uiPreferencesManager.showCosts)
-            panel.warningBalloonsCheckBox.isSelected = settingsService.uiPreferencesManager.requestWarningBalloons
+            panel.requests.warningBalloons.isSelected = settingsService.uiPreferencesManager.requestWarningBalloons
+            panel.requests.limit.number = settingsService.uiPreferencesManager.requestLogLimit
             panel.setBalanceProviderEnabled(settingsService.uiPreferencesManager.balanceProviderEnabled)
             panel.setDataRegion(settingsService.getDataRegion())
             panel.onDataRegionChosen { region -> loadFavoritesImpact(panel, region) }
@@ -217,7 +220,8 @@ class OpenRouterConfigurable : Configurable {
         return panel.isAutoRefreshEnabled() != settingsService.uiPreferencesManager.autoRefresh ||
             panel.getRefreshInterval() != settingsService.uiPreferencesManager.refreshInterval ||
             panel.shouldShowCosts() != settingsService.uiPreferencesManager.showCosts ||
-            panel.warningBalloonsCheckBox.isSelected != settingsService.uiPreferencesManager.requestWarningBalloons ||
+            panel.requests.warningBalloons.isSelected != settingsService.uiPreferencesManager.requestWarningBalloons ||
+            panel.requests.limit.number != settingsService.uiPreferencesManager.requestLogLimit ||
             panel.isBalanceProviderEnabled() != settingsService.uiPreferencesManager.balanceProviderEnabled ||
             isSettingModified(panel, SettingType.DEFAULT_MAX_TOKENS) ||
             isSettingModified(panel, SettingType.PROXY_SETTINGS) ||

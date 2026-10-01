@@ -117,8 +117,7 @@ class OpenRouterSettingsPanel {
     private val autoRefreshCheckBox: JBCheckBox
     private val refreshIntervalSpinner: JSpinner
     private val showCostsCheckBox: JBCheckBox
-    internal val warningBalloonsCheckBox =
-        JBCheckBox("Show a balloon when a tool's request fails or stops early")
+    internal val requests = RequestsSection()
     private val defaultMaxTokensSpinner: JSpinner
     private val enableDefaultMaxTokensCheckBox: JBCheckBox
     private val dataRegionSection = DataRegionSection()
@@ -390,9 +389,7 @@ class OpenRouterSettingsPanel {
                     }
 
                     // What a tool that went through the proxy is told about
-                    row {
-                        cell(warningBalloonsCheckBox)
-                    }.layout(RowLayout.PARENT_GRID)
+                    requests.addTo(this)
 
                     // Proxy server controls
                     row("Status:") {

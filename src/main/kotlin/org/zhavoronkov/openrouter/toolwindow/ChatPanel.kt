@@ -73,9 +73,9 @@ import javax.swing.SwingUtilities
  */
 // ChatPanel is the coordinator: session state, persistence and the send path.
 // The views it used to contain now live in toolwindow/chat and toolwindow/composer.
-// Still over detekt's LargeClass/TooManyFunctions thresholds (883 lines, 40 functions).
-// Getting under them means extracting saveChats/loadChats and the send path, which is
-// a separate piece of work with its own risk - see the redesign plan.
+// Still over detekt's LargeClass/TooManyFunctions thresholds. Getting under them means
+// extracting saveChats/loadChats and the send path, which is a separate change with its
+// own risk.
 @Suppress("TooManyFunctions", "LargeClass")
 class ChatPanel(
     private val project: Project,

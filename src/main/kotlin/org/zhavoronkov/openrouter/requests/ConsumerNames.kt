@@ -3,15 +3,15 @@ package org.zhavoronkov.openrouter.requests
 /**
  * Names the Consumer behind a request from its User-Agent header.
  *
- * Known agents are matched by a fragment of their User-Agent, case-insensitively, so a version or
- * platform suffix does not matter. An agent this table does not know is shown by its User-Agent as
+ * Known Consumers are matched by a fragment of their User-Agent, case-insensitively, so a version or
+ * platform suffix does not matter. A Consumer this table does not know is shown by its User-Agent as
  * sent, cut to [MAX_LENGTH] - truthful, and exactly what is needed to add it here later.
  */
 object ConsumerNames {
 
     const val UNKNOWN = "Unknown client"
 
-    /** The longest User-Agent kept for an agent this table does not know. */
+    /** The longest User-Agent kept for a Consumer this table does not know. */
     const val MAX_LENGTH = 120
 
     /** Fragment of a User-Agent, lower case, to the name the Requests tab shows. First match wins. */

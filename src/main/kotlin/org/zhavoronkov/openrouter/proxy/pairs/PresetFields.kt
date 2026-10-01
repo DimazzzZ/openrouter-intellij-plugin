@@ -11,7 +11,7 @@ object PresetFields {
 
     /**
      * Never removed: the conversation, the model the pair names, and tools - OpenRouter unions a
-     * request's tools with the preset's, which keeps an agent's own tools beside a web search.
+     * request's tools with the preset's, which keeps a Consumer's own tools beside a web search.
      */
     private val KEPT = setOf("messages", "model", "tools", "stream", "stream_options")
 

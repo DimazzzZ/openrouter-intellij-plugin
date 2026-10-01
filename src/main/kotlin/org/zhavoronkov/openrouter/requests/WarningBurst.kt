@@ -19,7 +19,7 @@ sealed interface WarningAnnouncement {
 }
 
 /**
- * Groups the requests that went wrong into bursts, so an agent failing in a loop is announced once
+ * Groups the requests that went wrong into bursts, so a Consumer failing in a loop is announced once
  * rather than on every request.
  *
  * A burst starts with the first [unseenWarning] and lasts [windowMillis], counted from its start:
@@ -50,7 +50,7 @@ class WarningBurst(
     }
 
     companion object {
-        /** "A few minutes": long enough to cover an agent retrying, short enough to hear of a new failure. */
+        /** "A few minutes": long enough to cover a Consumer retrying, short enough to hear of a new failure. */
         const val DEFAULT_WINDOW_MILLIS = 3 * 60 * 1000L
     }
 }
