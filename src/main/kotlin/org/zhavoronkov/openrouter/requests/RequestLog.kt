@@ -19,8 +19,15 @@ import java.nio.file.StandardOpenOption
  * parse into a complete record - a write cut short, a hand edit - is skipped rather than losing
  * the rest. Safe to call
  * from any thread; every call does its own file work, so none belongs on the EDT.
+ *
+ * Every record that leaves the log - past the limit, or cleared - is handed to [onDropped], so what
+ * is kept for it apart from the log, its bodies, goes with it.
  */
-class RequestLog(private val file: Path, private val limit: () -> Int) {
+class RequestLog(
+    private val file: Path,
+    private val limit: () -> Int,
+    private val onDropped: (List<RequestRecord>) -> Unit = {}
+) {
 
     private val gson = Gson()
     private val records = ArrayDeque<RequestRecord>()
@@ -70,8 +77,10 @@ class RequestLog(private val file: Path, private val limit: () -> Int) {
     /** Drops every record, in memory and on disk. */
     @Synchronized
     fun clear() {
+        val dropped = records.toList()
         records.clear()
         compact()
+        if (dropped.isNotEmpty()) onDropped(dropped)
     }
 
     private fun load() {
@@ -102,7 +111,9 @@ class RequestLog(private val file: Path, private val limit: () -> Int) {
     }
 
     private fun trimTo(kept: Int) {
-        while (records.size > kept) records.removeFirst()
+        val dropped = mutableListOf<RequestRecord>()
+        while (records.size > kept) dropped += records.removeFirst()
+        if (dropped.isNotEmpty()) onDropped(dropped)
     }
 
     private fun compact() {

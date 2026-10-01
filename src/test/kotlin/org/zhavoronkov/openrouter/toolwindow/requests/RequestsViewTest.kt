@@ -205,6 +205,26 @@ class RequestsViewTest {
     }
 
     @Nested
+    @DisplayName("the log link")
+    inner class LogLink {
+
+        @Test
+        @DisplayName("opens OpenRouter's logs filtered to the one generation")
+        fun oneGeneration() {
+            assertEquals(
+                "https://openrouter.ai/logs?transaction=gen-1790875801-Hx5YQl3dgYXjEWdTY7ja",
+                RequestsView.logUrl("gen-1790875801-Hx5YQl3dgYXjEWdTY7ja")
+            )
+        }
+
+        @Test
+        @DisplayName("keeps an id with characters a URL reserves in one parameter")
+        fun encoded() {
+            assertEquals("https://openrouter.ai/logs?transaction=gen-a%26b%3Dc", RequestsView.logUrl("gen-a&b=c"))
+        }
+    }
+
+    @Nested
     @DisplayName("Time")
     inner class Time {
 

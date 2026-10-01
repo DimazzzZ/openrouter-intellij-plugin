@@ -170,4 +170,27 @@ class RequestLogTest {
             assertFalse(stored.contains(it), "'$it' must never reach the log: $stored")
         }
     }
+
+    @Test
+    @DisplayName("a record dropped past the limit, or cleared, is handed on so its bodies go with it")
+    fun `dropped records are handed on`() {
+        val dropped = mutableListOf<RequestRecord>()
+        val log = RequestLog(file(), limit = { 2 }, onDropped = { dropped += it })
+
+        (1..3).forEach { log.add(record(it)) }
+        assertEquals(listOf(record(1)), dropped)
+
+        log.clear()
+        assertEquals(listOf(record(1), record(2), record(3)), dropped)
+    }
+
+    @Test
+    @DisplayName("a record's bodies id survives a restart")
+    fun `a bodies id survives a restart`() {
+        val id = "1f2e3d4c-0000-4000-8000-000000000001"
+        RequestLog(file(), limit = { 10 }).add(record(1).copy(bodiesId = id))
+
+        val reloaded = RequestLog(file(), limit = { 10 })
+        assertEquals(id, reloaded.recent().single().bodiesId)
+    }
 }

@@ -1,10 +1,8 @@
 package org.zhavoronkov.openrouter.toolwindow.requests
 
-import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
-import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.JBSplitter
@@ -14,37 +12,37 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.JBUI
-import com.intellij.util.ui.UIUtil
 import com.intellij.util.ui.WrapLayout
+import org.zhavoronkov.openrouter.requests.RequestBodies
 import org.zhavoronkov.openrouter.requests.RequestLogListener
 import org.zhavoronkov.openrouter.requests.RequestLogService
 import org.zhavoronkov.openrouter.requests.RequestRecord
-import org.zhavoronkov.openrouter.requests.warning
-import org.zhavoronkov.openrouter.toolwindow.chat.CHAT_WARNING_FOREGROUND
-import org.zhavoronkov.openrouter.toolwindow.composer.MiddleEllipsis
+import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.settings.RequestsSection
 import org.zhavoronkov.openrouter.toolwindow.composer.MiddleEllipsisComboRenderer
+import org.zhavoronkov.openrouter.toolwindow.requests.RequestDetails.Companion.hint
+import org.zhavoronkov.openrouter.toolwindow.requests.RequestDetails.Companion.links
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.FlowLayout
-import java.awt.Graphics
-import java.awt.Graphics2D
-import java.awt.GridBagConstraints
-import java.awt.GridBagLayout
-import java.awt.RenderingHints
-import java.awt.datatransfer.StringSelection
+import java.awt.event.ActionEvent
 import java.awt.event.ComponentAdapter
 import java.awt.event.ComponentEvent
 import java.awt.event.HierarchyEvent
+import java.awt.event.KeyEvent
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
 import java.time.Instant
 import java.time.ZoneId
 import java.util.concurrent.atomic.AtomicInteger
+import javax.swing.AbstractAction
 import javax.swing.BoxLayout
 import javax.swing.DefaultListCellRenderer
-import javax.swing.Icon
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.JTable
+import javax.swing.KeyStroke
 import javax.swing.ListSelectionModel
 import javax.swing.ScrollPaneConstants
 import javax.swing.SwingConstants
@@ -65,6 +63,10 @@ import javax.swing.table.TableColumn
  * arrives after a newer one was asked for is dropped, so a slow read never overwrites a fresh one,
  * and one that arrives after the tab was closed is dropped too. The day's totals are worked out
  * again whenever the tab is shown, so they do not stay on yesterday past midnight. Every seam is a parameter so a test can run it synchronously on fixed records and a fixed clock.
+ *
+ * Requests sent in a burst ([RequestBursts]) are folded into one row, unless "Group bursts" is off.
+ * A click on its arrow, a double click, or Right and Left open and close it; the bursts opened stay
+ * open while the tab is, as newer requests join them.
  */
 class RequestsTabPanel(
     private val recent: () -> List<RequestRecord> = { RequestLogService.getInstance().recent() },
@@ -73,11 +75,32 @@ class RequestsTabPanel(
     private val background: (Runnable) -> Unit = { ApplicationManager.getApplication().executeOnPooledThread(it) },
     private val edt: (Runnable) -> Unit = { ApplicationManager.getApplication().invokeLater(it, ModalityState.any()) },
     private val clock: () -> Instant = Instant::now,
-    private val zone: () -> ZoneId = ZoneId::systemDefault
+    private val zone: () -> ZoneId = ZoneId::systemDefault,
+    /** Whether "Group bursts" is on, and where turning it on or off is kept, across restarts. */
+    groupBurstsSetting: () -> Boolean = {
+        OpenRouterSettingsService.getInstance().uiPreferencesManager.requestsGroupBursts
+    },
+    private val saveGroupBursts: (Boolean) -> Unit = {
+        OpenRouterSettingsService.getInstance().uiPreferencesManager.requestsGroupBursts = it
+    },
+    /** Whether new requests keep their prompt and reply, and where turning it on or off is kept. */
+    private val keepBodiesSetting: () -> Boolean = {
+        OpenRouterSettingsService.getInstance().uiPreferencesManager.keepRequestBodies
+    },
+    private val saveKeepBodies: (Boolean) -> Unit = {
+        OpenRouterSettingsService.getInstance().uiPreferencesManager.keepRequestBodies = it
+    },
+    /** Reads a request's kept bodies by their id; called on [background]. */
+    private val loadBodies: (String) -> RequestBodies? = { RequestLogService.getInstance().bodies(it) },
+    private val showBodies: (JComponent, RequestBodies) -> Unit = RequestBodiesDialog::show
 ) : Disposable {
 
     private var records: List<RequestRecord> = emptyList()
     private var shown: List<RequestRecord> = emptyList()
+    private var rows: List<RequestsRow> = emptyList()
+
+    /** The bursts the user opened, by [RequestBurst.key]. */
+    private val expanded = mutableSetOf<RequestRecord>()
     private var loaded = false
 
     @Volatile
@@ -86,7 +109,6 @@ class RequestsTabPanel(
     private val latestRead = AtomicInteger()
     private var rebuildingFilters = false
     private var filling = false
-    private var detailRow = 0
     private var cellWidths: Map<RequestsColumn, Int> = emptyMap()
 
     /** Widths the user dragged columns to, kept over the measured ones while the tab is open. */
@@ -101,8 +123,15 @@ class RequestsTabPanel(
     internal val senderFilter = filterCombo()
     internal val modelFilter = filterCombo()
     internal val warningsOnly = JBCheckBox("Warnings only")
+    internal val groupBursts = JBCheckBox("Group bursts", groupBurstsSetting())
+
+    /** The same setting as on the OpenRouter settings page, so it can be turned on where it is used. */
+    internal val keepBodies = JBCheckBox(KEEP_BODIES_TEXT, keepBodiesSetting()).apply {
+        toolTipText = RequestsSection.KEEP_BODIES_COMMENT
+    }
     internal val todayLabel = JBLabel()
-    internal val detailsPanel = JPanel(GridBagLayout())
+    private val details = RequestDetails()
+    internal val detailsPanel: JPanel get() = details.panel
     private val tableScroll = JBScrollPane(table)
 
     val component: JComponent = JPanel(BorderLayout())
@@ -123,6 +152,8 @@ class RequestsTabPanel(
             add(senderFilter)
             add(modelFilter)
             add(warningsOnly)
+            add(groupBursts)
+            add(keepBodies)
             add(clear)
         }
         val header = JPanel().apply {
@@ -134,7 +165,6 @@ class RequestsTabPanel(
             add(filters)
             add(todayLabel)
         }
-        detailsPanel.border = JBUI.Borders.empty(GAP)
         val splitter = JBSplitter(true, TABLE_SHARE).apply {
             firstComponent = tableScroll
             secondComponent = JBScrollPane(detailsPanel).apply { border = JBUI.Borders.empty() }
@@ -152,7 +182,11 @@ class RequestsTabPanel(
             )
         component.addHierarchyListener { event ->
             val shownNow = event.changeFlags and HierarchyEvent.SHOWING_CHANGED.toLong() != 0L
-            if (shownNow && component.isShowing) applyFilter()
+            if (shownNow && component.isShowing) {
+                // The settings page may have turned it on or off while the tab was out of sight
+                keepBodies.isSelected = keepBodiesSetting()
+                applyFilter()
+            }
         }
         show(emptyList())
         loaded = false
@@ -196,10 +230,57 @@ class RequestsTabPanel(
             override fun columnMoved(e: TableColumnModelEvent) = Unit
             override fun columnSelectionChanged(e: ListSelectionEvent) = Unit
         })
+        configureBurstToggles()
         tableScroll.horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
         tableScroll.addComponentListener(object : ComponentAdapter() {
             override fun componentResized(e: ComponentEvent) = layoutColumns()
         })
+    }
+
+    /** A click on a burst's arrow or a double click on its row opens or closes it; so do Right and Left. */
+    private fun configureBurstToggles() {
+        table.addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                val row = table.rowAtPoint(e.point).takeIf { it >= 0 } ?: return
+                val column = table.columnAtPoint(e.point)
+                val onArrow = column >= 0 && table.columnModel.getColumn(column) === columns[RequestsColumn.TIME]
+                if (if (onArrow) e.clickCount == 1 else e.clickCount == 2) toggle(row)
+            }
+        })
+        fun bind(key: Int, name: String, open: Boolean) {
+            table.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(key, 0), name)
+            table.actionMap.put(
+                name,
+                object : AbstractAction() {
+                    override fun actionPerformed(e: ActionEvent) = setExpanded(table.selectedRow, open)
+                }
+            )
+        }
+        bind(KeyEvent.VK_RIGHT, "openBurst", open = true)
+        bind(KeyEvent.VK_LEFT, "closeBurst", open = false)
+    }
+
+    /** Opens a closed burst at [row], closes an open one, and closes the one a request under it is in. */
+    internal fun toggle(row: Int) {
+        when (val at = rows.getOrNull(row)) {
+            is RequestsRow.Header -> setExpanded(row, !at.expanded)
+            is RequestsRow.Member -> setExpanded(row, false)
+            else -> Unit
+        }
+    }
+
+    /** Opens or closes the burst at [row], or the one the request there is in, and selects its row. */
+    internal fun setExpanded(row: Int, open: Boolean) {
+        val burst = when (val at = rows.getOrNull(row)) {
+            is RequestsRow.Header -> at.burst
+            is RequestsRow.Member -> at.burst
+            else -> return
+        }
+        if (open) expanded += burst.key else expanded -= burst.key
+        applyFilter()
+        rows.indexOfFirst { it is RequestsRow.Header && it.burst.key == burst.key }
+            .takeIf { it >= 0 }
+            ?.let { table.selectionModel.setSelectionInterval(it, it) }
     }
 
     private fun configureFilters() {
@@ -207,6 +288,11 @@ class RequestsTabPanel(
         senderFilter.addActionListener { onChange() }
         modelFilter.addActionListener { onChange() }
         warningsOnly.addActionListener { onChange() }
+        groupBursts.addActionListener {
+            saveGroupBursts(groupBursts.isSelected)
+            onChange()
+        }
+        keepBodies.addActionListener { saveKeepBodies(keepBodies.isSelected) }
     }
 
     private fun show(snapshot: List<RequestRecord>) {
@@ -246,7 +332,15 @@ class RequestsTabPanel(
     }
 
     private fun select(record: RequestRecord) {
-        val row = shown.indexOf(record).takeIf { it >= 0 } ?: return
+        if (record !in shown) return
+        // A request folded into a closed burst is listed only once the burst is opened
+        rows.firstNotNullOfOrNull { (it as? RequestsRow.Header)?.burst?.takeIf { burst -> record in burst.records } }
+            ?.takeIf { it.key !in expanded }
+            ?.let {
+                expanded += it.key
+                applyFilter()
+            }
+        val row = rows.indexOfFirst { listedRecord(it) == record }.takeIf { it >= 0 } ?: return
         toReveal = null
         table.selectionModel.setSelectionInterval(row, row)
         table.scrollRectToVisible(table.getCellRect(row, 0, true))
@@ -277,13 +371,14 @@ class RequestsTabPanel(
      * refill fires on the way.
      */
     private fun applyFilter() {
-        val selected = selectedRecord()
+        val selected = selectedRow()
         val filter = filter()
         filling = true
         try {
             shown = records.filter(filter::matches)
+            rows = RequestBursts.rows(shown, expanded, groupBursts.isSelected)
             tableModel.fireTableDataChanged()
-            shown.indexOf(selected).takeIf { it >= 0 }?.let { table.selectionModel.setSelectionInterval(it, it) }
+            rowOf(selected)?.let { table.selectionModel.setSelectionInterval(it, it) }
         } finally {
             filling = false
         }
@@ -293,14 +388,35 @@ class RequestsTabPanel(
         showDetails()
     }
 
-    private fun selectedRecord(): RequestRecord? = table.selectedRow.takeIf { it >= 0 }?.let(shown::getOrNull)
+    private fun selectedRow(): RequestsRow? = table.selectedRow.takeIf { it >= 0 }?.let(rows::getOrNull)
+
+    /** The request [row] lists, or null for a burst's header. */
+    private fun listedRecord(row: RequestsRow): RequestRecord? = when (row) {
+        is RequestsRow.Single -> row.record
+        is RequestsRow.Member -> row.record
+        is RequestsRow.Header -> null
+    }
+
+    /**
+     * Where [selected] is listed now: the same request, or the same burst's header - which is also
+     * where a request goes that a burst has folded since.
+     */
+    private fun rowOf(selected: RequestsRow?): Int? {
+        selected ?: return null
+        val record = listedRecord(selected)
+        val burstKey = (selected as? RequestsRow.Header)?.burst?.key
+        return rows.indexOfFirst { record != null && listedRecord(it) == record }.takeIf { it >= 0 }
+            ?: rows.indexOfFirst { row ->
+                row is RequestsRow.Header && (row.burst.key == burstKey || record in row.burst.records)
+            }.takeIf { it >= 0 }
+    }
 
     /** Each fixed column's width: its widest cell, measured once per refill rather than per resize. */
     private fun measureCells(): Map<RequestsColumn, Int> {
         val metrics = table.getFontMetrics(table.font)
         val padding = JBUI.scale(CELL_PADDING)
         fun widest(column: RequestsColumn, sample: String) =
-            (shown.map { text(it, column) } + sample).maxOf(metrics::stringWidth) + padding
+            (rows.map { text(it, column) } + sample).maxOf(metrics::stringWidth) + padding
         return mapOf(
             RequestsColumn.TIME to widest(RequestsColumn.TIME, TIME_SAMPLE),
             RequestsColumn.SENDER to widest(RequestsColumn.SENDER, "").coerceAtMost(JBUI.scale(SENDER_MAX_WIDTH)),
@@ -341,169 +457,52 @@ class RequestsTabPanel(
     }
 
     private fun showDetails() {
-        detailsPanel.removeAll()
-        detailRow = 0
-        val record = selectedRecord()
-        when {
-            !loaded -> Unit
-            records.isEmpty() -> addLine(hint(EMPTY_TEXT))
-            record == null -> addLine(hint(SELECT_TEXT))
-            else -> {
-                RequestsView.details(record, zone()).forEach { (label, value) -> addFact(label, value) }
-                addLine(links(record.reply.generationId))
+        val row = selectedRow()
+        val record = row?.let(::listedRecord)
+        details.rebuild {
+            when {
+                !loaded -> Unit
+                records.isEmpty() -> line(hint(EMPTY_TEXT))
+                row is RequestsRow.Header -> {
+                    RequestsView.details(row.burst, zone()).forEach { (label, value) -> fact(label, value) }
+                    line(hint(if (row.expanded) BURST_OPEN_TEXT else BURST_CLOSED_TEXT))
+                }
+                record == null -> line(hint(SELECT_TEXT))
+                else -> {
+                    RequestsView.details(record, zone()).forEach { (label, value) -> fact(label, value) }
+                    line(links(record.reply.generationId))
+                    record.bodiesId?.let { id -> line(ActionLink(SHOW_BODIES_TEXT) { openBodies(id) }) }
+                }
             }
         }
-        addFiller()
-        detailsPanel.revalidate()
-        detailsPanel.repaint()
     }
 
-    private fun addFact(label: String, value: String) {
-        val row = detailRow++
-        detailsPanel.add(
-            hint(label),
-            GridBagConstraints().apply {
-                gridx = 0
-                gridy = row
-                anchor = GridBagConstraints.FIRST_LINE_START
-                insets = JBUI.insets(0, 0, ROW_GAP, GAP * 2)
+    /** Reads the bodies kept under [id] off the EDT, and shows them - or says they are gone. */
+    private fun openBodies(id: String) {
+        background {
+            val bodies = loadBodies(id)
+            edt {
+                if (disposed) return@edt
+                if (bodies != null) {
+                    showBodies(component, bodies)
+                } else {
+                    Messages.showInfoMessage(component, BODIES_GONE_TEXT, SHOW_BODIES_TEXT)
+                }
             }
-        )
-        detailsPanel.add(
-            JBLabel(value).apply { setCopyable(true) },
-            GridBagConstraints().apply {
-                gridx = 1
-                gridy = row
-                weightx = 1.0
-                fill = GridBagConstraints.HORIZONTAL
-                anchor = GridBagConstraints.FIRST_LINE_START
-                insets = JBUI.insetsBottom(ROW_GAP)
-            }
-        )
-    }
-
-    /** A component across both columns, below everything added so far. */
-    private fun addLine(line: JComponent) {
-        detailsPanel.add(
-            line,
-            GridBagConstraints().apply {
-                gridx = 0
-                gridy = detailRow++
-                gridwidth = 2
-                weightx = 1.0
-                fill = GridBagConstraints.HORIZONTAL
-                anchor = GridBagConstraints.FIRST_LINE_START
-                insets = JBUI.insetsTop(ROW_GAP)
-            }
-        )
-    }
-
-    private fun addFiller() {
-        detailsPanel.add(
-            JPanel().apply { isOpaque = false },
-            GridBagConstraints().apply {
-                gridx = 0
-                gridy = detailRow++
-                gridwidth = 2
-                weighty = 1.0
-                fill = GridBagConstraints.BOTH
-            }
-        )
-    }
-
-    /**
-     * OpenRouter's logs, where the request can be found by its generation id - its docs name no
-     * address that opens one generation directly - and the id to search for, when it is known.
-     */
-    private fun links(generationId: String?): JComponent = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
-        add(ActionLink("Open logs on openrouter.ai") { BrowserUtil.browse(RequestsView.LOGS_URL) })
-        generationId?.let { id ->
-            add(JBLabel("  "))
-            add(ActionLink("Copy generation id") { CopyPasteManager.getInstance().setContents(StringSelection(id)) })
         }
     }
-
-    private fun hint(text: String) = JBLabel(text).apply { foreground = UIUtil.getContextHelpForeground() }
 
     override fun dispose() {
         disposed = true
     }
 
-    private fun text(record: RequestRecord, column: RequestsColumn): String = when (column) {
-        RequestsColumn.TIME -> RequestsView.time(record, clock(), zone())
-        RequestsColumn.SENDER -> record.sender
-        RequestsColumn.MODEL -> record.requestedModel
-        RequestsColumn.COST -> RequestsView.cost(record)
-        RequestsColumn.WARNING -> record.warning.orEmpty()
-    }
+    private fun text(row: RequestsRow, column: RequestsColumn): String = RequestsView.text(row, column, clock(), zone())
 
     private inner class RequestsTableModel : AbstractTableModel() {
-        override fun getRowCount() = shown.size
+        override fun getRowCount() = rows.size
         override fun getColumnCount() = RequestsColumn.entries.size
         override fun getColumnName(column: Int) = RequestsColumn.entries[column].title
-        override fun getValueAt(row: Int, column: Int): Any = text(shown[row], RequestsColumn.entries[column])
-    }
-
-    /** The requested id, cut in the middle to the column's width so both author and model show. */
-    private class MiddleEllipsisRenderer : DefaultTableCellRenderer() {
-        override fun getTableCellRendererComponent(
-            table: JTable,
-            value: Any?,
-            isSelected: Boolean,
-            hasFocus: Boolean,
-            row: Int,
-            column: Int
-        ): Component {
-            super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column)
-            val full = value?.toString().orEmpty()
-            val room = table.columnModel.getColumn(column).width - insets.left - insets.right
-            val metrics = getFontMetrics(font)
-            text = MiddleEllipsis.fit(full, room, metrics::stringWidth)
-            toolTipText = full.takeIf { text != it }
-            return this
-        }
-    }
-
-    /** The warning mark: an icon, with the reason as its tooltip, or nothing for a normal request. */
-    private class WarningRenderer : DefaultTableCellRenderer() {
-        override fun getTableCellRendererComponent(
-            table: JTable,
-            value: Any?,
-            isSelected: Boolean,
-            hasFocus: Boolean,
-            row: Int,
-            column: Int
-        ): Component {
-            super.getTableCellRendererComponent(table, "", isSelected, hasFocus, row, column)
-            val reason = value?.toString().orEmpty()
-            icon = WarningMark.takeIf { reason.isNotEmpty() }
-            toolTipText = reason.ifEmpty { null }
-            horizontalAlignment = SwingConstants.CENTER
-            return this
-        }
-    }
-
-    /**
-     * A filled triangle in the chat's warning colour, so a request that went wrong reads as the same
-     * kind of thing as the warning under a chat reply, and stands out in a column of plain text.
-     */
-    private object WarningMark : Icon {
-        private const val SIZE = 10
-
-        override fun getIconWidth() = JBUI.scale(SIZE)
-        override fun getIconHeight() = JBUI.scale(SIZE)
-
-        override fun paintIcon(c: Component?, g: Graphics, x: Int, y: Int) {
-            val g2 = g.create() as Graphics2D
-            try {
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-                g2.color = CHAT_WARNING_FOREGROUND
-                val size = iconWidth
-                g2.fillPolygon(intArrayOf(x, x + size / 2, x + size), intArrayOf(y + size, y, y + size), 3)
-            } finally {
-                g2.dispose()
-            }
-        }
+        override fun getValueAt(row: Int, column: Int): Any = text(rows[row], RequestsColumn.entries[column])
     }
 
     companion object {
@@ -511,9 +510,14 @@ class RequestsTabPanel(
         const val ALL_MODELS = "All models"
         const val EMPTY_TEXT = "No requests yet. Requests from the chat and from tools using the proxy appear here."
         const val SELECT_TEXT = "Select a request to see its details."
+        const val SHOW_BODIES_TEXT = "Show prompt and reply"
+        const val KEEP_BODIES_TEXT = "Keep prompt and reply"
+        const val BODIES_GONE_TEXT = "This request's prompt and reply are no longer kept."
+        const val BURST_CLOSED_TEXT =
+            "Open the row to see each request: click its arrow, double-click it, or press Right."
+        const val BURST_OPEN_TEXT = "Each request is listed under this row."
 
         private const val GAP = 4
-        private const val ROW_GAP = 2
         private const val CELL_PADDING = 12
         private const val SENDER_MAX_WIDTH = 140
 

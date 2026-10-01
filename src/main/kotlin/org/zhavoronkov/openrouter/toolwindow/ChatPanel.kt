@@ -912,7 +912,9 @@ class ChatPanel(
         source = RequestSource.CHAT,
         sender = CHAT_SENDER,
         requestedModel = choice.picked,
-        record = { RequestLogService.getInstance().record(it) }
+        record = { RequestLogService.getInstance().record(it) },
+        keepBodies = RequestLogService.getInstance().keepsBodies,
+        saveBodies = { id, bodies -> RequestLogService.getInstance().saveBodies(id, bodies) }
     ).apply { PresetPair.parse(choice.picked)?.let { preset(it.preset, emptyList()) } }
 
     private fun chatRequest(

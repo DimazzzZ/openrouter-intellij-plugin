@@ -26,6 +26,22 @@ class UIPreferencesManager(
             onStateChanged()
         }
 
+    /** Whether the Requests tab folds a burst of requests into one row. */
+    var requestsGroupBursts: Boolean
+        get() = settings.requestsGroupBursts
+        set(value) {
+            settings.requestsGroupBursts = value
+            onStateChanged()
+        }
+
+    /** Whether every request's bodies are kept for the Requests tab; off unless the user turns it on. */
+    var keepRequestBodies: Boolean
+        get() = settings.keepRequestBodies
+        set(value) {
+            settings.keepRequestBodies = value
+            onStateChanged()
+        }
+
     var autoRefresh: Boolean
         get() = settings.autoRefresh
         set(value) {

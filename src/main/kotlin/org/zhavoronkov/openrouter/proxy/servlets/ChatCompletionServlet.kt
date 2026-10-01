@@ -22,6 +22,7 @@ import org.zhavoronkov.openrouter.proxy.pairs.PairProblem
 import org.zhavoronkov.openrouter.proxy.pairs.PresetFields
 import org.zhavoronkov.openrouter.proxy.validation.MultimodalContentValidator
 import org.zhavoronkov.openrouter.requests.ConsumerNames
+import org.zhavoronkov.openrouter.requests.RequestBodies
 import org.zhavoronkov.openrouter.requests.RequestLogService
 import org.zhavoronkov.openrouter.requests.RequestRecord
 import org.zhavoronkov.openrouter.requests.RequestSource
@@ -100,6 +101,14 @@ class ChatCompletionServlet(
     /** Finds, later, the provider of a generation whose reply could not say which one served it. */
     private val providerLookup: (generationId: String) -> Unit = {
         RequestLogService.getInstance().fillProviderLater(it)
+    },
+    /** Whether a request arriving now keeps its bodies; read once per request, as it arrives. */
+    private val keepBodies: () -> Boolean = {
+        applicationServiceOrNull(RequestLogService::class.java)?.keepsBodies == true
+    },
+    /** Keeps a request's bodies under their id; called once, as the request's record is made. */
+    private val bodiesSaver: (id: String, bodies: RequestBodies) -> Unit = { id, bodies ->
+        RequestLogService.getInstance().saveBodies(id, bodies)
     },
     private val pairsProvider: () -> PairAvailability = PresetCopyService::pairs,
     /**
@@ -252,7 +261,9 @@ class ChatCompletionServlet(
             source = RequestSource.PROXY,
             sender = ConsumerNames.fromUserAgent(req.getHeader("User-Agent")),
             record = ::recordSafely,
-            lookUpProvider = ::lookUpProviderSafely
+            lookUpProvider = ::lookUpProviderSafely,
+            keepBodies = keepBodiesSafely(),
+            saveBodies = ::saveBodiesSafely
         )
         try {
             processRequest(req, resp, requestId, startNs, trace)
@@ -308,6 +319,21 @@ class ChatCompletionServlet(
         }
     }
 
+    private fun keepBodiesSafely(): Boolean = try {
+        keepBodies()
+    } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+        PluginLogger.Service.debug("Could not read whether to keep request bodies: ${e.message}")
+        false
+    }
+
+    private fun saveBodiesSafely(id: String, bodies: RequestBodies) {
+        try {
+            bodiesSaver(id, bodies)
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            PluginLogger.Service.debug("Could not keep the request's bodies: ${e.message}")
+        }
+    }
+
     private fun lookUpProviderSafely(generationId: String) {
         try {
             providerLookup(generationId)
@@ -329,6 +355,7 @@ class ChatCompletionServlet(
         logRequestDiagnostics(req, requestId)
 
         val requestBody = req.reader.readText()
+        trace.received(requestBody)
         checkForDuplicateRequest(requestBody, req, requestId)
 
         val apiKey = validateAndGetApiKey(resp, requestId)

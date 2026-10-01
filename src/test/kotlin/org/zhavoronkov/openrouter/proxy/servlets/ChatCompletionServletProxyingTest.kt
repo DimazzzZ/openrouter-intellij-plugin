@@ -32,6 +32,7 @@ import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
 import org.zhavoronkov.openrouter.proxy.pairs.PairAvailability
 import org.zhavoronkov.openrouter.proxy.validation.MultimodalContentValidator
 import org.zhavoronkov.openrouter.requests.ReplyFacts
+import org.zhavoronkov.openrouter.requests.RequestBodies
 import org.zhavoronkov.openrouter.requests.RequestRecord
 import org.zhavoronkov.openrouter.requests.RequestSource
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
@@ -115,6 +116,10 @@ class ChatCompletionServletProxyingTest {
     /** The catalogue the Consumer request checks see; null, as before the first load, checks nothing about the model. */
     private var consumerCatalogue: List<OpenRouterModelInfo>? = null
 
+    /** Whether the servlet keeps request bodies, and what it kept, by id. */
+    private var keepBodies = false
+    private val keptBodies = mutableMapOf<String, RequestBodies>()
+
     private fun servlet(
         presets: PresetSnapshot? = PresetSnapshot(0, emptyList()),
         /** What the copy holds once the read a missing slug asks for has been waited for. */
@@ -130,6 +135,8 @@ class ChatCompletionServletProxyingTest {
             multimodalValidatorProvider = { multimodalValidator },
             requestRecorder = { recorded += it },
             providerLookup = { lookedUp += it },
+            keepBodies = { keepBodies },
+            bodiesSaver = { id, bodies -> keptBodies[id] = bodies },
             catalogueProvider = { consumerCatalogue },
             readMissingPreset = { current = afterRead },
             pairsProvider = {
@@ -345,6 +352,36 @@ class ChatCompletionServletProxyingTest {
 
             assertNull(recorded.single().reply.provider)
             assertEquals(listOf("gen-7"), lookedUp)
+        }
+
+        @Test
+        @DisplayName("with request bodies on, the body received, the body sent and the reply are kept")
+        fun keepsBodies() {
+            keepBodies = true
+            server.enqueue(
+                MockResponse().setResponseCode(200).setHeader("Content-Type", "application/json").setBody(
+                    """{"id":"gen-1","object":"chat.completion","created":1700000000,"model":"openai/gpt-4o-mini",
+                        "choices":[{"index":0,"message":{"role":"assistant","content":"hello"},"finish_reason":"stop"}]}"""
+                )
+            )
+
+            servlet().service(request(chatBody()), response().resp)
+
+            val bodies = keptBodies.getValue(recorded.single().bodiesId!!)
+            assertEquals(chatBody(), bodies.received)
+            assertTrue(bodies.sent!!.contains("\"model\":\"openai/gpt-4o-mini\""), bodies.sent)
+            assertTrue(bodies.reply!!.contains("\"content\":\"hello\""), bodies.reply)
+        }
+
+        @Test
+        @DisplayName("with request bodies off, nothing a request carried is kept")
+        fun keepsNoBodies() {
+            enqueueCompletion()
+
+            servlet().service(request(chatBody()), response().resp)
+
+            assertNull(recorded.single().bodiesId)
+            assertTrue(keptBodies.isEmpty())
         }
 
         @Test

@@ -5,6 +5,8 @@ import org.zhavoronkov.openrouter.requests.RequestSource
 import org.zhavoronkov.openrouter.requests.stopWarning
 import org.zhavoronkov.openrouter.requests.warning
 import org.zhavoronkov.openrouter.toolwindow.chat.ReplySummary
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -40,7 +42,15 @@ data class TodayTotals(val count: Int, val cost: Double, val warnings: Int)
  */
 object RequestsView {
 
-    const val LOGS_URL = "https://openrouter.ai/logs"
+    private const val LOGS_URL = "https://openrouter.ai/logs"
+
+    /**
+     * OpenRouter's logs filtered to [generationId]. The page keeps its filters in the URL, and
+     * `transaction` is the one that names a generation - read from the page itself (2026-10-01),
+     * since OpenRouter's documentation names no parameter.
+     */
+    fun logUrl(generationId: String): String =
+        "$LOGS_URL?transaction=${URLEncoder.encode(generationId, StandardCharsets.UTF_8)}"
 
     private const val SEPARATOR = " · "
     private val TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
@@ -84,6 +94,60 @@ object RequestsView {
         Instant.ofEpochMilli(record.startedAtMillis).atZone(zone)
 
     fun cost(record: RequestRecord): String = record.reply.cost?.let(ReplySummary::formatCost).orEmpty()
+
+    /**
+     * What [row] shows in [column]. A burst's header reads as its latest request's time behind an
+     * arrow that says whether it is open, its requested id with a count, its summed cost, and how
+     * many of its requests went wrong; a request under it is indented below the arrow.
+     */
+    fun text(row: RequestsRow, column: RequestsColumn, now: Instant, zone: ZoneId): String = when (row) {
+        is RequestsRow.Single -> text(row.record, column, now, zone)
+        is RequestsRow.Member ->
+            text(row.record, column, now, zone).let { if (column == RequestsColumn.TIME) "$MEMBER_INDENT$it" else it }
+        is RequestsRow.Header -> headerText(row, column, now, zone)
+    }
+
+    private fun text(record: RequestRecord, column: RequestsColumn, now: Instant, zone: ZoneId): String =
+        when (column) {
+            RequestsColumn.TIME -> time(record, now, zone)
+            RequestsColumn.SENDER -> record.sender
+            RequestsColumn.MODEL -> record.requestedModel
+            RequestsColumn.COST -> cost(record)
+            RequestsColumn.WARNING -> record.warning.orEmpty()
+        }
+
+    private fun headerText(row: RequestsRow.Header, column: RequestsColumn, now: Instant, zone: ZoneId): String {
+        val burst = row.burst
+        return when (column) {
+            RequestsColumn.TIME -> "${if (row.expanded) EXPANDED else COLLAPSED} ${time(burst.latest, now, zone)}"
+            RequestsColumn.SENDER -> burst.sender
+            RequestsColumn.MODEL -> "${burst.requestedModel} ×${burst.size}"
+            RequestsColumn.COST -> burst.cost?.let(ReplySummary::formatCost).orEmpty()
+            RequestsColumn.WARNING ->
+                burst.warnings.takeIf { it > 0 }?.let { "$it of ${plural(burst.size, "request")} went wrong" }.orEmpty()
+        }
+    }
+
+    /** What [burst] adds up to, as label and value, in reading order; each request has its own details. */
+    fun details(burst: RequestBurst, zone: ZoneId): List<Pair<String, String>> {
+        val from = startedAt(burst.earliest, zone)
+        val to = startedAt(burst.latest, zone)
+        val until = if (to.toLocalDate() == from.toLocalDate()) TIME.format(to) else DATE_TIME.format(to)
+        val tokens = if (burst.promptTokens == null && burst.completionTokens == null) {
+            null
+        } else {
+            "${burst.promptTokens ?: "?"} in$SEPARATOR${burst.completionTokens ?: "?"} out"
+        }
+        return listOfNotNull(
+            "Requests" to "${burst.size}, sent together",
+            "Time" to "${DATE_TIME.format(from)} – $until",
+            "Sent by" to sentBy(burst.latest),
+            "Requested" to burst.requestedModel,
+            tokens?.let { "Tokens" to it },
+            burst.cost?.let { "Cost" to ReplySummary.formatCost(it) },
+            burst.warnings.takeIf { it > 0 }?.let { "Warnings" to it.toString() }
+        )
+    }
 
     /**
      * Every fact kept for [record], as label and value, in reading order. A fact the reply did not
@@ -133,4 +197,9 @@ object RequestsView {
     private fun plural(count: Int, noun: String) = if (count == 1) "1 $noun" else "$count ${noun}s"
 
     private const val MILLIS_PER_SECOND = 1000
+    private const val COLLAPSED = "▸"
+    private const val EXPANDED = "▾"
+
+    /** Lines a request's time up under its burst's, past the arrow. */
+    private const val MEMBER_INDENT = "    "
 }

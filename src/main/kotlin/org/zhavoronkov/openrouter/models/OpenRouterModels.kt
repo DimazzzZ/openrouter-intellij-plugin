@@ -604,6 +604,11 @@ data class OpenRouterSettings(
     // Whether a Consumer's request that failed or stopped early raises a balloon; the Requests
     // tab counts it either way.
     var requestWarningBalloons: Boolean = true,
+    // Whether the Requests tab folds a burst of requests into one row ("Group bursts").
+    var requestsGroupBursts: Boolean = true,
+    // Whether every request's bodies - the prompt, the reply - are kept for the Requests tab. Off
+    // by default: they hold whatever the sender put in them, the user's code included.
+    var keepRequestBodies: Boolean = false,
 )
 
 /**

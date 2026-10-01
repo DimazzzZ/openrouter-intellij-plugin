@@ -42,9 +42,27 @@ class RequestLogService {
 
     private val writer: Executor = AppExecutorUtil.createBoundedApplicationPoolExecutor("OpenRouter Requests", 1)
 
+    private val bodyStore: RequestBodyStore by lazy { RequestBodyStore(defaultFile().resolveSibling(BODIES_DIR)) }
+
     private val log: RequestLog by lazy {
-        RequestLog(defaultFile()) { OpenRouterSettingsService.getInstance().uiPreferencesManager.requestLogLimit }
+        RequestLog(
+            defaultFile(),
+            limit = { OpenRouterSettingsService.getInstance().uiPreferencesManager.requestLogLimit },
+            onDropped = { dropped -> bodyStore.delete(dropped.mapNotNull { it.bodiesId }) }
+        )
     }
+
+    /** Whether a request starting now keeps its bodies: the user turned request bodies on. */
+    val keepsBodies: Boolean get() = OpenRouterSettingsService.getInstance().uiPreferencesManager.keepRequestBodies
+
+    /**
+     * Keeps [bodies] under [id], off the calling thread - on the thread records are added on, and
+     * before the record naming them, which is reported after.
+     */
+    fun saveBodies(id: String, bodies: RequestBodies) = writer.execute { bodyStore.save(id, bodies) }
+
+    /** The bodies kept under [id], or null; read on the calling thread, so never call it on the EDT. */
+    fun bodies(id: String): RequestBodies? = bodyStore.load(id)
 
     /** Keeps [record] and tells the Requests tab, off the calling thread. */
     fun record(record: RequestRecord) = writer.execute {
@@ -78,6 +96,8 @@ class RequestLogService {
     /** Drops every record and tells the Requests tab, off the calling thread. */
     fun clear() = writer.execute {
         log.clear()
+        // Also any body whose record was lost - a write cut short, a hand edit
+        bodyStore.clear()
         publish(null)
     }
 
@@ -87,6 +107,7 @@ class RequestLogService {
 
     companion object {
         private const val FILE_NAME = "requests.jsonl"
+        private const val BODIES_DIR = "request-bodies"
 
         fun getInstance(): RequestLogService =
             ApplicationManager.getApplication().getService(RequestLogService::class.java)

@@ -112,16 +112,14 @@ class OpenRouterConfigurable : Configurable {
             settingsService.uiPreferencesManager.autoRefresh = panel.isAutoRefreshEnabled()
             settingsService.uiPreferencesManager.refreshInterval = panel.getRefreshInterval()
             settingsService.uiPreferencesManager.showCosts = panel.shouldShowCosts()
-            settingsService.uiPreferencesManager.requestWarningBalloons = panel.requests.warningBalloons.isSelected
-            settingsService.uiPreferencesManager.requestLogLimit = panel.requests.limit.number
+            panel.requests.apply(settingsService.uiPreferencesManager)
             settingsService.uiPreferencesManager.balanceProviderEnabled = panel.isBalanceProviderEnabled()
             applyDataRegion(panel.getDataRegion())
         } else {
             panel.setAutoRefresh(settingsService.uiPreferencesManager.autoRefresh)
             panel.setRefreshInterval(settingsService.uiPreferencesManager.refreshInterval)
             panel.setShowCosts(settingsService.uiPreferencesManager.showCosts)
-            panel.requests.warningBalloons.isSelected = settingsService.uiPreferencesManager.requestWarningBalloons
-            panel.requests.limit.number = settingsService.uiPreferencesManager.requestLogLimit
+            panel.requests.reset(settingsService.uiPreferencesManager)
             panel.setBalanceProviderEnabled(settingsService.uiPreferencesManager.balanceProviderEnabled)
             panel.setDataRegion(settingsService.getDataRegion())
             panel.onDataRegionChosen { region -> loadFavoritesImpact(panel, region) }
@@ -220,8 +218,7 @@ class OpenRouterConfigurable : Configurable {
         return panel.isAutoRefreshEnabled() != settingsService.uiPreferencesManager.autoRefresh ||
             panel.getRefreshInterval() != settingsService.uiPreferencesManager.refreshInterval ||
             panel.shouldShowCosts() != settingsService.uiPreferencesManager.showCosts ||
-            panel.requests.warningBalloons.isSelected != settingsService.uiPreferencesManager.requestWarningBalloons ||
-            panel.requests.limit.number != settingsService.uiPreferencesManager.requestLogLimit ||
+            panel.requests.isModified(settingsService.uiPreferencesManager) ||
             panel.isBalanceProviderEnabled() != settingsService.uiPreferencesManager.balanceProviderEnabled ||
             isSettingModified(panel, SettingType.DEFAULT_MAX_TOKENS) ||
             isSettingModified(panel, SettingType.PROXY_SETTINGS) ||
