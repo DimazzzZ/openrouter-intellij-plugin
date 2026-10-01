@@ -6,6 +6,9 @@ package org.zhavoronkov.openrouter.requests
  * Known Consumers are matched by a fragment of their User-Agent, case-insensitively, so a version or
  * platform suffix does not matter. A Consumer this table does not know is shown by its User-Agent as
  * sent, cut to [MAX_LENGTH] - truthful, and exactly what is needed to add it here later.
+ *
+ * AI Assistant is deliberately not in the table: it sends `ktor-client`, the Ktor HTTP client's
+ * default User-Agent, which any Ktor-based client sends too, so naming it would misname them.
  */
 object ConsumerNames {
 
@@ -26,6 +29,7 @@ object ConsumerNames {
         "curl/" to "curl"
     )
 
+    /** The name the Requests tab shows for a request that sent [userAgent], or [UNKNOWN] for none. */
     fun fromUserAgent(userAgent: String?): String {
         val sent = userAgent?.trim().orEmpty()
         if (sent.isEmpty()) return UNKNOWN

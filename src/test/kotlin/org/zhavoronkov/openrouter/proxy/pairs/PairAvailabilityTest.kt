@@ -6,9 +6,9 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
+import org.zhavoronkov.openrouter.models.ResponseFormats
 import org.zhavoronkov.openrouter.presets.PresetEntry
 import org.zhavoronkov.openrouter.presets.PresetSnapshot
-import org.zhavoronkov.openrouter.toolwindow.chat.ChatExchange
 
 class PairAvailabilityTest {
 
@@ -103,7 +103,7 @@ class PairAvailabilityTest {
 
         assertEquals(PairProblem.WebSearchDropsJson("search-json"), pairs.problem("json/only@preset/search-json"))
         assertNull(pairs.problem("schema/only@preset/search-schema"))
-        assertEquals(ChatExchange.WEB_SEARCH_SCHEMA_WARNING, pairs.warning("schema/only@preset/search-schema"))
+        assertEquals(ResponseFormats.WEB_SEARCH_SCHEMA_WARNING, pairs.warning("schema/only@preset/search-schema"))
         assertNull(pairs.warning("schema/only@preset/answer"))
     }
 

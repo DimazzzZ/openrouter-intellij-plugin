@@ -1,11 +1,11 @@
 package org.zhavoronkov.openrouter.toolwindow.chat
 
 import org.zhavoronkov.openrouter.models.PresetPair
+import org.zhavoronkov.openrouter.models.ResponseFormats
 import org.zhavoronkov.openrouter.presets.PresetEntry
 import org.zhavoronkov.openrouter.proxy.pairs.PairAvailability
 import org.zhavoronkov.openrouter.proxy.pairs.PairProblem
-import org.zhavoronkov.openrouter.settings.presets.PresetDraft
-import org.zhavoronkov.openrouter.settings.presets.PresetSetting
+import org.zhavoronkov.openrouter.proxy.pairs.PresetFields
 
 /**
  * What the chat's model picker holds: [picked] as listed, which is also what a request is sent
@@ -20,13 +20,13 @@ data class ChatModelChoice(
     val problem: PairProblem? = null
 ) {
     /**
-     * A preset's routing - its provider block or its fallback models, as the proxy counts them -
-     * replaces every routing default, the router's parameter included.
+     * Whether the preset sets routing, counted as the proxy counts it, which replaces every
+     * routing default, the router's parameter included.
      */
-    val presetRouting: Boolean get() = preset?.config?.let { it.has("provider") || it.has("models") } == true
+    val presetRouting: Boolean get() = preset?.config?.keySet()?.let(PresetFields::setsRouting) == true
 
     /** Whether the preset offers web search: the switch sends no tool, so it cannot take it away. */
-    val presetSearches: Boolean get() = preset?.let { PresetDraft.of(it).has(PresetSetting.WEB_SEARCH) } == true
+    val presetSearches: Boolean get() = preset?.config?.let(ResponseFormats::offersWebSearch) == true
 
     companion object {
         fun of(picked: String, pairs: PairAvailability): ChatModelChoice {

@@ -8,8 +8,8 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.zhavoronkov.openrouter.models.OutputSchema
+import org.zhavoronkov.openrouter.models.ResponseFormats
 import org.zhavoronkov.openrouter.presets.PresetEntry
-import org.zhavoronkov.openrouter.toolwindow.chat.ChatExchange
 
 @DisplayName("PresetDraft")
 class PresetDraftTest {
@@ -108,10 +108,10 @@ class PresetDraftTest {
         assertNull(draft.webSearchWarning)
 
         draft.add(PresetSetting.OUTPUT)
-        assertEquals(ChatExchange.WEB_SEARCH_DROPS_JSON, draft.webSearchWarning)
+        assertEquals(ResponseFormats.WEB_SEARCH_DROPS_JSON, draft.webSearchWarning)
 
         draft.setSchema(schema)
-        assertEquals(ChatExchange.WEB_SEARCH_SCHEMA_WARNING, draft.webSearchWarning)
+        assertEquals(ResponseFormats.WEB_SEARCH_SCHEMA_WARNING, draft.webSearchWarning)
     }
 
     @Test

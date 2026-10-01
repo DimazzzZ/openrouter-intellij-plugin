@@ -22,6 +22,7 @@ data class RequestFilter(
     val model: String? = null,
     val warningsOnly: Boolean = false
 ) {
+    /** Whether [record] is left in the table by every filter set. */
     fun matches(record: RequestRecord): Boolean =
         (sender == null || record.sender == sender) &&
             (model == null || record.requestedModel == model) &&
@@ -46,11 +47,13 @@ object RequestsView {
     private val DAY_AND_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM d HH:mm", Locale.US)
     private val DATE_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
 
-    /** The senders and models present in [records], for the filter lists, in a stable order. */
+    /** The senders present in [records], for the sender filter, in a stable order. */
     fun senders(records: List<RequestRecord>): List<String> = records.map { it.sender }.distinct().sorted()
 
+    /** The models asked for in [records], for the model filter, in a stable order. */
     fun models(records: List<RequestRecord>): List<String> = records.map { it.requestedModel }.distinct().sorted()
 
+    /** The totals of those [records] that started on [now]'s day in [zone]. */
     fun today(records: List<RequestRecord>, now: Instant, zone: ZoneId): TodayTotals {
         val today = LocalDate.ofInstant(now, zone)
         val todays = records.filter { startedAt(it, zone).toLocalDate() == today }

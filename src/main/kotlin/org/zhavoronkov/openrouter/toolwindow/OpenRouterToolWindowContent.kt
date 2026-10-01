@@ -2,6 +2,7 @@ package org.zhavoronkov.openrouter.toolwindow
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.ui.components.JBTabbedPane
@@ -91,7 +92,9 @@ class OpenRouterToolWindowContent(
         // the log clears the count with it
         connection.subscribe(
             RequestLogListener.TOPIC,
-            RequestLogListener { added -> SwingUtilities.invokeLater { onRequestRecorded(added) } }
+            RequestLogListener { added ->
+                ApplicationManager.getApplication().invokeLater({ onRequestRecorded(added) }, ModalityState.any())
+            }
         )
         project.messageBus.connect(this).subscribe(
             RequestsNavigator.TOPIC,

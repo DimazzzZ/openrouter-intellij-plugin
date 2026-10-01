@@ -23,22 +23,28 @@ class ConsumerNamesTest {
         opencode/0.9.1 ai-sdk/provider-utils/2.1          | OpenCode
         curl/8.7.1                                        | curl"""
     )
-    @DisplayName("a known agent is named from its User-Agent, whatever else the header carries")
-    fun `a known agent is named from its User-Agent`(userAgent: String, expected: String) {
+    @DisplayName("a known Consumer is named from its User-Agent, whatever else the header carries")
+    fun `a known Consumer is named from its User-Agent`(userAgent: String, expected: String) {
         assertEquals(expected, ConsumerNames.fromUserAgent(userAgent))
     }
 
     /**
-     * An agent this build does not know is shown as it identifies itself, so the tab stays truthful
+     * A Consumer this build does not know is shown as it identifies itself, so the tab stays truthful
      * and the table can be extended from what users actually see.
      */
     @Test
-    @DisplayName("an unknown agent is shown as it identifies itself")
-    fun `an unknown agent is shown as it identifies itself`() {
+    @DisplayName("an unknown Consumer is shown as it identifies itself")
+    fun `an unknown Consumer is shown as it identifies itself`() {
         assertEquals(
             "SomeNewAgent/0.1 (linux; x64) extra/9",
             ConsumerNames.fromUserAgent("  SomeNewAgent/0.1 (linux; x64) extra/9 ")
         )
+    }
+
+    @Test
+    @DisplayName("Ktor's default User-Agent, which AI Assistant sends, is not named as any one Consumer")
+    fun `Ktor's default User-Agent is not named as any one Consumer`() {
+        assertEquals("ktor-client", ConsumerNames.fromUserAgent("ktor-client"))
     }
 
     @Test

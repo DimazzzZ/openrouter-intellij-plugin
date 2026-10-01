@@ -34,6 +34,7 @@ class RequestLog(private val file: Path, private val limit: () -> Int) {
     @Synchronized
     fun recent(): List<RequestRecord> = records.reversed()
 
+    /** Keeps [record] as the newest, appended to the file, dropping the oldest beyond the limit. */
     @Synchronized
     fun add(record: RequestRecord) {
         val kept = limit().coerceAtLeast(1)
@@ -66,6 +67,7 @@ class RequestLog(private val file: Path, private val limit: () -> Int) {
         return true
     }
 
+    /** Drops every record, in memory and on disk. */
     @Synchronized
     fun clear() {
         records.clear()

@@ -4,6 +4,7 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.ui.components.JBCheckBox
 import org.zhavoronkov.openrouter.models.OutputSchema
+import org.zhavoronkov.openrouter.models.ResponseFormats
 
 /**
  * The gate between the Output mode control and Send, driven with a real popup and a real composer
@@ -89,7 +90,10 @@ class OutputModeGatePlatformTest : BasePlatformTestCase() {
 
         webSearch.isSelected = true
 
-        assertEquals("${ChatExchange.WEB_SEARCH_DROPS_JSON}. Choose another output mode to send.", gate.blockedReason())
+        assertEquals(
+            "${ResponseFormats.WEB_SEARCH_DROPS_JSON}. Choose another output mode to send.",
+            gate.blockedReason()
+        )
         assertEquals(ChatParamsPopup.OUTPUT_DROPPED_BY_SEARCH_TEXT, popup.outputComment.text)
         assertTrue("the caller hears that Send was re-decided", reported > 0)
 
@@ -125,7 +129,7 @@ class OutputModeGatePlatformTest : BasePlatformTestCase() {
 
         assertFalse(webSearch.isSelected)
         assertEquals(
-            "${ChatExchange.WEB_SEARCH_PRESET_DROPS_JSON}. Choose another output mode to send.",
+            "${ResponseFormats.WEB_SEARCH_PRESET_DROPS_JSON}. Choose another output mode to send.",
             gate.blockedReason()
         )
         assertFalse(composer.canSend)

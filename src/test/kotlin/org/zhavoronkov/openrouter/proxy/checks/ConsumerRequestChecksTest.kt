@@ -109,11 +109,21 @@ class ConsumerRequestChecksTest {
     }
 
     @Test
-    @DisplayName("a Router, a preset or a Latest Model is never refused for what it declares")
+    @DisplayName("a Router or a preset is never refused for what it declares")
     fun resolvedAtRequestTime() {
-        listOf("openrouter/auto", "openrouter/bodybuilder", "@preset/email", "~openai/gpt-latest").forEach {
+        listOf("openrouter/auto", "openrouter/bodybuilder", "@preset/email").forEach {
             assertNull(check(jsonObject, it), it)
         }
+    }
+
+    @Test
+    @DisplayName("a Latest Model is judged by its own catalogue entry, as the chat judges it")
+    fun latestModel() {
+        val latest = catalogue + model("~schema/only-latest", "structured_outputs")
+
+        assertNull(check(inlineSchema, "~schema/only-latest", latest))
+        assertEquals("response_format_not_supported", check(jsonObject, "~schema/only-latest", latest)?.code)
+        assertEquals("model_not_found", check(jsonObject, "~gone/model-latest", latest)?.code)
     }
 
     @Test

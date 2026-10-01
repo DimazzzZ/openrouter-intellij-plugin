@@ -46,11 +46,13 @@ class RequestLogService {
         RequestLog(defaultFile()) { OpenRouterSettingsService.getInstance().uiPreferencesManager.requestLogLimit }
     }
 
+    /** Keeps [record] and tells the Requests tab, off the calling thread. */
     fun record(record: RequestRecord) = writer.execute {
         log.add(record)
         publish(record)
     }
 
+    /** Every kept record, newest first. */
     fun recent(): List<RequestRecord> = log.recent()
 
     private val lookups = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -73,6 +75,7 @@ class RequestLogService {
         }
     }
 
+    /** Drops every record and tells the Requests tab, off the calling thread. */
     fun clear() = writer.execute {
         log.clear()
         publish(null)

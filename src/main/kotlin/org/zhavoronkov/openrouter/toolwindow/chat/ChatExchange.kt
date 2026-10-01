@@ -12,6 +12,7 @@ import org.zhavoronkov.openrouter.models.PresetPair
 import org.zhavoronkov.openrouter.models.ReasoningConfig
 import org.zhavoronkov.openrouter.models.RequestChoices
 import org.zhavoronkov.openrouter.models.ResponseFormat
+import org.zhavoronkov.openrouter.models.ResponseFormats
 import org.zhavoronkov.openrouter.models.WebSearchSettings
 import org.zhavoronkov.openrouter.proxy.routing.RouterRequestBuilder
 import org.zhavoronkov.openrouter.requests.stopWarning
@@ -235,12 +236,12 @@ object ChatExchange {
      */
     private fun responseFormat(mode: OutputMode, schemas: List<OutputSchema>): ResponseFormat? = when (mode) {
         OutputMode.Off -> null
-        OutputMode.PlainJson -> ResponseFormat(type = "json_object")
+        OutputMode.PlainJson -> ResponseFormat(type = ResponseFormats.JSON_OBJECT)
         is OutputMode.Schema -> {
             val schema = requireNotNull(findSchema(mode, schemas)) { "No saved Output Schema named ${mode.name}" }
             val body = requireNotNull(schema.parsedBody()) { "The Output Schema ${schema.name} is not a JSON object" }
             ResponseFormat(
-                type = "json_schema",
+                type = ResponseFormats.JSON_SCHEMA,
                 jsonSchema = JsonSchemaFormat(name = schema.name, strict = schema.strict, schema = body)
             )
         }
@@ -267,18 +268,21 @@ object ChatExchange {
      * the request the server may refuse.
      *
      * With web search on, OpenRouter drops plain JSON every time, so it cannot be sent; a schema
-     * holds only where the provider searches natively, so it is sent with [WEB_SEARCH_SCHEMA_WARNING].
+     * holds only where the provider searches natively, so it is sent with [ResponseFormats.WEB_SEARCH_SCHEMA_WARNING].
      */
     fun outputModes(context: OutputModeContext): List<OutputModeChoice> {
         val (model, declared, schemas) = context
+        val searches = context.presetSearches || context.webSearch
         val searchReason = when {
-            context.presetSearches -> WEB_SEARCH_PRESET_DROPS_JSON
-            context.webSearch -> WEB_SEARCH_DROPS_JSON
-            else -> null
+            ResponseFormats.webSearchEffect(searches, schema = false) == null -> null
+            context.presetSearches -> ResponseFormats.WEB_SEARCH_PRESET_DROPS_JSON
+            else -> ResponseFormats.WEB_SEARCH_DROPS_JSON
         }
-        val jsonReason = responseFormatProblem(model, declared, schema = false) ?: searchReason
-        val schemaReason = responseFormatProblem(model, declared, schema = true)
-        val schemaWarning = WEB_SEARCH_SCHEMA_WARNING.takeIf { searchReason != null }
+        val jsonReason = ResponseFormats.problem(model, declared, schema = false) ?: searchReason
+        val schemaReason = ResponseFormats.problem(model, declared, schema = true)
+        val schemaWarning = ResponseFormats.WEB_SEARCH_SCHEMA_WARNING.takeIf {
+            ResponseFormats.webSearchEffect(searches, schema = true) == ResponseFormats.WebSearchEffect.MAY_DROP_SCHEMA
+        }
         return listOf(
             OutputModeChoice(OutputMode.Off, null),
             OutputModeChoice(OutputMode.PlainJson, jsonReason)
@@ -290,41 +294,6 @@ object ChatExchange {
             OutputModeChoice(OutputMode.Schema(schema.name), reason, schemaWarning.takeIf { reason == null })
         }
     }
-
-    /**
-     * Measured against OpenRouter: with the web search server tool a `json_schema` is kept only
-     * when the provider runs its own search (OpenAI's, say); with Exa, the search every other
-     * model gets, it is dropped without an error.
-     */
-    const val WEB_SEARCH_SCHEMA_WARNING =
-        "With web search, the schema holds only where the provider searches natively; otherwise the reply is plain text"
-
-    /** Measured against OpenRouter: the web search server tool drops `json_object` whatever searches. */
-    const val WEB_SEARCH_DROPS_JSON =
-        "OpenRouter drops plain JSON when the model may search the web; turn web search off"
-
-    /** [WEB_SEARCH_DROPS_JSON] for a pair whose preset searches, which no switch turns off. */
-    const val WEB_SEARCH_PRESET_DROPS_JSON =
-        "OpenRouter drops plain JSON when the model may search the web, and this pair's preset lets it"
-
-    /**
-     * Why [model], declaring [declared], cannot give plain JSON - or, when [schema], a reply in the
-     * shape of a schema - or null when it can: the rule the Output mode control applies, for a
-     * response format a Consumer sent itself.
-     */
-    fun responseFormatProblem(model: String, declared: List<String>?, schema: Boolean): String? =
-        if (schema) {
-            capabilityReason(model, declared, STRUCTURED_OUTPUTS, "schema-constrained output")
-        } else {
-            capabilityReason(model, declared, RESPONSE_FORMAT, "JSON output")
-        }
-
-    private fun capabilityReason(model: String, declared: List<String>?, parameter: String, what: String): String? =
-        when {
-            declared == null -> "${what.replaceFirstChar { it.uppercase() }} support is not known for $model"
-            parameter in declared -> null
-            else -> "$model does not support $what"
-        }
 
     /**
      * The reason given for a selection that is no longer among the modes offered at all. It blocks
@@ -356,7 +325,7 @@ object ChatExchange {
     private fun webSearchTools(options: ChatRequestOptions, webSearch: WebSearchSettings): List<ChatTool>? {
         if (!options.webSearch) return null
         val parameters = webSearch.toolParameters().takeIf { it.isNotEmpty() }
-        return listOf(ChatTool(type = WEB_SEARCH_TOOL, parameters = parameters?.let(GSON::toJsonTree)))
+        return listOf(ChatTool(type = ResponseFormats.WEB_SEARCH_TOOL, parameters = parameters?.let(GSON::toJsonTree)))
     }
 
     /**
@@ -396,17 +365,8 @@ object ChatExchange {
     private const val MAX_TOKENS = 4096
     private const val TEMPERATURE = 0.7
 
-    /** The `supported_parameters` entry that declares plain JSON output. */
-    private const val RESPONSE_FORMAT = "response_format"
-
     /** Why a saved schema whose body is not a JSON object is not offered. */
     private const val BROKEN_SCHEMA = "is not a valid JSON object; fix it in Settings"
-
-    /** The `supported_parameters` entry that declares schema-constrained output. */
-    private const val STRUCTURED_OUTPUTS = "structured_outputs"
-
-    /** OpenRouter's web search server tool; see its guide in OpenRouter's documentation. */
-    private const val WEB_SEARCH_TOOL = "openrouter:web_search"
 
     private val GSON = Gson()
 

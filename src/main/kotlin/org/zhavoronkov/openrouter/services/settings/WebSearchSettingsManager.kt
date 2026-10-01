@@ -20,6 +20,7 @@ class WebSearchSettingsManager(
     private val onStateChanged: () -> Unit
 ) {
 
+    /** The stored tuning, read forgivingly: exactly what a search would be sent with. */
     fun current(): WebSearchSettings {
         val read = WebSearchSettings(
             engine = WebSearchEngine.fromApiName(settings.webSearchEngine),

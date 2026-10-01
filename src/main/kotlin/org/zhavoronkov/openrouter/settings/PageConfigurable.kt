@@ -11,9 +11,16 @@ import javax.swing.JComponent
  * page says otherwise.
  */
 interface SettingsPage : Disposable {
+    /** Builds the page's component, showing what is stored. */
     fun createPanel(): JComponent
+
+    /** Whether the page shows something other than what is stored. */
     fun isModified(): Boolean
+
+    /** Stores what the page shows. */
     fun apply()
+
+    /** Shows what is stored again, dropping the page's edits. */
     fun reset()
 
     override fun dispose() = Unit

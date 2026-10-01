@@ -128,8 +128,8 @@ class ChatCompletionServletProxyingTest {
             settingsServiceProvider = { settingsService },
             openRouterApiUrl = { server.url("/api/v1/chat/completions").toString() },
             multimodalValidatorProvider = { multimodalValidator },
-            requestRecorder = { { recorded += it } },
-            providerLookup = { { lookedUp += it } },
+            requestRecorder = { recorded += it },
+            providerLookup = { lookedUp += it },
             catalogueProvider = { consumerCatalogue },
             readMissingPreset = { current = afterRead },
             pairsProvider = {
@@ -505,7 +505,7 @@ class ChatCompletionServletProxyingTest {
                 settingsServiceProvider = { settingsService },
                 openRouterApiUrl = { deadUrl },
                 multimodalValidatorProvider = { multimodalValidator },
-                requestRecorder = { { recorded += it } }
+                requestRecorder = { recorded += it }
             )
 
             servlet.service(request(chatBody()), response().resp)
@@ -1114,6 +1114,8 @@ class ChatCompletionServletProxyingTest {
             )
             `when`(settingsService.providerRoutingManager).thenReturn(ProviderRoutingManager(settings) {})
             `when`(settingsService.routerDefaultsManager).thenReturn(RouterDefaultsManager(settings) {})
+            `when`(settingsService.webSearchManager).thenReturn(WebSearchSettingsManager(settings) {})
+            `when`(settingsService.outputSchemasManager).thenReturn(OutputSchemasManager(settings) {})
             enqueueCompletion()
             val exchange = response()
 

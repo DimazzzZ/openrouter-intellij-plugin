@@ -19,6 +19,7 @@ import com.intellij.ui.dsl.gridLayout.UnscaledGapsY
 import com.intellij.ui.dsl.gridLayout.toJBEmptyBorder
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
+import org.zhavoronkov.openrouter.models.ResponseFormats
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.Point
@@ -180,7 +181,8 @@ class ChatParamsPopup(
         val choice = selectedOutputChoice()
         val blocked = !choice.supported
         outputComment.text = when {
-            blocked && choice.unsupportedReason == ChatExchange.WEB_SEARCH_DROPS_JSON -> OUTPUT_DROPPED_BY_SEARCH_TEXT
+            blocked && choice.unsupportedReason == ResponseFormats.WEB_SEARCH_DROPS_JSON ->
+                OUTPUT_DROPPED_BY_SEARCH_TEXT
             blocked -> OUTPUT_BLOCKED_TEXT
             choice.warning != null -> OUTPUT_SEARCH_WARNING_TEXT
             outputChoices.any { !it.supported } -> OUTPUT_UNAVAILABLE_TEXT

@@ -19,6 +19,7 @@ import org.zhavoronkov.openrouter.models.ChatCompletionResponse
 import org.zhavoronkov.openrouter.models.ChatMessage
 import org.zhavoronkov.openrouter.models.ChatUsage
 import org.zhavoronkov.openrouter.models.OutputSchema
+import org.zhavoronkov.openrouter.models.ResponseFormats
 
 @DisplayName("ChatExchange")
 class ChatExchangeTest {
@@ -49,7 +50,7 @@ class ChatExchangeTest {
         fun plainJsonBlocked() {
             val json = ChatExchange.outputModes(searching()).single { it.mode == OutputMode.PlainJson }
 
-            assertEquals(ChatExchange.WEB_SEARCH_DROPS_JSON, json.unsupportedReason)
+            assertEquals(ResponseFormats.WEB_SEARCH_DROPS_JSON, json.unsupportedReason)
             assertTrue(ChatExchange.sendBlockedReason(OutputMode.PlainJson, searching())!!.contains("web search"))
         }
 
@@ -59,7 +60,7 @@ class ChatExchangeTest {
             val choice = ChatExchange.outputModes(searching()).single { it.mode == OutputMode.Schema("answer") }
 
             assertNull(choice.unsupportedReason)
-            assertEquals(ChatExchange.WEB_SEARCH_SCHEMA_WARNING, choice.warning)
+            assertEquals(ResponseFormats.WEB_SEARCH_SCHEMA_WARNING, choice.warning)
             assertNull(ChatExchange.sendBlockedReason(OutputMode.Schema("answer"), searching()))
         }
 
@@ -72,11 +73,11 @@ class ChatExchangeTest {
             val choices = ChatExchange.outputModes(context)
 
             assertEquals(
-                ChatExchange.WEB_SEARCH_PRESET_DROPS_JSON,
+                ResponseFormats.WEB_SEARCH_PRESET_DROPS_JSON,
                 choices.single { it.mode == OutputMode.PlainJson }.unsupportedReason
             )
             assertEquals(
-                ChatExchange.WEB_SEARCH_SCHEMA_WARNING,
+                ResponseFormats.WEB_SEARCH_SCHEMA_WARNING,
                 choices.single { it.mode == OutputMode.Schema("answer") }.warning
             )
         }

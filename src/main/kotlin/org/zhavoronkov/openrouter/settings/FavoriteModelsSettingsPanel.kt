@@ -10,6 +10,8 @@ import com.intellij.openapi.actionSystem.CommonShortcuts
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.Separator
 import com.intellij.openapi.actionSystem.toolbarLayout.ToolbarLayoutStrategy
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.RowsDnDSupport
@@ -34,7 +36,6 @@ import kotlinx.coroutines.cancel
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.models.PresetPair
 import org.zhavoronkov.openrouter.presets.PresetCopyService
-import org.zhavoronkov.openrouter.proxy.pairs.PairAvailability
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.settings.FavoriteModelsManager
@@ -60,7 +61,6 @@ import java.awt.event.KeyEvent
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.ListSelectionModel
-import javax.swing.SwingUtilities
 import javax.swing.Timer
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
@@ -80,7 +80,7 @@ class FavoriteModelsSettingsPanel(
     private val isConfigured: () -> Boolean = { OpenRouterSettingsService.getInstance().isConfigured() },
     private val favoriteModelsServiceProvider: () -> FavoriteModelsService = { FavoriteModelsService.getInstance() },
     // A schema with web search is marked too: it may come back as plain text
-    private val state: FavoriteModelsPageState = PairAvailability.fromSettings().let { pairs ->
+    private val state: FavoriteModelsPageState = PresetCopyService.pairs().let { pairs ->
         FavoriteModelsPageState(pairProblemOf = { pairs.problem(it)?.message ?: pairs.warning(it) })
     },
     private val autoLoad: Boolean = true,
@@ -170,7 +170,9 @@ class FavoriteModelsSettingsPanel(
             if (autoLoad) {
                 loadCatalog()
                 // Pairs judged against the copy read before are judged again once it is read now
-                stopWatchingPresets = watchPresets { SwingUtilities.invokeLater(state::presetsChanged) }
+                stopWatchingPresets = watchPresets {
+                    ApplicationManager.getApplication().invokeLater(state::presetsChanged, ModalityState.any())
+                }
                 refreshPresets()
             }
         }

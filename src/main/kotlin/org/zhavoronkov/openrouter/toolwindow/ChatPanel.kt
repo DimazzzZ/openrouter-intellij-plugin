@@ -5,6 +5,8 @@ import com.google.gson.JsonPrimitive
 import com.google.gson.JsonSyntaxException
 import com.google.gson.reflect.TypeToken
 import com.intellij.ide.util.PropertiesComponent
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
@@ -24,7 +26,6 @@ import org.zhavoronkov.openrouter.models.PresetPair
 import org.zhavoronkov.openrouter.presets.PresetCopyService
 import org.zhavoronkov.openrouter.presets.PresetEntry
 import org.zhavoronkov.openrouter.proxy.errors.ClearError
-import org.zhavoronkov.openrouter.proxy.pairs.PairAvailability
 import org.zhavoronkov.openrouter.proxy.routing.RouterCatalog
 import org.zhavoronkov.openrouter.proxy.routing.RouterRequestBuilder
 import org.zhavoronkov.openrouter.requests.GenerationProviderLookup
@@ -221,7 +222,7 @@ class ChatPanel(
         paramsPopup = ChatParamsPopup(reasoningComboBox, verbosityComboBox, routerParamComboBox, webSearchCheckBox)
         paramsPopup.onSaveAsPreset = ::saveAsPreset
         // A preset edited on the Presets page, or saved from here, reaches the controls
-        stopWatchingPresets = presetCopy.addListener { SwingUtilities.invokeLater(::followPickedPreset) }
+        stopWatchingPresets = presetCopy.addListener { onEdt(::followPickedPreset) }
         composer.onSettingsClick = { paramsPopup.show(composer.settingsComponent()) }
         // Any selection change on a send parameter can flip whether it is
         // "non-default", so the gear badge/tooltip has to be recomputed from
@@ -719,7 +720,7 @@ class ChatPanel(
         val saved = saver.choose(draft, taken) ?: return
         coroutineScope.launch {
             val error = PresetWriter.save(saved)
-            SwingUtilities.invokeLater {
+            onEdt {
                 if (error != null) conversationView.showError("Could not save the preset: $error")
             }
         }
@@ -737,13 +738,16 @@ class ChatPanel(
 
     private val presetCopy get() = PresetCopyService.getInstance().copy
 
+    /** Runs [action] on the EDT, whatever dialog is open. */
+    private fun onEdt(action: () -> Unit) = ApplicationManager.getApplication().invokeLater(action, ModalityState.any())
+
     private fun presetConfig(slug: String) = presetCopy.snapshot()?.find(slug)?.config
 
     /** What the model picker holds now, or null while it holds nothing to send to. */
     private fun pickedChoice(): ChatModelChoice? {
         val picked = modelComboBox.selectedItem as? String ?: return null
         if (picked.startsWith(SEPARATOR_PREFIX)) return null
-        return ChatModelChoice.of(picked, PairAvailability.fromSettings())
+        return ChatModelChoice.of(picked, PresetCopyService.pairs())
     }
 
     /**
@@ -815,7 +819,6 @@ class ChatPanel(
         conversationView.addSystemMessage("Welcome! Press Enter to send, Cmd+Enter for new line.")
     }
 
-    @Suppress("ReturnCount")
     private fun sendMessage() {
         // Not composer.canSend: Enter reaches here with Send disabled, and a blocked send must say
         // why below rather than do nothing.
@@ -824,41 +827,7 @@ class ChatPanel(
         val userMessage = composer.text.trim()
         if (userMessage.isEmpty()) return
 
-        val selectedModel = modelComboBox.selectedItem as? String
-        if (selectedModel.isNullOrEmpty() || selectedModel.startsWith(SEPARATOR_PREFIX)) {
-            conversationView.showError("Please select a model")
-            return
-        }
-
-        if (!settingsService.isConfigured()) {
-            conversationView.showError("OpenRouter is not configured. Please set your API key in settings.")
-            return
-        }
-
-        val choice = ChatModelChoice.of(selectedModel, PairAvailability.fromSettings())
-        choice.problem?.let { problem ->
-            conversationView.showError(ClearError.of(problem).message)
-            return
-        }
-
-        // Read on the EDT, at the moment of sending, and checked against the same rule that blocks
-        // Send: what goes out is exactly what the controls showed when the user sent it. The saved
-        // schemas are re-read first, so a schema deleted since the popup was last brought up to
-        // date blocks this send - and says why - rather than being sent or silently ignored.
-        val context = OutputModeContext(
-            choice.model,
-            selectedModelParameters,
-            savedSchemas(),
-            presetSearches = choice.presetSearches
-        )
-        outputModeGate.update(context)
-        outputModeGate.blockedReason()?.let { reason ->
-            conversationView.showError(reason)
-            return
-        }
-        // A preset's routing replaces every routing default, the router's parameter included
-        val controls = paramsPopup.requestOptions()
-        val options = if (choice.presetRouting) controls.copy(routerParam = null) else controls
+        val send = readyToSend() ?: return
 
         composer.text = ""
         composer.requestFocusInInput()
@@ -878,8 +847,56 @@ class ChatPanel(
         setLoading(true)
 
         coroutineScope.launch {
-            sendChatRequest(choice, currentChat, options, context.schemas)
+            sendChatRequest(send.choice, currentChat, send.options, send.schemas)
         }
+    }
+
+    /** What a message is sent with, read from the controls at the moment of sending. */
+    private class ReadySend(
+        val choice: ChatModelChoice,
+        val options: ChatRequestOptions,
+        val schemas: List<OutputSchema>
+    )
+
+    /** What the next message is sent with, or null when it cannot be sent - said below, as an error. */
+    @Suppress("ReturnCount")
+    private fun readyToSend(): ReadySend? {
+        val selectedModel = modelComboBox.selectedItem as? String
+        if (selectedModel.isNullOrEmpty() || selectedModel.startsWith(SEPARATOR_PREFIX)) {
+            conversationView.showError("Please select a model")
+            return null
+        }
+
+        if (!settingsService.isConfigured()) {
+            conversationView.showError("OpenRouter is not configured. Please set your API key in settings.")
+            return null
+        }
+
+        val choice = ChatModelChoice.of(selectedModel, PresetCopyService.pairs())
+        choice.problem?.let { problem ->
+            conversationView.showError(ClearError.of(problem).message)
+            return null
+        }
+
+        // Read on the EDT, at the moment of sending, and checked against the same rule that blocks
+        // Send: what goes out is exactly what the controls showed when the user sent it. The saved
+        // schemas are re-read first, so a schema deleted since the popup was last brought up to
+        // date blocks this send - and says why - rather than being sent or silently ignored.
+        val context = OutputModeContext(
+            choice.model,
+            selectedModelParameters,
+            savedSchemas(),
+            presetSearches = choice.presetSearches
+        )
+        outputModeGate.update(context)
+        outputModeGate.blockedReason()?.let { reason ->
+            conversationView.showError(reason)
+            return null
+        }
+        // A preset's routing replaces every routing default, the router's parameter included
+        val controls = paramsPopup.requestOptions()
+        val options = if (choice.presetRouting) controls.copy(routerParam = null) else controls
+        return ReadySend(choice, options, context.schemas)
     }
 
     private fun generateChatTitle(message: String): String {
@@ -890,35 +907,40 @@ class ChatPanel(
         }
     }
 
+    /** The chat's requests are Requests entries too; the log writes them off the EDT itself. */
+    private fun traceFor(choice: ChatModelChoice): RequestTrace = RequestTrace(
+        source = RequestSource.CHAT,
+        sender = CHAT_SENDER,
+        requestedModel = choice.picked,
+        record = { RequestLogService.getInstance().record(it) }
+    ).apply { PresetPair.parse(choice.picked)?.let { preset(it.preset, emptyList()) } }
+
+    private fun chatRequest(
+        choice: ChatModelChoice,
+        currentChat: ChatSession?,
+        options: ChatRequestOptions,
+        schemas: List<OutputSchema>
+    ): ChatCompletionRequest = ChatExchange.buildRequest(
+        model = choice.picked,
+        messages = currentChat?.messages?.map { msg ->
+            ChatMessage(role = msg.role, content = JsonPrimitive(msg.content))
+        }.orEmpty(),
+        options = options,
+        webSearch = settingsService.webSearchManager.current(),
+        schemas = schemas,
+        presetFields = choice.preset?.config?.keySet()?.toSet().orEmpty(),
+        preset = choice.preset?.let { ChatPresetControls.of(it, schemas) }
+    )
+
     private suspend fun sendChatRequest(
         choice: ChatModelChoice,
         currentChat: ChatSession?,
         options: ChatRequestOptions,
         schemas: List<OutputSchema>
     ) {
-        // The chat's requests are Requests entries too; the log writes them off the EDT itself.
-        val trace = RequestTrace(
-            source = RequestSource.CHAT,
-            sender = CHAT_SENDER,
-            requestedModel = choice.picked,
-            record = { RequestLogService.getInstance().record(it) }
-        )
-        PresetPair.parse(choice.picked)?.let { trace.preset(it.preset, emptyList()) }
+        val trace = traceFor(choice)
         try {
-            val messages = currentChat?.messages?.map { msg ->
-                ChatMessage(role = msg.role, content = JsonPrimitive(msg.content))
-            } ?: emptyList()
-
-            val request = ChatExchange.buildRequest(
-                model = choice.picked,
-                messages = messages,
-                options = options,
-                webSearch = settingsService.webSearchManager.current(),
-                schemas = schemas,
-                presetFields = choice.preset?.config?.keySet()?.toSet().orEmpty(),
-                preset = choice.preset?.let { ChatPresetControls.of(it, schemas) }
-            )
-
+            val request = chatRequest(choice, currentChat, options, schemas)
             trace.sent(gson.toJsonTree(request).asJsonObject, ::presetConfig)
             val result = openRouterService.createChatCompletion(request)
             when (result) {
@@ -942,7 +964,7 @@ class ChatPanel(
             // stuck waiting for a reply that is never requested.
             PluginLogger.warn("Could not build the chat request: ${e.message}")
             trace.fail("Could not build the request: ${e.message}")
-            SwingUtilities.invokeLater {
+            onEdt {
                 conversationView.showError("Could not send: ${e.message}")
                 setLoading(false)
                 outputModeGate.update(outputModeGate.context)
@@ -1030,7 +1052,7 @@ class ChatPanel(
         coroutineScope.launch {
             val provider = providerLookup.providerOf(generationId) ?: return@launch
             RequestLogService.getInstance().fillProvider(generationId, provider)
-            SwingUtilities.invokeLater {
+            onEdt {
                 val filled = reply.copy(summary = reply.summary?.copy(provider = provider))
                 chat?.messages?.let { messages ->
                     val index = messages.indexOf(reply)

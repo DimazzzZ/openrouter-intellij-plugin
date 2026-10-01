@@ -57,11 +57,13 @@ class RequestTrace(
         replyNamesProvider = ReplyProvider.trusted(request, presetConfig)
     }
 
+    /** One reply, or one chunk of a streamed one, read for the facts it reports. */
     fun observe(json: JsonObject) {
         observed = true
         collector.observe(json)
     }
 
+    /** The request failed with [message]; only the first failure is kept. */
     fun fail(message: String) {
         if (error == null) error = messageOnly(message).take(MAX_ERROR_LENGTH)
     }
@@ -73,6 +75,7 @@ class RequestTrace(
         fixAt = page
     }
 
+    /** Handling has ended: emits the record, once, with whatever was observed and the first failure. */
     fun finish() {
         if (finished) return
         finished = true

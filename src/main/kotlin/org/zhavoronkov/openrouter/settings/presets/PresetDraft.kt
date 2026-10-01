@@ -7,14 +7,17 @@ import com.google.gson.JsonPrimitive
 import org.zhavoronkov.openrouter.models.EntryNames
 import org.zhavoronkov.openrouter.models.OutputSchema
 import org.zhavoronkov.openrouter.models.RequestChoices
+import org.zhavoronkov.openrouter.models.ResponseFormats
 import org.zhavoronkov.openrouter.presets.PresetEntry
-import org.zhavoronkov.openrouter.toolwindow.chat.ChatExchange
+import org.zhavoronkov.openrouter.utils.asBooleanOrNull
+import org.zhavoronkov.openrouter.utils.asObjectOrNull
+import org.zhavoronkov.openrouter.utils.asStringOrNull
 
 /** A setting a preset can have, in the order the dialog shows them; [configKey] is its request field. */
 enum class PresetSetting(val title: String, val configKey: String?) {
     MODEL("Model", "model"),
     WEB_SEARCH("Web search", null),
-    OUTPUT("Output", "response_format"),
+    OUTPUT("Output", ResponseFormats.FIELD),
     REASONING("Reasoning", "reasoning"),
     VERBOSITY("Verbosity", "verbosity"),
     PROVIDER_ROUTING("Provider routing", "provider"),
@@ -57,6 +60,7 @@ class PresetDraft private constructor(
         if (setting !in values) values[setting] = defaultOf(setting)
     }
 
+    /** Drops [setting], so the preset no longer sets it. */
     fun remove(setting: PresetSetting) {
         values.remove(setting)
     }
@@ -83,21 +87,22 @@ class PresetDraft private constructor(
 
     /** The saved schema's name a `json_schema` output was copied from, or null for plain JSON or none. */
     val outputSchemaName: String?
-        get() = output()?.getAsJsonObjectOrNull(JSON_SCHEMA)?.get("name")?.takeIf { it.isJsonPrimitive }?.asString
+        get() = output()?.getAsJsonObjectOrNull(ResponseFormats.JSON_SCHEMA)?.get("name")?.asStringOrNull()
 
-    val plainJson: Boolean get() = output()?.get("type")?.asStringOrNull() == JSON_OBJECT
+    val plainJson: Boolean get() = output()?.get("type")?.asStringOrNull() == ResponseFormats.JSON_OBJECT
 
+    /** Sets the output to plain JSON, replacing a schema. */
     fun setPlainJson() {
-        values[PresetSetting.OUTPUT] = JsonObject().apply { addProperty("type", JSON_OBJECT) }
+        values[PresetSetting.OUTPUT] = JsonObject().apply { addProperty("type", ResponseFormats.JSON_OBJECT) }
     }
 
     /** Copies [schema]'s body in: OpenRouter cannot refer to the plugin's saved schemas. */
     fun setSchema(schema: OutputSchema) {
         val body = schema.parsedBody() ?: return
         values[PresetSetting.OUTPUT] = JsonObject().apply {
-            addProperty("type", JSON_SCHEMA)
+            addProperty("type", ResponseFormats.JSON_SCHEMA)
             add(
-                JSON_SCHEMA,
+                ResponseFormats.JSON_SCHEMA,
                 JsonObject().apply {
                     addProperty("name", schema.name)
                     addProperty("strict", schema.strict)
@@ -112,7 +117,7 @@ class PresetDraft private constructor(
      * the dialog offers to copy it again - or null when it has not, or is not saved.
      */
     fun staleSchema(saved: List<OutputSchema>): OutputSchema? {
-        val copied = output()?.getAsJsonObjectOrNull(JSON_SCHEMA) ?: return null
+        val copied = output()?.getAsJsonObjectOrNull(ResponseFormats.JSON_SCHEMA) ?: return null
         val name = copied.get("name")?.asStringOrNull() ?: return null
         val schema = saved.firstOrNull { EntryNames.same(it.name, name) } ?: return null
         val sameStrict = schema.strict == copied.get("strict")?.asBooleanOrNull()
@@ -123,13 +128,13 @@ class PresetDraft private constructor(
     /** The reasoning effort's label, or null when it names none the dialog lists. */
     var reasoningLabel: String?
         get() {
-            val effort = values[PresetSetting.REASONING]?.getAsJsonObjectOrNull()?.get("effort")?.asStringOrNull()
+            val effort = values[PresetSetting.REASONING]?.asObjectOrNull()?.get("effort")?.asStringOrNull()
             return RequestChoices.REASONING_EFFORTS.entries.firstOrNull { it.value == effort }?.key
         }
         set(label) {
             val effort = RequestChoices.reasoningEffort(label) ?: return
             // Keeps what else the reasoning block says - a token budget, say
-            val block = values[PresetSetting.REASONING]?.getAsJsonObjectOrNull()?.deepCopy() ?: JsonObject()
+            val block = values[PresetSetting.REASONING]?.asObjectOrNull()?.deepCopy() ?: JsonObject()
             block.addProperty("effort", effort)
             values[PresetSetting.REASONING] = block
         }
@@ -156,10 +161,13 @@ class PresetDraft private constructor(
 
     /** What OpenRouter will drop from this preset, or null - the chat's rule for web search. */
     val webSearchWarning: String?
-        get() = when {
-            !has(PresetSetting.WEB_SEARCH) || !has(PresetSetting.OUTPUT) -> null
-            plainJson -> ChatExchange.WEB_SEARCH_DROPS_JSON
-            else -> ChatExchange.WEB_SEARCH_SCHEMA_WARNING
+        get() {
+            val schema = if (has(PresetSetting.OUTPUT)) !plainJson else null
+            return when (ResponseFormats.webSearchEffect(has(PresetSetting.WEB_SEARCH), schema)) {
+                ResponseFormats.WebSearchEffect.DROPS_JSON -> ResponseFormats.WEB_SEARCH_DROPS_JSON
+                ResponseFormats.WebSearchEffect.MAY_DROP_SCHEMA -> ResponseFormats.WEB_SEARCH_SCHEMA_WARNING
+                null -> null
+            }
         }
 
     /** Why the preset cannot be saved, or null when it can. */
@@ -171,13 +179,10 @@ class PresetDraft private constructor(
         else -> null
     }
 
-    private fun output(): JsonObject? = values[PresetSetting.OUTPUT]?.getAsJsonObjectOrNull()
+    private fun output(): JsonObject? = values[PresetSetting.OUTPUT]?.asObjectOrNull()
 
     companion object {
         private const val TOOLS = "tools"
-        private const val WEB_SEARCH_TOOL = "openrouter:web_search"
-        private const val JSON_OBJECT = "json_object"
-        private const val JSON_SCHEMA = "json_schema"
         const val NOTHING_SET = "nothing yet"
         private val SLUG = Regex("[a-z0-9]+(-[a-z0-9]+)*")
 
@@ -193,13 +198,12 @@ class PresetDraft private constructor(
         private fun webSearchTool(base: JsonObject): JsonElement? =
             base.getAsJsonArrayOrNull(TOOLS)?.firstOrNull(::isWebSearch)
 
-        private fun isWebSearch(tool: JsonElement): Boolean =
-            tool.getAsJsonObjectOrNull()?.get("type")?.asStringOrNull() == WEB_SEARCH_TOOL
+        private fun isWebSearch(tool: JsonElement): Boolean = ResponseFormats.isWebSearchTool(tool)
 
         private fun defaultOf(setting: PresetSetting): JsonElement = when (setting) {
             PresetSetting.MODEL -> JsonPrimitive("")
-            PresetSetting.WEB_SEARCH -> JsonObject().apply { addProperty("type", WEB_SEARCH_TOOL) }
-            PresetSetting.OUTPUT -> JsonObject().apply { addProperty("type", JSON_OBJECT) }
+            PresetSetting.WEB_SEARCH -> JsonObject().apply { addProperty("type", ResponseFormats.WEB_SEARCH_TOOL) }
+            PresetSetting.OUTPUT -> JsonObject().apply { addProperty("type", ResponseFormats.JSON_OBJECT) }
             PresetSetting.REASONING -> JsonObject().apply { addProperty("effort", "medium") }
             PresetSetting.VERBOSITY -> JsonPrimitive("medium")
             PresetSetting.PROVIDER_ROUTING -> JsonObject()
@@ -212,17 +216,9 @@ class PresetDraft private constructor(
         private const val DEFAULT_TEMPERATURE = 0.7
         private const val DEFAULT_MAX_TOKENS = 4096
 
-        private fun JsonElement.getAsJsonObjectOrNull(): JsonObject? = takeIf { it.isJsonObject }?.asJsonObject
-
-        private fun JsonObject.getAsJsonObjectOrNull(key: String): JsonObject? = get(key)?.getAsJsonObjectOrNull()
+        private fun JsonObject.getAsJsonObjectOrNull(key: String): JsonObject? = get(key)?.asObjectOrNull()
 
         private fun JsonObject.getAsJsonArrayOrNull(key: String): JsonArray? =
             get(key)?.takeIf { it.isJsonArray }?.asJsonArray
-
-        private fun JsonElement.asStringOrNull(): String? =
-            takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
-
-        private fun JsonElement.asBooleanOrNull(): Boolean? =
-            takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean
     }
 }

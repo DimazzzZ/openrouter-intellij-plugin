@@ -135,7 +135,7 @@ class ProviderRoutingManager(
 
     /**
      * Build the provider routing as a [JsonObject] for raw-JSON injection
-     * in [org.zhavoronkov.openrouter.proxy.servlets.ChatCompletionServlet.applyConfiguredDefaults].
+     * in [org.zhavoronkov.openrouter.proxy.defaults.ConfiguredDefaults].
      * Returns null if no routing is configured.
      */
     fun buildProviderJson(gson: Gson): JsonObject? {

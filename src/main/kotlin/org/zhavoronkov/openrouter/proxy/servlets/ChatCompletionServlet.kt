@@ -95,10 +95,13 @@ class ChatCompletionServlet(
     settingsServiceProvider: () -> OpenRouterSettingsService = { OpenRouterSettingsService.getInstance() },
     private val openRouterApiUrl: () -> String = ::defaultChatCompletionsUrl,
     multimodalValidatorProvider: () -> MultimodalContentValidator = { MultimodalContentValidator() },
-    private val requestRecorder: () -> (RequestRecord) -> Unit = { RequestLogService.getInstance()::record },
+    /** Records one Requests entry; the log is resolved on each call, not at construction. */
+    private val requestRecorder: (RequestRecord) -> Unit = { RequestLogService.getInstance().record(it) },
     /** Finds, later, the provider of a generation whose reply could not say which one served it. */
-    private val providerLookup: () -> (String) -> Unit = { RequestLogService.getInstance()::fillProviderLater },
-    private val pairsProvider: () -> PairAvailability = PairAvailability::fromSettings,
+    private val providerLookup: (generationId: String) -> Unit = {
+        RequestLogService.getInstance().fillProviderLater(it)
+    },
+    private val pairsProvider: () -> PairAvailability = PresetCopyService::pairs,
     /**
      * Waits, briefly, for the read a pair's missing preset asks for, so that one made on
      * OpenRouter since the last read is sent rather than refused. Called on a request thread.
@@ -299,7 +302,7 @@ class ChatCompletionServlet(
      */
     private fun recordSafely(record: RequestRecord) {
         try {
-            requestRecorder()(record)
+            requestRecorder(record)
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             PluginLogger.Service.debug("Could not record the request: ${e.message}")
         }
@@ -307,7 +310,7 @@ class ChatCompletionServlet(
 
     private fun lookUpProviderSafely(generationId: String) {
         try {
-            providerLookup()(generationId)
+            providerLookup(generationId)
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             PluginLogger.Service.debug("Could not look up the provider: ${e.message}")
         }
@@ -501,6 +504,14 @@ class ChatCompletionServlet(
         }
     }
 
+    private fun configuredDefaults() = ConfiguredDefaults.Settings(
+        defaultMaxTokens = settingsService.uiPreferencesManager.defaultMaxTokens,
+        routing = settingsService.providerRoutingManager,
+        routerDefaults = settingsService.routerDefaultsManager,
+        webSearch = settingsService.webSearchManager.current(),
+        schemas = settingsService.outputSchemasManager.all()
+    )
+
     /**
      * Prepare the request body for OpenRouter by serializing the raw JSON.
      * This preserves all fields from the original request — including OpenRouter-specific
@@ -514,7 +525,7 @@ class ChatCompletionServlet(
         isStreaming: Boolean
     ): String {
         // Apply configured defaults only when not already present in the request
-        ConfiguredDefaults.apply(parsed.rawJson, settingsService, gson, requestId, parsed.presetFields)
+        ConfiguredDefaults.apply(parsed.rawJson, ::configuredDefaults, gson, requestId, parsed.presetFields)
         // Asked only of a request that names a preset
         parsed.trace?.sent(parsed.rawJson) { slug -> pairsProvider().presetConfig(slug) }
 

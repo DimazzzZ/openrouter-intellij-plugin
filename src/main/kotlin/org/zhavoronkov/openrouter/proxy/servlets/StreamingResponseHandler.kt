@@ -89,7 +89,7 @@ class StreamingResponseHandler {
         }
     }
 
-    @Suppress("LongMethod", "CyclomaticComplexMethod")
+    @Suppress("CyclomaticComplexMethod")
     private fun processStreamLines(
         reader: BufferedReader,
         writer: PrintWriter,
@@ -120,16 +120,7 @@ class StreamingResponseHandler {
                     }
                     is ChunkValidationResult.Error -> {
                         errorDetected = true
-                        trace?.fail(validationResult.message)
-                        validationResult.message
-                        // Transform error into OpenAI-compatible streaming chunk
-                        // AI Assistant expects chat.completion.chunk format, not raw error JSON
-                        PluginLogger.Service.warn(
-                            "[Chat-$requestId] Error in stream: ${validationResult.message}"
-                        )
-                        // Enhance generic provider errors with more helpful messages
-                        val enhancedMessage = enhanceErrorMessage(validationResult.message)
-                        sendErrorChunk(writer, enhancedMessage)
+                        forwardStreamError(validationResult.message, writer, requestId, trace)
                     }
                     is ChunkValidationResult.Invalid -> {
                         PluginLogger.Service.warn("[Chat-$requestId] Invalid chunk format: ${validationResult.reason}")
@@ -149,27 +140,49 @@ class StreamingResponseHandler {
             }
         }
 
-        // If no valid chunks were sent and we have non-data content, it might be an error
         if (validChunksSent == 0 && !errorDetected) {
-            val nonDataContent = nonDataLines.toString().trim()
-            if (nonDataContent.isNotEmpty()) {
-                PluginLogger.Service.warn("[Chat-$requestId] No SSE data received. Non-data content: $nonDataContent")
-                val extractedError = extractErrorFromContent(nonDataContent)
-                sendErrorChunk(writer, extractedError ?: "Unexpected response format from model", trace)
-            } else {
-                PluginLogger.Service.warn("[Chat-$requestId] Empty stream - no data received from model")
-                sendErrorChunk(
-                    writer,
-                    "No response received from model. The model may be unavailable or doesn't support this request.",
-                    trace
-                )
-            }
+            reportEmptyStream(nonDataLines.toString().trim(), writer, requestId, trace)
         }
 
         sendDoneMarker(writer)
         PluginLogger.Service.debug(
             "[Chat-$requestId] Streaming completed: $validChunksSent chunks sent, error=$errorDetected"
         )
+    }
+
+    /**
+     * An error chunk from upstream, sent on as an OpenAI-compatible `chat.completion.chunk` - AI
+     * Assistant expects that shape, not raw error JSON - with a generic provider error made more
+     * helpful.
+     */
+    private fun forwardStreamError(message: String, writer: PrintWriter, requestId: String, trace: RequestTrace?) {
+        trace?.fail(message)
+        PluginLogger.Service.warn("[Chat-$requestId] Error in stream: $message")
+        sendErrorChunk(writer, enhanceErrorMessage(message))
+    }
+
+    /**
+     * A stream that sent no valid chunk: what it sent instead, [nonDataContent], may be an error,
+     * which is passed on; with nothing at all, the client is told no response came.
+     */
+    private fun reportEmptyStream(
+        nonDataContent: String,
+        writer: PrintWriter,
+        requestId: String,
+        trace: RequestTrace?
+    ) {
+        if (nonDataContent.isNotEmpty()) {
+            PluginLogger.Service.warn("[Chat-$requestId] No SSE data received. Non-data content: $nonDataContent")
+            val extractedError = extractErrorFromContent(nonDataContent)
+            sendErrorChunk(writer, extractedError ?: "Unexpected response format from model", trace)
+        } else {
+            PluginLogger.Service.warn("[Chat-$requestId] Empty stream - no data received from model")
+            sendErrorChunk(
+                writer,
+                "No response received from model. The model may be unavailable or doesn't support this request.",
+                trace
+            )
+        }
     }
 
     /**

@@ -6,8 +6,8 @@ import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import org.zhavoronkov.openrouter.models.OutputSchema
 import org.zhavoronkov.openrouter.models.ProviderRoutingPreferences
+import org.zhavoronkov.openrouter.models.ResponseFormats
 import org.zhavoronkov.openrouter.presets.PresetEntry
-import org.zhavoronkov.openrouter.toolwindow.chat.ChatExchange
 import java.awt.Component
 import java.awt.Container
 import javax.swing.JComponent
@@ -135,7 +135,7 @@ class PresetEditorPlatformTest : BasePlatformTestCase() {
 
         editor.output.selectedItem = PresetEditor.PLAIN_JSON
 
-        assertEquals(ChatExchange.WEB_SEARCH_DROPS_JSON, editor.status.text)
+        assertEquals(ResponseFormats.WEB_SEARCH_DROPS_JSON, editor.status.text)
         assertNull("a warning does not stop the save", editor.problem())
     }
 

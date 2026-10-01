@@ -9,6 +9,7 @@ import kotlinx.coroutines.withTimeout
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.PresetPair
 import org.zhavoronkov.openrouter.models.RegionFavorites
+import org.zhavoronkov.openrouter.presets.PresetCopyService
 import org.zhavoronkov.openrouter.proxy.models.OpenAIModel
 import org.zhavoronkov.openrouter.proxy.models.OpenAIModelsResponse
 import org.zhavoronkov.openrouter.proxy.models.OpenAIPermission
@@ -65,7 +66,7 @@ class ModelsServlet(
      * picking it would only be refused.
      */
     private val pairsProvider: () -> PairAvailability? = {
-        applicationServiceOrNull(OpenRouterSettingsService::class.java)?.let { PairAvailability.fromSettings() }
+        applicationServiceOrNull(OpenRouterSettingsService::class.java)?.let { PresetCopyService.pairs() }
     }
 ) : HttpServlet() {
 

@@ -1,9 +1,10 @@
 package org.zhavoronkov.openrouter.proxy.defaults
 
 import com.google.gson.Gson
-import com.google.gson.JsonElement
 import com.google.gson.JsonObject
+import org.zhavoronkov.openrouter.models.ResponseFormats
 import org.zhavoronkov.openrouter.models.WebSearchSettings
+import org.zhavoronkov.openrouter.utils.asStringOrNull
 
 /**
  * Applies the Web Search tuning saved on the Web Search settings page to a web search a Consumer
@@ -29,7 +30,7 @@ object WebSearchTuningInjector {
     /** @return true when at least one key was added to a web search the Consumer asked for. */
     fun inject(body: JsonObject, tuning: WebSearchSettings): Boolean {
         var added = false
-        entries(body, TOOLS_KEY) { it.get(TYPE_KEY)?.asStringOrNull() == WEB_SEARCH_TOOL }.forEach { tool ->
+        entries(body, TOOLS_KEY, ResponseFormats::isWebSearchTool).forEach { tool ->
             val parameters = tool.get(PARAMETERS_KEY)?.takeIf { it.isJsonObject }?.asJsonObject ?: JsonObject()
             if (fill(parameters, tuning.toolParameters(), tuning)) {
                 tool.add(PARAMETERS_KEY, parameters)
@@ -60,13 +61,8 @@ object WebSearchTuningInjector {
         return added
     }
 
-    private fun JsonElement.asStringOrNull(): String? =
-        takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
-
     private const val TOOLS_KEY = "tools"
-    private const val TYPE_KEY = "type"
     private const val PARAMETERS_KEY = "parameters"
-    private const val WEB_SEARCH_TOOL = "openrouter:web_search"
     private const val PLUGINS_KEY = "plugins"
     private const val ID_KEY = "id"
     private const val ENGINE_KEY = "engine"

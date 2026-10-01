@@ -2,6 +2,8 @@ package org.zhavoronkov.openrouter.proxy.pairs
 
 import com.google.gson.JsonParser
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 
@@ -30,5 +32,14 @@ class PresetFieldsTest {
         val body = JsonParser.parseString("""{"model":"m@preset/p","preset":"@preset/other"}""").asJsonObject
 
         assertEquals(listOf("preset"), PresetFields.strip(body, JsonParser.parseString("{}").asJsonObject))
+    }
+
+    @Test
+    @DisplayName("a provider block or fallback models are routing; other fields are not")
+    fun setsRouting() {
+        assertTrue(PresetFields.setsRouting(setOf("provider")))
+        assertTrue(PresetFields.setsRouting(setOf("temperature", "models")))
+        assertFalse(PresetFields.setsRouting(setOf("temperature", "tools")))
+        assertFalse(PresetFields.setsRouting(emptySet()))
     }
 }

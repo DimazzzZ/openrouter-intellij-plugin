@@ -17,6 +17,15 @@ object PresetFields {
 
     private const val PRESET = "preset"
 
+    /** The routing fields: the provider block and its fallback models, which go together. */
+    private val ROUTING = setOf("provider", "models")
+
+    /**
+     * Whether [fields], those a preset sets, include routing; a preset that sets either routing
+     * field replaces every routing default whole - the proxy's and the chat's alike.
+     */
+    fun setsRouting(fields: Set<String>): Boolean = fields.any { it in ROUTING }
+
     /**
      * Removes from [body] every field [config] sets, and a `preset` of the Consumer's own, which
      * would name a second preset beside the pair's; returns the names removed, in the body's order.

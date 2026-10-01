@@ -1,9 +1,11 @@
 package org.zhavoronkov.openrouter.proxy.defaults
 
-import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import org.zhavoronkov.openrouter.models.EntryNames
 import org.zhavoronkov.openrouter.models.OutputSchema
+import org.zhavoronkov.openrouter.models.ResponseFormats
+import org.zhavoronkov.openrouter.utils.asObjectOrNull
+import org.zhavoronkov.openrouter.utils.asStringOrNull
 
 /**
  * Lets a Consumer ask for a saved Output Schema by name: a `json_schema` response format that names
@@ -20,9 +22,9 @@ object SavedSchemaInjector {
 
     /** @return true when a saved schema was put into the request. */
     fun inject(body: JsonObject, schemas: List<OutputSchema>): Boolean {
-        val format = body.get(RESPONSE_FORMAT_KEY)?.asObjectOrNull() ?: return false
-        if (format.get(TYPE_KEY)?.asStringOrNull() != JSON_SCHEMA_TYPE) return false
-        val jsonSchema = format.get(JSON_SCHEMA_KEY)?.asObjectOrNull() ?: return false
+        val format = body.get(ResponseFormats.FIELD)?.asObjectOrNull() ?: return false
+        if (format.get(TYPE_KEY)?.asStringOrNull() != ResponseFormats.JSON_SCHEMA) return false
+        val jsonSchema = format.get(ResponseFormats.JSON_SCHEMA)?.asObjectOrNull() ?: return false
         if (jsonSchema.has(SCHEMA_KEY)) return false
         val name = jsonSchema.get(NAME_KEY)?.asStringOrNull() ?: return false
         val saved = schemas.firstOrNull { EntryNames.same(it.name, name) } ?: return false
@@ -32,15 +34,7 @@ object SavedSchemaInjector {
         return true
     }
 
-    private fun JsonElement.asObjectOrNull(): JsonObject? = takeIf { it.isJsonObject }?.asJsonObject
-
-    private fun JsonElement.asStringOrNull(): String? =
-        takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
-
-    private const val RESPONSE_FORMAT_KEY = "response_format"
     private const val TYPE_KEY = "type"
-    private const val JSON_SCHEMA_TYPE = "json_schema"
-    private const val JSON_SCHEMA_KEY = "json_schema"
     private const val SCHEMA_KEY = "schema"
     private const val NAME_KEY = "name"
     private const val STRICT_KEY = "strict"

@@ -8,6 +8,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import org.zhavoronkov.openrouter.models.ApiResult
+import org.zhavoronkov.openrouter.proxy.pairs.PairAvailability
+import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import java.nio.file.Path
 
@@ -46,5 +48,15 @@ class PresetCopyService {
 
         fun getInstance(): PresetCopyService =
             ApplicationManager.getApplication().getService(PresetCopyService::class.java)
+
+        /** Whether pairs can be sent, asked of this copy of the presets and the loaded catalogue. */
+        fun pairs(): PairAvailability {
+            val copy = getInstance().copy
+            return PairAvailability(
+                presets = copy::snapshot,
+                lookup = copy::find,
+                catalogue = { FavoriteModelsService.getInstance().getCachedModels() }
+            )
+        }
     }
 }
