@@ -75,6 +75,7 @@ fabric.properties
 # Agent scratchpads and research
 .research/
 .scratch/
+.claude/worktrees/
 
 # Secrets and certificates
 *.har

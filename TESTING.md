@@ -124,11 +124,11 @@ surface; the table records where the ceiling is and *why*.
 
 ## 📊 Test Overview
 
-The plugin features a comprehensive test suite with 130+ active tests ensuring reliability and stability. All tests are enabled — there is no `@Disabled` gate:
+Every test is enabled — there is no `@Disabled` gate. How many there are, and how much of the code they reach, is not written down here, since it changes with every change: CI's test results and the Coverage badge (see [The Coverage badge](#-the-coverage-badge)) say it for the current `main`.
 
-- **Unit tests** (untagged, not `*PlatformTest` / `*SmokeTest`): ~100 tests covering core functionality, models, utilities, and business logic. Run via `./gradlew test`.
-- **Platform tests** (`*PlatformTest` / `*SmokeTest` class-name suffix): ~20 tests requiring IntelliJ's shared TestApplication (settings UI, tool windows, startup). Run via `./gradlew platformTest`.
-- **Functional tests** (`@Tag("functional")`): ~10 tests that make real HTTP calls to OpenRouter or mock servers, consuming credits. Opt-in via `./gradlew functionalTest -Pfunctional`.
+- **Unit tests** (untagged, not `*PlatformTest` / `*SmokeTest`): core functionality, models, utilities and business logic, with a local `MockWebServer` where a test needs HTTP. Run via `./gradlew test`.
+- **Platform tests** (`*PlatformTest` / `*SmokeTest` class-name suffix): what needs IntelliJ's shared TestApplication - settings pages, tool windows, dialogs, notifications, application services. Run via `./gradlew platformTest`.
+- **Functional tests** (`@Tag("functional")`): real HTTP calls to OpenRouter, which consume credits. Opt-in via `./gradlew functionalTest -Pfunctional`.
 
 ### 🎯 Recent Major Improvements
 - **Proxy Configuration Tests**: Added 26+ comprehensive tests for proxy server configuration, port selection, and settings validation
@@ -136,16 +136,14 @@ The plugin features a comprehensive test suite with 130+ active tests ensuring r
 - **Test Fixes**: Fixed all 11 failing FavoriteModelsService tests using dependency injection and mocking
 - **Code Refactoring**: Eliminated duplicate headers across 12+ locations using centralized `OpenRouterRequestBuilder`
 - **Test Infrastructure**: Fixed hanging tests and memory issues with proper timeouts and exclusions
-- **Headless Compatibility**: All UI tests properly skip in headless environments for CI/CD pipeline compatibility
+- **Headless Compatibility**: UI tests run headless as platform tests, in CI as locally
 - **X-Title Header Fix**: Added missing attribution headers to all OpenRouter API requests
 - **Memory Management**: Reduced test memory usage from 3.6GB+ to 512MB with proper configuration
 - **Dependency Injection**: Made FavoriteModelsService testable with optional constructor parameters
 
 ### ✅ Test Status
-- **Build Status**: ✅ All active tests passing (130+ tests, 0 failures)
-- **Coverage**: 🎯 Complete functionality coverage including proxy configuration improvements
-- **Reliability**: 🔒 No more hanging tests or memory issues
-- **Performance**: ⚡ Ultra-fast execution (unit tests in 3-8 seconds)
+- **Build Status**: CI runs the unit and platform tests on every pull request and push to `main`; its results are the current status
+- **Coverage**: the Coverage badge in the README; every line and branch the tests miss is marked in the code with why (see [Code no test should run](#-code-no-test-should-run))
 
 ## 🎯 What Runs by Default
 
@@ -185,7 +183,7 @@ There is no `@Disabled` / `-Dgroups="integration"` / `sed` workaround needed
 anymore — ADR-0003 replaced that scheme.
 
 ### 🎯 Phase 1-3 Testing (UI Enhancements)
-- **Phase 1 Tests**: 64 unit tests for model filtering (ModelProviderUtils, ModelPresets, ModelFilterCriteria)
+- **Phase 1 Tests**: unit tests for model filtering (ModelProviderUtils, ModelPresets, ModelFilterCriteria)
 - **Phase 2 Tests**: N/A (code simplification, no new functionality)
 - **Phase 3 Tests**: Manual testing required for first-run experience (welcome notification, setup wizard)
 - **Testing Guide**: See "Testing First-Run Experience" section below
@@ -221,7 +219,7 @@ The plugin includes a comprehensive multi-step setup wizard that requires manual
 - [ ] Navigation works with Back/Next buttons
 - [ ] Setup completion is properly tracked
 
-### Advanced Model Filtering Tests (64 Tests)
+### Advanced Model Filtering Tests
 ```bash
 # Run all filtering-related tests
 ./gradlew test --tests "ModelProviderUtilsTest"
@@ -238,7 +236,7 @@ The plugin includes a comprehensive multi-step setup wizard that requires manual
 - **Capability Filtering**: Vision, Audio, Tools, Image Generation detection
 - **Preset Testing**: Multimodal, Coding, Cost-Effective predefined sets
 
-### Enhanced Statistics Dialog Tests (30+ Tests)
+### Statistics Popup Tests
 ```bash
 # Test modal dialog functionality
 ./gradlew test --tests "*OpenRouterStatsPopup*"
@@ -257,45 +255,35 @@ The plugin includes a comprehensive multi-step setup wizard that requires manual
 ## 🏗️ Test Architecture
 
 ### Test Structure
+Tests mirror the package of the code they test, under `src/test/kotlin/org/zhavoronkov/openrouter/`. A few that are worth knowing by name:
+
 ```
 src/test/kotlin/org/zhavoronkov/openrouter/
 ├── proxy/servlets/
-│   ├── ChatCompletionServletTest.kt    # ✅ Real unit tests (15 tests)
-│   │   ├── API Key Source Tests (4 tests) - Verify settings vs Authorization header
-│   │   ├── Settings API Key Validation (3 tests) - Blank/null key handling
-│   │   ├── Request Processing Tests (4 tests) - Chat completion logic
-│   │   └── Error Handling Tests (4 tests) - 401 errors and edge cases
-│   └── ApiKeyHandlingIntegrationTest.kt # ✅ Real integration tests (8 tests)
-│       ├── API Key Source Integration (2 tests) - End-to-end key handling
-│       ├── Settings Validation Integration (2 tests) - Complete validation flow
-│       ├── Request Processing Integration (2 tests) - Full request lifecycle
-│       └── Error Handling Integration (2 tests) - Complete error scenarios
-├── SimpleUnitTest.kt                    # ✅ Unit tests (15 tests)
-│   ├── Data model serialization/deserialization
-│   ├── Settings validation and persistence
-│   ├── Business logic and calculations
-│   └── Error handling scenarios
-├── ApiIntegrationTest.kt               # ✅ API integration tests (7 tests)
-│   ├── Authentication validation
-│   ├── API endpoint testing
-│   ├── Response parsing verification
-│   └── Error scenario handling
-├── E2ETest.kt                          # ✅ End-to-end tests (122 tests, `@Tag("functional")`)
-│   ├── Complete workflow testing with real OpenRouter API
-│   ├── Cost: ~$0.0007 per full test run
-│   └── Manual execution for release validation
-└── src/test/resources/mocks/           # 📁 Mock API responses
-    ├── api-keys-list-response.json     # API keys list endpoint
-    ├── api-key-create-response.json    # API key creation endpoint (placeholder keys)
-    ├── api-key-delete-response.json    # API key deletion endpoint
-    ├── key-info-response.json          # Key information endpoint
-    └── error-response.json             # Error response scenarios
+│   ├── ChatCompletionServletProxyingTest.kt  # The proxy end to end against a MockWebServer standing in for OpenRouter
+│   ├── ChatCompletionServletFailureTest.kt   # Transport failures and bodies of an unusual shape
+│   ├── ProxyWiringPlatformTest.kt            # The servlets on their production defaults, under the platform
+│   └── ApiKeyHandlingIntegrationTest.kt      # API key handling (@Tag("functional"))
+├── integration/                              # Proxy server and model end-to-end tests (@Tag("functional"))
+├── services/
+│   ├── OpenRouterServiceLookupTest.kt        # OpenRouterService answers it turns into null or an error
+│   └── OpenRouterServiceIntegrationTest.kt   # Real API calls (@Tag("functional"))
+├── SimpleUnitTest.kt                         # Data models and settings basics
+└── ApiIntegrationTest.kt                     # Real API calls (@Tag("functional"))
+
+src/test/resources/mocks/                     # Recorded OpenRouter responses (placeholder keys)
+├── activity-response.json
+├── api-keys-list-response.json
+├── api-key-create-response.json
+├── api-key-delete-response.json
+├── key-info-response.json
+└── error-response.json
 ```
 
 ### Test Categories
 - **🔧 Unit Tests**: Core business logic and data models
 - **🌐 Integration Tests**: OpenRouter API communication
-- **🤖 Proxy Tests**: AI Assistant integration proxy server (ChatCompletionServletTest)
+- **🤖 Proxy Tests**: AI Assistant integration proxy server (ChatCompletionServletProxyingTest, ChatCompletionServletFailureTest)
 - **🔑 API Key Tests**: Comprehensive API key handling validation (ApiKeyHandlingIntegrationTest)
 - **🎨 UI Enhancement Tests**: Model filtering, presets, and criteria (Phase 1)
 - **📋 Mock Tests**: Simulated API responses for reliability
@@ -312,19 +300,19 @@ src/test/kotlin/org/zhavoronkov/openrouter/
 # Run safe unit tests only (guaranteed to work)
 ./scripts/run-safe-tests.sh
 
-# Or run full unit test suite (130+ tests in 3-8 seconds)
+# Or run the full unit test suite
 ./gradlew test
 ```
 
 #### Individual Test Suites
 ```bash
-# 🔧 Core unit tests (109 tests)
+# 🔧 Core unit tests
 ./gradlew test --tests "SimpleUnitTest" --tests "EncryptionUtilTest" --tests "OpenRouterModelsTest"
 
-# 🧪 Request builder tests (12 tests) - validates refactoring
+# 🧪 Request builder tests
 ./gradlew test --tests "OpenRouterRequestBuilderTest"
 
-# 🎨 Phase 1 filtering tests (64 tests)
+# 🎨 Phase 1 filtering tests
 ./gradlew test --tests "ModelProviderUtilsTest"
 ./gradlew test --tests "ModelPresetsTest"
 ./gradlew test --tests "ModelFilterCriteriaTest"
@@ -332,11 +320,11 @@ src/test/kotlin/org/zhavoronkov/openrouter/
 # 🔑 Settings and API key tests
 ./gradlew test --tests "ApiKeysTableModelTest" --tests "OpenRouterSettingsServiceTest"
 
-# 🌐 Integration tests (manual enable required)
-./gradlew integrationTest
+# 🌐 Functional tests (real OpenRouter calls; opt-in)
+./gradlew functionalTest -Pfunctional
 
-# 🏃‍♂️ All tests (unit tests only, integration tests disabled)
-./gradlew test
+# 🏃‍♂️ Unit and platform tests together (functional tests stay opt-in)
+./gradlew check
 ```
 
 #### Development Testing
@@ -379,34 +367,32 @@ OpenRouter Settings Service Tests > API Key Management > Should store and retrie
 Favorite Models Service Tests > Favorite Management > should add favorite model PASSED
 Favorite Models Service Tests > Favorite Ordering > should reorder favorites PASSED
 RequestTranslatorTest > translateChatCompletionRequest should pass through model name exactly() PASSED
-... (207 tests total)
+...
 
-BUILD SUCCESSFUL in 3-8s
-207 tests completed, 207 succeeded, 14 skipped ✅
+BUILD SUCCESSFUL
 ```
 
 ### Safe Test Runner Output
 ```bash
 ./scripts/run-safe-tests.sh
 🧪 Running safe unit tests only...
-BUILD SUCCESSFUL in 5s
-109 tests completed, 109 succeeded ✅
+BUILD SUCCESSFUL
 ✅ Safe unit tests completed!
 ```
 
-### Integration Tests (Manual Enable)
+### Functional Tests (Opt-in, `-Pfunctional`)
 ```
-> Task :integrationTest
+> Task :functionalTest
 ProxyServerIntegrationTest > Should start and stop Jetty server PASSED
 OpenRouterServiceIntegrationTest > Should handle API communication PASSED
-... (50+ integration tests when enabled)
+...
 
-BUILD SUCCESSFUL in 15s
+BUILD SUCCESSFUL
 ```
 
 ## Test Coverage
 
-### Core Unit Tests (109 Tests)
+### Core Unit Tests
 - **Data Models**: Serialization/deserialization, null handling, API responses
 - **Settings Management**: Configuration validation, persistence, encryption
 - **Business Logic**: API key validation, currency formatting, quota calculations
@@ -414,14 +400,14 @@ BUILD SUCCESSFUL in 15s
 - **Encryption**: Secure storage and retrieval of API keys
 - **UI Components**: Table models, URL copying, icon loading
 
-### Request Builder Tests (12 Tests) - **NEW**
+### Request Builder Tests
 - **GET Requests**: All authentication types (NONE, API_KEY, PROVISIONING_KEY)
 - **POST Requests**: JSON body with authentication
 - **DELETE Requests**: Management Key authentication
 - **Header Validation**: X-Title, HTTP-Referer, Content-Type, Authorization
 - **Configuration Access**: Centralized header management
 
-### Integration Tests (50+ Tests, Disabled by Default)
+### Integration Tests
 - **Servlet Tests**: ChatCompletionServlet API key handling and request processing
 - **API Integration**: OpenRouter API communication with MockWebServer
 - **Proxy Server**: Jetty server lifecycle and endpoint testing
@@ -435,7 +421,7 @@ BUILD SUCCESSFUL in 15s
 - **Model Mapping**: Automatic model name translation
 - **Error Handling**: Proxy error scenarios and fallbacks
 
-### Proxy Configuration Testing (26+ Tests) - **NEW**
+### Proxy Configuration Testing
 - **Settings Service Tests**: Proxy auto-start, port validation, range constraints
 - **Port Selection Logic**: Specific port vs. range selection strategies
 - **Configuration Integration**: Complete proxy setup scenarios
@@ -504,7 +490,7 @@ Enhanced Gradle configuration prevents hanging and memory issues:
 
 ### Safe Test Execution
 - **scripts/run-safe-tests.sh**: Guaranteed to work without hanging
-- **Separate Integration Task**: `./gradlew integrationTest` for heavy tests
+- **Separate Functional Task**: `./gradlew functionalTest -Pfunctional` for tests that call OpenRouter
 - **Fail Fast**: Stop on first failure for quick feedback
 
 ## CI/CD Integration
@@ -672,7 +658,7 @@ For comprehensive debugging information, see [DEBUGGING.md](DEBUGGING.md):
 ### Quick Debug Commands
 ```bash
 # Debug test failures with detailed output
-./gradlew test --info --tests "*ChatCompletionServletTest*"
+./gradlew test --info --tests "*ChatCompletionServlet*"
 
 # Debug API key handling specifically
 ./gradlew test --debug --tests "*ApiKeyHandlingIntegrationTest*"
