@@ -2,6 +2,7 @@ package org.zhavoronkov.openrouter.proxy.routing
 
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import org.zhavoronkov.openrouter.models.PresetPair
 import org.zhavoronkov.openrouter.services.settings.RouterDefaultsManager
 import org.zhavoronkov.openrouter.utils.PluginLogger
 
@@ -38,7 +39,9 @@ object RouterPluginsInjector {
             return false
         }
 
-        val model = rawJson.get(MODEL_KEY)?.takeIf { it.isJsonPrimitive }?.asString ?: return false
+        // A pair names its router in front of the preset
+        val sent = rawJson.get(MODEL_KEY)?.takeIf { it.isJsonPrimitive }?.asString ?: return false
+        val model = PresetPair.modelOf(sent)
         if (!RouterCatalog.isRouter(model)) return false
 
         val saved = defaults.get(model) ?: return false

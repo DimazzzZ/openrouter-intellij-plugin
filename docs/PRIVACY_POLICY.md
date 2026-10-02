@@ -13,6 +13,8 @@ The Plugin stores the following data locally on your machine in IntelliJ's confi
 - **Authentication credentials** (API keys, Management Keys, OAuth tokens)
 - **Plugin preferences** (selected models, proxy settings, UI preferences)
 - **Usage statistics** (generation tracking data: model IDs, token counts, costs)
+- **Request history** (the Requests tab: for each request, who sent it, the model, provider, tokens, cost, stop reason and any error - never its content)
+- **Request bodies, only if you turn them on** (`Tools → OpenRouter`, off by default): each request's prompt and reply as plain text, which include whatever the sending tool put in them, such as your code. They are deleted when their request leaves the history, and Clear on the Requests tab deletes all of them
 
 This data is **never** transmitted outside your machine except as described below.
 

@@ -170,6 +170,73 @@ class FavoriteModelsPageStateTest {
         }
 
         @Test
+        fun `a pair resolves to its model's catalog data, variant included, and keeps its own id`() {
+            val pair = "openai/gpt-4o:nitro@preset/research"
+            val s = state(favorites = listOf(GPT4O.id, pair))
+            s.mode = Mode.FAVORITES_ONLY
+
+            val row = s.visibleRows().last()
+
+            assertEquals(pair, row.id)
+            assertEquals(GPT4O.pricing, row.pricing)
+            assertTrue(s.isAvailable(pair))
+            assertFalse(s.isAvailable("gone/model@preset/research"))
+        }
+
+        @Test
+        fun `a pair is added at the end, once, and pairs a pair's model rather than the pair`() {
+            val s = state(favorites = listOf(GPT4O.id))
+
+            assertEquals("${GPT4O.id}@preset/research", s.addPair(GPT4O.id, "research"))
+            assertNull(s.addPair(GPT4O.id, "research"))
+            assertEquals("${GPT4O.id}@preset/quick", s.addPair("${GPT4O.id}@preset/research", "quick"))
+
+            assertEquals(
+                listOf(GPT4O.id, "${GPT4O.id}@preset/research", "${GPT4O.id}@preset/quick"),
+                s.favorites
+            )
+        }
+
+        @Test
+        fun `only a pair is asked why it cannot be sent`() {
+            val asked = mutableListOf<String>()
+            val s =
+                FavoriteModelsPageState(pairProblemOf = { asked += it; "No preset named 'x' is saved on OpenRouter" })
+
+            assertEquals("No preset named 'x' is saved on OpenRouter", s.pairProblem("${GPT4O.id}@preset/x"))
+            assertNull(s.pairProblem(GPT4O.id))
+            assertEquals(listOf("${GPT4O.id}@preset/x"), asked)
+        }
+
+        @Test
+        fun `a pair is judged again once the presets are read again`() {
+            var asked = 0
+            val s = FavoriteModelsPageState(pairProblemOf = { asked++; null })
+            val pair = "${GPT4O.id}@preset/x"
+            s.pairProblem(pair)
+
+            s.presetsChanged()
+            s.pairProblem(pair)
+
+            assertEquals(2, asked)
+        }
+
+        @Test
+        fun `a pair's problem is asked once until the page changes`() {
+            var asked = 0
+            val s = FavoriteModelsPageState(pairProblemOf = { asked++; "gone" })
+            val pair = "${GPT4O.id}@preset/x"
+
+            s.pairProblem(pair)
+            s.pairProblem(pair)
+            assertEquals(1, asked)
+
+            s.setFavorite(GROK.id, true)
+            s.pairProblem(pair)
+            assertEquals(2, asked)
+        }
+
+        @Test
         fun `a favorite missing from the catalog is a placeholder marked unavailable`() {
             val s = state(favorites = listOf("gone/model"))
             s.mode = Mode.FAVORITES_ONLY
@@ -211,6 +278,36 @@ class FavoriteModelsPageStateTest {
             val s = state(catalog = listOf(FavoriteModelsFixtures.model("a/b:batch")))
 
             assertEquals(listOf(VariantFilter.ANY, VariantFilter.BATCH), s.availableVariantFilters())
+        }
+
+        @Test
+        fun `a catalog with latest slugs offers the Latest filter`() {
+            val s = state(
+                catalog = listOf(
+                    FavoriteModelsFixtures.model("openai/gpt-4o"),
+                    FavoriteModelsFixtures.model("~openai/gpt-astra-latest")
+                )
+            )
+
+            assertEquals(
+                listOf(VariantFilter.ANY, VariantFilter.BASE_ONLY, VariantFilter.LATEST),
+                s.availableVariantFilters()
+            )
+        }
+
+        @Test
+        fun `filtering by author includes that author's latest slugs`() {
+            val s = state(
+                catalog = listOf(
+                    FavoriteModelsFixtures.model("openai/gpt-4o"),
+                    FavoriteModelsFixtures.model("~openai/gpt-astra-latest"),
+                    FavoriteModelsFixtures.model("anthropic/claude-sonnet-4.5")
+                )
+            )
+
+            val openAi = s.catalog.filter { ModelFilterCriteria(provider = "OpenAI").matches(it) }.map { it.id }
+
+            assertEquals(listOf("openai/gpt-4o", "~openai/gpt-astra-latest"), openAi)
         }
 
         @Test

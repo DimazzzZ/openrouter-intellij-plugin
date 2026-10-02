@@ -117,6 +117,7 @@ class OpenRouterSettingsPanel {
     private val autoRefreshCheckBox: JBCheckBox
     private val refreshIntervalSpinner: JSpinner
     private val showCostsCheckBox: JBCheckBox
+    internal val requests = RequestsSection()
     private val defaultMaxTokensSpinner: JSpinner
     private val enableDefaultMaxTokensCheckBox: JBCheckBox
     private val dataRegionSection = DataRegionSection()
@@ -386,6 +387,9 @@ class OpenRouterSettingsPanel {
                                 "auto-select from the specified range."
                         )
                     }
+
+                    // What a tool that went through the proxy is told about
+                    requests.addTo(this)
 
                     // Proxy server controls
                     row("Status:") {

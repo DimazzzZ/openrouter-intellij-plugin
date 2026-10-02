@@ -2,12 +2,24 @@ package org.zhavoronkov.openrouter.toolwindow.chat
 
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import com.intellij.ui.components.JBCheckBox
 import com.intellij.util.ui.JBUI
+import org.zhavoronkov.openrouter.models.OutputSchema
 import java.awt.Point
 import javax.swing.JComponent
 
 private const val EXPECTED_FORM_WIDTH = 324
-private const val MAX_SANE_FORM_HEIGHT_PX = 210
+
+/**
+ * Five rows: Reasoning, Verbosity, the router parameter, Web Search and Output, plus the line
+ * under Output. Measured at 286px on macOS with every comment showing, and under this ceiling on
+ * Linux (DejaVu Sans) as well. This is a coarse guard
+ * against the form ballooning; a single wrapped comment can still fit under it, which is why
+ * [ChatParamsPopupLayoutPlatformTest.testEveryCommentIsLaidOutWideEnoughToRenderOnOneLine]
+ * catches the wrap itself directly.
+ */
+private const val MAX_SANE_FORM_HEIGHT_PX = 300
+
 private const val GEAR_BUTTON_HEIGHT = 24
 private const val CONTENT_HEIGHT = 186
 private const val EXTRA_ROOM_PX = 40
@@ -54,6 +66,9 @@ private const val ROUTER_DESCRIPTION = "One of: low, medium, high, xhigh, max"
  */
 class ChatParamsPopupLayoutPlatformTest : BasePlatformTestCase() {
 
+    private fun modes(model: String, declared: List<String>?, schemas: List<OutputSchema> = emptyList()) =
+        ChatExchange.outputModes(OutputModeContext(model, declared, schemas))
+
     private fun buildForm(popup: ChatParamsPopup): JComponent {
         val method = ChatParamsPopup::class.java.getDeclaredMethod("buildForm")
         method.isAccessible = true
@@ -89,7 +104,7 @@ class ChatParamsPopupLayoutPlatformTest : BasePlatformTestCase() {
         val router = ComboBox(arrayOf("x"))
         val naturalWidth = reasoning.preferredSize.width
 
-        val popup = ChatParamsPopup(reasoning, verbosity, router)
+        val popup = ChatParamsPopup(reasoning, verbosity, router, JBCheckBox())
         val form = layoutAtPreferredSize(buildForm(popup))
 
         assertTrue("expected the form to be laid out at a real width, got ${form.width}", form.width > 0)
@@ -112,7 +127,7 @@ class ChatParamsPopupLayoutPlatformTest : BasePlatformTestCase() {
     }
 
     fun testFormPreferredWidthMatchesIntendedValueAndHeightStaysUnderSaneCeiling() {
-        val popup = ChatParamsPopup(ComboBox(arrayOf("a")), ComboBox(arrayOf("b")), ComboBox(arrayOf("c")))
+        val popup = newPopup()
         // Worst case: both comments visible (unsupported reason text) plus the
         // router row with its longest comment, so the height ceiling is
         // checked against the tallest the form actually gets.
@@ -128,7 +143,7 @@ class ChatParamsPopupLayoutPlatformTest : BasePlatformTestCase() {
             form.preferredSize.width
         )
         assertTrue(
-            "expected the three-field, two-column form's height (${form.preferredSize.height}) " +
+            "expected the two-column form's height (${form.preferredSize.height}) " +
                 "to stay compact (<= $MAX_SANE_FORM_HEIGHT_PX), not balloon back into the " +
                 "label-above-control form's dialog-sized territory",
             form.preferredSize.height <= JBUI.scale(MAX_SANE_FORM_HEIGHT_PX)
@@ -152,7 +167,7 @@ class ChatParamsPopupLayoutPlatformTest : BasePlatformTestCase() {
      * itself, on whichever platform the suite runs.
      */
     fun testEveryCommentIsLaidOutWideEnoughToRenderOnOneLine() {
-        val popup = ChatParamsPopup(ComboBox(arrayOf("a")), ComboBox(arrayOf("b")), ComboBox(arrayOf("c")))
+        val popup = newPopup()
         popup.setReasoningSupport(supported = false, reason = UNSUPPORTED_REASON)
         popup.setVerbositySupport(supported = false, reason = UNSUPPORTED_REASON)
         popup.setRouterParam(label = ROUTER_LABEL, description = ROUTER_DESCRIPTION, visible = true)
@@ -199,6 +214,63 @@ class ChatParamsPopupLayoutPlatformTest : BasePlatformTestCase() {
     }
 
     /**
+     * The line under the Output control is a plain label that never wraps, so a text too long for
+     * the form would be cut off rather than reflowed. Both of its texts must fit at the form's width.
+     */
+    fun testTheOutputLineFitsTheFormWhicheverTextItShows() {
+        val capable = modes("capable/model", listOf("response_format"))
+        val incapable = modes("anthropic/claude-sonnet-4.5-20250929", listOf("tools"))
+        val cases = listOf<(ChatParamsPopup) -> Unit>(
+            { it.setOutputModes(incapable) },
+            {
+                it.setOutputModes(capable)
+                it.outputMode.selectedItem = OutputMode.PlainJson
+                it.setOutputModes(incapable)
+            }
+        )
+        val seen = mutableSetOf<String>()
+        cases.forEach { arrange ->
+            val popup = newPopup()
+            arrange(popup)
+            layoutAtPreferredSize(buildForm(popup))
+            val line = popup.outputComment
+            seen += line.text
+
+            assertTrue(
+                "the line <${line.text}> is ${line.width}px wide but needs ${line.preferredSize.width}px",
+                line.width >= line.preferredSize.width
+            )
+        }
+        assertEquals(setOf(ChatParamsPopup.OUTPUT_UNAVAILABLE_TEXT, ChatParamsPopup.OUTPUT_BLOCKED_TEXT), seen)
+    }
+
+    /**
+     * A schema name can be 64 characters and the Output mode control lists names as they are; the
+     * form must keep its width and let the control cut the name short rather than grow sideways.
+     */
+    fun testALongSchemaNameDoesNotWidenTheForm() {
+        val longName = "a".repeat(64)
+        val popup = newPopup()
+        popup.setOutputModes(
+            modes("capable/model", listOf("structured_outputs"), listOf(OutputSchema(longName, schema = "{}")))
+        )
+        popup.outputMode.selectedItem = OutputMode.Schema(longName)
+
+        val form = layoutAtPreferredSize(buildForm(popup))
+
+        assertEquals(
+            "the form must keep its width with a long schema name selected",
+            JBUI.scale(EXPECTED_FORM_WIDTH),
+            form.preferredSize.width
+        )
+        assertTrue(
+            "the Output mode control (right edge ${popup.outputMode.x + popup.outputMode.width}) must stay inside " +
+                "the form (width ${form.width})",
+            popup.outputMode.x + popup.outputMode.width <= form.width
+        )
+    }
+
+    /**
      * The reported bug: the router comment "One of: low, medium, high, xhigh,
      * max" wraps onto a second line at [EXPECTED_FORM_WIDTH]'s control-column
      * width, and that second line was sliced by the popup's bottom edge.
@@ -211,7 +283,7 @@ class ChatParamsPopupLayoutPlatformTest : BasePlatformTestCase() {
      * regressing.
      */
     fun testRouterCommentSecondLineIsNotClippedByFormBottomEdge() {
-        val popup = ChatParamsPopup(ComboBox(arrayOf("a")), ComboBox(arrayOf("b")), ComboBox(arrayOf("c")))
+        val popup = newPopup()
         popup.setRouterParam(label = ROUTER_LABEL, description = ROUTER_DESCRIPTION, visible = true)
 
         val form = layoutAtPreferredSize(buildForm(popup))
@@ -259,7 +331,8 @@ class ChatParamsPopupLayoutPlatformTest : BasePlatformTestCase() {
         )
     }
 
-    private fun newPopup() = ChatParamsPopup(ComboBox(arrayOf("a")), ComboBox(arrayOf("b")), ComboBox(arrayOf("c")))
+    private fun newPopup() =
+        ChatParamsPopup(ComboBox(arrayOf("a")), ComboBox(arrayOf("b")), ComboBox(arrayOf("c")), JBCheckBox())
 
     /**
      * Room below the gear: anchors at the button's bottom-left corner, like a

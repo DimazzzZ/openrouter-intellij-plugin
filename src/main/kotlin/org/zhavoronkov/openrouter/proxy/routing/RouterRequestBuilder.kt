@@ -3,9 +3,12 @@ package org.zhavoronkov.openrouter.proxy.routing
 import org.zhavoronkov.openrouter.models.PluginConfig
 
 /**
- * Pure seam between the chat UI and a typed ChatCompletionRequest: turns a
- * model slug plus the user's raw param value (a String, or null when the
- * user hasn't chosen one) into the plugins list to attach.
+ * Turns a model slug plus the user's raw param value (a String, or null when
+ * the user hasn't chosen one) into the plugins list to attach.
+ *
+ * Router knowledge only. The chat window reaches this through its own
+ * request-building seam rather than calling it directly, so that a Router's
+ * plugin block and every other optional field are decided in one place.
  *
  * All router knowledge is read from [RouterCatalog]; there is no per-router
  * branch here. To support a new router, add a row to the catalog.
@@ -41,20 +44,6 @@ object RouterRequestBuilder {
         if (resolved == requestedModel) return null
         return "Routed to $resolved"
     }
-
-    /**
-     * The label every reply carries: which model actually answered it.
-     *
-     * A router's reply keeps [resolvedModelLabel]'s wording, because there the interesting fact is
-     * that a router was asked and something else answered. Every other reply gets the plain slug -
-     * it is the same fact, just without a detour to report. A conversation that ran across several
-     * models is unreadable otherwise: nothing on the message says which one produced it, and the
-     * model picker only ever shows the one selected now.
-     */
-    fun answeringModelLabel(requestedModel: String, responseModel: String?): String =
-        resolvedModelLabel(requestedModel, responseModel)
-            ?: responseModel?.takeIf { it.isNotBlank() }
-            ?: requestedModel
 
     /**
      * Decides how the chat UI should update its router-param control when it

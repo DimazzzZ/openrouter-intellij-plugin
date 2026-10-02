@@ -1,13 +1,16 @@
 package org.zhavoronkov.openrouter.toolwindow
 
 import com.google.gson.Gson
+import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.zhavoronkov.openrouter.toolwindow.chat.ReplySummary
 
 /**
  * Tests for ChatPanel data classes serialization and deserialization
@@ -21,6 +24,17 @@ class ChatPanelDataModelTest {
     @DisplayName("ChatMessageData Tests")
     inner class ChatMessageDataTests {
 
+        private val summary = ReplySummary(
+            requestedModel = "openrouter/auto",
+            respondingModel = "anthropic/claude-sonnet-4.5",
+            provider = "Google Vertex",
+            cost = 0.00042,
+            finishReason = "length"
+        )
+
+        private fun reload(message: ChatPanel.ChatMessageData): ChatPanel.ChatMessageData =
+            gson.fromJson(gson.toJson(message), ChatPanel.ChatMessageData::class.java)
+
         @Test
         @DisplayName("ChatMessageData should serialize to JSON correctly")
         fun `ChatMessageData should serialize to JSON correctly`() {
@@ -33,21 +47,87 @@ class ChatPanelDataModelTest {
         }
 
         @Test
-        @DisplayName("ChatMessageData should carry which model answered across a save and reload")
-        fun `ChatMessageData should carry which model answered across a save and reload`() {
-            val message = ChatPanel.ChatMessageData(
-                role = "assistant",
-                content = "Hi there!",
-                footnote = "deepseek/deepseek-v4-flash-0731"
+        @DisplayName("a reply is saved with its model, provider, cost and finish reason as separate fields")
+        fun `a reply is saved with its model provider cost and finish reason as separate fields`() {
+            val json = JsonParser.parseString(gson.toJson(ChatPanel.ChatMessageData.reply("Hi there!", summary)))
+
+            val expected = """
+                {
+                  "role": "assistant",
+                  "content": "Hi there!",
+                  "summary": {
+                    "requestedModel": "openrouter/auto",
+                    "respondingModel": "anthropic/claude-sonnet-4.5",
+                    "provider": "Google Vertex",
+                    "cost": 0.00042,
+                    "finishReason": "length",
+                    "webSearches": 0
+                  }
+                }
+            """
+            assertEquals(
+                JsonParser.parseString(expected),
+                json,
+                "a reply must store the facts rather than footer wording, and must not write the footnote field"
             )
+        }
 
-            val reloaded = gson.fromJson(gson.toJson(message), ChatPanel.ChatMessageData::class.java)
+        @Test
+        @DisplayName("a reopened reply shows the footer the live reply showed, warning included")
+        fun `a reopened reply shows the footer the live reply showed warning included`() {
+            val reloaded = reload(ChatPanel.ChatMessageData.reply("Hi there!", summary))
 
+            assertEquals(summary, reloaded.summary)
+            assertEquals(summary.facts, reloaded.footerFacts)
+            assertEquals(summary.warning, reloaded.footerWarning)
+            assertNotNull(reloaded.footerWarning, "a truncated reply must still warn after reopening")
+        }
+
+        @Test
+        @DisplayName("a reply that web search still says so after reopening")
+        fun `a reply that web search still says so after reopening`() {
+            val reloaded = reload(ChatPanel.ChatMessageData.reply("Hi there!", summary.copy(webSearches = 2)))
+
+            assertEquals(2, reloaded.summary?.webSearches)
+            assertTrue(reloaded.footerFacts!!.endsWith("2 web searches"), "got '${reloaded.footerFacts}'")
+        }
+
+        @Test
+        @DisplayName("a reply saved before Web Search existed loads as one that did not search")
+        fun `a reply saved before Web Search existed loads as one that did not search`() {
+            val json = """{"role":"assistant","content":"Hi","summary":{"requestedModel":"openai/gpt-5.2"}}"""
+
+            val message = gson.fromJson(json, ChatPanel.ChatMessageData::class.java)
+
+            assertEquals(0, message.summary?.webSearches)
+            assertEquals("openai/gpt-5.2", message.footerFacts)
+        }
+
+        @Test
+        @DisplayName("a reply whose provider and cost were absent still leaves them out after reopening")
+        fun `a reply whose provider and cost were absent still leaves them out after reopening`() {
+            val bare = ReplySummary(requestedModel = "openai/gpt-5.2", finishReason = "stop")
+
+            val reloaded = reload(ChatPanel.ChatMessageData.reply("Hi there!", bare))
+
+            assertEquals("openai/gpt-5.2", reloaded.footerFacts)
+            assertNull(reloaded.footerWarning)
+        }
+
+        @Test
+        @DisplayName("a reply saved with only a rendered footnote still loads and still shows it")
+        fun `a reply saved with only a rendered footnote still loads and still shows it`() {
+            val json = """{"role":"assistant","content":"Hi there!","footnote":"deepseek/deepseek-v4-flash-0731"}"""
+
+            val message = gson.fromJson(json, ChatPanel.ChatMessageData::class.java)
+
+            assertNull(message.summary, "a footnote-only message carries no structured facts")
             assertEquals(
                 "deepseek/deepseek-v4-flash-0731",
-                reloaded.footnote,
-                "reopening a chat must still say which model wrote each reply"
+                message.footerFacts,
+                "reopening a chat must still show the footnote it was saved with"
             )
+            assertNull(message.footerWarning)
         }
 
         @Test
@@ -57,7 +137,8 @@ class ChatPanelDataModelTest {
 
             val message = gson.fromJson(json, ChatPanel.ChatMessageData::class.java)
 
-            assertNull(message.footnote, "an older chat has no footnote to show, and must still load")
+            assertNull(message.footerFacts, "an older chat has no footnote to show, and must still load")
+            assertNull(message.footerWarning)
         }
 
         @Test

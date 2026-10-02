@@ -1,6 +1,9 @@
 package org.zhavoronkov.openrouter.services
 
 import com.google.gson.Gson
+import com.google.gson.JsonObject
+import com.google.gson.JsonParseException
+import com.google.gson.JsonParser
 import com.google.gson.JsonSyntaxException
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
@@ -166,6 +169,32 @@ open class OpenRouterService(
             } catch (e: IOException) {
                 handleNetworkError(e, "Error getting generation stats")
                 ApiResult.Error(message = e.message ?: "Network error", throwable = e)
+            }
+        }
+
+    /**
+     * The provider OpenRouter's generation record names for [generationId], or null when there is
+     * no record yet, no key, or anything else goes wrong: a caller retries, and never shows an error.
+     */
+    suspend fun getGenerationProvider(generationId: String): String? =
+        withContext(Dispatchers.IO) {
+            try {
+                val request = OpenRouterRequestBuilder.buildGetRequest(
+                    url = "${getGenerationEndpoint()}?id=$generationId",
+                    authType = OpenRouterRequestBuilder.AuthType.API_KEY,
+                    authToken = settingsService.getApiKey()
+                )
+                val (response, body) = client.newCall(request).awaitWithBody()
+                if (!response.isSuccessful) return@withContext null
+                JsonParser.parseString(body).takeIf { it.isJsonObject }?.asJsonObject
+                    ?.getAsJsonObject("data")?.get("provider_name")
+                    ?.takeIf { it.isJsonPrimitive }?.asString
+            } catch (e: IOException) {
+                null
+            } catch (e: JsonParseException) {
+                null
+            } catch (e: ClassCastException) {
+                null
             }
         }
 
@@ -680,6 +709,23 @@ open class OpenRouterService(
         }
 
     /**
+     * Every model OpenRouter serves, whatever it outputs: `output_modalities=all`.
+     *
+     * The plain [getModels] lists only models that output text, so a model that answers with an
+     * image, speech or a ranking is missing from it although OpenRouter serves it. Ask this one
+     * when "not in the list" has to mean "not served".
+     */
+    suspend fun getAllModels(): ApiResult<OpenRouterModelsResponse> =
+        fetchPublicEndpoint(
+            "${getModelsEndpoint()}?output_modalities=all",
+            "models of every output modality",
+            OpenRouterConstants.RESPONSE_PREVIEW_LENGTH,
+            "Error fetching models"
+        ) { responseBody ->
+            gson.fromJson(responseBody, OpenRouterModelsResponse::class.java)
+        }
+
+    /**
      * The models a region serves, asked WITHOUT switching to that region.
      *
      * Deliberately the global host with a `region=` parameter rather than the regional host: this
@@ -899,6 +945,34 @@ open class OpenRouterService(
         }
 
     /**
+     * [slug]'s designated version as OpenRouter sent it - `system_prompt` and `config` among its
+     * fields - or null when it cannot be read. The JSON is kept as sent, so a number stays the number
+     * it was; the typed [getPreset] reads config through a map, which turns every number into a double.
+     */
+    suspend fun getPresetVersionJson(slug: String): JsonObject? =
+        withContext(Dispatchers.IO) {
+            val apiKey = settingsService.apiKeyManager.getStoredApiKey()
+            if (apiKey.isNullOrBlank()) return@withContext null
+            try {
+                val request = OpenRouterRequestBuilder.buildGetRequest(
+                    url = getPresetEndpoint(slug),
+                    authType = OpenRouterRequestBuilder.AuthType.API_KEY,
+                    authToken = apiKey
+                )
+                val (response, body) = client.newCall(request).awaitWithBody()
+                if (!response.isSuccessful) return@withContext null
+                JsonParser.parseString(body).takeIf { it.isJsonObject }?.asJsonObject
+                    ?.getAsJsonObject("data")?.getAsJsonObject("designated_version")
+            } catch (e: IOException) {
+                null
+            } catch (e: JsonParseException) {
+                null
+            } catch (e: ClassCastException) {
+                null
+            }
+        }
+
+    /**
      * Read a single preset (including its designated_version + untyped config).
      */
     suspend fun getPreset(slug: String): ApiResult<GetPresetResponse> =
@@ -937,6 +1011,16 @@ open class OpenRouterService(
      * untyped map merged verbatim into the body so unknown keys survive a round-trip;
      * [systemPrompt] is added as system_prompt when non-null. There is no delete endpoint.
      */
+    suspend fun createOrUpdatePreset(
+        slug: String,
+        config: JsonObject,
+        systemPrompt: String?
+    ): ApiResult<GetPresetResponse> = createOrUpdatePreset(
+        slug,
+        config.entrySet().associate { (key, value) -> key to value },
+        systemPrompt
+    )
+
     suspend fun createOrUpdatePreset(
         slug: String,
         config: Map<String, Any?>,

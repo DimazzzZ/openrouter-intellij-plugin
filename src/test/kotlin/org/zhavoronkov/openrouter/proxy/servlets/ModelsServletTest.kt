@@ -1,7 +1,9 @@
 package org.zhavoronkov.openrouter.proxy.servlets
 
+import com.google.gson.JsonParser
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
@@ -14,6 +16,9 @@ import org.mockito.Mockito.`when`
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.models.OpenRouterModelsResponse
+import org.zhavoronkov.openrouter.presets.PresetEntry
+import org.zhavoronkov.openrouter.presets.PresetSnapshot
+import org.zhavoronkov.openrouter.proxy.pairs.PairAvailability
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -52,10 +57,22 @@ class ModelsServletTest {
         favorites: List<String> = listOf("openai/gpt-4"),
         presets: List<String> = listOf(),
         mode: String = "curated",
-        servedModelIds: List<String>? = null
+        servedModelIds: List<String>? = null,
+        presetConfigs: Map<String, String> = mapOf("research" to "{}", "quick" to "{}"),
+        catalogue: List<OpenRouterModelInfo> = emptyList()
     ): String {
         val openRouterService = mock(OpenRouterService::class.java)
-        val servlet = ModelsServlet(openRouterService, { favorites }, { presets }, { servedModelIds })
+        val snapshot = PresetSnapshot(
+            0,
+            presetConfigs.map { (slug, config) -> PresetEntry(
+                slug,
+                slug,
+                null,
+                JsonParser.parseString(config).asJsonObject
+            ) }
+        )
+        val pairs = PairAvailability(presets = { snapshot }, lookup = snapshot::find, catalogue = { catalogue })
+        val servlet = ModelsServlet(openRouterService, { favorites }, { presets }, { servedModelIds }, { pairs })
         val (req, writer) = createDoGetRequest(mode)
         val resp = mock(HttpServletResponse::class.java)
         `when`(resp.writer).thenReturn(PrintWriter(writer))
@@ -98,6 +115,52 @@ class ModelsServletTest {
         val result = executeServlet(favorites = listOf("x-ai/grok-4"), servedModelIds = null)
 
         assertTrue(result.contains("x-ai/grok-4"))
+    }
+
+    /** A pair is its own entry, in the user's order, and filed under its model for the region. */
+    @Test
+    fun `doGet lists pairs in favourite order and keeps one whose model the region serves`() {
+        val result = executeServlet(
+            favorites = listOf("openai/gpt-4o@preset/research", "openai/gpt-4o", "x-ai/grok-4@preset/quick"),
+            servedModelIds = listOf("openai/gpt-4o")
+        )
+        val ids = Regex("\"id\"\\s*:\\s*\"([^\"]+)\"").findAll(result).map { it.groupValues[1] }
+            .filterNot { it.startsWith("perm-") } // each model's permission entry has an id of its own
+            .toList()
+
+        assertEquals(listOf("openai/gpt-4o@preset/research", "openai/gpt-4o"), ids)
+    }
+
+    /** A Consumer picking a pair that would be refused gains nothing from seeing it. */
+    @Test
+    fun `doGet omits a pair whose preset is gone or whose output the model cannot give`() {
+        val result = executeServlet(
+            favorites = listOf(
+                "openai/gpt-4o@preset/research",
+                "openai/gpt-4o@preset/gone",
+                "openai/gpt-4o@preset/json",
+                "openai/gpt-4o@preset/search-schema"
+            ),
+            presetConfigs = mapOf(
+                "research" to "{}",
+                "json" to """{"response_format":{"type":"json_object"}}""",
+                "search-schema" to """{"tools":[{"type":"openrouter:web_search"}],
+                    "response_format":{"type":"json_schema","json_schema":{"name":"a","schema":{}}}}"""
+            ),
+            catalogue = listOf(
+                OpenRouterModelInfo(
+                    id = "openai/gpt-4o",
+                    name = "",
+                    created = 0,
+                    supportedParameters = listOf("structured_outputs")
+                )
+            )
+        )
+
+        assertTrue(result.contains("openai/gpt-4o@preset/research"))
+        assertFalse(result.contains("@preset/gone"), "a pair whose preset is gone must not be listed")
+        assertFalse(result.contains("@preset/json"), "the model declares schemas, not plain JSON")
+        assertTrue(result.contains("@preset/search-schema"), "a schema with web search is warned, not hidden")
     }
 
     @Test
@@ -241,6 +304,41 @@ class ModelsServletTest {
         servlet.doGet(req, resp)
 
         assertFalse(writer.toString().contains("anthropic/claude"))
+    }
+
+    /**
+     * A Latest Model's `~` marks latest resolution, not the organisation: `~openai/gpt-astra-latest`
+     * is owned by `openai`, and a consumer asking for OpenAI's models must get it.
+     */
+    @Test
+    fun `doGet all mode files latest slugs under their real owner`() = kotlinx.coroutines.runBlocking {
+        val openRouterService = mock(OpenRouterService::class.java)
+        val models = OpenRouterModelsResponse(
+            data = listOf(
+                OpenRouterModelInfo(id = "~openai/gpt-astra-latest", name = "GPT Astra Latest", created = 1L),
+                OpenRouterModelInfo(id = "anthropic/claude", name = "Claude", created = 2L)
+            )
+        )
+        `when`(openRouterService.getModels()).thenReturn(ApiResult.Success(models, 200))
+        val servlet = ModelsServlet(openRouterService, { emptyList() }, { emptyList() })
+
+        val req = mock(HttpServletRequest::class.java)
+        `when`(req.getParameter("mode")).thenReturn("all")
+        `when`(req.getParameter("provider")).thenReturn("openai")
+        `when`(req.getHeader("User-Agent")).thenReturn("test")
+        `when`(req.requestURI).thenReturn("/models")
+        `when`(req.remoteAddr).thenReturn("127.0.0.1")
+        `when`(req.headerNames).thenReturn(java.util.Collections.emptyEnumeration())
+        val resp = mock(HttpServletResponse::class.java)
+        val writer = StringWriter()
+        `when`(resp.writer).thenReturn(PrintWriter(writer))
+
+        servlet.doGet(req, resp)
+
+        val body = com.google.gson.JsonParser.parseString(writer.toString()).asJsonObject
+        val listed = body.getAsJsonArray("data").map { it.asJsonObject }
+        assertEquals(listOf("~openai/gpt-astra-latest"), listed.map { it["id"].asString })
+        assertEquals("openai", listed.single()["owned_by"].asString)
     }
 
     @Test

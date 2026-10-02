@@ -189,6 +189,7 @@ You can manually control the proxy server:
 - **Stop Server**: Click **Stop Server** button in settings
 - **Auto-start**: The server starts automatically when you configure a Management Key
 - **Status**: Check the status indicator in the OpenRouter status bar widget
+- **Requests**: The OpenRouter tool window's Requests tab lists every request AI Assistant sends through the proxy. AI Assistant identifies itself only as `ktor-client`, the default of the HTTP library it uses, so that is the sender the tab shows for it.
 
 ### Using the proxy from tools outside the IDE
 

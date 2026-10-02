@@ -350,6 +350,15 @@
                            displayType="BALLOON"
                            isLogByDefault="true"/>
 
+        <!-- Notification group for a Consumer's request that failed or stopped early -->
+        <notificationGroup id="OpenRouter Requests"
+                           displayType="BALLOON"
+                           isLogByDefault="true"/>
+        <!-- The same, when a later request in the burst only updates the count: no new balloon -->
+        <notificationGroup id="OpenRouter Requests (folded)"
+                           displayType="NONE"
+                           isLogByDefault="true"/>
+
         <!-- Application-level services -->
         <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterService"/>
         <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterSettingsService"/>
@@ -390,6 +399,20 @@
             instance="org.zhavoronkov.openrouter.settings.RouterDefaultsConfigurable"
             id="org.zhavoronkov.openrouter.settings.RouterDefaultsConfigurable"
             displayName="Router Defaults"/>
+
+        <!-- Web Search sub-page -->
+        <applicationConfigurable
+            parentId="org.zhavoronkov.openrouter.settings.OpenRouterConfigurable"
+            instance="org.zhavoronkov.openrouter.settings.WebSearchConfigurable"
+            id="org.zhavoronkov.openrouter.settings.WebSearchConfigurable"
+            displayName="Web Search"/>
+
+        <!-- Output Schemas sub-page -->
+        <applicationConfigurable
+            parentId="org.zhavoronkov.openrouter.settings.OpenRouterConfigurable"
+            instance="org.zhavoronkov.openrouter.settings.OutputSchemasConfigurable"
+            id="org.zhavoronkov.openrouter.settings.OutputSchemasConfigurable"
+            displayName="Output Schemas"/>
         
         <!-- Status bar widget -->
         <statusBarWidgetFactory
@@ -417,6 +440,9 @@
         <listener
             class="org.zhavoronkov.openrouter.listeners.PluginLifecycleListener"
             topic="com.intellij.ide.plugins.DynamicPluginListener"/>
+        <listener
+            class="org.zhavoronkov.openrouter.toolwindow.requests.RequestWarningListener"
+            topic="org.zhavoronkov.openrouter.requests.RequestLogListener"/>
     </applicationListeners>
 
     <!-- Actions -->

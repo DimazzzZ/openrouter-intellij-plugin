@@ -10,6 +10,8 @@ import com.intellij.openapi.actionSystem.CommonShortcuts
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.Separator
 import com.intellij.openapi.actionSystem.toolbarLayout.ToolbarLayoutStrategy
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.RowsDnDSupport
@@ -32,9 +34,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
+import org.zhavoronkov.openrouter.models.PresetPair
+import org.zhavoronkov.openrouter.presets.PresetCopyService
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.settings.FavoriteModelsManager
+import org.zhavoronkov.openrouter.settings.favorites.AddWithPresetAction
 import org.zhavoronkov.openrouter.settings.favorites.CapabilitiesFilterAction
 import org.zhavoronkov.openrouter.settings.favorites.ChoiceFilterAction
 import org.zhavoronkov.openrouter.settings.favorites.ClearFiltersAction
@@ -74,9 +79,21 @@ class FavoriteModelsSettingsPanel(
         OpenRouterSettingsService.getInstance().favoriteModelsManager,
     private val isConfigured: () -> Boolean = { OpenRouterSettingsService.getInstance().isConfigured() },
     private val favoriteModelsServiceProvider: () -> FavoriteModelsService = { FavoriteModelsService.getInstance() },
-    private val state: FavoriteModelsPageState = FavoriteModelsPageState(),
+    // A schema with web search is marked too: it may come back as plain text
+    private val state: FavoriteModelsPageState = PresetCopyService.pairs().let { pairs ->
+        FavoriteModelsPageState(pairProblemOf = { pairs.problem(it)?.message ?: pairs.warning(it) })
+    },
     private val autoLoad: Boolean = true,
+    private val presetSlugs: () -> List<String> = {
+        PresetCopyService.getInstance().copy.snapshot()?.presets?.map { it.slug }?.sorted().orEmpty()
+    },
+    /** Reads the presets again, so the pairs are judged and offered against what is on OpenRouter now. */
+    private val refreshPresets: () -> Unit = { PresetCopyService.getInstance().copy.refreshLater() },
+    /** Calls the listener after every read of the presets; returns what stops it. */
+    private val watchPresets: (() -> Unit) -> () -> Unit = { PresetCopyService.getInstance().copy.addListener(it) },
 ) : Disposable {
+
+    private var stopWatchingPresets: () -> Unit = {}
 
     private companion object {
         const val SEARCH_DEBOUNCE_MS = 300
@@ -150,7 +167,14 @@ class FavoriteModelsSettingsPanel(
 
         if (keyPresent) {
             render()
-            if (autoLoad) loadCatalog()
+            if (autoLoad) {
+                loadCatalog()
+                // Pairs judged against the copy read before are judged again once it is read now
+                stopWatchingPresets = watchPresets {
+                    ApplicationManager.getApplication().invokeLater(state::presetsChanged, ModalityState.any())
+                }
+                refreshPresets()
+            }
         }
         return loadingPanel
     }
@@ -213,6 +237,7 @@ class FavoriteModelsSettingsPanel(
             ClearFiltersAction(state, ::clearFilters),
             Separator.getInstance(),
             PresetsAction(::applyPreset),
+            AddWithPresetAction(presetSlugs, { table.selectedObject?.id }, ::addWithPreset),
             RefreshCatalogAction({ modelsDataManager.isCurrentlyLoading() }, ::refreshCatalog),
             Separator.getInstance(),
             moveAction(up = true),
@@ -318,6 +343,22 @@ class FavoriteModelsSettingsPanel(
         showPresetFeedback("Added ${result.added} from $name$suffix")
     }
 
+    /**
+     * Adds [model] paired with [preset]. A pair is listed under "Favorites only", in the order it
+     * was added, so the status line says where it went when it is not on screen.
+     */
+    internal fun addWithPreset(model: String, preset: String) {
+        val pair = state.addPair(model, preset)
+        val shown = PresetPair.modelOf(model)
+        showPresetFeedback(
+            when {
+                pair == null -> "$shown with $preset is already a favorite"
+                state.mode == Mode.FAVORITES_ONLY -> "Added $shown with $preset"
+                else -> "Added $shown with $preset - listed under Favorites only"
+            }
+        )
+    }
+
     private fun showPresetFeedback(message: String) {
         presetFeedback = message
         statusLabel.text = statusText()
@@ -399,6 +440,7 @@ class FavoriteModelsSettingsPanel(
     }
 
     override fun dispose() {
+        stopWatchingPresets()
         searchDebounceTimer?.stop()
         presetFeedbackTimer?.stop()
         coroutineScope.cancel()

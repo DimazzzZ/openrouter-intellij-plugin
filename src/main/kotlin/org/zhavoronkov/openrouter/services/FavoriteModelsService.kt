@@ -7,7 +7,9 @@ import kotlinx.coroutines.withTimeout
 import org.zhavoronkov.openrouter.constants.OpenRouterConstants
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
+import org.zhavoronkov.openrouter.models.PresetPair
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -34,8 +36,25 @@ class FavoriteModelsService(
         }
     }
 
-    private var cachedModels: List<OpenRouterModelInfo>? = null
-    private var cacheTimestamp: Long = 0L
+    /**
+     * What one fetch of the catalogue left: every model, the text-output ones the pickers list,
+     * and when. One reference, so a reader on another thread never sees half of one fetch.
+     */
+    private class Catalogue(val all: List<OpenRouterModelInfo>, val fetchedAt: Long) {
+        val textOutput: List<OpenRouterModelInfo> = all.filter(::outputsText)
+    }
+
+    @Volatile
+    private var catalogue: Catalogue? = null
+
+    /**
+     * Moves on at every [clearCache], so a fetch that started before one - for the Data Region
+     * that was just left, say - cannot put its answer back in the cache after it.
+     */
+    private val generation = AtomicInteger()
+
+    private val textOutputModels: List<OpenRouterModelInfo>?
+        get() = catalogue?.textOutput
     private val settings: OpenRouterSettingsService by lazy {
         settingsService ?: OpenRouterSettingsService.getInstance()
     }
@@ -49,26 +68,21 @@ class FavoriteModelsService(
      * @return List of models or null on error
      */
     suspend fun getAvailableModels(forceRefresh: Boolean = false): List<OpenRouterModelInfo>? {
-        val now = clock()
-        val isCacheValid = cachedModels != null && (now - cacheTimestamp) < OpenRouterConstants.MODELS_CACHE_DURATION_MS
-
-        if (!forceRefresh && isCacheValid) {
-            PluginLogger.Service.debug("Returning cached models (${cachedModels?.size} models)")
-            return cachedModels
+        val cached = catalogue
+        if (!forceRefresh && cached != null &&
+            clock() - cached.fetchedAt < OpenRouterConstants.MODELS_CACHE_DURATION_MS
+        ) {
+            PluginLogger.Service.debug("Returning cached models (${cached.textOutput.size} models)")
+            return cached.textOutput
         }
 
         PluginLogger.Service.debug("Fetching models from API (forceRefresh: $forceRefresh)")
+        val startedIn = generation.get()
         return try {
             withTimeout(OpenRouterConstants.API_TIMEOUT_MS.milliseconds) {
-                val result = routerService.getModels()
+                val result = routerService.getAllModels()
                 when (result) {
-                    is ApiResult.Success -> {
-                        val response = result.data
-                        cachedModels = response.data
-                        cacheTimestamp = clock()
-                        PluginLogger.Service.info("Successfully cached ${cachedModels?.size} models")
-                        cachedModels
-                    }
+                    is ApiResult.Success -> keep(Catalogue(result.data.data, clock()), startedIn).textOutput
                     is ApiResult.Error -> {
                         PluginLogger.Service.warn("Failed to fetch models: ${result.message}")
                         null
@@ -92,14 +106,34 @@ class FavoriteModelsService(
     }
 
     /**
+     * Caches [fetched] unless the cache was cleared while it was being fetched: then it answers a
+     * question nobody asks any more, and is handed back to its caller without being kept.
+     */
+    private fun keep(fetched: Catalogue, startedIn: Int): Catalogue {
+        synchronized(generation) {
+            if (generation.get() != startedIn) {
+                PluginLogger.Service.debug("Models fetched before the cache was cleared are not kept")
+                return fetched
+            }
+            catalogue = fetched
+        }
+        PluginLogger.Service.info("Successfully cached ${fetched.all.size} models")
+        return fetched
+    }
+
+    /**
      * Get current favorite models as full model objects
      * @return List of favorite model info objects
      */
     fun getFavoriteModels(): List<OpenRouterModelInfo> {
         val favoriteIds = settings.favoriteModelsManager.getFavoriteModels()
+        val cached = textOutputModels
         return favoriteIds.map { modelId ->
-            // Try to find full model info from cache, otherwise create minimal object
-            cachedModels?.find { it.id == modelId } ?: createMinimalModelInfo(modelId)
+            // Try to find full model info from cache - a pair's is its model's, under the pair's
+            // own id - otherwise create minimal object
+            cached?.find { it.id == modelId }
+                ?: cached?.find { it.id == PresetPair.modelOf(modelId) }?.copy(id = modelId)
+                ?: createMinimalModelInfo(modelId)
         }
     }
 
@@ -179,7 +213,7 @@ class FavoriteModelsService(
      * @return Model info if found in cache, null otherwise
      */
     fun getModelById(modelId: String): OpenRouterModelInfo? {
-        return cachedModels?.find { it.id == modelId }
+        return textOutputModels?.find { it.id == modelId }
     }
 
     /**
@@ -187,7 +221,16 @@ class FavoriteModelsService(
      * @return Cached models or null if cache is empty
      */
     fun getCachedModels(): List<OpenRouterModelInfo>? {
-        return cachedModels
+        return textOutputModels
+    }
+
+    /**
+     * Every model the selected Data Region serves, whatever it outputs, without triggering a
+     * fetch - or null while it has not loaded. Unlike [getCachedModels], a model missing from it
+     * is not served.
+     */
+    fun getCachedCatalogue(): List<OpenRouterModelInfo>? {
+        return catalogue?.all
     }
 
     /**
@@ -201,8 +244,10 @@ class FavoriteModelsService(
      * Clear the models cache
      */
     fun clearCache() {
-        cachedModels = null
-        cacheTimestamp = 0L
+        synchronized(generation) {
+            generation.incrementAndGet()
+            catalogue = null
+        }
         PluginLogger.Service.debug("Models cache cleared")
     }
 
@@ -264,3 +309,10 @@ class FavoriteModelsService(
         PluginLogger.Service.info("FavoriteModelsService disposed successfully")
     }
 }
+
+/**
+ * Whether the pickers list [model]: what OpenRouter's own `/models` lists unless asked for every
+ * output modality. A model that says nothing about its output is taken to answer in text.
+ */
+private fun outputsText(model: OpenRouterModelInfo): Boolean =
+    model.architecture?.outputModalities?.any { it.equals("text", ignoreCase = true) } ?: true

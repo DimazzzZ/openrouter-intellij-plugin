@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
-import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
@@ -34,7 +33,7 @@ class ModelVariantChipRendererTest {
         // Chip is styled
         assertTrue(html.contains("background-color:"))
         // border-radius is intentionally NOT emitted: Swing's CSS parser
-        // throws NPE on it. See buildChip().
+        // throws NPE on it. See chipSpan().
         assertFalse(html.contains("border-radius:"))
     }
 
@@ -47,16 +46,23 @@ class ModelVariantChipRendererTest {
     }
 
     @Test
-    fun `chipFor renders each known variant`() {
+    fun `renderRow renders each known variant's chip`() {
         for (variant in ModelProviderUtils.ModelVariant.entries) {
-            val chip = ModelVariantChipRenderer.chipFor(variant)
+            val html = ModelVariantChipRenderer.renderRow("openai/gpt-4o${variant.suffix}")
             assertTrue(
-                chip.contains(">&nbsp;${variant.displayName}&nbsp;<"),
+                html.contains(">&nbsp;${variant.displayName}&nbsp;<"),
                 "Chip for $variant should contain display name"
             )
-            assertTrue(chip.contains("background-color:"))
+            assertTrue(html.contains("background-color:"))
         }
     }
+
+    private fun labels(id: String): List<String> = ModelVariantChipRenderer.chipsFor(id).map { it.label }
+
+    private fun chipOf(variant: ModelProviderUtils.ModelVariant) =
+        ModelVariantChipRenderer.chipsFor("openai/gpt-4o${variant.suffix}").single()
+
+    private val unknownChip get() = ModelVariantChipRenderer.chipsFor("some/model:brand-new").single()
 
     @Test
     fun `tooltipFor known variant includes provider and tooltip`() {
@@ -88,50 +94,37 @@ class ModelVariantChipRendererTest {
     // --- Graphics2D chip seams (used by the rounded-corner table renderer) ---
 
     @Test
-    fun `chipLabelFor returns display name for known variant`() {
-        assertEquals("Free", ModelVariantChipRenderer.chipLabelFor("x-ai/grok-4-fast:free"))
-        assertEquals("Batch", ModelVariantChipRenderer.chipLabelFor("openai/gpt-4o:batch"))
+    fun `chipsFor returns display name for known variant`() {
+        assertEquals(listOf("Free"), labels("x-ai/grok-4-fast:free"))
+        assertEquals(listOf("Batch"), labels("openai/gpt-4o:batch"))
     }
 
     @Test
-    fun `chipLabelFor returns null for base model`() {
-        assertNull(ModelVariantChipRenderer.chipLabelFor("openai/gpt-4o"))
+    fun `chipsFor returns nothing for base model`() {
+        assertEquals(emptyList<String>(), labels("openai/gpt-4o"))
     }
 
     @Test
-    fun `chipLabelFor prefixes unknown variant`() {
-        assertEquals("? brand-new", ModelVariantChipRenderer.chipLabelFor("some/model:brand-new"))
+    fun `chipsFor prefixes unknown variant`() {
+        assertEquals(listOf("? brand-new"), labels("some/model:brand-new"))
     }
 
     @Test
     fun `every known variant has its own color, not the unknown-variant fallback`() {
-        val unknownBg = ModelVariantChipRenderer.unknownChipBackground()
-        val unknownFg = ModelVariantChipRenderer.unknownChipForeground()
-
         ModelProviderUtils.ModelVariant.entries.forEach { variant ->
             assertNotEquals(
-                unknownBg,
-                ModelVariantChipRenderer.chipBackground(variant),
+                unknownChip.background,
+                chipOf(variant).background,
                 "${'$'}{variant.displayName} must not reuse the unknown-variant chip color"
             )
-            assertNotEquals(unknownFg, ModelVariantChipRenderer.chipForeground(variant))
+            assertNotEquals(unknownChip.foreground, chipOf(variant).foreground)
         }
-    }
-
-    @Test
-    fun `chip colors are non-null for every known variant`() {
-        for (variant in ModelProviderUtils.ModelVariant.entries) {
-            assertNotNull(ModelVariantChipRenderer.chipBackground(variant))
-            assertNotNull(ModelVariantChipRenderer.chipForeground(variant))
-        }
-        assertNotNull(ModelVariantChipRenderer.unknownChipBackground())
-        assertNotNull(ModelVariantChipRenderer.unknownChipForeground())
     }
 
     /**
      * Regression test for the Settings-dialog crash: setting chip HTML on a
      * real JLabel used to throw NullPointerException from
-     * javax.swing.text.html.CSS.getInternalCSSValue because buildChip() emitted
+     * javax.swing.text.html.CSS.getInternalCSSValue because the chip span emitted
      * `border-radius` and a two-value `padding` shorthand that Swing's CSS
      * parser cannot handle. The renderer must produce HTML that Swing parses
      * into a non-null View for every variant.
@@ -154,5 +147,48 @@ class ModelVariantChipRendererTest {
             val view = label.getClientProperty(BasicHTML.propertyKey)
             assertNotNull(view, "Swing failed to build an HTML view for id=$id")
         }
+    }
+
+    @Test
+    fun `a latest slug gets a Latest chip`() {
+        assertEquals(listOf("Latest"), labels("~openai/gpt-astra-latest"))
+        assertTrue(ModelVariantChipRenderer.renderRow("~openai/gpt-astra-latest").contains("Latest"))
+    }
+
+    @Test
+    fun `a latest slug with a catalog variant gets both chips, variant first`() {
+        val labels = labels("~google/gemini-flash-latest:free")
+
+        assertEquals(listOf("Free", "Latest"), labels)
+    }
+
+    @Test
+    fun `an ordinary slug gets no Latest chip`() {
+        assertEquals(listOf("Free"), labels("x-ai/grok-4-fast:free"))
+        assertEquals(emptyList<String>(), labels("openai/gpt-4o"))
+    }
+
+    @Test
+    fun `tooltipFor a latest slug names its real author and says it moves`() {
+        val tooltip = ModelVariantChipRenderer.tooltipFor("~openai/gpt-astra-latest")
+
+        assertTrue(tooltip.startsWith("OpenAI"), tooltip)
+        assertTrue(tooltip.contains("newest"), tooltip)
+    }
+
+    @Test
+    fun `a pair shows its model, its variant chip and a preset chip named for the preset`() {
+        val id = "x-ai/grok-4-fast:free@preset/research"
+
+        assertEquals("x-ai/grok-4-fast", ModelVariantChipRenderer.baseIdOf(id))
+        assertEquals(listOf("Free", "research"), ModelVariantChipRenderer.chipsFor(id).map { it.label })
+        assertTrue(ModelVariantChipRenderer.tooltipFor(id).endsWith("sent with the preset 'research'"))
+        val html = ModelVariantChipRenderer.renderRow(id)
+        assertFalse(html.contains("@preset"), "the raw pair suffix should not appear in the display")
+    }
+
+    @Test
+    fun `a plain model carries no preset chip`() {
+        assertTrue(ModelVariantChipRenderer.chipsFor("openai/gpt-4o").isEmpty())
     }
 }

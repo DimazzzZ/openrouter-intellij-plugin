@@ -2,6 +2,7 @@ package org.zhavoronkov.openrouter.toolwindow.chat
 
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import com.intellij.ui.components.JBCheckBox
 import java.awt.Container
 import javax.swing.JComponent
 import javax.swing.JLabel
@@ -28,6 +29,9 @@ class ChatParamsPopupLabelsPlatformTest : BasePlatformTestCase() {
         }
     }
 
+    private fun newPopup() =
+        ChatParamsPopup(ComboBox(arrayOf("a")), ComboBox(arrayOf("b")), ComboBox(arrayOf("c")), JBCheckBox())
+
     private fun buildForm(popup: ChatParamsPopup): JComponent {
         val method = ChatParamsPopup::class.java.getDeclaredMethod("buildForm")
         method.isAccessible = true
@@ -41,7 +45,7 @@ class ChatParamsPopupLabelsPlatformTest : BasePlatformTestCase() {
     }
 
     fun testReasoningAndVerbosityLabelsHaveTrailingColon() {
-        val popup = ChatParamsPopup(ComboBox(arrayOf("a")), ComboBox(arrayOf("b")), ComboBox(arrayOf("c")))
+        val popup = newPopup()
 
         val texts = labelTexts(popup)
 
@@ -50,7 +54,7 @@ class ChatParamsPopupLabelsPlatformTest : BasePlatformTestCase() {
     }
 
     fun testRouterParamLabelHasTrailingColonWhenVisible() {
-        val popup = ChatParamsPopup(ComboBox(arrayOf("a")), ComboBox(arrayOf("b")), ComboBox(arrayOf("c")))
+        val popup = newPopup()
         popup.setRouterParam("Cost tier", "Prefers cheaper models", visible = true)
 
         val texts = labelTexts(popup)

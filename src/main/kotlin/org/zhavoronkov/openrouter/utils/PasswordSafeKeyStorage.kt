@@ -6,6 +6,7 @@ import com.intellij.credentialStore.generateServiceName
 import com.intellij.ide.passwordSafe.PasswordSafe
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.util.concurrency.AppExecutorUtil
+import org.zhavoronkov.openrouter.listeners.OpenRouterSettingsListener
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -59,6 +60,9 @@ object PasswordSafeKeyStorage {
     // Flag to track if preload has been triggered
     private val preloadTriggered = AtomicBoolean(false)
 
+    /** A reader on the EDT was told "not known yet", and must hear when the key is known. */
+    private val edtAnsweredCold = AtomicBoolean(false)
+
     /**
      * Creates credential attributes for a specific key type.
      * @throws IllegalStateException if IntelliJ environment is not available (e.g., in tests)
@@ -110,6 +114,35 @@ object PasswordSafeKeyStorage {
             apiKeyCacheInitialized.set(true)
             provisioningKeyCacheInitialized.set(true)
         }
+        if (edtAnsweredCold.getAndSet(false)) announceKeysLoaded()
+    }
+
+    /**
+     * Tells the UI the keys are known now: a reader on the EDT that arrived before the warm-up was
+     * told "not known yet", and asks again when settings change.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private fun announceKeysLoaded() {
+        val application = ApplicationManager.getApplication() ?: return
+        application.invokeLater {
+            try {
+                application.messageBus.syncPublisher(OpenRouterSettingsListener.TOPIC).onSettingsChanged()
+            } catch (_: Exception) {
+                // An application shutting down has nobody left to tell
+            }
+        }
+    }
+
+    /**
+     * The EDT never reads the credential store: before the cache is warm it starts the warm-up
+     * and is told the key is not known yet, which [announceKeysLoaded] corrects.
+     */
+    private fun onEdt(): Boolean = ApplicationManager.getApplication()?.isDispatchThread == true
+
+    private fun answerColdOnEdt() {
+        edtAnsweredCold.set(true)
+        // A warm-up already started announces when it finishes; one not started yet is started
+        preloadKeys()
     }
 
     /**
@@ -149,15 +182,19 @@ object PasswordSafeKeyStorage {
     /**
      * Gets the API key from cache (safe for EDT).
      *
-     * If cache is not initialized, reads directly from PasswordSafe (blocking).
-     * For most use cases, preloadKeys() should be called on startup to ensure
-     * the cache is populated before first access.
+     * If the cache is not initialized, reads PasswordSafe directly (blocking) - except on the
+     * EDT, which starts the warm-up and gets null until it finishes. preloadKeys() runs when
+     * the settings service starts, so that is rare.
      *
      * @return The API key, or null if not stored
      */
     fun getApiKey(): String? {
         if (apiKeyCacheInitialized.get()) {
             return cachedApiKey
+        }
+        if (onEdt()) {
+            answerColdOnEdt()
+            return null
         }
 
         // Cache not initialized - read synchronously from PasswordSafe
@@ -201,15 +238,19 @@ object PasswordSafeKeyStorage {
     /**
      * Gets the provisioning key from cache (safe for EDT).
      *
-     * If cache is not initialized, reads directly from PasswordSafe (blocking).
-     * For most use cases, preloadKeys() should be called on startup to ensure
-     * the cache is populated before first access.
+     * If the cache is not initialized, reads PasswordSafe directly (blocking) - except on the
+     * EDT, which starts the warm-up and gets null until it finishes. preloadKeys() runs when
+     * the settings service starts, so that is rare.
      *
      * @return The provisioning key, or null if not stored
      */
     fun getProvisioningKey(): String? {
         if (provisioningKeyCacheInitialized.get()) {
             return cachedProvisioningKey
+        }
+        if (onEdt()) {
+            answerColdOnEdt()
+            return null
         }
 
         // Cache not initialized - read synchronously from PasswordSafe
@@ -304,6 +345,7 @@ object PasswordSafeKeyStorage {
         apiKeyCacheInitialized.set(false)
         provisioningKeyCacheInitialized.set(false)
         preloadTriggered.set(false)
+        edtAnsweredCold.set(false)
         inMemoryStorage.clear()
     }
 }

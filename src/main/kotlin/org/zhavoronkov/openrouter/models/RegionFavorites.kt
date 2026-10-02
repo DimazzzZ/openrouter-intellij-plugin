@@ -21,12 +21,12 @@ object RegionFavorites {
      * instruction rather than a separate model, so `openai/gpt-4o:nitro` is served wherever
      * `openai/gpt-4o` is; comparing the full id would report it missing and overstate the loss.
      * Variants that ARE listed as their own catalogue entry (`:batch`, for instance) still match,
-     * because their base id is present too.
+     * because their base id is present too. A pair is served wherever its model is.
      */
     fun unavailable(favoriteIds: List<String>, regionModelIds: Collection<String>): List<String> {
         if (favoriteIds.isEmpty() || regionModelIds.isEmpty()) return emptyList()
 
         val servedBaseIds = regionModelIds.mapTo(mutableSetOf()) { ModelProviderUtils.stripVariant(it) }
-        return favoriteIds.filterNot { ModelProviderUtils.stripVariant(it) in servedBaseIds }
+        return favoriteIds.filterNot { ModelProviderUtils.stripVariant(PresetPair.modelOf(it)) in servedBaseIds }
     }
 }

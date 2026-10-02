@@ -363,7 +363,28 @@ data class ChatCompletionRequest(
     @SerializedName("tool_choice") val toolChoice: ToolChoice? = null,
     val provider: ProviderRoutingPreferences? = null,
     val models: List<String>? = null, // Fallback model list
-    val plugins: List<PluginConfig>? = null // OpenRouter model-routing plugins
+    val plugins: List<PluginConfig>? = null, // OpenRouter model-routing plugins
+    @SerializedName("response_format") val responseFormat: ResponseFormat? = null
+)
+
+/**
+ * The `response_format` a chat request asks for: `{"type": "json_object"}` for a plain JSON
+ * object with no schema to follow, or `{"type": "json_schema", "json_schema": {...}}` for a reply
+ * in the shape of a saved Output Schema.
+ */
+data class ResponseFormat(
+    val type: String,
+    @SerializedName("json_schema") val jsonSchema: JsonSchemaFormat? = null
+)
+
+/**
+ * The `json_schema` object of a schema response format: an Output Schema's name, strict flag and
+ * body.
+ */
+data class JsonSchemaFormat(
+    val name: String,
+    val strict: Boolean,
+    val schema: JsonElement
 )
 
 /**
@@ -427,9 +448,15 @@ data class ChatMessage(
     @SerializedName("tool_calls") val toolCalls: List<ChatToolCall>? = null
 )
 
+/**
+ * One entry of a request's `tools` array: a function the caller defines, with [function] set, or
+ * one of OpenRouter's server tools, named by [type] - `openrouter:web_search`, for one - with its
+ * settings under [parameters] and no [function].
+ */
 data class ChatTool(
     val type: String = "function",
-    val function: ChatToolFunction
+    val function: ChatToolFunction? = null,
+    val parameters: com.google.gson.JsonElement? = null
 )
 
 data class ChatToolFunction(
@@ -464,7 +491,9 @@ data class ChatCompletionResponse(
     val created: Long? = null,
     val model: String? = null,
     val choices: List<ChatChoice>? = null,
-    val usage: ChatUsage? = null
+    val usage: ChatUsage? = null,
+    /** The upstream provider OpenRouter routed the call to, e.g. "Anthropic" or "Google Vertex". */
+    val provider: String? = null
 )
 
 data class ChatChoice(
@@ -476,7 +505,20 @@ data class ChatChoice(
 data class ChatUsage(
     @SerializedName("prompt_tokens") val promptTokens: Int? = null,
     @SerializedName("completion_tokens") val completionTokens: Int? = null,
-    @SerializedName("total_tokens") val totalTokens: Int? = null
+    @SerializedName("total_tokens") val totalTokens: Int? = null,
+    /** What the call cost in credits. OpenRouter reports it on every response unasked. */
+    val cost: Double? = null,
+    /**
+     * What OpenRouter's server tools did while answering, when any were offered. A live reply names
+     * it `server_tool_use_details`; the older name is still read.
+     */
+    @SerializedName(value = "server_tool_use_details", alternate = ["server_tool_use"])
+    val serverToolUse: ServerToolUse? = null
+)
+
+/** How often each server tool ran for one response. */
+data class ServerToolUse(
+    @SerializedName("web_search_requests") val webSearchRequests: Int? = null
 )
 
 // Auth Code Exchange models
@@ -546,6 +588,27 @@ data class OpenRouterSettings(
     // settings file edited by hand, degrades to the global region instead of failing to
     // deserialize the whole settings object. Empty means the same as "global".
     var dataRegion: String = DataRegion.GLOBAL.apiName,
+    // Web Search tuning, applied whenever the chat's Web Search toggle is on. Stored raw, like
+    // dataRegion, so a value this build does not recognise degrades to OpenRouter's own choice
+    // rather than failing to load the whole settings object. Empty engine and mode mean "let
+    // OpenRouter choose"; see WebSearchSettingsManager for how the raw values are read.
+    var webSearchEngine: String = "",
+    var webSearchMaxResults: Int = WebSearchSettings.DEFAULT_MAX_RESULTS,
+    var webSearchIncludeDomains: MutableList<String> = mutableListOf(),
+    var webSearchExcludeDomains: MutableList<String> = mutableListOf(),
+    var webSearchMode: String = "",
+    // Output Schemas the user saved, in the order the Output Schemas page lists them.
+    var outputSchemas: MutableList<OutputSchema> = mutableListOf(),
+    // How many requests the Requests tab keeps, most recent first.
+    var requestLogLimit: Int = 1000,
+    // Whether a Consumer's request that failed or stopped early raises a balloon; the Requests
+    // tab counts it either way.
+    var requestWarningBalloons: Boolean = true,
+    // Whether the Requests tab folds a burst of requests into one row ("Group bursts").
+    var requestsGroupBursts: Boolean = true,
+    // Whether every request's bodies - the prompt, the reply - are kept for the Requests tab. Off
+    // by default: they hold whatever the sender put in them, the user's code included.
+    var keepRequestBodies: Boolean = false,
 )
 
 /**

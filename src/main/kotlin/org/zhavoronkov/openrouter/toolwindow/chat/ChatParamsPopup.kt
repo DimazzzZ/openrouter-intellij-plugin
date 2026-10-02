@@ -1,9 +1,14 @@
 package org.zhavoronkov.openrouter.toolwindow.chat
 
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.ui.ComboBox
+import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.ScreenUtil
+import com.intellij.ui.SimpleListCellRenderer
 import com.intellij.ui.awt.RelativePoint
+import com.intellij.ui.components.ActionLink
+import com.intellij.ui.components.JBLabel
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.Cell
 import com.intellij.ui.dsl.builder.IntelliJSpacingConfiguration
@@ -13,13 +18,17 @@ import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.dsl.gridLayout.UnscaledGapsY
 import com.intellij.ui.dsl.gridLayout.toJBEmptyBorder
 import com.intellij.util.ui.JBUI
+import com.intellij.util.ui.UIUtil
+import org.zhavoronkov.openrouter.models.ResponseFormats
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.Point
+import javax.swing.DefaultComboBoxModel
+import javax.swing.JCheckBox
 import javax.swing.JComponent
 
 /**
- * The send parameters (reasoning, verbosity, router param), in a popup form.
+ * The send parameters (reasoning, verbosity, router param, web search), in a popup form.
  *
  * They used to be a right-aligned FlowLayout row nested in a BoxLayout.Y_AXIS
  * panel. FlowLayout can wrap, but BoxLayout asks it for its preferred height
@@ -78,8 +87,146 @@ import javax.swing.JComponent
 class ChatParamsPopup(
     private val reasoning: ComboBox<String>,
     private val verbosity: ComboBox<String>,
-    private val routerParam: ComboBox<String>
+    private val routerParam: ComboBox<String>,
+    private val webSearch: JCheckBox
 ) {
+
+    // Until the caller reports a Model, nothing is known to be servable but Off.
+    private var outputChoices: List<OutputModeChoice> = listOf(OutputModeChoice(OutputMode.Off, null))
+
+    /** Set by the caller; invoked whenever the Output Mode selection changes. */
+    var onOutputModeChanged: () -> Unit = {}
+
+    /** Invoked whenever the web search switch changes, by the user or by setting the controls. */
+    var onWebSearchChanged: () -> Unit = {}
+
+    /** Set by the caller; invoked by "Save as Preset…", to save the controls as a preset. */
+    var onSaveAsPreset: () -> Unit = {}
+
+    /** The popup on screen, if any, closed before "Save as Preset…" opens its dialog. */
+    private var shown: JBPopup? = null
+
+    /** The popup's "Save as Preset…" link. */
+    internal val saveAsPreset = ActionLink(SAVE_AS_PRESET_TEXT) {
+        shown?.cancel()
+        onSaveAsPreset()
+    }
+
+    /**
+     * The Output Mode control. Owned here rather than by the caller: nothing but this popup shows
+     * it, and the caller reads it through [requestOptions] like every other control.
+     *
+     * Its entries are the modes [setOutputModes] was last given, and an entry the Model cannot
+     * serve is drawn greyed out and cannot be picked. A selection that stops being servable because
+     * the Model changed is kept and marked, though - and kept as an entry even when it is no longer
+     * offered at all - see [OutputModeModel].
+     */
+    internal val outputMode = ComboBox(OutputModeModel())
+
+    /** The line under the Output Mode control, saying why an entry is greyed out or blocks sending. */
+    internal val outputComment = JBLabel().apply {
+        font = JBUI.Fonts.smallFont()
+        foreground = UIUtil.getContextHelpForeground()
+    }
+
+    init {
+        webSearch.text = WEB_SEARCH_TEXT
+        outputMode.renderer = SimpleListCellRenderer.create { label, mode, index ->
+            val choice = mode?.let(::choiceFor)
+            label.text = mode?.label.orEmpty()
+            if (choice != null && !choice.supported) {
+                label.foreground = UIUtil.getLabelDisabledForeground()
+                // In the list it is an entry that cannot be picked; closed, it is the kept selection
+                // that is blocking the send, and says so.
+                label.icon = if (index == -1) AllIcons.General.Warning else null
+                label.toolTipText = choice.unsupportedReason
+            } else if (choice?.warning != null) {
+                label.toolTipText = choice.warning
+            }
+        }
+        outputMode.addActionListener {
+            refreshOutputComment()
+            onOutputModeChanged()
+        }
+        // An item listener, so setting the switch from a pair's settings is heard as well
+        webSearch.addItemListener { onWebSearchChanged() }
+        refreshOutputComment()
+    }
+
+    /**
+     * What the selected Model can serve, as [ChatExchange.outputModes] decided it. The selection is
+     * left alone even when it is no longer servable; [requestOptions] still reports it, and the
+     * caller blocks sending until the user resolves it.
+     */
+    fun setOutputModes(choices: List<OutputModeChoice>) {
+        outputChoices = choices
+        (outputMode.model as OutputModeModel).showOffered()
+        refreshOutputComment()
+        outputMode.repaint()
+    }
+
+    /**
+     * How [mode] stands for the current Model. A mode that is not offered at all - a kept selection
+     * the Model's modes no longer include - is unservable, never assumed to be fine.
+     */
+    private fun choiceFor(mode: OutputMode): OutputModeChoice =
+        outputChoices.firstOrNull { it.mode == mode }
+            ?: OutputModeChoice(mode, ChatExchange.noLongerOfferedReason(mode))
+
+    private fun selectedMode(): OutputMode = outputMode.selectedItem as? OutputMode ?: OutputMode.Off
+
+    private fun selectedOutputChoice(): OutputModeChoice = choiceFor(selectedMode())
+
+    private fun refreshOutputComment() {
+        val choice = selectedOutputChoice()
+        val blocked = !choice.supported
+        outputComment.text = when {
+            blocked && choice.unsupportedReason == ResponseFormats.WEB_SEARCH_DROPS_JSON ->
+                OUTPUT_DROPPED_BY_SEARCH_TEXT
+            blocked -> OUTPUT_BLOCKED_TEXT
+            choice.warning != null -> OUTPUT_SEARCH_WARNING_TEXT
+            outputChoices.any { !it.supported } -> OUTPUT_UNAVAILABLE_TEXT
+            else -> ""
+        }
+        outputComment.toolTipText = choice.unsupportedReason ?: choice.warning
+        outputComment.foreground = if (blocked) CHAT_WARNING_FOREGROUND else UIUtil.getContextHelpForeground()
+    }
+
+    /**
+     * Refuses a pick of an entry the Model cannot serve, but never unselects one already chosen:
+     * a selection is only ever changed by the user choosing something that can be sent.
+     */
+    private inner class OutputModeModel : DefaultComboBoxModel<OutputMode>() {
+        init {
+            showOffered()
+        }
+
+        /**
+         * Lists the offered modes, keeping the current selection selected - and listed, when it is
+         * no longer offered, so that it can be seen and changed rather than silently disappear.
+         */
+        fun showOffered() {
+            val previous = selectedItem as? OutputMode ?: OutputMode.Off
+            val offered = outputChoices.map { it.mode }
+            // The offered entry when there is one - a schema renamed only in case is the same one.
+            val kept = offered.firstOrNull { it == previous } ?: previous
+            removeAllElements()
+            (if (kept in offered) offered else offered + kept).forEach(::addElement)
+            super.setSelectedItem(kept)
+        }
+
+        override fun setSelectedItem(item: Any?) {
+            val mode = item as? OutputMode ?: return
+            if (!choiceFor(mode).supported && mode != selectedItem) return
+            super.setSelectedItem(mode)
+        }
+
+        /** Selects [mode] whether or not the Model can serve it, listing it when it is not offered. */
+        fun keep(mode: OutputMode) {
+            if (getIndexOf(mode) < 0) addElement(mode)
+            super.setSelectedItem(mode)
+        }
+    }
 
     private var reasoningComment: String = ""
     private var verbosityComment: String = ""
@@ -103,19 +250,55 @@ class ChatParamsPopup(
         routerVisible = visible
     }
 
+    /**
+     * Sets every control from [controls], as picking a pair does: a setting its preset leaves
+     * unset goes back to its default, so nothing is left over from an earlier message. The user may
+     * still change a control afterwards, for the messages that follow.
+     */
+    fun applyControls(controls: ChatControls) {
+        reasoning.selectedItem = controls.reasoning
+        verbosity.selectedItem = controls.verbosity
+        webSearch.isSelected = controls.webSearch
+        // Chosen even when the Model cannot give it: kept and marked, it blocks sending and says
+        // why, rather than the pair going out with an output its model does not declare
+        (outputMode.model as OutputModeModel).keep(controls.outputMode)
+        refreshOutputComment()
+    }
+
+    /** Every control back to its default, as leaving a pair for a plain model does. */
+    fun resetControls() = applyControls(ChatControls())
+
+    /** What the controls currently say, as the next request's options. */
+    fun requestOptions(): ChatRequestOptions = ChatRequestOptions(
+        reasoning = reasoning.selectedItem as? String,
+        verbosity = verbosity.selectedItem as? String,
+        routerParam = routerParam.selectedItem as? String,
+        webSearch = webSearch.isSelected,
+        outputMode = selectedMode()
+    )
+
     fun hasNonDefaultSelection(): Boolean = ChatParamsState.hasNonDefaultSelection(currentSelection())
 
     fun activeSummary(): String = ChatParamsState.activeSummary(currentSelection())
 
-    private fun currentSelection(): ChatParamsState.Selection = ChatParamsState.Selection(
-        reasoningIndex = reasoning.selectedIndex,
-        reasoningValue = reasoning.selectedItem as? String,
-        verbosityIndex = verbosity.selectedIndex,
-        verbosityValue = verbosity.selectedItem as? String,
-        routerVisible = routerVisible,
-        routerLabel = routerLabel,
-        routerValue = routerParam.selectedItem as? String
-    )
+    /**
+     * The badge's view of the controls: the values [requestOptions] reads, plus the positions and
+     * the router row's visibility that only the badge needs.
+     */
+    private fun currentSelection(): ChatParamsState.Selection {
+        val options = requestOptions()
+        return ChatParamsState.Selection(
+            reasoningIndex = reasoning.selectedIndex,
+            reasoningValue = options.reasoning,
+            verbosityIndex = verbosity.selectedIndex,
+            verbosityValue = options.verbosity,
+            routerVisible = routerVisible,
+            routerLabel = routerLabel,
+            routerValue = options.routerParam,
+            webSearch = options.webSearch,
+            outputMode = options.outputMode
+        )
+    }
 
     /**
      * No [com.intellij.openapi.ui.popup.ComponentPopupBuilder.setRequestFocus]:
@@ -137,6 +320,7 @@ class ChatParamsPopup(
             .createComponentPopupBuilder(form, reasoning)
             .setResizable(false)
             .createPopup()
+            .also { shown = it }
             .show(RelativePoint(under, anchor))
     }
 
@@ -235,6 +419,10 @@ class ChatParamsPopup(
                 .customize(TIGHT_ROW_GAP)
                 .withComment(routerComment.orEmpty())
         }
+        row(WEB_SEARCH_LABEL) { cell(webSearch) }.customize(TIGHT_ROW_GAP)
+        row(OUTPUT_LABEL) { filling(outputMode) }.customize(TIGHT_ROW_GAP)
+        row { cell(outputComment) }
+        row { cell(saveAsPreset) }.customize(TIGHT_ROW_GAP)
     }.apply {
         // The border must be set BEFORE the width is clamped and the height is
         // measured: it shrinks the interior width the DSL grid actually has to
@@ -295,7 +483,9 @@ class ChatParamsPopup(
     private fun Row.withComment(comment: String): Row =
         if (comment.isEmpty()) this else rowComment(comment, MAX_LINE_LENGTH_WORD_WRAP)
 
-    private companion object {
+    internal companion object {
+        const val SAVE_AS_PRESET_TEXT = "Save as Preset…"
+
         /**
          * Trailing colon matches [RouterDefaultsSettingsPanel]'s
          * `row("${def.displayName}:")` convention for the same three
@@ -304,6 +494,27 @@ class ChatParamsPopup(
          */
         private const val REASONING_LABEL = "Reasoning:"
         private const val VERBOSITY_LABEL = "Verbosity:"
+        private const val WEB_SEARCH_LABEL = "Web search:"
+        private const val OUTPUT_LABEL = "Output mode:"
+
+        /**
+         * Short on purpose: the line has to fit the popup on one line whatever the Model's slug,
+         * so it names no Model, and Linux's wider UI font needs more room than macOS's.
+         * The full reason, slug included, is on the Send button's tooltip.
+         */
+        const val OUTPUT_BLOCKED_TEXT = "Not supported by this model. Pick another."
+        const val OUTPUT_UNAVAILABLE_TEXT = "Greyed out: not supported by this model."
+        const val OUTPUT_DROPPED_BY_SEARCH_TEXT = "Dropped with web search. Turn it off or pick a schema."
+        const val OUTPUT_SEARCH_WARNING_TEXT = "With web search, may come back as plain text."
+
+        /**
+         * The cost is said on the control itself rather than in a comment beneath it: each search
+         * is billed on top of inference, and that has to be read before the box is ticked, not
+         * discovered on the invoice. "Allow" because ticking it lets the model search, as often as
+         * it decides to, rather than making it search once. On the checkbox it costs the form no
+         * extra line.
+         */
+        private const val WEB_SEARCH_TEXT = "Allow web search (charged per search)"
 
         /**
          * Extra top gap above the second/third row is dropped to

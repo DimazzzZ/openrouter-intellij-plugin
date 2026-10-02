@@ -68,6 +68,21 @@ class OpenRouterServicePublicEndpointsTest {
     }
 
     @Test
+    fun `getAllModels asks for every output modality`() = runBlocking {
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"data":[{"id":"black-forest-labs/flux","name":"FLUX","created":1}]}""")
+        )
+
+        val result = service.getAllModels()
+
+        assertEquals("/api/v1/models?output_modalities=all", mockWebServer.takeRequest().path)
+        assertEquals("black-forest-labs/flux", (result as ApiResult.Success).data.data.single().id)
+    }
+
+    @Test
     fun `getProviders should parse response`() = runBlocking {
         val response = """
             {

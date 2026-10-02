@@ -8,6 +8,8 @@ import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
+import com.intellij.openapi.ui.Messages
+import com.intellij.ui.components.JBCheckBox
 import com.intellij.util.ui.JBUI
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,17 +19,38 @@ import kotlinx.coroutines.launch
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.ChatCompletionRequest
 import org.zhavoronkov.openrouter.models.ChatMessage
-import org.zhavoronkov.openrouter.models.ReasoningConfig
+import org.zhavoronkov.openrouter.models.OutputSchema
+import org.zhavoronkov.openrouter.models.PresetPair
+import org.zhavoronkov.openrouter.presets.PresetCopyService
+import org.zhavoronkov.openrouter.proxy.errors.ClearError
 import org.zhavoronkov.openrouter.proxy.routing.RouterCatalog
 import org.zhavoronkov.openrouter.proxy.routing.RouterRequestBuilder
+import org.zhavoronkov.openrouter.requests.GenerationProviderLookup
+import org.zhavoronkov.openrouter.requests.ReplyProvider
+import org.zhavoronkov.openrouter.requests.RequestLogService
+import org.zhavoronkov.openrouter.requests.RequestSource
+import org.zhavoronkov.openrouter.requests.RequestTrace
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.settings.presets.PresetDialog
+import org.zhavoronkov.openrouter.settings.presets.PresetWriter
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatComposer
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatConversationView
+import org.zhavoronkov.openrouter.toolwindow.chat.ChatExchange
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatFileWriter
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatListView
+import org.zhavoronkov.openrouter.toolwindow.chat.ChatModelChoice
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatParamsPopup
+import org.zhavoronkov.openrouter.toolwindow.chat.ChatPresetControls
+import org.zhavoronkov.openrouter.toolwindow.chat.ChatPresetFollower
+import org.zhavoronkov.openrouter.toolwindow.chat.ChatPresetSaver
+import org.zhavoronkov.openrouter.toolwindow.chat.ChatRequestOptions
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatToolbar
+import org.zhavoronkov.openrouter.toolwindow.chat.MessageView
+import org.zhavoronkov.openrouter.toolwindow.chat.OutputModeContext
+import org.zhavoronkov.openrouter.toolwindow.chat.OutputModeGate
+import org.zhavoronkov.openrouter.toolwindow.chat.ReplySummary
+import org.zhavoronkov.openrouter.ui.Edt
 import org.zhavoronkov.openrouter.ui.ModelVariantChipRenderer
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 import org.zhavoronkov.openrouter.utils.PluginLogger
@@ -50,9 +73,9 @@ import javax.swing.SwingUtilities
  */
 // ChatPanel is the coordinator: session state, persistence and the send path.
 // The views it used to contain now live in toolwindow/chat and toolwindow/composer.
-// Still over detekt's LargeClass/TooManyFunctions thresholds (883 lines, 40 functions).
-// Getting under them means extracting saveChats/loadChats and the send path, which is
-// a separate piece of work with its own risk - see the redesign plan.
+// Still over detekt's LargeClass/TooManyFunctions thresholds. Getting under them means
+// extracting saveChats/loadChats and the send path, which is a separate change with its
+// own risk.
 @Suppress("TooManyFunctions", "LargeClass")
 class ChatPanel(
     private val project: Project,
@@ -62,10 +85,11 @@ class ChatPanel(
 
     companion object {
         private const val PANEL_BORDER = 4
-        private const val MAX_TOKENS = 4096
-        private const val TEMPERATURE = 0.7
         private const val ACTIVE_CHAT_KEY = "openrouter.chat.activeSession"
         private const val CHATS_FILENAME = "openrouter-chats.json"
+
+        /** How the chat's own requests are named on the Requests tab. */
+        private const val CHAT_SENDER = "Chat"
         private const val SETTINGS_FILENAME = "openrouter-chat-settings.json"
         private const val CHARS_PER_TOKEN = 4.0
         private const val CARD_LIST = "list"
@@ -97,10 +121,31 @@ class ChatPanel(
     private val verbosityComboBox: ComboBox<String>
     private val routerParamComboBox: ComboBox<String>
 
-    // The send parameters (reasoning, verbosity, router param), in a popup off
-    // the composer's gear button (Task 10). Owns no state of its own beyond
-    // what these three combo boxes already hold.
+    // Deliberately never reset after a send: a follow-up question in the same investigation should
+    // not need the box ticked again, the same way Reasoning and Verbosity stay as they were left.
+    private val webSearchCheckBox: JBCheckBox
+
+    // The send parameters (reasoning, verbosity, router param, web search), in
+    // a popup off the composer's gear button. Owns no state of its own beyond
+    // what these controls already hold.
     private lateinit var paramsPopup: ChatParamsPopup
+
+    // Keeps the Output mode control and Send in step with what the selected Model can serve.
+    private lateinit var outputModeGate: OutputModeGate
+
+    // What the selected Model declares in the catalogue, or null when it is not known; read by the
+    // Output Mode gating every time the selection or the Model changes.
+    private var selectedModelParameters: List<String>? = null
+
+    private var stopWatchingPresets: () -> Unit = {}
+
+    private val presetFollower by lazy {
+        ChatPresetFollower(
+            apply = paramsPopup::applyControls,
+            reset = paramsPopup::resetControls,
+            schemas = ::savedSchemas
+        )
+    }
 
     // Remembers which router-param the combo box currently reflects, so
     // non-selection-driven refresh paths (favorites reload, async init
@@ -176,8 +221,12 @@ class ChatPanel(
         verbosityComboBox = ComboBox<String>()
         routerParamComboBox = ComboBox<String>()
         routerParamComboBox.isEditable = true
+        webSearchCheckBox = JBCheckBox()
 
-        paramsPopup = ChatParamsPopup(reasoningComboBox, verbosityComboBox, routerParamComboBox)
+        paramsPopup = ChatParamsPopup(reasoningComboBox, verbosityComboBox, routerParamComboBox, webSearchCheckBox)
+        paramsPopup.onSaveAsPreset = ::saveAsPreset
+        // A preset edited on the Presets page, or saved from here, reaches the controls
+        stopWatchingPresets = presetCopy.addListener { Edt.later(::followPickedPreset) }
         composer.onSettingsClick = { paramsPopup.show(composer.settingsComponent()) }
         // Any selection change on a send parameter can flip whether it is
         // "non-default", so the gear badge/tooltip has to be recomputed from
@@ -187,6 +236,9 @@ class ChatPanel(
         reasoningComboBox.addActionListener { refreshParamsBadge() }
         verbosityComboBox.addActionListener { refreshParamsBadge() }
         routerParamComboBox.addActionListener { refreshParamsBadge() }
+        webSearchCheckBox.addActionListener { refreshParamsBadge() }
+        outputModeGate = OutputModeGate(paramsPopup, composer)
+        outputModeGate.onSelectionChanged = { refreshParamsBadge() }
 
         // Create main panel with CardLayout
         cardLayout = CardLayout()
@@ -230,8 +282,10 @@ class ChatPanel(
                 }
                 saveSelectedModel()
                 updateReasoningVerbosityState()
+                followPickedPreset()
             }
         }
+        followPickedPreset()
 
         // Set initial reasoning/verbosity state after model is restored
         coroutineScope.launch {
@@ -251,17 +305,16 @@ class ChatPanel(
     private fun createChatView(): JPanel {
         val panel = JPanel(BorderLayout())
 
-        // Reasoning / Verbosity / router-param combos no longer sit in a row
-        // in this panel — Task 10 moved them into ChatParamsPopup, opened from
-        // the composer's gear button. ChatPanel still owns the combo boxes
-        // (their model, enabled state and selection feed sendChatRequest), it
-        // just no longer places them directly.
-        val reasoningOptions = arrayOf("Default", "None", "Minimal", "Low", "Medium", "High", "XHigh")
-        reasoningComboBox.model = DefaultComboBoxModel(reasoningOptions)
+        // The send-parameter controls are placed by ChatParamsPopup, opened from the composer's
+        // gear button, not by this panel. ChatPanel still owns them: their model and enabled state
+        // are set here, and the popup reads their selection into each request. The choices come
+        // from ChatExchange rather than from lists here, because it is what turns them into a
+        // request: a label this panel offers but that module cannot translate would be dropped
+        // from the request silently instead of failing to compile.
+        reasoningComboBox.model = DefaultComboBoxModel(ChatExchange.REASONING_CHOICES.toTypedArray())
         reasoningComboBox.toolTipText = "Reasoning effort (for supported models)"
 
-        val verbosityOptions = arrayOf("Default", "Low", "Medium", "High", "XHigh", "Max")
-        verbosityComboBox.model = DefaultComboBoxModel(verbosityOptions)
+        verbosityComboBox.model = DefaultComboBoxModel(ChatExchange.VERBOSITY_CHOICES.toTypedArray())
         verbosityComboBox.toolTipText = "Response verbosity (for supported models)"
 
         routerParamComboBox.toolTipText = "Router parameter (for openrouter/* routers)"
@@ -347,7 +400,7 @@ class ChatPanel(
         for (msg in chat.messages) {
             when (msg.role) {
                 "user" -> conversationView.addMessage(msg.content, isUser = true)
-                "assistant" -> conversationView.addMessage(msg.content, isUser = false, footnote = msg.footnote)
+                "assistant" -> showAssistantMessage(msg)
                 "system" -> conversationView.addSystemMessage(msg.content)
             }
         }
@@ -460,6 +513,8 @@ class ChatPanel(
 
     fun refreshModels() {
         loadFavoriteModels()
+        // A preset edited in Settings reaches the controls; an unchanged one leaves them alone
+        followPickedPreset()
         coroutineScope.launch {
             try {
                 org.zhavoronkov.openrouter.services.FavoriteModelsService.getInstance()
@@ -598,8 +653,10 @@ class ChatPanel(
     }
 
     private fun updateReasoningVerbosityState() {
-        val selectedModel = modelComboBox.selectedItem as? String ?: return
-        if (selectedModel.startsWith(SEPARATOR_PREFIX)) return
+        val picked = modelComboBox.selectedItem as? String ?: return
+        if (picked.startsWith(SEPARATOR_PREFIX)) return
+        // A pair is judged by the model it sends
+        val selectedModel = PresetPair.modelOf(picked)
 
         val favoriteModelsService = org.zhavoronkov.openrouter.services.FavoriteModelsService.getInstance()
         val modelInfo = favoriteModelsService.getModelById(selectedModel)
@@ -614,6 +671,11 @@ class ChatPanel(
 
         paramsPopup.setReasoningSupport(supportsReasoning, PARAM_NOT_SUPPORTED_REASON)
         paramsPopup.setVerbositySupport(supportsVerbosity, PARAM_NOT_SUPPORTED_REASON)
+        selectedModelParameters = modelInfo?.supportedParameters
+        val presetSearches = pickedChoice()?.presetSearches == true
+        outputModeGate.update(
+            OutputModeContext(selectedModel, selectedModelParameters, savedSchemas(), presetSearches = presetSearches)
+        )
 
         reasoningComboBox.toolTipText = if (supportsReasoning) {
             "Reasoning effort"
@@ -627,13 +689,73 @@ class ChatPanel(
             "$selectedModel does not support verbosity"
         }
 
-        if (!supportsReasoning) reasoningComboBox.selectedIndex = 0
-        if (!supportsVerbosity) verbosityComboBox.selectedIndex = 0
+        // Reset rather than kept and blocked, unlike an Output Mode. Reasoning and verbosity are
+        // hints about how to answer; a Model without them still answers the same question, and
+        // the disabled control says why it reads Default. An Output Mode is a promise about the
+        // reply's shape, which the user would otherwise believe was kept. A pair keeps its
+        // preset's values until the catalogue says its Model lacks them, not merely while the
+        // catalogue is still loading.
+        val supportUnknownForPair = modelInfo == null && PresetPair.isPair(picked)
+        if (!supportsReasoning && !supportUnknownForPair) reasoningComboBox.selectedIndex = 0
+        if (!supportsVerbosity && !supportUnknownForPair) verbosityComboBox.selectedIndex = 0
 
         // updateRouterParamState refreshes the gear badge itself (it always
         // runs, so it's the single place that has to cover both this method's
         // reasoning/verbosity changes and its own router-param change).
         updateRouterParamState(selectedModel)
+    }
+
+    private fun savedSchemas(): List<OutputSchema> = settingsService.outputSchemasManager.all()
+
+    /**
+     * "Save as Preset…": the send-parameters controls as a preset, named and edited in the preset
+     * dialog and saved to OpenRouter - without a model, so it pairs with any.
+     */
+    private fun saveAsPreset() {
+        val schemas = savedSchemas()
+        val draft = ChatPresetControls.draftOf(paramsPopup.requestOptions(), schemas)
+        val taken = presetCopy.snapshot()?.presets?.map { it.slug }.orEmpty()
+        val saver = ChatPresetSaver(
+            edit = { edited, takenSlugs ->
+                PresetDialog.edit(mainPanel, edited, isNew = true, takenSlugs = takenSlugs, schemas = schemas)
+            },
+            confirmReplace = ::confirmReplacingPreset
+        )
+        val saved = saver.choose(draft, taken) ?: return
+        coroutineScope.launch {
+            val error = PresetWriter.save(saved)
+            Edt.later {
+                if (error != null) conversationView.showError("Could not save the preset: $error")
+            }
+        }
+    }
+
+    private fun confirmReplacingPreset(slug: String): Boolean = Messages.showOkCancelDialog(
+        mainPanel,
+        "A preset named '$slug' already exists on OpenRouter. Saving gives it a new version with these " +
+            "settings, which replace what it sets now.",
+        "Save as Preset",
+        "Replace",
+        Messages.getCancelButton(),
+        null
+    ) == Messages.OK
+
+    private val presetCopy get() = PresetCopyService.getInstance().copy
+
+    private fun presetConfig(slug: String) = presetCopy.snapshot()?.find(slug)?.config
+
+    /** What the model picker holds now, or null while it holds nothing to send to. */
+    private fun pickedChoice(): ChatModelChoice? {
+        val picked = modelComboBox.selectedItem as? String ?: return null
+        if (picked.startsWith(SEPARATOR_PREFIX)) return null
+        return ChatModelChoice.of(picked, PresetCopyService.pairs())
+    }
+
+    /** The send-parameters controls follow the picked pair's preset; see [ChatPresetFollower]. */
+    private fun followPickedPreset() {
+        if (!presetFollower.follow(pickedChoice()?.preset)) return
+        // Once more, now the preset's values are in: a reasoning the Model is known to lack goes
+        updateReasoningVerbosityState()
     }
 
     /** Recomputes the gear badge/tooltip from the current combo selections (spec D7). */
@@ -686,23 +808,15 @@ class ChatPanel(
         conversationView.addSystemMessage("Welcome! Press Enter to send, Cmd+Enter for new line.")
     }
 
-    @Suppress("ReturnCount")
     private fun sendMessage() {
+        // Not composer.canSend: Enter reaches here with Send disabled, and a blocked send must say
+        // why below rather than do nothing.
         if (isLoading) return
 
         val userMessage = composer.text.trim()
         if (userMessage.isEmpty()) return
 
-        val selectedModel = modelComboBox.selectedItem as? String
-        if (selectedModel.isNullOrEmpty() || selectedModel.startsWith(SEPARATOR_PREFIX)) {
-            conversationView.showError("Please select a model")
-            return
-        }
-
-        if (!settingsService.isConfigured()) {
-            conversationView.showError("OpenRouter is not configured. Please set your API key in settings.")
-            return
-        }
+        val send = readyToSend() ?: return
 
         composer.text = ""
         composer.requestFocusInInput()
@@ -722,8 +836,56 @@ class ChatPanel(
         setLoading(true)
 
         coroutineScope.launch {
-            sendChatRequest(selectedModel, currentChat)
+            sendChatRequest(send.choice, currentChat, send.options, send.schemas)
         }
+    }
+
+    /** What a message is sent with, read from the controls at the moment of sending. */
+    private class ReadySend(
+        val choice: ChatModelChoice,
+        val options: ChatRequestOptions,
+        val schemas: List<OutputSchema>
+    )
+
+    /** What the next message is sent with, or null when it cannot be sent - said below, as an error. */
+    @Suppress("ReturnCount")
+    private fun readyToSend(): ReadySend? {
+        val selectedModel = modelComboBox.selectedItem as? String
+        if (selectedModel.isNullOrEmpty() || selectedModel.startsWith(SEPARATOR_PREFIX)) {
+            conversationView.showError("Please select a model")
+            return null
+        }
+
+        if (!settingsService.isConfigured()) {
+            conversationView.showError("OpenRouter is not configured. Please set your API key in settings.")
+            return null
+        }
+
+        val choice = ChatModelChoice.of(selectedModel, PresetCopyService.pairs())
+        choice.problem?.let { problem ->
+            conversationView.showError(ClearError.of(problem).message)
+            return null
+        }
+
+        // Read on the EDT, at the moment of sending, and checked against the same rule that blocks
+        // Send: what goes out is exactly what the controls showed when the user sent it. The saved
+        // schemas are re-read first, so a schema deleted since the popup was last brought up to
+        // date blocks this send - and says why - rather than being sent or silently ignored.
+        val context = OutputModeContext(
+            choice.model,
+            selectedModelParameters,
+            savedSchemas(),
+            presetSearches = choice.presetSearches
+        )
+        outputModeGate.update(context)
+        outputModeGate.blockedReason()?.let { reason ->
+            conversationView.showError(reason)
+            return null
+        }
+        // A preset's routing replaces every routing default, the router's parameter included
+        val controls = paramsPopup.requestOptions()
+        val options = if (choice.presetRouting) controls.copy(routerParam = null) else controls
+        return ReadySend(choice, options, context.schemas)
     }
 
     private fun generateChatTitle(message: String): String {
@@ -734,65 +896,85 @@ class ChatPanel(
         }
     }
 
-    private suspend fun sendChatRequest(model: String, currentChat: ChatSession?) {
+    /** The chat's requests are Requests entries too; the log writes them off the EDT itself. */
+    private fun traceFor(choice: ChatModelChoice): RequestTrace = RequestTrace(
+        source = RequestSource.CHAT,
+        sender = CHAT_SENDER,
+        requestedModel = choice.picked,
+        record = { RequestLogService.getInstance().record(it) },
+        keepBodies = RequestLogService.getInstance().keepsBodies,
+        saveBodies = { id, bodies -> RequestLogService.getInstance().saveBodies(id, bodies) }
+    ).apply { PresetPair.parse(choice.picked)?.let { preset(it.preset, emptyList()) } }
+
+    private fun chatRequest(
+        choice: ChatModelChoice,
+        currentChat: ChatSession?,
+        options: ChatRequestOptions,
+        schemas: List<OutputSchema>
+    ): ChatCompletionRequest = ChatExchange.buildRequest(
+        model = choice.picked,
+        messages = currentChat?.messages?.map { msg ->
+            ChatMessage(role = msg.role, content = JsonPrimitive(msg.content))
+        }.orEmpty(),
+        options = options,
+        webSearch = settingsService.webSearchManager.current(),
+        schemas = schemas,
+        presetFields = choice.preset?.config?.keySet()?.toSet().orEmpty(),
+        preset = choice.preset?.let { ChatPresetControls.of(it, schemas) }
+    )
+
+    private suspend fun sendChatRequest(
+        choice: ChatModelChoice,
+        currentChat: ChatSession?,
+        options: ChatRequestOptions,
+        schemas: List<OutputSchema>
+    ) {
+        val trace = traceFor(choice)
         try {
-            val messages = currentChat?.messages?.map { msg ->
-                ChatMessage(role = msg.role, content = JsonPrimitive(msg.content))
-            } ?: emptyList()
-
-            val reasoningConfig = when (reasoningComboBox.selectedItem as? String) {
-                null, "Default" -> null
-                "None" -> ReasoningConfig(effort = "none")
-                "Minimal" -> ReasoningConfig(effort = "minimal")
-                "Low" -> ReasoningConfig(effort = "low")
-                "Medium" -> ReasoningConfig(effort = "medium")
-                "High" -> ReasoningConfig(effort = "high")
-                "XHigh" -> ReasoningConfig(effort = "xhigh")
-                else -> null
-            }
-
-            val verbosityValue = when (val v = verbosityComboBox.selectedItem as? String) {
-                null, "Default" -> null
-                else -> v.lowercase()
-            }
-
-            val routerValue = routerParamComboBox.selectedItem as? String
-            val plugins = RouterRequestBuilder.buildPlugins(model, routerValue)
-
-            val request = ChatCompletionRequest(
-                model = model,
-                messages = messages,
-                maxTokens = MAX_TOKENS,
-                temperature = TEMPERATURE,
-                stream = false,
-                reasoning = reasoningConfig,
-                verbosity = verbosityValue,
-                plugins = plugins
-            )
-
+            val request = chatRequest(choice, currentChat, options, schemas)
+            trace.sent(gson.toJsonTree(request).asJsonObject, ::presetConfig)
             val result = openRouterService.createChatCompletion(request)
+            when (result) {
+                is ApiResult.Success -> trace.observe(gson.toJsonTree(result.data).asJsonObject)
+                is ApiResult.Error -> trace.fail(result.message)
+            }
 
             SwingUtilities.invokeLater {
-                handleChatResponse(result, currentChat, model)
+                handleChatResponse(result, currentChat, request)
             }
         } catch (e: IOException) {
+            trace.fail("Network error: ${e.message}")
             SwingUtilities.invokeLater {
                 conversationView.showError("Network error: ${e.message}")
                 setLoading(false)
             }
+        } catch (e: IllegalArgumentException) {
+            // ChatExchange refuses to build a request whose Output Mode it cannot express, which
+            // sendMessage's check rules out for the snapshot it passes here; reaching this means a
+            // caller skipped that check. Said plainly, and the chat is left usable rather than
+            // stuck waiting for a reply that is never requested.
+            PluginLogger.warn("Could not build the chat request: ${e.message}")
+            trace.fail("Could not build the request: ${e.message}")
+            Edt.later {
+                conversationView.showError("Could not send: ${e.message}")
+                setLoading(false)
+                outputModeGate.update(outputModeGate.context)
+            }
+        } finally {
+            trace.finish()
         }
     }
 
     private fun handleChatResponse(
         result: ApiResult<org.zhavoronkov.openrouter.models.ChatCompletionResponse>,
         currentChat: ChatSession?,
-        requestedModel: String
+        request: ChatCompletionRequest
     ) {
         setLoading(false)
         composer.requestFocusInInput()
 
         when (result) {
-            is ApiResult.Success -> handleSuccessResponse(result.data, currentChat, requestedModel)
+            is ApiResult.Success -> handleSuccessResponse(result.data, currentChat, request)
             is ApiResult.Error -> conversationView.showError("Error: ${result.message}")
         }
     }
@@ -800,7 +982,7 @@ class ChatPanel(
     private fun handleSuccessResponse(
         response: org.zhavoronkov.openrouter.models.ChatCompletionResponse,
         currentChat: ChatSession?,
-        requestedModel: String
+        request: ChatCompletionRequest
     ) {
         val assistantMessage = response.choices?.firstOrNull()?.message?.content
         if (assistantMessage == null) {
@@ -809,11 +991,15 @@ class ChatPanel(
         }
 
         val messageText = extractMessageText(assistantMessage)
-        // Which model answered, echoed under the reply as a small footnote rather than as a
-        // separate system line. Saved with the message so reopening the chat does not lose it.
-        val answeredBy = RouterRequestBuilder.answeringModelLabel(requestedModel, response.model)
-        addAssistantMessage(messageText, footnote = answeredBy)
-        currentChat?.messages?.add(ChatMessageData("assistant", messageText, footnote = answeredBy))
+        // How the reply was produced, echoed under it as a small footnote rather than as a
+        // separate system line. Shown from the saved message itself, so a live reply and a
+        // reopened one go through the same rendering and cannot disagree.
+        val replyNamesProvider = ReplyProvider.trusted(gson.toJsonTree(request).asJsonObject, ::presetConfig)
+        val summary = ChatExchange.summarizeReply(request, response, replyNamesProvider)
+        val reply = ChatMessageData.reply(messageText, summary)
+        val view = showAssistantMessage(reply)
+        currentChat?.messages?.add(reply)
+        if (!replyNamesProvider) response.id?.let { fillProviderLater(it, reply, view, currentChat) }
 
         val usage = response.usage
         if (usage != null) {
@@ -844,9 +1030,40 @@ class ChatPanel(
         }
     }
 
-    private fun addUserMessage(message: String) = conversationView.addMessage(message, isUser = true)
-    private fun addAssistantMessage(message: String, footnote: String? = null) =
-        conversationView.addMessage(message, isUser = false, footnote = footnote)
+    private fun addUserMessage(message: String) {
+        conversationView.addMessage(message, isUser = true)
+    }
+
+    /**
+     * Reads the provider of [generationId] from its generation record, which the reply could not
+     * name, then shows it in [view]'s footer, keeps it on the saved [reply] and on its Requests
+     * entry. Nothing waits for it, and when no record names one the footer stays without it.
+     */
+    private fun fillProviderLater(generationId: String, reply: ChatMessageData, view: MessageView, chat: ChatSession?) {
+        coroutineScope.launch {
+            val provider = providerLookup.providerOf(generationId) ?: return@launch
+            RequestLogService.getInstance().fillProvider(generationId, provider)
+            Edt.later {
+                val filled = reply.copy(summary = reply.summary?.copy(provider = provider))
+                chat?.messages?.let { messages ->
+                    val index = messages.indexOf(reply)
+                    if (index >= 0) messages[index] = filled
+                }
+                view.setFootnote(filled.footerFacts)
+                saveChats()
+            }
+        }
+    }
+
+    private val providerLookup = GenerationProviderLookup(fetch = openRouterService::getGenerationProvider)
+
+    private fun showAssistantMessage(message: ChatMessageData) =
+        conversationView.addMessage(
+            message.content,
+            isUser = false,
+            footnote = message.footerFacts,
+            warning = message.footerWarning
+        )
 
     private fun setLoading(loading: Boolean) {
         isLoading = loading
@@ -879,20 +1096,44 @@ class ChatPanel(
     fun getPanel(): JPanel = mainPanel
 
     fun dispose() {
+        stopWatchingPresets()
         saveChats()
         coroutineScope.cancel()
     }
 
     /**
-     * [footnote] is what the message's own line under the text says - for a reply, which model
-     * answered it. Stored with the message rather than derived on display, because by the time a
-     * chat is reopened the only model the panel still knows about is the one selected now, which
-     * is the wrong answer for every message that predates the last time the picker changed.
+     * One saved message. A reply also carries its [ReplySummary] - which model answered, which
+     * provider served it, what it cost and why it stopped - as structured fields, so that
+     * reopening a chat renders the footer afresh, warning included, and the footer's wording can
+     * change without stranding old messages. Stored with the message rather than derived on
+     * display, because by the time a chat is reopened the only model the panel still knows about
+     * is the one selected now, which is the wrong answer for every message that predates the last
+     * time the picker changed.
      *
-     * It is nullable and defaults to null so chats saved before this existed still load: Gson
-     * leaves an absent field at its default.
+     * [footnote] holds an already-rendered footer line. It is read only when [summary] is absent,
+     * and a message with a summary leaves it null, which Gson does not write.
+     *
+     * Every field past [content] is nullable and defaults to null so a chat saved without it still
+     * loads: Gson leaves an absent field null.
      */
-    data class ChatMessageData(val role: String, val content: String, val footnote: String? = null)
+    data class ChatMessageData(
+        val role: String,
+        val content: String,
+        val footnote: String? = null,
+        val summary: ReplySummary? = null
+    ) {
+        /** The footer's line of facts: rendered from [summary], or else the stored [footnote]. */
+        val footerFacts: String?
+            get() = summary?.facts ?: footnote
+
+        val footerWarning: String?
+            get() = summary?.warning
+
+        companion object {
+            fun reply(content: String, summary: ReplySummary) =
+                ChatMessageData(role = "assistant", content = content, summary = summary)
+        }
+    }
 
     data class ChatSession(
         val id: String,

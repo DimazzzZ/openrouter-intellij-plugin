@@ -7,10 +7,13 @@ import jakarta.servlet.http.HttpServletResponse
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.zhavoronkov.openrouter.models.ApiResult
+import org.zhavoronkov.openrouter.models.PresetPair
 import org.zhavoronkov.openrouter.models.RegionFavorites
+import org.zhavoronkov.openrouter.presets.PresetCopyService
 import org.zhavoronkov.openrouter.proxy.models.OpenAIModel
 import org.zhavoronkov.openrouter.proxy.models.OpenAIModelsResponse
 import org.zhavoronkov.openrouter.proxy.models.OpenAIPermission
+import org.zhavoronkov.openrouter.proxy.pairs.PairAvailability
 import org.zhavoronkov.openrouter.proxy.routing.RouterCatalog
 import org.zhavoronkov.openrouter.proxy.translation.ResponseTranslator
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
@@ -57,6 +60,13 @@ class ModelsServlet(
      */
     private val servedModelIdsProvider: () -> List<String>? = {
         applicationServiceOrNull(FavoriteModelsService::class.java)?.getCachedModels()?.map { it.id }
+    },
+    /**
+     * Whether a pair can be sent with its preset. A pair that cannot is left out: a Consumer
+     * picking it would only be refused.
+     */
+    private val pairsProvider: () -> PairAvailability? = {
+        applicationServiceOrNull(OpenRouterSettingsService::class.java)?.let { PresetCopyService.pairs() }
     }
 ) : HttpServlet() {
 
@@ -187,7 +197,7 @@ class ModelsServlet(
             favoriteModelIds - RegionFavorites.unavailable(favoriteModelIds, servedIds).toSet()
         }
 
-        val allModelIds = presetModelIds + servedFavorites
+        val allModelIds = presetModelIds + withoutBrokenPairs(servedFavorites)
 
         val coreModels = allModelIds.map { modelId ->
             OpenAIModel(
@@ -204,6 +214,14 @@ class ModelsServlet(
             `object` = "list",
             data = coreModels
         )
+    }
+
+    /** [ids] less every pair that cannot be sent with its preset; asked only when there is a pair. */
+    private fun withoutBrokenPairs(ids: List<String>): List<String> {
+        if (ids.none(PresetPair::isPair)) return ids
+        // With no settings to ask - a plugin unloading, say - the list is served as it is
+        val pairs = pairsProvider()?.snapshot() ?: return ids
+        return ids.filter { pairs.problem(it) == null }
     }
 
     /**
@@ -284,7 +302,7 @@ class ModelsServlet(
         if (!provider.isNullOrBlank()) {
             filteredModels = filteredModels.filter { model ->
                 model.ownedBy.equals(provider, ignoreCase = true) ||
-                    model.id.startsWith("$provider/", ignoreCase = true)
+                    ModelProviderUtils.authorSlug(model.id).equals(provider, ignoreCase = true)
             }
         }
 
@@ -330,16 +348,12 @@ class ModelsServlet(
      * display name from [ModelProviderUtils.extractProvider]) because the OpenAI models
      * API convention expects a lowercase organization identifier. Variant suffixes are
      * stripped via [ModelProviderUtils.stripVariant] so `x-ai/grok:free` and `x-ai/grok`
-     * both resolve to "x-ai".
+     * both resolve to "x-ai", and a Latest Model's `~` marker is dropped so
+     * `~openai/gpt-astra-latest` resolves to "openai" rather than to an organisation
+     * called "~openai".
      */
-    private fun extractProvider(modelId: String): String {
-        val stripped = ModelProviderUtils.stripVariant(modelId)
-        return if (stripped.contains("/")) {
-            stripped.substringBefore("/")
-        } else {
-            "openai" // Default to openai for compatibility
-        }
-    }
+    private fun extractProvider(modelId: String): String =
+        ModelProviderUtils.authorSlug(modelId) ?: "openai" // Default to openai for compatibility
 
     private fun createDefaultPermission(): OpenAIPermission {
         return OpenAIPermission(

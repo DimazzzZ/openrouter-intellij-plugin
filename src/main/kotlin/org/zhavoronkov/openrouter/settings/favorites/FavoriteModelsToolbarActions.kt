@@ -192,6 +192,43 @@ internal class PresetsAction(private val onPreset: (String) -> Unit) : ComboBoxA
     }
 }
 
+/**
+ * "Add with Preset": a drop-down of the user's OpenRouter presets that adds the selected model
+ * paired with the one picked. Disabled until a row is selected, and while no preset is known - its
+ * description then says where to make one.
+ */
+internal class AddWithPresetAction(
+    private val presets: () -> List<String>,
+    private val selectedModel: () -> String?,
+    private val onPick: (model: String, preset: String) -> Unit,
+) : ComboBoxAction(), DumbAware {
+
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+
+    override fun update(e: AnActionEvent) {
+        val saved = presets()
+        e.presentation.text = "Add with Preset"
+        e.presentation.description = if (saved.isEmpty()) {
+            "Save a preset on the Presets page to pair it with a model"
+        } else {
+            "Add the selected model to the favorites, sent with one of your presets"
+        }
+        e.presentation.isEnabled = saved.isNotEmpty() && selectedModel() != null
+    }
+
+    override fun createPopupActionGroup(button: JComponent, dataContext: DataContext): DefaultActionGroup {
+        val group = DefaultActionGroup()
+        presets().forEach { preset ->
+            group.add(object : DumbAwareAction(preset) {
+                override fun actionPerformed(e: AnActionEvent) {
+                    selectedModel()?.let { onPick(it, preset) }
+                }
+            })
+        }
+        return group
+    }
+}
+
 internal class RefreshCatalogAction(
     private val isLoading: () -> Boolean,
     private val onRefresh: () -> Unit,

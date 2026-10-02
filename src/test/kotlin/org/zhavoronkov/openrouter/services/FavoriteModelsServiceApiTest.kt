@@ -12,6 +12,7 @@ import org.mockito.ArgumentMatchers.anyList
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito
 import org.zhavoronkov.openrouter.models.ApiResult
+import org.zhavoronkov.openrouter.models.ModelArchitecture
 import org.zhavoronkov.openrouter.models.ModelsCountData
 import org.zhavoronkov.openrouter.models.ModelsCountResponse
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
@@ -71,53 +72,53 @@ class FavoriteModelsServiceApiTest {
         @Test
         fun `fetches and caches models on success`() = runBlocking {
             val models = listOf(model("openai/gpt-4"), model("anthropic/claude"))
-            Mockito.`when`(mockRouterService.getModels())
+            Mockito.`when`(mockRouterService.getAllModels())
                 .thenReturn(ApiResult.Success(OpenRouterModelsResponse(models), 200))
             val result = service.getAvailableModels()
             assertNotNull(result)
             assertEquals(2, result?.size)
-            Mockito.verify(mockRouterService).getModels()
+            Mockito.verify(mockRouterService).getAllModels()
             Unit
         }
 
         @Test
         fun `returns cached models without a second fetch`() = runBlocking {
-            Mockito.`when`(mockRouterService.getModels())
+            Mockito.`when`(mockRouterService.getAllModels())
                 .thenReturn(ApiResult.Success(OpenRouterModelsResponse(listOf(model("m1"))), 200))
             service.getAvailableModels()
             val second = service.getAvailableModels()
             assertEquals(1, second?.size)
-            Mockito.verify(mockRouterService, Mockito.times(1)).getModels()
+            Mockito.verify(mockRouterService, Mockito.times(1)).getAllModels()
             Unit
         }
 
         @Test
         fun `forceRefresh bypasses a valid cache`() = runBlocking {
-            Mockito.`when`(mockRouterService.getModels())
+            Mockito.`when`(mockRouterService.getAllModels())
                 .thenReturn(ApiResult.Success(OpenRouterModelsResponse(listOf(model("m1"))), 200))
             service.getAvailableModels()
             service.getAvailableModels(forceRefresh = true)
-            Mockito.verify(mockRouterService, Mockito.times(2)).getModels()
+            Mockito.verify(mockRouterService, Mockito.times(2)).getAllModels()
             Unit
         }
 
         @Test
         fun `returns null when API reports an error`() = runBlocking {
-            Mockito.`when`(mockRouterService.getModels())
+            Mockito.`when`(mockRouterService.getAllModels())
                 .thenReturn(ApiResult.Error("boom", statusCode = 500))
             assertNull(service.getAvailableModels())
         }
 
         @Test
         fun `returns null when the fetch throws IOException`() = runBlocking {
-            Mockito.`when`(mockRouterService.getModels())
+            Mockito.`when`(mockRouterService.getAllModels())
                 .thenAnswer { throw java.io.IOException("network down") }
             assertNull(service.getAvailableModels())
         }
 
         @Test
         fun `returns null when the fetch throws IllegalStateException`() = runBlocking {
-            Mockito.`when`(mockRouterService.getModels())
+            Mockito.`when`(mockRouterService.getAllModels())
                 .thenThrow(IllegalStateException("bad state"))
             assertNull(service.getAvailableModels())
         }
@@ -127,7 +128,7 @@ class FavoriteModelsServiceApiTest {
             // An underlying HTTP client can surface java.util.concurrent.TimeoutException
             // directly (distinct from kotlinx's TimeoutCancellationException); this drives
             // the dedicated TimeoutException catch arm.
-            Mockito.`when`(mockRouterService.getModels())
+            Mockito.`when`(mockRouterService.getAllModels())
                 .thenAnswer { throw java.util.concurrent.TimeoutException("slow upstream") }
             assertNull(service.getAvailableModels())
         }
@@ -140,7 +141,7 @@ class FavoriteModelsServiceApiTest {
         @Test
         fun `getModelById returns cached model when present`() = runBlocking {
             val target = model("openai/gpt-4")
-            Mockito.`when`(mockRouterService.getModels())
+            Mockito.`when`(mockRouterService.getAllModels())
                 .thenReturn(ApiResult.Success(OpenRouterModelsResponse(listOf(target)), 200))
             service.getAvailableModels()
             assertEquals("openai/gpt-4", service.getModelById("openai/gpt-4")?.id)
@@ -154,7 +155,7 @@ class FavoriteModelsServiceApiTest {
         @Test
         fun `getFavoriteModels resolves from cache when available`() = runBlocking {
             val cached = model("openai/gpt-4")
-            Mockito.`when`(mockRouterService.getModels())
+            Mockito.`when`(mockRouterService.getAllModels())
                 .thenReturn(ApiResult.Success(OpenRouterModelsResponse(listOf(cached)), 200))
             service.getAvailableModels()
             favoriteModelsStorage.add("openai/gpt-4")
@@ -239,11 +240,62 @@ class FavoriteModelsServiceApiTest {
 
         @Test
         fun `dispose clears the model cache`() = runBlocking {
-            Mockito.`when`(mockRouterService.getModels())
+            Mockito.`when`(mockRouterService.getAllModels())
                 .thenReturn(ApiResult.Success(OpenRouterModelsResponse(listOf(model("m1"))), 200))
             service.getAvailableModels()
             service.dispose()
             assertNull(service.getModelById("m1"))
+        }
+    }
+
+    @Nested
+    @DisplayName("the catalogue of every output modality")
+    inner class EveryOutputModality {
+
+        private fun outputting(id: String, vararg modalities: String) =
+            model(id).copy(architecture = ModelArchitecture(outputModalities = modalities.toList()))
+
+        @Test
+        fun `lists only text-output models but keeps every model in the catalogue`() = runBlocking {
+            val chat = outputting("openai/gpt-5", "text")
+            val imageAndText = outputting("google/gemini-image", "image", "text")
+            val imageOnly = outputting("black-forest-labs/flux", "image")
+            val unknown = model("vendor/silent")
+            Mockito.`when`(mockRouterService.getAllModels()).thenReturn(
+                ApiResult.Success(OpenRouterModelsResponse(listOf(chat, imageAndText, imageOnly, unknown)), 200)
+            )
+
+            val listed = service.getAvailableModels()
+
+            assertEquals(listOf(chat, imageAndText, unknown), listed)
+            assertEquals(listed, service.getCachedModels())
+            assertEquals(listOf(chat, imageAndText, imageOnly, unknown), service.getCachedCatalogue())
+        }
+
+        @Test
+        fun `a fetch that started before the cache was cleared is not kept`() = runBlocking {
+            val oldRegion = listOf(model("old/region-model"))
+            Mockito.`when`(mockRouterService.getAllModels()).thenAnswer {
+                service.clearCache() // the Data Region changes while the fetch is in flight
+                ApiResult.Success(OpenRouterModelsResponse(oldRegion), 200)
+            }
+
+            val answered = service.getAvailableModels()
+
+            assertEquals(oldRegion, answered, "its own caller still gets what it asked for")
+            assertNull(service.getCachedModels())
+            assertNull(service.getCachedCatalogue())
+        }
+
+        @Test
+        fun `a fetch after the cache was cleared is kept`() = runBlocking {
+            service.clearCache()
+            Mockito.`when`(mockRouterService.getAllModels())
+                .thenReturn(ApiResult.Success(OpenRouterModelsResponse(listOf(model("new/model"))), 200))
+
+            service.getAvailableModels()
+
+            assertEquals(listOf("new/model"), service.getCachedCatalogue()?.map { it.id })
         }
     }
 }

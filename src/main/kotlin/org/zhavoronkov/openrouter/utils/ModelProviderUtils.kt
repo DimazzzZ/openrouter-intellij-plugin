@@ -12,6 +12,9 @@ object ModelProviderUtils {
 
     private const val PROVIDER_SEPARATOR = "/"
     private const val UNKNOWN_PROVIDER = "Other"
+
+    /** Prefix OpenRouter puts on a latest-resolution slug, as in `~openai/gpt-astra-latest`. */
+    const val LATEST_MARKER = "~"
     private const val CONTEXT_32K = 32000
     private const val CONTEXT_128K = 128000
     private const val MILLION = 1000000
@@ -191,12 +194,18 @@ object ModelProviderUtils {
     /**
      * Parsed model ID with provider, base name, and optional variant.
      * If the variant is unknown to this plugin, it's captured in unknownVariant.
+     *
+     * [latest] marks a Latest Model: a `~author/family-latest` slug, which
+     * OpenRouter resolves to the newest model in that family at request time.
+     * The `~` is a prefix rather than a suffix, so it is a flag of its own
+     * rather than a [ModelVariant]; a latest slug can carry a variant as well.
      */
     data class ModelId(
         val provider: String, // e.g., "OpenAI", "Anthropic", "@preset"
         val baseName: String, // e.g., "gpt-4o", "claude-3.5-sonnet"
         val variant: ModelVariant?, // Known variant or null
-        val unknownVariant: String? // Raw suffix if it's not a known variant (e.g., ":brand-new")
+        val unknownVariant: String?, // Raw suffix if it's not a known variant (e.g., ":brand-new")
+        val latest: Boolean = false
     ) {
         /**
          * Reconstruct the full model ID string.
@@ -207,10 +216,11 @@ object ModelProviderUtils {
             } else {
                 "$provider/$baseName"
             }
+            val marked = if (latest) LATEST_MARKER + base else base
             return when {
-                variant != null -> base + variant.suffix
-                unknownVariant != null -> base + unknownVariant
-                else -> base
+                variant != null -> marked + variant.suffix
+                unknownVariant != null -> marked + unknownVariant
+                else -> marked
             }
         }
     }
@@ -223,10 +233,18 @@ object ModelProviderUtils {
      * - "provider/name:unknown-suffix" → ModelId(provider, name, null, ":unknown-suffix")
      * - "@preset/slug" → ModelId("@preset", slug, null, null)
      * - bare "name" → ModelId("Other", name, null, null)
+     * - "~author/family-latest" → the same as "author/family-latest", with
+     *   [ModelId.latest] set. The `~` is read as the latest-resolution marker,
+     *   not as part of the author, so the author resolves through
+     *   [KNOWN_PROVIDERS] like any other and a latest slug files under it.
      */
     fun parseModelId(id: String): ModelId {
         if (id.isBlank()) {
             return ModelId(UNKNOWN_PROVIDER, id, null, null)
+        }
+
+        if (id.startsWith(LATEST_MARKER)) {
+            return parseModelId(id.removePrefix(LATEST_MARKER)).copy(latest = true)
         }
 
         // Check for preset slug
@@ -262,6 +280,15 @@ object ModelProviderUtils {
     }
 
     /**
+     * The author part of a model ID as OpenRouter spells it - lowercase, with a Latest Model's `~`
+     * and any variant left out - or null for an ID with no author. Unlike [parseModelId]'s
+     * provider this is not a display name: `x-ai/grok-4:free` gives "x-ai", not "xAI".
+     */
+    fun authorSlug(id: String): String? =
+        stripVariant(id).removePrefix(LATEST_MARKER).substringBefore(PROVIDER_SEPARATOR, missingDelimiterValue = "")
+            .lowercase().takeIf { it.isNotEmpty() }
+
+    /**
      * Strip the variant suffix from a model ID, returning just the base model.
      * Examples:
      * - "x-ai/grok-4-fast:free" → "x-ai/grok-4-fast"
@@ -271,6 +298,17 @@ object ModelProviderUtils {
     fun stripVariant(id: String): String {
         val colonIndex = id.indexOf(':')
         return if (colonIndex == -1) id else id.substring(0, colonIndex)
+    }
+
+    /**
+     * [model]'s entry in [catalogue]: its own, else its base model's - a routing variant such as
+     * `:nitro` is not listed on its own, and serves what its base model does. Catalogue ids are
+     * lower case, so an id typed otherwise names the same model.
+     */
+    fun catalogueEntry(model: String, catalogue: List<OpenRouterModelInfo>): OpenRouterModelInfo? {
+        val base = stripVariant(model)
+        return catalogue.firstOrNull { it.id.equals(model, ignoreCase = true) }
+            ?: catalogue.firstOrNull { it.id.equals(base, ignoreCase = true) }
     }
 
     /**

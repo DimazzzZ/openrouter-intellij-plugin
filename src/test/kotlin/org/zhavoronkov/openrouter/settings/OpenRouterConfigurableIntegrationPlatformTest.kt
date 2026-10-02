@@ -22,6 +22,30 @@ class OpenRouterConfigurableIntegrationPlatformTest : BasePlatformTestCase() {
         assertTrue("Component should have child components", component.componentCount > 0)
     }
 
+    /** How many requests the Requests tab keeps is set next to the request warnings. */
+    fun testTheRequestsLimitIsShownChangedAndApplied() {
+        val preferences = org.zhavoronkov.openrouter.services.OpenRouterSettingsService.getInstance().uiPreferencesManager
+        val before = preferences.requestLogLimit
+        val configurable = OpenRouterConfigurable()
+        try {
+            preferences.requestLogLimit = 500
+            configurable.createComponent()
+            configurable.reset()
+            val spinner = configurable.settingsPanel!!.requests.limit
+            assertEquals(500, spinner.number)
+            assertFalse(configurable.isModified)
+
+            spinner.number = 2000
+
+            assertTrue("a changed limit is a modification", configurable.isModified)
+            configurable.apply()
+            assertEquals(2000, preferences.requestLogLimit)
+        } finally {
+            configurable.disposeUIResources()
+            preferences.requestLogLimit = before
+        }
+    }
+
     fun testSettingsPanelInstantiationWithoutErrors() {
         // This test will fail if there are any runtime errors during panel creation
         // such as UiDslException: Button group must be defined before using radio button
