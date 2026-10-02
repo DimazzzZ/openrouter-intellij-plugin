@@ -43,6 +43,10 @@ tags and Gradle task assignment:
 - **Calls an external service (OpenRouter itself, anything that needs an API key or the network)?** → `@Tag("functional")`, as [ADR-0003](docs/adr/0003-disabled-tests-to-tagged-taxonomy.md) defines it.
 - **Uses `BasePlatformTestCase`, `ProjectFixture`, or any `com.intellij.testFramework.*`?** → Name it `*SmokeTest` or `*PlatformTest` so `platformTest` picks it up. (Placement is by class-name suffix, not directory — package layout is up to you.)
 
+### Waiting in platform tests
+
+Wait for the state the test asserts, not for a step before it. A page that reads data off the EDT and shows it afterwards on the EDT has a moment when the data is ready and the UI is not, and `dispatchAllEventsInIdeEventQueue` does not wait for work still on a background thread. Such a test passes on a fast machine and fails on a slower CI runner. Use `PlatformTestUtil.waitWithEventsDispatching` with a condition on what is asserted: the list model holding the row, the label holding the text. `PresetsSettingsPanelPlatformTest.waitForSave` is the example.
+
 ### Why not @Disabled?
 
 `@Disabled` tests bit-rot silently: they compile but never run, so a refactor

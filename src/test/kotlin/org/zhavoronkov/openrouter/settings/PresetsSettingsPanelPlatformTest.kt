@@ -59,13 +59,17 @@ class PresetsSettingsPanelPlatformTest : BasePlatformTestCase() {
         page.show()
     }
 
-    private fun waitForSave() {
+    /**
+     * Waits for what the page shows, not for the copy: the copy is read again off the EDT and the
+     * list is filled from it only afterwards, back on the EDT, so a copy that already holds the
+     * preset says nothing yet about the list.
+     */
+    private fun waitForSave(page: PresetsSettingsPanel) {
         PlatformTestUtil.waitWithEventsDispatching(
-            "the save did not finish",
-            { saved.isNotEmpty() && copy.snapshot()?.find(saved.last().slug) != null },
+            "the saved preset never reached the list",
+            { saved.isNotEmpty() && (0 until page.listModel.size()).any { page.listModel[it].slug == saved.last().slug } },
             5
         )
-        PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
     }
 
     fun testAPageNeverReadSaysItIsReading() {
@@ -103,7 +107,7 @@ class PresetsSettingsPanelPlatformTest : BasePlatformTestCase() {
         edited = { draft -> draft.apply { add(PresetSetting.MAX_TOKENS) } }
 
         page.createPreset()
-        waitForSave()
+        waitForSave(page)
 
         assertEquals("web-json", saved.single().slug)
         assertEquals("""{"max_tokens":4096}""", saved.single().config().toString())
