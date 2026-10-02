@@ -35,7 +35,12 @@ class StreamingResponseHandlerErrorBodyTest {
     }
 
     @ParameterizedTest(name = "[{index}] {0}")
-    @ValueSource(strings = ["""{"error":"bare"}""", """{"error":{"message":7}}""", """{"error":{}}"""])
+    @ValueSource(
+        strings = [
+            """{"error":"bare"}""", """{"error":{"message":7}}""", """{"error":{}}""", """{"detail":"none"}""",
+            "/* a comment, and nothing else */"
+        ]
+    )
     @DisplayName("a JSON body sent in place of a stream, without a readable message, gets the generic explanation")
     fun nonSseJsonOfAnotherShape(body: String) {
         val out = streamed(body)

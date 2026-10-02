@@ -220,6 +220,7 @@ class ModelsServlet(
     private fun withoutBrokenPairs(ids: List<String>): List<String> {
         if (ids.none(PresetPair::isPair)) return ids
         // With no settings to ask - a plugin unloading, say - the list is served as it is
+        // Unreachable branch: snapshot() returns a non-null PairAvailability
         val pairs = pairsProvider()?.snapshot() ?: return ids
         return ids.filter { pairs.problem(it) == null }
     }

@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.google.gson.JsonObject
 import org.zhavoronkov.openrouter.models.ResponseFormats
 import org.zhavoronkov.openrouter.models.WebSearchSettings
+import org.zhavoronkov.openrouter.utils.asObjectOrNull
 import org.zhavoronkov.openrouter.utils.asStringOrNull
 
 /**
@@ -31,7 +32,7 @@ object WebSearchTuningInjector {
     fun inject(body: JsonObject, tuning: WebSearchSettings): Boolean {
         var added = false
         entries(body, TOOLS_KEY, ResponseFormats::isWebSearchTool).forEach { tool ->
-            val parameters = tool.get(PARAMETERS_KEY)?.takeIf { it.isJsonObject }?.asJsonObject ?: JsonObject()
+            val parameters = tool.get(PARAMETERS_KEY)?.asObjectOrNull() ?: JsonObject()
             if (fill(parameters, tuning.toolParameters(), tuning)) {
                 tool.add(PARAMETERS_KEY, parameters)
                 added = true
@@ -45,6 +46,7 @@ object WebSearchTuningInjector {
 
     private fun entries(body: JsonObject, key: String, matches: (JsonObject) -> Boolean): List<JsonObject> =
         body.get(key)?.takeIf { it.isJsonArray }?.asJsonArray
+            // Unreachable branch: asJsonArray never returns null for an element isJsonArray accepted
             ?.filter { it.isJsonObject }?.map { it.asJsonObject }?.filter(matches)
             .orEmpty()
 

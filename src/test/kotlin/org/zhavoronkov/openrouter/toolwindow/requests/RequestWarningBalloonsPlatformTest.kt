@@ -4,9 +4,12 @@ import com.intellij.notification.Notification
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.actionSystem.impl.SimpleDataContext
+import com.intellij.openapi.ui.popup.Balloon
 import com.intellij.openapi.wm.RegisterToolWindowTask
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.`when`
 import org.zhavoronkov.openrouter.models.FixPage
 import org.zhavoronkov.openrouter.requests.ReplyFacts
 import org.zhavoronkov.openrouter.requests.RequestRecord
@@ -231,6 +234,35 @@ class RequestWarningBalloonsPlatformTest : BasePlatformTestCase() {
 
         assertEquals(
             listOf(RequestWarningBalloons.GROUP_ID, RequestWarningBalloons.LOG_ONLY_GROUP_ID),
+            raised.map { it.groupId }
+        )
+    }
+
+    /** The platform's own check again: a balloon that showed counts until it is closed. */
+    fun testABalloonThatShowedCountsUntilItIsClosed() {
+        val balloon = mock(Balloon::class.java)
+        val platformChecked = RequestWarningBalloons(
+            burst = WarningBurst(clock = { now }, windowMillis = 60_000),
+            enabled = { true },
+            notify = {
+                it.setBalloon(balloon)
+                raised += it
+            },
+            onEdt = Runnable::run
+        )
+        platformChecked.onRecord(record())
+        now = 10_000
+        platformChecked.onRecord(record())
+        `when`(balloon.isDisposed).thenReturn(true)
+        now = 20_000
+        platformChecked.onRecord(record())
+
+        assertEquals(
+            listOf(
+                RequestWarningBalloons.GROUP_ID,
+                RequestWarningBalloons.GROUP_ID,
+                RequestWarningBalloons.LOG_ONLY_GROUP_ID
+            ),
             raised.map { it.groupId }
         )
     }

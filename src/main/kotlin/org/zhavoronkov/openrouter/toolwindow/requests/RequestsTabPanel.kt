@@ -96,7 +96,9 @@ class RequestsTabPanel(
     private val loadBodies: (String) -> RequestBodies? = { RequestLogService.getInstance().bodies(it) },
     private val showBodies: (JComponent, RequestBodies) -> Unit = RequestBodiesDialog::show,
     /** Says a request's bodies are gone - deleted past the log's limit, or cleared. */
-    private val sayBodiesGone: (JComponent) -> Unit = ::bodiesGoneMessage
+    private val sayBodiesGone: (JComponent) -> Unit = ::bodiesGoneMessage,
+    /** Whether the tab is on screen: Swing's own answer, which no headless test can make true. */
+    private val isShowing: (JComponent) -> Boolean = JComponent::isShowing
 ) : Disposable {
 
     private var records: List<RequestRecord> = emptyList()
@@ -176,7 +178,9 @@ class RequestsTabPanel(
         component.add(header, BorderLayout.NORTH)
         component.add(splitter, BorderLayout.CENTER)
 
+        // Unreachable branch: a running Application always has a message bus
         ApplicationManager.getApplication()?.messageBus?.connect(this)
+            // Unreachable branch: MessageBus.connect never returns null
             ?.subscribe(
                 RequestLogListener.TOPIC,
                 object : RequestLogListener {
@@ -186,7 +190,7 @@ class RequestsTabPanel(
             )
         component.addHierarchyListener { event ->
             val shownNow = event.changeFlags and HierarchyEvent.SHOWING_CHANGED.toLong() != 0L
-            if (shownNow && component.isShowing) onShown()
+            if (shownNow && isShowing(component)) onShown()
         }
         show(emptyList())
         loaded = false
@@ -279,7 +283,10 @@ class RequestsTabPanel(
         if (open) expanded += burst.key else expanded -= burst.key
         applyFilter()
         rows.indexOfFirst { it is RequestsRow.Header && it.burst.key == burst.key }
+            // Unreachable branch: applyFilter rebuilt the rows from the same records and filters, so the burst's header
+            // is listed
             .takeIf { it >= 0 }
+            // Unreachable branch: the burst's header is always found above, so takeIf never yields null
             ?.let { table.selectionModel.setSelectionInterval(it, it) }
     }
 
@@ -326,20 +333,22 @@ class RequestsTabPanel(
         select(record)
     }
 
-    /** Selects [combo]'s first entry, the one that narrows nothing - when it has one yet. */
+    /** Selects [combo]'s first entry, the one that narrows nothing, which [show] adds when the tab is built. */
     private fun showEveryone(combo: ComboBox<String>) {
-        if (combo.itemCount > 0) combo.selectedIndex = 0
+        combo.selectedIndex = 0
     }
 
     private fun select(record: RequestRecord) {
         if (record !in shown) return
         // A request folded into a closed burst is listed only once the burst is opened
+        // Unreachable branch: Header.burst is non-null, so ?.takeIf sees null only for a row that is not a Header
         rows.firstNotNullOfOrNull { (it as? RequestsRow.Header)?.burst?.takeIf { burst -> record in burst.records } }
             ?.takeIf { it.key !in expanded }
             ?.let {
                 expanded += it.key
                 applyFilter()
             }
+        // Unreachable branch: record is in shown, so it is listed as a Single or, its burst opened above, as a Member
         val row = rows.indexOfFirst { listedRecord(it) == record }.takeIf { it >= 0 } ?: return
         toReveal = null
         table.selectionModel.setSelectionInterval(row, row)
@@ -404,6 +413,7 @@ class RequestsTabPanel(
     private fun rowOf(selected: RequestsRow?): Int? {
         selected ?: return null
         val record = listedRecord(selected)
+        // Unreachable branch: Header.burst is non-null, so ?.key sees null only when selected is not a Header
         val burstKey = (selected as? RequestsRow.Header)?.burst?.key
         return rows.indexOfFirst { record != null && listedRecord(it) == record }.takeIf { it >= 0 }
             ?: rows.indexOfFirst { row ->
@@ -416,6 +426,7 @@ class RequestsTabPanel(
         val metrics = table.getFontMetrics(table.font)
         val padding = JBUI.scale(CELL_PADDING)
         fun widest(column: RequestsColumn, sample: String) =
+            // Unreachable branch: the list always holds sample, so maxOf never sees it empty
             (rows.map { text(it, column) } + sample).maxOf(metrics::stringWidth) + padding
         return mapOf(
             RequestsColumn.TIME to widest(RequestsColumn.TIME, TIME_SAMPLE),
@@ -448,6 +459,7 @@ class RequestsTabPanel(
             }
         }
         // The rest, exactly, so the table has no slack to spread over the other columns
+        // Unreachable branch: measureCells gives every column but MODEL a width, so widths[it] is never null here
         val others = visible.filter { it != RequestsColumn.MODEL }.sumOf { widths[it] ?: 0 }
         columns.getValue(RequestsColumn.MODEL).preferredWidth = (available - others).coerceAtLeast(modelMin)
         // Fixed widths changed after the table was laid out; lay it out again so the requested id
@@ -478,7 +490,6 @@ class RequestsTabPanel(
     }
 
     /** The tab came on screen: the settings page may have turned keeping bodies on or off meanwhile. */
-    @ExcludeFromCoverage("runs as the tab comes on screen, which no headless test shows")
     private fun onShown() {
         keepBodies.isSelected = keepBodiesSetting()
         applyFilter()

@@ -1,7 +1,6 @@
 package org.zhavoronkov.openrouter.models
 
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
@@ -135,45 +134,6 @@ class ApiResultTest {
     }
 
     @Nested
-    @DisplayName("onError extension")
-    inner class OnErrorTests {
-
-        @Test
-        fun `onError executes block for Error`() {
-            var called = false
-            var receivedError: ApiResult.Error? = null
-
-            val result: ApiResult<String> = ApiResult.Error("Error message", 500)
-            result.onError {
-                called = true
-                receivedError = it
-            }
-
-            assertTrue(called)
-            assertNotNull(receivedError)
-            assertEquals("Error message", receivedError?.message)
-        }
-
-        @Test
-        fun `onError does not execute block for Success`() {
-            var called = false
-
-            val result: ApiResult<String> = ApiResult.Success("data", 200)
-            result.onError { called = true }
-
-            assertTrue(!called)
-        }
-
-        @Test
-        fun `onError returns same result`() {
-            val result: ApiResult<String> = ApiResult.Error("Error")
-            val returned = result.onError { }
-
-            assertEquals(result, returned)
-        }
-    }
-
-    @Nested
     @DisplayName("getOrNull extension")
     inner class GetOrNullTests {
 
@@ -193,20 +153,6 @@ class ApiResultTest {
     @Nested
     @DisplayName("Chaining")
     inner class ChainingTests {
-
-        @Test
-        fun `onSuccess and onError can be chained`() {
-            var successCalled = false
-            var errorCalled = false
-
-            val result: ApiResult<String> = ApiResult.Success("data", 200)
-            result
-                .onSuccess { successCalled = true }
-                .onError { errorCalled = true }
-
-            assertTrue(successCalled)
-            assertTrue(!errorCalled)
-        }
 
         @Test
         fun `map and onSuccess can be chained`() {

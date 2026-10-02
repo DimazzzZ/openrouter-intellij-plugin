@@ -88,6 +88,7 @@ class PairAvailability(
     fun snapshot(): PairAvailability {
         val snapshot = presets()
         val models = catalogue()
+        // Unreachable branch: problem() asks lookup only once presets() - this same snapshot - is non-null
         return PairAvailability({ snapshot }, { slug -> snapshot?.find(slug) ?: lookup(slug) }, { models })
     }
 

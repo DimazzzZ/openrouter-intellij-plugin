@@ -41,6 +41,7 @@ object RequestTranslator {
         PluginLogger.Service.debug("Model: ${openAIRequest.model}, Stream: ${openAIRequest.stream}")
 
         // Apply default max tokens only if feature is enabled (defaultMaxTokens > 0)
+        // Unreachable branch: uiPreferencesManager is a non-null property
         val defaultMaxTokens = settingsService?.uiPreferencesManager?.defaultMaxTokens?.takeIf { it > 0 }
 
         return ChatCompletionRequest(

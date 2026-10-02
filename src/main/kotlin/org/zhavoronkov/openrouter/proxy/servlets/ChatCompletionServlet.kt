@@ -408,6 +408,7 @@ class ChatCompletionServlet(
         }
         return parsed.copy(
             typedRequest = parsed.typedRequest.copy(model = pair.model),
+            // Unreachable branch: JsonObject.keySet never returns null
             presetFields = config?.keySet()?.toSet()
         )
     }
@@ -742,6 +743,7 @@ class ChatCompletionServlet(
         if (ErrorPatterns.isFreeTierEnded(errorBody)) {
             // Extract model name from error message
             val modelNameRegex = """migrate to the paid slug[:\s]+([^\s"]+)""".toRegex(RegexOption.IGNORE_CASE)
+            // Unreachable branch: MatchResult.groupValues is never null
             val paidSlug = modelNameRegex.find(errorBody)?.groupValues?.get(1)
 
             // Show notification about the model change
@@ -779,6 +781,7 @@ class ChatCompletionServlet(
 
         // Generic "No endpoints found for <model>" error - this IS a true model unavailability issue
         val modelNameRegex = """No endpoints found for ([^.]+)""".toRegex()
+        // Unreachable branch: groupValues is never null, and its one group takes part in every match
         val modelName = modelNameRegex.find(errorBody)?.groupValues?.get(1) ?: "the requested model"
         ModelAvailabilityNotifier.notifyModelUnavailable(modelName, errorBody)
         return createModelUnavailableMessage(modelName)

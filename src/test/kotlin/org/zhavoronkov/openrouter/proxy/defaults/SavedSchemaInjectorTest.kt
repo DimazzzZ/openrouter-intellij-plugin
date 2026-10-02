@@ -107,6 +107,7 @@ class SavedSchemaInjectorTest {
     @ParameterizedTest(name = "[{index}] {0}")
     @ValueSource(
         strings = [
+            """{"response_format":{"json_schema":{"name":"features"}}}""",
             """{"response_format":{"type":7,"json_schema":{"name":"features"}}}""",
             """{"response_format":{"type":"json_schema","json_schema":"features"}}""",
             """{"response_format":{"type":"json_schema","json_schema":{}}}""",

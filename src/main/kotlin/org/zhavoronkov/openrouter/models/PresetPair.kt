@@ -38,6 +38,7 @@ data class PresetPair(val model: String, val preset: String) {
         fun isPair(id: String): Boolean = parse(id) != null
 
         /** The model [id] sends: a pair's model, or [id] itself when it is not a pair. */
+        // Unreachable branch: PresetPair.model is non-null, so the elvis falls back only when parse returned null
         fun modelOf(id: String): String = parse(id)?.model ?: id
     }
 }

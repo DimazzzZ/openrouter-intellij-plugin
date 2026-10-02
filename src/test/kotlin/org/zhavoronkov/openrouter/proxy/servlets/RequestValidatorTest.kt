@@ -3,6 +3,7 @@ package org.zhavoronkov.openrouter.proxy.servlets
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
@@ -71,9 +72,27 @@ class RequestValidatorTest {
         `when`(req.remoteAddr).thenReturn("127.0.0.1")
         validator.clearRecentRequests()
 
-        // First request records the hash; second within window hits the duplicate branch.
-        validator.checkForDuplicateRequest("{\"body\":1}", req, "req-3")
-        validator.checkForDuplicateRequest("{\"body\":1}", req, "req-3")
+        assertFalse(validator.checkForDuplicateRequest("{\"body\":1}", req, "req-3"), "the first is not a repeat")
+        assertTrue(validator.checkForDuplicateRequest("{\"body\":1}", req, "req-3"), "the same body at once is")
+    }
+
+    @Test
+    fun `checkForDuplicateRequest should let a repeat after the window pass and forget long-gone requests`() {
+        var now = 1_000_000L
+        val settingsService = mock(OpenRouterSettingsService::class.java)
+        val validator = RequestValidator(settingsService, clock = { now })
+        val req = mock(HttpServletRequest::class.java)
+        `when`(req.remoteAddr).thenReturn("10.0.0.2")
+        validator.clearRecentRequests()
+
+        validator.checkForDuplicateRequest("{\"old\":1}", req, "req-6")
+        validator.checkForDuplicateRequest("{\"again\":1}", req, "req-6")
+        now += 2_500
+
+        // Past the window the same body is not a repeat; the older request is dropped meanwhile
+        assertFalse(validator.checkForDuplicateRequest("{\"again\":1}", req, "req-6"))
+
+        validator.clearRecentRequests()
     }
 
     @Test
@@ -83,8 +102,8 @@ class RequestValidatorTest {
         `when`(req.remoteAddr).thenReturn("10.0.0.1")
         validator.clearRecentRequests()
 
-        validator.checkForDuplicateRequest("{\"a\":1}", req, "req-4")
-        validator.checkForDuplicateRequest("{\"b\":2}", req, "req-4")
+        assertFalse(validator.checkForDuplicateRequest("{\"a\":1}", req, "req-4"))
+        assertFalse(validator.checkForDuplicateRequest("{\"b\":2}", req, "req-4"), "a different body is not a repeat")
     }
 
     @Test

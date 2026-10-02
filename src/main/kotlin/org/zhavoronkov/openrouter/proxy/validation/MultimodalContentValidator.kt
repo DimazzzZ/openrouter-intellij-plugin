@@ -8,6 +8,7 @@ import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 import org.zhavoronkov.openrouter.utils.ModelSuggestions
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import org.zhavoronkov.openrouter.utils.asStringOrNull
 
 /**
  * Validates multimodal content in chat requests against model capabilities.
@@ -127,7 +128,8 @@ class MultimodalContentValidator(
         if (!part.isJsonObject) return
 
         val partObj = part.asJsonObject
-        val type = partObj.get("type")?.asString ?: return
+        // A type of another shape - null, an object - names no media; asString would throw on it
+        val type = partObj.get("type")?.asStringOrNull() ?: return
 
         when (type) {
             "image_url" -> contentTypes.add(ContentType.IMAGE)

@@ -249,6 +249,15 @@ class NonStreamingResponseHandlerTest {
     }
 
     @Test
+    fun `a reply with an empty body is recorded as ending without a reply`() {
+        val recorded = mutableListOf<RequestRecord>()
+
+        tracedRun("", recorded)
+
+        assertEquals(RequestTrace.NO_REPLY, recorded.single().error)
+    }
+
+    @Test
     fun `a reply that translates to no valid answer answers 500 and is recorded as an invalid format`() {
         val recorded = mutableListOf<RequestRecord>()
 

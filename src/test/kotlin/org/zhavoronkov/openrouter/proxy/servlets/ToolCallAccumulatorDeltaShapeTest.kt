@@ -3,6 +3,7 @@ package org.zhavoronkov.openrouter.proxy.servlets
 import com.google.gson.JsonArray
 import com.google.gson.JsonParser
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 
@@ -42,5 +43,20 @@ class ToolCallAccumulatorDeltaShapeTest {
         assertEquals("custom", completed.single().type)
         assertEquals("", completed.single().function.name)
         assertEquals("", completed.single().function.arguments)
+    }
+
+    @Test
+    @DisplayName("a first delta whose id and type are null gets a generated id and the function type")
+    fun nullIdAndType() {
+        val accumulator = ToolCallAccumulator()
+
+        val completed = accumulator.processDeltaToolCalls(
+            deltas("""[{"index":0,"id":null,"type":null,"function":{"name":"read_file","arguments":"{}"}}]"""),
+            "tool_calls"
+        )
+
+        assertTrue(completed.single().id.orEmpty().startsWith("tool-"), "got ${completed.single().id}")
+        assertEquals("function", completed.single().type)
+        assertEquals("read_file", completed.single().function.name)
     }
 }

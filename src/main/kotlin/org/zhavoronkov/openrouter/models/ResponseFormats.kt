@@ -60,6 +60,7 @@ object ResponseFormats {
 
     /** Whether [fields] - a request, or a preset's config - offers OpenRouter's web search tool. */
     fun offersWebSearch(fields: JsonObject): Boolean =
+        // Unreachable branch: asJsonArray never returns null for an element isJsonArray accepted
         fields.get("tools")?.takeIf { it.isJsonArray }?.asJsonArray?.any(::isWebSearchTool) == true
 
     /** Whether [tool], one entry of a `tools` list, is OpenRouter's web search tool. */
@@ -101,6 +102,7 @@ object ResponseFormats {
 
     private fun capabilityReason(model: String, declared: List<String>?, parameter: String, what: String): String? =
         when {
+            // Unreachable branch: problem() passes one of two non-empty literals as what
             declared == null -> "${what.replaceFirstChar { it.uppercase() }} support is not known for $model"
             parameter in declared -> null
             else -> "$model does not support $what"

@@ -2,6 +2,7 @@ package org.zhavoronkov.openrouter.toolwindow.requests
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -38,6 +39,14 @@ class RequestBurstsTest {
             completionTokens = completionTokens
         )
     )
+
+    @Test
+    @DisplayName("a burst of no requests cannot be made")
+    fun `a burst of no requests cannot be made`() {
+        val failure = assertThrows(IllegalArgumentException::class.java) { RequestBurst(emptyList()) }
+
+        assertEquals("A burst has at least one request", failure.message)
+    }
 
     /** The rows' kinds and requested ids, as the table would list them. */
     private fun shape(rows: List<RequestsRow>): List<String> = rows.map {

@@ -137,6 +137,7 @@ class ConsumerRequestChecksTest {
     @ParameterizedTest(name = "[{index}] {0}")
     @ValueSource(
         strings = [
+            """{"response_format":{}}""",
             """{"response_format":{"type":7}}""",
             """{"response_format":{"type":"json_schema"}}""",
             """{"response_format":{"type":"json_schema","json_schema":"answer"}}""",

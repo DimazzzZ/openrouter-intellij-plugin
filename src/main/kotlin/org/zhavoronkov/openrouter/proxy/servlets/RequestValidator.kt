@@ -10,7 +10,8 @@ import java.security.MessageDigest
  * Handles request validation and duplicate detection
  */
 class RequestValidator(
-    private val settingsService: OpenRouterSettingsService
+    private val settingsService: OpenRouterSettingsService,
+    private val clock: () -> Long = System::currentTimeMillis
 ) {
 
     companion object {
@@ -43,13 +44,18 @@ class RequestValidator(
         return apiKey
     }
 
-    fun checkForDuplicateRequest(requestBody: String, req: HttpServletRequest, requestId: String) {
+    /**
+     * Logs a request the same sender sent with the same body moments ago, and returns whether it was
+     * one. The request is let through either way: the warning is for diagnosing a tool that retries.
+     */
+    fun checkForDuplicateRequest(requestBody: String, req: HttpServletRequest, requestId: String): Boolean {
         val requestHash = generateRequestHash(requestBody, req.remoteAddr)
-        val now = System.currentTimeMillis()
+        val now = clock()
 
-        synchronized(recentRequests) {
+        return synchronized(recentRequests) {
             val lastRequestTime = recentRequests[requestHash]
-            if (lastRequestTime != null && (now - lastRequestTime) < DUPLICATE_WINDOW_MS) {
+            val duplicate = lastRequestTime != null && (now - lastRequestTime) < DUPLICATE_WINDOW_MS
+            if (duplicate) {
                 PluginLogger.Service.warn(
                     "[$requestId] Potential duplicate request detected (hash: $requestHash, " +
                         "time since last: ${now - lastRequestTime}ms)"
@@ -58,6 +64,7 @@ class RequestValidator(
             recentRequests[requestHash] = now
 
             recentRequests.entries.removeIf { (now - it.value) > DUPLICATE_WINDOW_MS * 2 }
+            duplicate
         }
     }
 

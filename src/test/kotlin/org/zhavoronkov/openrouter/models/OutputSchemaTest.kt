@@ -36,8 +36,14 @@ class OutputSchemaTest {
         assertEquals(OutputSchema.BodyCheck.Valid(fields = 0), OutputSchema.validateBody("""{"type": "object"}"""))
     }
 
+    /** The last one names a key in the words Gson's own error uses, which hides where it went wrong. */
     @ParameterizedTest
-    @ValueSource(strings = ["{", """{"type": }""", """{type: "object"}""", """{'type': 'object'}""", """{} {}"""])
+    @ValueSource(
+        strings = [
+            "{", """{"type": }""", """{type: "object"}""", """{'type': 'object'}""", """{} {}""",
+            """{"Exception: x": 1 2}"""
+        ]
+    )
     @DisplayName("malformed JSON is rejected with a message")
     fun `malformed JSON is rejected with a message`(body: String) {
         val message = invalidMessage(body)

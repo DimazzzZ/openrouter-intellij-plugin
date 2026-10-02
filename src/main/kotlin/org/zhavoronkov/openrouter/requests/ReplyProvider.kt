@@ -3,6 +3,7 @@ package org.zhavoronkov.openrouter.requests
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import kotlinx.coroutines.delay
+import org.zhavoronkov.openrouter.utils.asObjectOrNull
 
 /**
  * Whether a reply's own `provider` field says who served the request.
@@ -46,13 +47,14 @@ object ReplyProvider {
             request.arrayOrEmpty("plugins").any { it.stringField("id") == WEB_PLUGIN }
 
     private fun JsonObject.arrayOrEmpty(key: String): List<JsonElement> =
+        // Unreachable branch: asJsonArray never returns null for an element isJsonArray accepted
         get(key)?.takeIf { it.isJsonArray }?.asJsonArray?.toList().orEmpty()
 
     private fun JsonObject.stringOrNull(key: String): String? =
         get(key)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
 
     private fun JsonElement.stringField(key: String): String? =
-        takeIf { it.isJsonObject }?.asJsonObject?.stringOrNull(key)
+        asObjectOrNull()?.stringOrNull(key)
 
     private const val SERVER_TOOL_PREFIX = "openrouter:"
     private const val PRESET_MARKER = "@preset/"

@@ -16,6 +16,7 @@ import org.zhavoronkov.openrouter.toolwindow.chat.ReplySummary
 import java.awt.Color
 import java.awt.Component
 import java.awt.event.ActionEvent
+import java.awt.event.HierarchyEvent
 import java.awt.event.MouseEvent
 import java.awt.image.BufferedImage
 import java.time.Instant
@@ -37,6 +38,7 @@ class RequestsTabPanelPlatformTest : BasePlatformTestCase() {
     private val kept = mutableMapOf<String, RequestBodies>()
     private val shownBodies = mutableListOf<RequestBodies>()
     private var bodiesGone = 0
+    private var onScreen = false
 
     private fun record(
         sender: String = "Junie",
@@ -73,7 +75,8 @@ class RequestsTabPanelPlatformTest : BasePlatformTestCase() {
             saveKeepBodies = { keepBodies = it },
             loadBodies = { kept[it] },
             showBodies = { _, bodies -> shownBodies += bodies },
-            sayBodiesGone = { bodiesGone++ }
+            sayBodiesGone = { bodiesGone++ },
+            isShowing = { onScreen }
         )
         Disposer.register(testRootDisposable, panel)
         resize(panel, 700)
@@ -102,6 +105,30 @@ class RequestsTabPanelPlatformTest : BasePlatformTestCase() {
 
     private fun links(panel: RequestsTabPanel): List<String> =
         UIUtil.findComponentsOfType(panel.detailsPanel, ActionLink::class.java).map { it.text }
+
+    private fun showingChanged(panel: RequestsTabPanel) {
+        val event = HierarchyEvent(
+            panel.component,
+            HierarchyEvent.HIERARCHY_CHANGED,
+            panel.component,
+            null,
+            HierarchyEvent.SHOWING_CHANGED.toLong()
+        )
+        panel.component.hierarchyListeners.forEach { it.hierarchyChanged(event) }
+    }
+
+    /** Shown again, the tab reads the settings it shows afresh; hidden, it leaves them as they were. */
+    fun testShowingTheTabRereadsWhetherBodiesAreKept() {
+        val panel = panel()
+        keepBodies = true
+
+        showingChanged(panel)
+        assertFalse("hidden, the tab is not refreshed", panel.keepBodies.isSelected)
+
+        onScreen = true
+        showingChanged(panel)
+        assertTrue("shown, it reads the setting again", panel.keepBodies.isSelected)
+    }
 
     fun testRowsAreListedNewestFirstWithTheirFacts() {
         val panel = panel()

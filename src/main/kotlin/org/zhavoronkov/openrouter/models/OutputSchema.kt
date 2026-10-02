@@ -33,6 +33,7 @@ data class OutputSchema(
      * same strict rules [validateBody] applies, so what was accepted on the page is what is sent.
      */
     fun parsedBody(): JsonObject? =
+        // Unreachable branch: Parsed.Element.element is non-null, so ?.takeIf sees null only when parsing failed
         (parse(schema) as? Parsed.Element)?.element?.takeIf { it.isJsonObject }?.asJsonObject
 
     /** What checking a schema body found. */
@@ -104,6 +105,8 @@ data class OutputSchema(
          * what went wrong and where, in one line.
          */
         private fun describe(raw: String?): String {
+            // Unreachable branch: every JsonParseException parseReader throws has a message, its own or its cause's
+            // toString()
             val first = raw.orEmpty().lineSequence().first().substringAfterLast("Exception: ")
             val position = POSITION.find(first)?.let { "at line ${it.groupValues[1]}, column ${it.groupValues[2]}" }
             val problem = when {
@@ -122,6 +125,8 @@ data class OutputSchema(
          * there is the same finding as a token there: something follows the schema.
          */
         private fun hasTrailingContent(reader: JsonReader): Boolean = try {
+            // Unreachable branch: in strict mode peek() after a whole value returns END_DOCUMENT or throws, never
+            // another token
             reader.peek() != JsonToken.END_DOCUMENT
         } catch (e: IOException) {
             true

@@ -135,6 +135,7 @@ sealed class RouterParam {
      * derived from [key] (e.g. "cost_tier" -> "Cost tier").
      */
     val label: String
+        // Unreachable branch: every router param key is a non-empty literal, so it has a first character
         get() = labelOverride ?: key.replace('_', ' ').replaceFirstChar { it.uppercase() }
 
     /** Whether the UI control accepts free-typed text (editable enums, ranges). */

@@ -1,14 +1,21 @@
 package org.zhavoronkov.openrouter.proxy.servlets
 
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import com.intellij.testFramework.replaceService
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
+import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
+import org.zhavoronkov.openrouter.models.ApiResult
+import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
+import org.zhavoronkov.openrouter.models.OpenRouterModelsResponse
 import org.zhavoronkov.openrouter.requests.RequestLogService
+import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import java.io.BufferedReader
@@ -66,6 +73,33 @@ class ProxyWiringPlatformTest : BasePlatformTestCase() {
 
             // Asked of the application's copy, which has not read the presets: nothing to judge by
             assertTrue("a pair is kept while its preset is unknown: $sink", sink.toString().contains("never-read"))
+        } finally {
+            favorites.setFavoriteModels(before)
+        }
+    }
+
+    fun testTheModelListLeavesOutAFavoriteTheLoadedCatalogueDoesNotServe() {
+        val favorites = settings.favoriteModelsManager
+        val before = favorites.getFavoriteModels()
+        try {
+            val router = mock(OpenRouterService::class.java)
+            val served = OpenRouterModelInfo(id = "openai/gpt-4o", name = "GPT-4o", created = 0)
+            val response = ApiResult.Success(OpenRouterModelsResponse(listOf(served)), 200)
+            runBlocking { `when`(router.getAllModels()).thenReturn(response) }
+            val catalogue = FavoriteModelsService(settings, router)
+            ApplicationManager.getApplication().replaceService(
+                FavoriteModelsService::class.java,
+                catalogue,
+                testRootDisposable
+            )
+            runBlocking { catalogue.getAvailableModels() }
+            favorites.setFavoriteModels(listOf("openai/gpt-4o", "x-ai/not-served"))
+            val sink = StringWriter()
+
+            ModelsServlet(mock(OpenRouterService::class.java)).doGet(request("GET", mode = "curated"), response(sink))
+
+            assertTrue("a served favorite is listed: $sink", sink.toString().contains("openai/gpt-4o"))
+            assertFalse("one the region does not serve is not: $sink", sink.toString().contains("x-ai/not-served"))
         } finally {
             favorites.setFavoriteModels(before)
         }

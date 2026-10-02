@@ -74,6 +74,7 @@ class RequestBodiesDialog(parent: Component, private val bodies: RequestBodies) 
 
         /** [text] indented when it is one JSON value, as it is otherwise - a cut body, plain text. */
         fun indented(text: String): String = try {
+            // Unreachable branch: Gson.toJson never returns null
             JsonParser.parseString(text).takeIf { it.isJsonObject || it.isJsonArray }?.let(pretty::toJson) ?: text
         } catch (e: JsonSyntaxException) {
             text

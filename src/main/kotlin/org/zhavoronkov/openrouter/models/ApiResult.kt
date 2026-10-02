@@ -23,10 +23,4 @@ inline fun <T> ApiResult<T>.onSuccess(block: (T) -> Unit): ApiResult<T> = apply 
     }
 }
 
-inline fun <T> ApiResult<T>.onError(block: (ApiResult.Error) -> Unit): ApiResult<T> = apply {
-    if (this is ApiResult.Error) {
-        block(this)
-    }
-}
-
 fun <T> ApiResult<T>.getOrNull(): T? = (this as? ApiResult.Success)?.data

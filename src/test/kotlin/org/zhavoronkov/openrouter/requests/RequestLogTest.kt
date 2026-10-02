@@ -43,6 +43,19 @@ class RequestLogTest {
     }
 
     @Test
+    @DisplayName("a log named without a directory is written where it is named")
+    fun `a log named without a directory is written where it is named`() {
+        val relative = Path.of("request-log-${System.nanoTime()}.jsonl")
+        try {
+            RequestLog(relative, limit = { 10 }).add(record(1))
+
+            assertEquals(listOf("m1"), RequestLog(relative, limit = { 10 }).recent().map { it.requestedModel })
+        } finally {
+            Files.deleteIfExists(relative)
+        }
+    }
+
+    @Test
     @DisplayName("records read back newest first")
     fun `records read back newest first`() {
         val log = RequestLog(file(), limit = { 10 })
