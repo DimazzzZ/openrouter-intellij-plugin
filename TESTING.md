@@ -56,6 +56,14 @@ given CI run.
 
 ---
 
+## 📊 The Coverage badge
+
+The Coverage badge in the README is the Kover report, lines and branches, after the class exclusions listed in `build.gradle.kts`. Kover instruments every test task, so both the unit `test` task and `platformTest` count toward it; functional tests count only in a build run with `-Pfunctional`, which CI never does. Every push to `main` regenerates it: CI runs `koverXmlReport`, `scripts/coverage-badge.py` turns the report into a shields.io endpoint JSON, and the `coverage-badge` job force-pushes that file to the `badges` branch, which the badge reads. To see the same number locally:
+
+```bash
+./gradlew koverXmlReport && ./scripts/coverage-badge.py
+```
+
 ## 🚧 Platform-bound coverage exclusions
 
 Several application services are annotated `@Service(Service.Level.APP)` and reach

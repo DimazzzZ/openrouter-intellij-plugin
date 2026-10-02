@@ -46,7 +46,7 @@ jobs:
           cache-read-only: ${{ github.event_name == 'pull_request' }}
 
       - name: Test
-        run: ./gradlew test koverVerify --build-cache
+        run: ./gradlew test koverVerify koverXmlReport --build-cache
 
       # Detekt gates the build (ignoreFailures was removed), so this failing
       # fails the job. `detekt` emits the SARIF report itself now.
@@ -55,6 +55,14 @@ jobs:
       - name: Detekt
         if: always()
         run: ./gradlew detekt --build-cache
+
+      # Only main publishes the badge, so only main needs the report handed on.
+      - name: Upload coverage report
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kover-report
+          path: build/reports/kover/report.xml
 
       - name: Upload test results
         if: always()
@@ -121,6 +129,41 @@ jobs:
         with:
           name: plugin-verifier-report
           path: build/reports/pluginVerifier/
+
+  # The Coverage badge in README.md reads coverage.json from the `badges`
+  # branch. A job of its own so that only this one holds `contents: write`.
+  # The branch keeps a single commit, force-pushed, so it never grows.
+  coverage-badge:
+    name: Coverage badge
+    needs: [ test ]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: kover-report
+          path: kover
+
+      - name: Publish badge to the badges branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          out="$RUNNER_TEMP/badges"
+          mkdir -p "$out"
+          python3 scripts/coverage-badge.py kover/report.xml "$out/coverage.json"
+          cd "$out"
+          git init -q -b badges
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add coverage.json
+          git commit -q -m "Coverage badge for ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" badges
 
   results:
     name: PR results
