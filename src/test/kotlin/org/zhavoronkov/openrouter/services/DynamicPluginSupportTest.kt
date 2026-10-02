@@ -65,19 +65,6 @@ class DynamicPluginSupportTest {
             // Verify dispose can be called without errors
             service.dispose()
         }
-
-        @Test
-        @DisplayName("OpenRouterGenerationTrackingService should implement Disposable")
-        fun testGenerationTrackingServiceImplementsDisposable() {
-            // OpenRouterGenerationTrackingService requires IntelliJ platform initialization
-            // This test verifies the class implements Disposable interface
-            assertTrue(
-                com.intellij.openapi.Disposable::class.java.isAssignableFrom(
-                    OpenRouterGenerationTrackingService::class.java
-                ),
-                "OpenRouterGenerationTrackingService must implement Disposable for dynamic plugin support"
-            )
-        }
     }
 
     @Nested

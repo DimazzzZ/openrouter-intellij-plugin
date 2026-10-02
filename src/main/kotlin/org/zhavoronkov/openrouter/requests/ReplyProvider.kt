@@ -79,6 +79,6 @@ class GenerationProviderLookup(
 
     companion object {
         /** About half a minute in all; measured, the record was there within about ten seconds. */
-        val DEFAULT_DELAYS = listOf(2_000L, 4_000L, 8_000L, 16_000L)
+        private val DEFAULT_DELAYS = listOf(2_000L, 4_000L, 8_000L, 16_000L)
     }
 }

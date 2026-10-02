@@ -197,8 +197,6 @@ class OpenRouterSettingsServiceTest {
             assertTrue(settings.autoRefresh)
             assertEquals(300, settings.refreshInterval)
             assertTrue(settings.showCosts)
-            assertTrue(settings.trackGenerations)
-            assertEquals(100, settings.maxTrackedGenerations)
             assertTrue(settings.favoriteModels.isNotEmpty(), "Should have default favorite models")
         }
 
@@ -213,8 +211,6 @@ class OpenRouterSettingsServiceTest {
                 autoRefresh = false,
                 refreshInterval = 600,
                 showCosts = false,
-                trackGenerations = false,
-                maxTrackedGenerations = 50,
                 favoriteModels = customFavorites
             )
 
@@ -228,8 +224,6 @@ class OpenRouterSettingsServiceTest {
             assertEquals(testSettings.autoRefresh, loadedSettings.autoRefresh)
             assertEquals(testSettings.refreshInterval, loadedSettings.refreshInterval)
             assertEquals(testSettings.showCosts, loadedSettings.showCosts)
-            assertEquals(testSettings.trackGenerations, loadedSettings.trackGenerations)
-            assertEquals(testSettings.maxTrackedGenerations, loadedSettings.maxTrackedGenerations)
             assertEquals(customFavorites, loadedSettings.favoriteModels)
         }
 
@@ -244,19 +238,6 @@ class OpenRouterSettingsServiceTest {
 
             // Should either use default or handle gracefully
             assertTrue(loadedSettings.refreshInterval >= -1) // Allow the value to be stored as-is
-        }
-
-        @Test
-        @DisplayName("Should handle invalid max tracked generations")
-        fun testInvalidMaxTrackedGenerations() {
-            val service = OpenRouterSettingsService()
-            val testSettings = OpenRouterSettings(maxTrackedGenerations = -5)
-
-            service.loadState(testSettings)
-            val loadedSettings = service.getState()
-
-            // Should either use default or handle gracefully
-            assertTrue(loadedSettings.maxTrackedGenerations >= -5) // Allow the value to be stored as-is
         }
     }
 

@@ -17,6 +17,7 @@ import org.zhavoronkov.openrouter.toolwindow.requests.RequestsNavigator
 import org.zhavoronkov.openrouter.toolwindow.requests.RequestsTabPanel
 import org.zhavoronkov.openrouter.toolwindow.status.StatusTabPanel
 import org.zhavoronkov.openrouter.utils.ExcludeFromCoverage
+import org.zhavoronkov.openrouter.utils.REFRESHES_MODELS
 import java.awt.BorderLayout
 import javax.swing.JPanel
 import javax.swing.SwingUtilities
@@ -80,13 +81,8 @@ class OpenRouterToolWindowContent(
         connection.subscribe(
             OpenRouterSettingsListener.TOPIC,
             object : OpenRouterSettingsListener {
-                @ExcludeFromCoverage("refreshes the chat's models, which reads the model list from OpenRouter")
-                override fun onSettingsChanged() {
-                    SwingUtilities.invokeLater {
-                        statusTab.refresh()
-                        chatPanel.refreshModels()
-                    }
-                }
+                @ExcludeFromCoverage(REFRESHES_MODELS)
+                override fun onSettingsChanged() = SwingUtilities.invokeLater(::refreshAfterSettingsChange)
             }
         )
 
@@ -128,6 +124,12 @@ class OpenRouterToolWindowContent(
         tabbedPane.addChangeListener(statusTabActivationListener)
 
         mainPanel.add(tabbedPane, BorderLayout.CENTER)
+    }
+
+    @ExcludeFromCoverage(REFRESHES_MODELS)
+    private fun refreshAfterSettingsChange() {
+        statusTab.refresh()
+        chatPanel.refreshModels()
     }
 
     fun getContentPanel(): JPanel = mainPanel

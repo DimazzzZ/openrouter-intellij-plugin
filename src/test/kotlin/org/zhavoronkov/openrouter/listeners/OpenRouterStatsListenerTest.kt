@@ -210,4 +210,16 @@ class OpenRouterStatsListenerTest {
             assertTrue(state == "error", "State should be error")
         }
     }
+
+    @Test
+    @DisplayName("A listener that only follows updates may ignore loading, errors and unavailability")
+    fun defaultsIgnoreTheRest() {
+        val updatesOnly = object : OpenRouterStatsListener {
+            override fun onStatsUpdated(credits: CreditsData, activity: List<ActivityData>?) = Unit
+        }
+
+        updatesOnly.onStatsLoading()
+        updatesOnly.onStatsError("boom")
+        updatesOnly.onStatsUnavailable("Management Key required")
+    }
 }

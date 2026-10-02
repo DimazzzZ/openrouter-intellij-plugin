@@ -3,7 +3,6 @@ package org.zhavoronkov.openrouter.statusbar
 import org.zhavoronkov.openrouter.models.ActivityData
 import org.zhavoronkov.openrouter.models.CreditsData
 import org.zhavoronkov.openrouter.services.CreditUsageHistoryService
-import org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService
 import org.zhavoronkov.openrouter.utils.applicationServiceOrNull
 import java.time.LocalDate
 import java.time.ZoneId
@@ -34,7 +33,6 @@ object StatusBarStatsFormatter {
         val used: Double,
         val total: Double,
         val activityList: List<ActivityData>? = null,
-        val trackingService: OpenRouterGenerationTrackingService? = null,
         val creditsData: CreditsData? = null,
         val authLabel: String = "Management Key"
     )
@@ -60,11 +58,10 @@ object StatusBarStatsFormatter {
         used: Double,
         total: Double,
         activityList: List<ActivityData>? = null,
-        trackingService: OpenRouterGenerationTrackingService? = null,
         creditsData: CreditsData? = null,
         authLabel: String = "Management Key"
     ): String {
-        val params = TooltipParams(statusText, used, total, activityList, trackingService, creditsData, authLabel)
+        val params = TooltipParams(statusText, used, total, activityList, creditsData, authLabel)
         return formatStatusTooltip(params)
     }
 
@@ -79,7 +76,6 @@ object StatusBarStatsFormatter {
         val activityRows = if (params.activityList != null) {
             calculateActivityRowsWithHistory(
                 params.activityList,
-                params.trackingService,
                 params.creditsData,
                 remaining
             )
@@ -106,19 +102,9 @@ object StatusBarStatsFormatter {
     }
 
     /**
-     * Calculate activity rows using API data for all metrics.
+     * Calculate activity rows: today, yesterday and the last week, from the activity reported.
      */
     fun calculateActivityRows(activityList: List<ActivityData>): String {
-        return calculateActivityRows(activityList, null)
-    }
-
-    /**
-     * Calculate activity rows with optional local tracking for "Today" metric.
-     */
-    fun calculateActivityRows(
-        activityList: List<ActivityData>,
-        trackingService: OpenRouterGenerationTrackingService?
-    ): String {
         val utcNow = LocalDate.now(ZoneId.of("UTC"))
         val yesterday = utcNow.minusDays(1)
         val lastWeekStart = utcNow.minusDays((DAYS_IN_WEEK - 1).toLong())
@@ -129,9 +115,7 @@ object StatusBarStatsFormatter {
             processActivity(activity, utcNow, yesterday, lastWeekStart, costs)
         }
 
-        val todayCost = trackingService?.getTodayCost() ?: costs.today
-
-        return formatActivityRowsHtml(todayCost, costs.yesterday, costs.lastWeek)
+        return formatActivityRowsHtml(costs.today, costs.yesterday, costs.lastWeek)
     }
 
     fun processActivity(
@@ -184,7 +168,6 @@ object StatusBarStatsFormatter {
      */
     fun calculateActivityRowsWithHistory(
         activityList: List<ActivityData>,
-        trackingService: OpenRouterGenerationTrackingService?,
         creditsData: CreditsData?,
         remainingCredits: Double
     ): String {
@@ -198,9 +181,7 @@ object StatusBarStatsFormatter {
             processActivity(activity, utcNow, yesterday, lastWeekStart, costs)
         }
 
-        val todayCost = calculateTodayCostFromHistory(creditsData)
-            ?: trackingService?.getTodayCost()
-            ?: costs.today
+        val todayCost = calculateTodayCostFromHistory(creditsData) ?: costs.today
 
         val yesterdayCost = costs.yesterday
         val daysRemaining = calculateDaysRemainingFromHistory(remainingCredits, yesterdayCost)

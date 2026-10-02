@@ -23,13 +23,15 @@ class RequestWarningBalloonsPlatformTest : BasePlatformTestCase() {
     private var enabled = true
     private var balloonStillShown = false
     private val raised = mutableListOf<Notification>()
+    private val openedPages = mutableListOf<FixPage>()
 
     private val balloons = RequestWarningBalloons(
         burst = WarningBurst(clock = { now }, windowMillis = 60_000),
         enabled = { enabled },
         notify = { raised += it },
         onScreen = { balloonStillShown },
-        onEdt = Runnable::run
+        onEdt = Runnable::run,
+        openFixPage = { _, page -> openedPages += page }
     )
 
     private fun record(
@@ -121,6 +123,20 @@ class RequestWarningBalloonsPlatformTest : BasePlatformTestCase() {
         balloons.onRecord(refused.copy(fixAt = FixPage.PRESETS))
 
         assertEquals(listOf("Open Presets", "Show"), raised.single().actions.map { it.templateText })
+    }
+
+    fun testOpeningTheFixPageClosesTheBalloon() {
+        balloons.onRecord(record(error = "OpenRouter plugin: refused").copy(fixAt = FixPage.PRESETS))
+        val balloon = raised.single()
+        val context = SimpleDataContext.builder()
+            .add(CommonDataKeys.PROJECT, project)
+            .add(Notification.KEY, balloon)
+            .build()
+
+        Notification.fire(balloon, balloon.actions.first(), context)
+
+        assertEquals(listOf(FixPage.PRESETS), openedPages)
+        assertTrue(balloon.isExpired)
     }
 
     fun testAWarningThePluginDidNotRaiseOffersOnlyShow() {

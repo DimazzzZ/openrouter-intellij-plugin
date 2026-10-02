@@ -12,6 +12,8 @@ import com.intellij.util.ui.JBDimension
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import org.zhavoronkov.openrouter.models.OutputSchema
+import org.zhavoronkov.openrouter.utils.ExcludeFromCoverage
+import org.zhavoronkov.openrouter.utils.PLAIN_DOCUMENT
 import java.awt.Font
 import javax.swing.JComponent
 import javax.swing.event.DocumentEvent
@@ -62,6 +64,8 @@ class OutputSchemaEditor(initial: OutputSchema?, private val takenNames: List<St
         val listener = object : DocumentListener {
             override fun insertUpdate(e: DocumentEvent) = changed()
             override fun removeUpdate(e: DocumentEvent) = changed()
+
+            @ExcludeFromCoverage(PLAIN_DOCUMENT)
             override fun changedUpdate(e: DocumentEvent) = changed()
         }
         name.document.addDocumentListener(listener)
@@ -101,14 +105,12 @@ class OutputSchemaEditor(initial: OutputSchema?, private val takenNames: List<St
         const val PREFERRED_HEIGHT = 280
 
         /** What a new schema starts from: the smallest object schema, ready to be filled in. */
-        val TEMPLATE = """
-            {
-              "type": "object",
-              "properties": {
-              },
-              "required": [],
-              "additionalProperties": false
-            }
-        """.trimIndent()
+        const val TEMPLATE = "{\n" +
+            "  \"type\": \"object\",\n" +
+            "  \"properties\": {\n" +
+            "  },\n" +
+            "  \"required\": [],\n" +
+            "  \"additionalProperties\": false\n" +
+            "}"
     }
 }

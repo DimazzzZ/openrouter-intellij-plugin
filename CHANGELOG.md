@@ -64,6 +64,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- **The proxy answers a misshapen body instead of failing** - An empty request body, a refusal from OpenRouter with an empty body or an error of another shape, and an error chunk of another shape in a stream made the proxy throw, so a tool got a bare HTTP 500 or a stream cut off with no explanation. Each is now answered: a 400 for the request, a readable explanation for the rest
+- **A failed stats request no longer raises an IDE error** - When reading the account's stats failed, the error also reached the IDE's error handler, although the stats popup had already shown the failure
+- **A preset's own schema comes back when chosen again** - In the preset dialog, choosing another output and then a schema the plugin has not saved showed that schema but kept the other output
+
 #### 🧩 Models and Requests
 - **Latest Models file under their real author** - OpenRouter's `~author/family-latest` slugs were filed under an author called `~openai`, apart from that author's other models, which split the author filter in two. They now file, filter and group under their real author with a Latest chip and filter of their own, and `/v1/models` reports the real author as `owned_by`
 - **The provider that really answered** - With a server tool such as web search, OpenRouter's reply names the wrong provider. The Requests tab and the reply's summary now take the provider from OpenRouter's generation record instead
@@ -143,6 +147,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **No more generation tracking** - The generation tracking service was never given a generation to record, yet its empty total of $0 took the place of today's spend in the status bar's tooltip whenever the credit history had no answer, hiding what the activity reported. It is gone with its two settings; today's spend comes from the credit history, then the activity
 - **Relicensed to Apache-2.0** - The plugin is now distributed under the Apache License, Version 2.0 instead of the MIT License. Updated `LICENSE`, `NOTICE`, `README.md`, the EULA, and the marketplace submission checklist accordingly.
 
   **Why the change?** Nothing about how you use this plugin changes — Apache-2.0 is still a permissive, business-friendly open-source license, so you can keep using, modifying, and redistributing it freely, for personal or commercial projects, at no cost. The move to Apache-2.0 simply adds a couple of protections that MIT does not spell out:

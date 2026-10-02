@@ -19,19 +19,6 @@ class PresetsManager(
 ) {
     companion object {
         /**
-         * Built-in presets that are always available.
-         *
-         * Empty by design: `openrouter/auto`, `openrouter/free`, and the other
-         * `openrouter/` slugs (fusion, pareto-code, ...) are routers, not
-         * @preset/ server presets. They
-         * live in [org.zhavoronkov.openrouter.proxy.routing.RouterCatalog] and
-         * are configured under Settings → OpenRouter → Router Defaults, so the
-         * Presets page no longer double-lists them. Kept as an (empty) list to
-         * preserve the type and any external references.
-         */
-        val BUILT_IN_PRESETS = emptyList<BuiltInPreset>()
-
-        /**
          * Prefix used for custom presets in API requests
          */
         const val PRESET_PREFIX = "@preset/"
@@ -144,13 +131,4 @@ class PresetsManager(
             .replace(Regex("-+"), "-")
             .trim('-')
     }
-
-    /**
-     * Represents a built-in preset/router model
-     */
-    data class BuiltInPreset(
-        val id: String,
-        val name: String,
-        val description: String
-    )
 }

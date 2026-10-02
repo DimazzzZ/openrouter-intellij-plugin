@@ -54,6 +54,23 @@ class ProxyWiringPlatformTest : BasePlatformTestCase() {
         assertTrue("an OpenAI-shaped list: $sink", sink.toString().contains("\"object\""))
     }
 
+    fun testAFavoritePairIsCheckedAgainstTheApplicationsPresets() {
+        val favorites = settings.favoriteModelsManager
+        val before = favorites.getFavoriteModels()
+        try {
+            favorites.setFavoriteModels(listOf("openai/gpt-4o@preset/never-read"))
+            val sink = StringWriter()
+
+            val servlet = ModelsServlet(mock(OpenRouterService::class.java))
+            servlet.doGet(request("GET", mode = "curated"), response(sink))
+
+            // Asked of the application's copy, which has not read the presets: nothing to judge by
+            assertTrue("a pair is kept while its preset is unknown: $sink", sink.toString().contains("never-read"))
+        } finally {
+            favorites.setFavoriteModels(before)
+        }
+    }
+
     fun testWithNoKeyConfiguredTheProxyAnswers401() {
         val sink = StringWriter()
         val resp = response(sink)

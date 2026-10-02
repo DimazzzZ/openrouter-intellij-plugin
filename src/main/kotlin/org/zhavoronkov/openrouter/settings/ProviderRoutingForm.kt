@@ -10,6 +10,8 @@ import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.Panel
 import com.intellij.ui.dsl.builder.panel
 import org.zhavoronkov.openrouter.models.ProviderRoutingPreferences
+import org.zhavoronkov.openrouter.utils.ExcludeFromCoverage
+import org.zhavoronkov.openrouter.utils.MODAL_DIALOG
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 import java.awt.Dimension
 import javax.swing.DefaultComboBoxModel
@@ -198,6 +200,7 @@ class ProviderRoutingForm(private val choose: (String, String, List<String>) -> 
          * dialog-builder variants only landed in 2026.x). Returns the selected item, or
          * null on cancel.
          */
+        @ExcludeFromCoverage(MODAL_DIALOG)
         fun chooseFromList(message: String, title: String, options: List<String>): String? {
             if (options.isEmpty()) return null
             val dialog = ProviderChooserDialog(message, title, options)

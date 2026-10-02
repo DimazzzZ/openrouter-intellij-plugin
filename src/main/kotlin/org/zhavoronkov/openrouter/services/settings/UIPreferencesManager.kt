@@ -63,20 +63,6 @@ class UIPreferencesManager(
             onStateChanged()
         }
 
-    var trackGenerations: Boolean
-        get() = settings.trackGenerations
-        set(value) {
-            settings.trackGenerations = value
-            onStateChanged()
-        }
-
-    var maxTrackedGenerations: Int
-        get() = settings.maxTrackedGenerations
-        set(value) {
-            settings.maxTrackedGenerations = value
-            onStateChanged()
-        }
-
     var defaultMaxTokens: Int
         get() = settings.defaultMaxTokens
         set(value) {

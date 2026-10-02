@@ -28,7 +28,6 @@ class StatusBarStatsFormatterPlatformTest : BasePlatformTestCase() {
 
         val html = StatusBarStatsFormatter.calculateActivityRowsWithHistory(
             activity,
-            trackingService = null,
             creditsData = CreditsData(totalCredits = 10.0, totalUsage = 2.5),
             remainingCredits = 7.5
         )
@@ -39,7 +38,6 @@ class StatusBarStatsFormatterPlatformTest : BasePlatformTestCase() {
     fun testWithoutCreditsTheHistoryIsNotAsked() {
         val html = StatusBarStatsFormatter.calculateActivityRowsWithHistory(
             emptyList(),
-            trackingService = null,
             creditsData = null,
             remainingCredits = 0.0
         )

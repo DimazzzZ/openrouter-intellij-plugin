@@ -288,9 +288,11 @@ class ChatCompletionServlet(
             trace.fail("Invalid request: ${e.message}")
             handleException(e, resp, requestId)
         } catch (e: IllegalStateException) {
-            // A body that does not parse is answered inside processRequest, and an unreadable reply
-            // by the response handlers, so no JsonSyntaxException gets this far
             trace.fail("Internal error: ${e.message}")
+            handleException(e, resp, requestId)
+        } catch (e: JsonSyntaxException) {
+            // A collaborator checking the request, the content validator say, may fail on its JSON
+            trace.fail("Invalid request: ${e.message}")
             handleException(e, resp, requestId)
         } finally {
             trace.finish()
@@ -465,7 +467,7 @@ class ChatCompletionServlet(
                 val errMsg = "Invalid request: ${e.message}"
                 sendErrorResponse(resp, errMsg, HttpServletResponse.SC_BAD_REQUEST)
             }
-            // The only other one doPost hands here is an IllegalStateException
+            // What else doPost hands here: an IllegalStateException or a JsonSyntaxException
             else -> {
                 val msg = "[Chat-$requestId] Runtime error during chat completion: ${e.message}"
                 PluginLogger.Service.error(msg, e)

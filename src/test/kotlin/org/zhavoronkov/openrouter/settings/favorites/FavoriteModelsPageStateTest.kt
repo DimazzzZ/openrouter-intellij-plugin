@@ -198,6 +198,11 @@ class FavoriteModelsPageStateTest {
         }
 
         @Test
+        fun `with nothing to ask, no pair has a problem`() {
+            assertNull(FavoriteModelsPageState().pairProblem("${GPT4O.id}@preset/x"))
+        }
+
+        @Test
         fun `only a pair is asked why it cannot be sent`() {
             val asked = mutableListOf<String>()
             val s =

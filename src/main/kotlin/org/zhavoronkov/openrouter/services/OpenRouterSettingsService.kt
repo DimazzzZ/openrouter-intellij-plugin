@@ -35,41 +35,31 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
 
     private var settings = OpenRouterSettings()
 
-    lateinit var apiKeyManager: ApiKeySettingsManager
-        @ExcludeFromCoverage(BYPASSED_SETTER)
+    var apiKeyManager: ApiKeySettingsManager = ApiKeySettingsManager(settings) { notifyStateChanged() }
         private set
-    lateinit var proxyManager: ProxySettingsManager
-        @ExcludeFromCoverage(BYPASSED_SETTER)
+    var proxyManager: ProxySettingsManager = ProxySettingsManager(settings) { notifyStateChanged() }
         private set
-    lateinit var uiPreferencesManager: UIPreferencesManager
-        @ExcludeFromCoverage(BYPASSED_SETTER)
+    var uiPreferencesManager: UIPreferencesManager = UIPreferencesManager(settings) { notifyStateChanged() }
         private set
-    lateinit var setupStateManager: SetupStateManager
-        @ExcludeFromCoverage(BYPASSED_SETTER)
+    var setupStateManager: SetupStateManager = SetupStateManager(settings) { notifyStateChanged() }
         private set
-    lateinit var favoriteModelsManager: FavoriteModelsManager
-        @ExcludeFromCoverage(BYPASSED_SETTER)
+    var favoriteModelsManager: FavoriteModelsManager = FavoriteModelsManager(settings) { notifyStateChanged() }
         private set
-    lateinit var presetsManager: PresetsManager
+    var presetsManager: PresetsManager = PresetsManager(settings) { notifyStateChanged() }
 
-    lateinit var providerRoutingManager: ProviderRoutingManager
-        @ExcludeFromCoverage(BYPASSED_SETTER)
+    var providerRoutingManager: ProviderRoutingManager = ProviderRoutingManager(settings) { notifyStateChanged() }
         private set
 
-    lateinit var routerDefaultsManager: RouterDefaultsManager
-        @ExcludeFromCoverage(BYPASSED_SETTER)
+    var routerDefaultsManager: RouterDefaultsManager = RouterDefaultsManager(settings) { notifyStateChanged() }
         private set
 
-    lateinit var webSearchManager: WebSearchSettingsManager
-        @ExcludeFromCoverage(BYPASSED_SETTER)
+    var webSearchManager: WebSearchSettingsManager = WebSearchSettingsManager(settings) { notifyStateChanged() }
         private set
 
-    lateinit var outputSchemasManager: OutputSchemasManager
-        @ExcludeFromCoverage(BYPASSED_SETTER)
+    var outputSchemasManager: OutputSchemasManager = OutputSchemasManager(settings) { notifyStateChanged() }
         private set
 
     init {
-        initializeManagers()
         // Warm the key cache in the background, before the first widget asks on the EDT
         PasswordSafeKeyStorage.preloadKeys()
     }
@@ -93,9 +83,6 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
         }
 
         private const val PROFILE_MARKER = "@profile/"
-
-        /** The class writes these fields directly, so their generated private setters never run. */
-        private const val BYPASSED_SETTER = "a private setter the class bypasses, writing the field directly"
     }
 
     override fun getState(): OpenRouterSettings {

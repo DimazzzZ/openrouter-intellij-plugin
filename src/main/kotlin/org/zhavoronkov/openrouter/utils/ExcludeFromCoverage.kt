@@ -15,3 +15,12 @@ package org.zhavoronkov.openrouter.utils
     AnnotationTarget.PROPERTY_SETTER
 )
 annotation class ExcludeFromCoverage(val reason: String)
+
+/** The reason for code that shows a modal dialog, which no test can answer. */
+const val MODAL_DIALOG = "shows a modal dialog, which no test can answer"
+
+/** The reason for a DocumentListener's changedUpdate: plain text documents never fire it. */
+const val PLAIN_DOCUMENT = "plain text documents never fire changedUpdate"
+
+/** The reason for code that refreshes the chat's model list, which reads it from OpenRouter. */
+const val REFRESHES_MODELS = "refreshes the chat's models, which reads the model list from OpenRouter"

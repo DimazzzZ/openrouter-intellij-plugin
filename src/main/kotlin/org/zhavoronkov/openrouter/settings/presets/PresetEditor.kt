@@ -17,6 +17,8 @@ import org.zhavoronkov.openrouter.models.OutputSchema
 import org.zhavoronkov.openrouter.models.ProviderRoutingPreferences
 import org.zhavoronkov.openrouter.models.RequestChoices
 import org.zhavoronkov.openrouter.toolwindow.chat.CHAT_WARNING_FOREGROUND
+import org.zhavoronkov.openrouter.utils.ExcludeFromCoverage
+import org.zhavoronkov.openrouter.utils.PLAIN_DOCUMENT
 import java.awt.BorderLayout
 import javax.swing.DefaultComboBoxModel
 import javax.swing.JComponent
@@ -259,6 +261,8 @@ class PresetEditor(
         document.addDocumentListener(object : DocumentListener {
             override fun insertUpdate(e: DocumentEvent) = action()
             override fun removeUpdate(e: DocumentEvent) = action()
+
+            @ExcludeFromCoverage(PLAIN_DOCUMENT)
             override fun changedUpdate(e: DocumentEvent) = action()
         })
     }

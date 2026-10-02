@@ -3,14 +3,12 @@ package org.zhavoronkov.openrouter.proxy.servlets
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonSyntaxException
-import jakarta.servlet.http.HttpServletResponse
 import okhttp3.Response
 import org.zhavoronkov.openrouter.requests.RequestTrace
 import org.zhavoronkov.openrouter.utils.ErrorPatterns
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import org.zhavoronkov.openrouter.utils.asObjectOrNull
 import org.zhavoronkov.openrouter.utils.asStringOrNull
-import org.zhavoronkov.openrouter.utils.bodyText
 import java.io.BufferedReader
 import java.io.PrintWriter
 import java.util.UUID
@@ -38,12 +36,6 @@ class StreamingResponseHandler {
         private const val DATA_PREFIX = "data: "
         private const val DATA_PREFIX_LENGTH = 6
         private const val DONE_MARKER = "[DONE]"
-        private const val HTTP_UNAUTHORIZED = 401
-        private const val HTTP_PAYMENT_REQUIRED = 402
-        private const val HTTP_TOO_MANY_REQUESTS = 429
-        private const val HTTP_INTERNAL_SERVER_ERROR = 500
-        private const val HTTP_BAD_GATEWAY = 502
-        private const val HTTP_SERVICE_UNAVAILABLE = 503
 
         // Required fields for OpenAI streaming chunk
         private val REQUIRED_CHUNK_FIELDS = listOf("id", "object", "created", "model", "choices")
@@ -397,65 +389,5 @@ class StreamingResponseHandler {
         val errorMessage = "Streaming error: ${e.message ?: "Unknown error"}"
         sendErrorChunk(writer, enhanceErrorMessage(errorMessage))
         sendDoneMarker(writer)
-    }
-
-    data class StreamingErrorContext(
-        val response: Response,
-        val resp: HttpServletResponse,
-        val requestId: String
-    )
-
-    /**
-     * Handles error responses from OpenRouter during streaming
-     * Sends an OpenAI-compatible error chunk so AI Assistant can display the error
-     */
-    @Suppress("unused") // Public API method for error handling
-    fun handleStreamingErrorResponse(context: StreamingErrorContext) {
-        val errorBody = context.response.bodyText()
-        PluginLogger.Service.error(
-            "[Chat-${context.requestId}] OpenRouter streaming request failed: " +
-                "status=${context.response.code}, body=$errorBody"
-        )
-
-        context.resp.status = context.response.code
-        context.resp.contentType = "text/event-stream"
-        context.resp.setHeader("Cache-Control", "no-cache")
-        context.resp.setHeader("Connection", "keep-alive")
-
-        val writer = context.resp.writer
-        val userFriendlyMessage = createUserFriendlyErrorMessage(errorBody, context.response.code)
-
-        // Send as OpenAI-compatible streaming chunk so AI Assistant can display it
-        sendErrorChunk(writer, userFriendlyMessage)
-        sendDoneMarker(writer)
-    }
-
-    private fun createUserFriendlyErrorMessage(errorBody: String, statusCode: Int): String {
-        return try {
-            val message = gson.fromJson(errorBody, JsonObject::class.java)
-                ?.get("error")?.asObjectOrNull()?.get("message")?.asStringOrNull()
-                ?: errorBody
-
-            when (statusCode) {
-                HTTP_UNAUTHORIZED -> "Authentication failed: $message"
-                HTTP_PAYMENT_REQUIRED -> "Insufficient credits: $message"
-                HTTP_TOO_MANY_REQUESTS -> "Rate limit exceeded: $message"
-                HTTP_INTERNAL_SERVER_ERROR,
-                HTTP_BAD_GATEWAY,
-                HTTP_SERVICE_UNAVAILABLE -> "OpenRouter service error: $message"
-                else -> message
-            }
-        } catch (e: JsonSyntaxException) {
-            PluginLogger.Service.warn("Failed to parse error response", e)
-            when (statusCode) {
-                HTTP_UNAUTHORIZED -> "Authentication failed. Please check your API key."
-                HTTP_PAYMENT_REQUIRED -> "Insufficient credits. Please add credits to your OpenRouter account."
-                HTTP_TOO_MANY_REQUESTS -> "Rate limit exceeded. Please try again later."
-                HTTP_INTERNAL_SERVER_ERROR,
-                HTTP_BAD_GATEWAY,
-                HTTP_SERVICE_UNAVAILABLE -> "OpenRouter service is temporarily unavailable. Please try again later."
-                else -> "Request failed with status $statusCode"
-            }
-        }
     }
 }

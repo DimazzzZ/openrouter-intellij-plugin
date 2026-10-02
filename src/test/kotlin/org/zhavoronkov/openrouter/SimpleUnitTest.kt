@@ -168,8 +168,6 @@ class SimpleUnitTest {
             assertTrue(settings.autoRefresh)
             assertEquals(300, settings.refreshInterval)
             assertTrue(settings.showCosts)
-            assertTrue(settings.trackGenerations)
-            assertEquals(100, settings.maxTrackedGenerations)
         }
 
         @Test
@@ -183,8 +181,6 @@ class SimpleUnitTest {
                 autoRefresh = false,
                 refreshInterval = 600,
                 showCosts = false,
-                trackGenerations = false,
-                maxTrackedGenerations = 50
             )
 
             assertEquals("test-key", settings.apiKey)
@@ -194,8 +190,6 @@ class SimpleUnitTest {
             assertFalse(settings.autoRefresh)
             assertEquals(600, settings.refreshInterval)
             assertFalse(settings.showCosts)
-            assertFalse(settings.trackGenerations)
-            assertEquals(50, settings.maxTrackedGenerations)
         }
     }
 

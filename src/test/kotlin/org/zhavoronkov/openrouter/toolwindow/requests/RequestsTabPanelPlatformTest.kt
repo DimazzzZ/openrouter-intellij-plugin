@@ -36,6 +36,7 @@ class RequestsTabPanelPlatformTest : BasePlatformTestCase() {
     private var keepBodies = false
     private val kept = mutableMapOf<String, RequestBodies>()
     private val shownBodies = mutableListOf<RequestBodies>()
+    private var bodiesGone = 0
 
     private fun record(
         sender: String = "Junie",
@@ -71,7 +72,8 @@ class RequestsTabPanelPlatformTest : BasePlatformTestCase() {
             keepBodiesSetting = { keepBodies },
             saveKeepBodies = { keepBodies = it },
             loadBodies = { kept[it] },
-            showBodies = { _, bodies -> shownBodies += bodies }
+            showBodies = { _, bodies -> shownBodies += bodies },
+            sayBodiesGone = { bodiesGone++ }
         )
         Disposer.register(testRootDisposable, panel)
         resize(panel, 700)
@@ -371,6 +373,20 @@ class RequestsTabPanelPlatformTest : BasePlatformTestCase() {
         assertEquals(listOf(bodies), shownBodies)
     }
 
+    /** Bodies dropped past the log's limit, or cleared, since the request was listed are said to be gone. */
+    fun testBodiesGoneSinceTheRequestWasListedAreSaidToBeGone() {
+        val withBodies = record(model = "kept/model").copy(bodiesId = "0f0e0d0c-0000-4000-8000-000000000002")
+        val panel = panel(shown = { listOf(withBodies) })
+        panel.table.setRowSelectionInterval(0, 0)
+
+        UIUtil.findComponentsOfType(panel.detailsPanel, ActionLink::class.java)
+            .single { it.text == RequestsTabPanel.SHOW_BODIES_TEXT }
+            .doClick()
+
+        assertEquals(1, bodiesGone)
+        assertTrue(shownBodies.isEmpty())
+    }
+
     /** The tab's switch is the settings page's: it shows what is stored, and turning it on stores that. */
     fun testKeepingPromptAndReplyCanBeTurnedOnFromTheTab() {
         val panel = panel()
@@ -622,6 +638,18 @@ class RequestsTabPanelPlatformTest : BasePlatformTestCase() {
         panel.reload()
 
         assertEquals("google/gemini-2.5-flash ×5", column(panel, RequestsColumn.MODEL)[panel.table.selectedRow])
+    }
+
+    fun testMovingOrSelectingAColumnChangesNoWidth() {
+        val panel = panel()
+        val before = (0 until panel.table.columnCount).map { panel.table.columnModel.getColumn(it).preferredWidth }
+
+        panel.table.columnModel.moveColumn(0, 1)
+        panel.table.columnModel.moveColumn(1, 0)
+        panel.table.columnModel.selectionModel.setSelectionInterval(0, 0)
+
+        val after = (0 until panel.table.columnCount).map { panel.table.columnModel.getColumn(it).preferredWidth }
+        assertEquals(before, after)
     }
 
     /** The warning cell of [row] as the table itself paints it. */

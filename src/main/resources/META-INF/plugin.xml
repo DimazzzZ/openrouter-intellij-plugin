@@ -362,7 +362,6 @@
         <!-- Application-level services -->
         <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterService"/>
         <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterSettingsService"/>
-        <applicationService serviceImplementation="org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService"/>
         <!-- BalanceProviderNotifier, OpenRouterProxyService, OpenRouterStatsCache, CreditUsageHistoryService use @Service annotation -->
         
         <!-- Settings -->

@@ -96,12 +96,17 @@ class OutputSchemasSettingsPanel(
     }
 
     private companion object {
+        @JvmField
         val NAME_COLUMN = object : ColumnInfo<OutputSchema, String>("Name") {
             override fun valueOf(item: OutputSchema): String = item.name
         }
+
+        @JvmField
         val STRICT_COLUMN = object : ColumnInfo<OutputSchema, String>("Strict") {
             override fun valueOf(item: OutputSchema): String = if (item.strict) "Yes" else "No"
         }
+
+        @JvmField
         val FIELDS_COLUMN = object : ColumnInfo<OutputSchema, String>("Fields") {
             override fun valueOf(item: OutputSchema): String =
                 when (val check = OutputSchema.validateBody(item.schema)) {

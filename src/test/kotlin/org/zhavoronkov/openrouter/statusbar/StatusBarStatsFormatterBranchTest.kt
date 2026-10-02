@@ -5,17 +5,13 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
-import org.mockito.Mockito.mock
-import org.mockito.Mockito.`when`
 import org.zhavoronkov.openrouter.models.ActivityData
 import org.zhavoronkov.openrouter.models.CreditsData
-import org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService
 import java.time.LocalDate
 import java.time.ZoneId
 
 @DisplayName("StatusBarStatsFormatter Branch Tests")
 class StatusBarStatsFormatterBranchTest {
-
     private fun activity(date: String?, usage: Double?) = ActivityData(
         date = date, model = "m", modelPermaslug = null, endpointId = null, providerName = null,
         usage = usage, byokUsageInference = null, requests = 1,
@@ -177,30 +173,12 @@ class StatusBarStatsFormatterBranchTest {
     }
 
     @Test
-    @DisplayName("without the history service, today's cost comes from tracked generations even with credits known")
-    fun todayFromTrackingWithoutHistory() {
-        val tracking = mock(OpenRouterGenerationTrackingService::class.java)
-        `when`(tracking.getTodayCost()).thenReturn(1.25)
-
-        val rows = StatusBarStatsFormatter.calculateActivityRowsWithHistory(
-            activityList = emptyList(),
-            trackingService = tracking,
-            creditsData = CreditsData(totalCredits = 10.0, totalUsage = 3.0),
-            remainingCredits = 7.0
-        )
-
-        assertTrue(rows.contains("\$1.250"), "got: $rows")
-        assertTrue(rows.contains("N/A"), "no spend yesterday, so no estimate: $rows")
-    }
-
-    @Test
-    @DisplayName("without the history service or tracking, today's cost is what the activity says")
+    @DisplayName("without the history service, today's cost is what the activity says")
     fun todayFromActivityWithoutHistory() {
         val today = LocalDate.now(ZoneId.of("UTC")).toString()
 
         val rows = StatusBarStatsFormatter.calculateActivityRowsWithHistory(
             activityList = listOf(activity(today, 0.5)),
-            trackingService = null,
             creditsData = CreditsData(totalCredits = 10.0, totalUsage = 3.0),
             remainingCredits = 7.0
         )

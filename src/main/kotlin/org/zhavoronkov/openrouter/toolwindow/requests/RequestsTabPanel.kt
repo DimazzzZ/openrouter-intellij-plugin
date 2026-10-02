@@ -22,6 +22,8 @@ import org.zhavoronkov.openrouter.toolwindow.composer.MiddleEllipsisComboRendere
 import org.zhavoronkov.openrouter.toolwindow.requests.RequestDetails.Companion.hint
 import org.zhavoronkov.openrouter.toolwindow.requests.RequestDetails.Companion.links
 import org.zhavoronkov.openrouter.ui.Edt
+import org.zhavoronkov.openrouter.utils.ExcludeFromCoverage
+import org.zhavoronkov.openrouter.utils.MODAL_DIALOG
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Dimension
@@ -92,7 +94,9 @@ class RequestsTabPanel(
     },
     /** Reads a request's kept bodies by their id; called on [background]. */
     private val loadBodies: (String) -> RequestBodies? = { RequestLogService.getInstance().bodies(it) },
-    private val showBodies: (JComponent, RequestBodies) -> Unit = RequestBodiesDialog::show
+    private val showBodies: (JComponent, RequestBodies) -> Unit = RequestBodiesDialog::show,
+    /** Says a request's bodies are gone - deleted past the log's limit, or cleared. */
+    private val sayBodiesGone: (JComponent) -> Unit = ::bodiesGoneMessage
 ) : Disposable {
 
     private var records: List<RequestRecord> = emptyList()
@@ -182,11 +186,7 @@ class RequestsTabPanel(
             )
         component.addHierarchyListener { event ->
             val shownNow = event.changeFlags and HierarchyEvent.SHOWING_CHANGED.toLong() != 0L
-            if (shownNow && component.isShowing) {
-                // The settings page may have turned it on or off while the tab was out of sight
-                keepBodies.isSelected = keepBodiesSetting()
-                applyFilter()
-            }
+            if (shownNow && component.isShowing) onShown()
         }
         show(emptyList())
         loaded = false
@@ -477,6 +477,13 @@ class RequestsTabPanel(
         }
     }
 
+    /** The tab came on screen: the settings page may have turned keeping bodies on or off meanwhile. */
+    @ExcludeFromCoverage("runs as the tab comes on screen, which no headless test shows")
+    private fun onShown() {
+        keepBodies.isSelected = keepBodiesSetting()
+        applyFilter()
+    }
+
     /** Reads the bodies kept under [id] off the EDT, and shows them - or says they are gone. */
     private fun openBodies(id: String) {
         background {
@@ -486,7 +493,7 @@ class RequestsTabPanel(
                 if (bodies != null) {
                     showBodies(component, bodies)
                 } else {
-                    Messages.showInfoMessage(component, BODIES_GONE_TEXT, SHOW_BODIES_TEXT)
+                    sayBodiesGone(component)
                 }
             }
         }
@@ -536,6 +543,11 @@ class RequestsTabPanel(
                 super.getPreferredSize().let { Dimension(minOf(it.width, JBUI.scale(FILTER_MAX_WIDTH)), it.height) }
         }.apply { renderer = MiddleEllipsisComboRenderer(this, DefaultListCellRenderer()) }
 
+        @ExcludeFromCoverage(MODAL_DIALOG)
+        private fun bodiesGoneMessage(parent: JComponent) =
+            Messages.showInfoMessage(parent, BODIES_GONE_TEXT, SHOW_BODIES_TEXT)
+
+        @ExcludeFromCoverage(MODAL_DIALOG)
         private fun askToClear(parent: JComponent): Boolean = Messages.showOkCancelDialog(
             parent,
             "Remove every recorded request? This cannot be undone.",

@@ -12,7 +12,7 @@ The OpenRouter IntelliJ Plugin ("the Plugin") is an unofficial integration tool 
 The Plugin stores the following data locally on your machine in IntelliJ's configuration directory:
 - **Authentication credentials** (API keys, Management Keys, OAuth tokens)
 - **Plugin preferences** (selected models, proxy settings, UI preferences)
-- **Usage statistics** (generation tracking data: model IDs, token counts, costs)
+- **Credit usage snapshots** (your account's total spend, read every five minutes, to work out what was spent today)
 - **Request history** (the Requests tab: for each request, who sent it, the model, provider, tokens, cost, stop reason and any error - never its content)
 - **Request bodies, only if you turn them on** (`Tools → OpenRouter`, off by default): each request's prompt and reply as plain text, which include whatever the sending tool put in them, such as your code. They are deleted when their request leaves the history, and Clear on the Requests tab deletes all of them
 
@@ -56,7 +56,7 @@ The Plugin does **NOT**:
 ## Data Retention
 
 - Settings persist until you uninstall the Plugin or clear them manually
-- Generation tracking data is limited to the most recent entries (configurable, default: 100)
+- Credit usage snapshots are kept for 48 hours
 - You can remove stored credentials in **Settings → Tools → OpenRouter** (delete API keys via the table's Remove action), and all stored settings are cleared when you uninstall the Plugin
 
 ## Your Rights

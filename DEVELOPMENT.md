@@ -321,12 +321,6 @@ openrouter-intellij-plugin/
   - Automatic port allocation (8880-8899 range)
   - OpenAI-compatible API endpoint exposure
 
-- **OpenRouterGenerationTrackingService** - Usage analytics
-  - Tracks API calls and token usage
-  - Maintains generation history and statistics
-  - Provides cost analysis and performance metrics
-  - Configurable tracking limits and retention
-
 ### 🎨 UI Components
 - **OpenRouterStatusBarWidget** - Main user interface
   - Real-time status display with color-coded indicators
