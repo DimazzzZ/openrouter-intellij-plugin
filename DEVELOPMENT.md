@@ -306,7 +306,7 @@ openrouter-intellij-plugin/
 - **OpenRouterService** - Central API communication hub
   - Handles all OpenRouter API endpoints (`/keys`, `/credits`, `/activity`)
   - Manages authentication patterns (Management Keys vs API keys)
-  - Provides async operations with CompletableFuture
+  - Exposes its calls as `suspend` functions returning `ApiResult`
   - Includes connection testing and error handling
 
 - **OpenRouterSettingsService** - Configuration management
@@ -545,7 +545,7 @@ companion object {
 ### Code Style
 - Follow Kotlin coding conventions
 - Use meaningful variable and function names
-- Add KDoc comments for public APIs
+- Add KDoc comments for public APIs: every public member, not only the class — functions, properties, nested and sealed subclasses, companion members and `fun interface` methods. A class-level KDoc does not cover what its members do
 - Keep functions small and focused (max 60 lines)
 - Avoid deep nesting (max 4 levels)
 - Extract complex conditions to well-named methods
@@ -564,11 +564,19 @@ companion object {
 - Log errors appropriately using IntelliJ's Logger
 - Provide user-friendly error messages
 - Gracefully handle API failures
+- Side work that must never fail the operation it accompanies — writing the Requests log while a proxy request is served, say — goes through one guard that runs a step and falls back when it throws (`ChatCompletionServlet.unlessLogFails`), not a hand-copied `try/catch` per call
+- Justify a catch by what production needs, never by a test: a test that has no application injects its own seam (a constructor parameter) instead of production code catching for it
 
 ### Threading
-- Use CompletableFuture for async operations
-- Always update UI on EDT using ApplicationManager.invokeLater
+- Write async work as Kotlin coroutines: `OpenRouterService`'s calls are `suspend` functions, launched from a scope the caller owns and cancels on dispose. `CompletableFuture` stays only where an API already returns one (the proxy server's start and stop)
+- Update the plugin's own UI from another thread through `Edt.later`, which posts it to the EDT in any modality, so an open Settings dialog does not hold it back
+- `runBlocking` only on a thread that may block, such as a proxy request thread, never on the EDT
 - Don't block the UI thread with network calls
+- Don't write a private `onEdt`/`edt` helper in a class; `Edt.later` is the one way, and a class that needs a synchronous seam for tests takes `(Runnable) -> Unit` defaulting to `Edt::later`
+
+### Caches
+- A cache another thread reads is one `@Volatile` reference to an immutable snapshot (the data and when it was fetched together), never several mutable fields that can be seen half-updated
+- A cache that is cleared when a setting changes — the Data Region, the API key — must not be refilled by a fetch that started before the clear: take a generation number before fetching, bump it on every clear, and keep the result only if it has not moved (`FavoriteModelsService.keep`). The caller still gets its answer; only the cache refuses it
 
 ### Testing
 - Write unit tests for business logic
@@ -582,6 +590,13 @@ companion object {
 ### OpenRouter API Endpoints
 - **Chat Completions**: `POST /v1/chat/completions`
 - **Generation Stats**: `GET /v1/generation?id={id}`
+
+### OpenRouter API Pitfalls
+Facts about the API that are easy to miss and that have caused bugs here. Check the live API before relying on documentation alone.
+
+- **`/models` lists only models that output text.** Without `output_modalities=all` it leaves out image, speech, video, rerank and other non-text models (464 of 645 listed on 2026-10-02). Use the full list (`OpenRouterService.getAllModels`, `FavoriteModelsService.getCachedCatalogue`) whenever "not in the list" has to mean "not served"; the text-output part (`getCachedModels`) is what the pickers show. `/models/count` also needs the parameter to count everything.
+- **Web search silently drops the output format.** With the `openrouter:web_search` server tool, `json_object` is always dropped, and a `json_schema` survives only where the provider searches natively. No error is returned. `ResponseFormats` decides what is dropped, in one place.
+- **A reply's `provider` field is wrong when a server tool runs.** It names OpenAI whatever served the request; the generation record (`/generation?id=`) names the real one. `ReplyProvider` decides when to trust the reply.
 
 ### Authentication
 ```kotlin

@@ -9,8 +9,10 @@ sealed interface WarningAnnouncement {
     val latest: RequestRecord
     val reason: String
 
+    /** The first warning of a burst: a new balloon. */
     data class Raise(override val latest: RequestRecord, override val reason: String) : WarningAnnouncement
 
+    /** A later warning in the same burst: the balloon on screen now stands for [more] others too. */
     data class Fold(
         override val latest: RequestRecord,
         override val reason: String,

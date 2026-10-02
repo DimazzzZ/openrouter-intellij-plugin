@@ -23,7 +23,11 @@ class EdtPlatformTest : BasePlatformTestCase() {
 
         postFromPooledThread { onEdt.set(ApplicationManager.getApplication().isDispatchThread) }
 
-        PlatformTestUtil.waitWithEventsDispatching("the update never ran", { onEdt.get() }, POST_TIMEOUT_SECONDS.toInt())
+        PlatformTestUtil.waitWithEventsDispatching(
+            "the update never ran",
+            { onEdt.get() },
+            POST_TIMEOUT_SECONDS.toInt()
+        )
     }
 
     fun testAnUpdateRunsWhileAModalDialogIsOpen() {

@@ -22,7 +22,6 @@ import org.zhavoronkov.openrouter.models.ChatMessage
 import org.zhavoronkov.openrouter.models.OutputSchema
 import org.zhavoronkov.openrouter.models.PresetPair
 import org.zhavoronkov.openrouter.presets.PresetCopyService
-import org.zhavoronkov.openrouter.presets.PresetEntry
 import org.zhavoronkov.openrouter.proxy.errors.ClearError
 import org.zhavoronkov.openrouter.proxy.routing.RouterCatalog
 import org.zhavoronkov.openrouter.proxy.routing.RouterRequestBuilder
@@ -43,6 +42,7 @@ import org.zhavoronkov.openrouter.toolwindow.chat.ChatListView
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatModelChoice
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatParamsPopup
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatPresetControls
+import org.zhavoronkov.openrouter.toolwindow.chat.ChatPresetFollower
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatPresetSaver
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatRequestOptions
 import org.zhavoronkov.openrouter.toolwindow.chat.ChatToolbar
@@ -139,8 +139,13 @@ class ChatPanel(
 
     private var stopWatchingPresets: () -> Unit = {}
 
-    /** The preset last applied to the send-parameters controls, to tell a changed one - or a pair left - from none. */
-    private var appliedPreset: PresetEntry? = null
+    private val presetFollower by lazy {
+        ChatPresetFollower(
+            apply = paramsPopup::applyControls,
+            reset = paramsPopup::resetControls,
+            schemas = ::savedSchemas
+        )
+    }
 
     // Remembers which router-param the combo box currently reflects, so
     // non-selection-driven refresh paths (favorites reload, async init
@@ -737,7 +742,6 @@ class ChatPanel(
 
     private val presetCopy get() = PresetCopyService.getInstance().copy
 
-    /** Runs [action] on the EDT, whatever dialog is open. */
     private fun presetConfig(slug: String) = presetCopy.snapshot()?.find(slug)?.config
 
     /** What the model picker holds now, or null while it holds nothing to send to. */
@@ -747,21 +751,9 @@ class ChatPanel(
         return ChatModelChoice.of(picked, PresetCopyService.pairs())
     }
 
-    /**
-     * Brings the send-parameters controls in line with the picked model: a pair's preset fills
-     * them, and leaving a pair for a plain model puts them back to their defaults, so nothing of
-     * the preset goes out with a model it was not picked for. The preset already applied is left
-     * alone, and with it whatever the user changed since.
-     */
+    /** The send-parameters controls follow the picked pair's preset; see [ChatPresetFollower]. */
     private fun followPickedPreset() {
-        val preset = pickedChoice()?.preset
-        if (!ChatPresetControls.changed(preset, appliedPreset)) return
-        if (preset != null) {
-            paramsPopup.applyControls(ChatPresetControls.of(preset, savedSchemas()))
-        } else {
-            paramsPopup.resetControls()
-        }
-        appliedPreset = preset
+        if (!presetFollower.follow(pickedChoice()?.preset)) return
         // Once more, now the preset's values are in: a reasoning the Model is known to lack goes
         updateReasoningVerbosityState()
     }

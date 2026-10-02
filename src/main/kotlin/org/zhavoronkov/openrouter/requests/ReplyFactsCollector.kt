@@ -15,6 +15,7 @@ class ReplyFactsCollector {
 
     private var facts = ReplyFacts()
 
+    /** Adds what [json] - a whole response, or one chunk of a stream - carries to the facts so far. */
     fun observe(json: JsonObject) {
         val usage = json.objectOrNull("usage")
         facts = facts.copy(
@@ -32,6 +33,7 @@ class ReplyFactsCollector {
         )
     }
 
+    /** The facts gathered from every response or chunk observed so far. */
     fun facts(): ReplyFacts = facts
 
     private fun firstFinishReason(json: JsonObject): String? =

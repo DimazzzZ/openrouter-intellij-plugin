@@ -26,6 +26,10 @@ data class ChatControls(
  */
 object ChatPresetControls {
 
+    /**
+     * What the controls show for [preset]: its schema named among the saved [schemas] when one
+     * matches, Off when none does.
+     */
     fun of(preset: PresetEntry, schemas: List<OutputSchema>): ChatControls {
         val draft = PresetDraft.of(preset)
         val output = when {

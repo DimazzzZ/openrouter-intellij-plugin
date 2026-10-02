@@ -21,9 +21,11 @@ import org.zhavoronkov.openrouter.ui.Edt
 
 /** Asks a project's tool window to open the Requests tab at one request. */
 fun interface RequestsNavigator {
+    /** Shows [record] on the Requests tab, selected. */
     fun reveal(record: RequestRecord)
 
     companion object {
+        /** Where a project's tool window hears which request to show. */
         val TOPIC: Topic<RequestsNavigator> = Topic.create("OpenRouter reveal a request", RequestsNavigator::class.java)
 
         /** Opens the OpenRouter tool window in [project] and shows [record] on its Requests tab. */
@@ -62,6 +64,7 @@ class RequestWarningBalloons(
     /** The page that fixes the latest refusal in the current burst, kept when a later warning folds in. */
     private var burstFix: FixPage? = null
 
+    /** Raises or updates the balloon for [record] if it went wrong, unless balloons are turned off. */
     fun onRecord(record: RequestRecord) {
         if (!enabled()) return
         val announcement = burst.onRecord(record) ?: return

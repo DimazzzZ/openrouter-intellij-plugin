@@ -15,7 +15,7 @@ tags and Gradle task assignment:
 
 | Category | Tag | Gradle Task | When it runs | Purpose |
 |----------|-----|-------------|--------------|---------|
-| **Unit** | (none) | `test` | Every build, every PR | Pure logic; no I/O, no platform. |
+| **Unit** | (none) | `test` | Every build, every PR | No external service, no platform. A local `MockWebServer` is fine. |
 | **Functional** | `@Tag("functional")` | `functionalTest -Pfunctional` | Opt-in; local dev, pre-release | Integration with real HTTP/API. May consume credits. |
 | **Platform** | class name matches `*SmokeTest` or `*PlatformTest` | `platformTest` | Every PR (part of `check`) | Requires IntelliJ's shared `TestApplication`. |
 
@@ -37,10 +37,10 @@ tags and Gradle task assignment:
 
 ### Choosing a category for a new test
 
-- **Pure logic, no IntelliJ APIs, no network?** → Unit test. No tag needed.
+- **No IntelliJ APIs, and nothing outside the machine?** → Unit test. No tag needed. A `MockWebServer` on the loopback interface counts as local: it is deterministic, needs no key and spends no credits, so the proxy and `OpenRouterService` tests that stand one up run on every build. Shut the server down after each test.
   Keep UI logic in platform-free classes so it lands here — `settings/favorites/FavoriteModelsPageState`
   and its `FavoriteModelsPageStateTest` are the reference example.
-- **Calls a real HTTP endpoint (OpenRouter, mock server on a real port)?** → `@Tag("functional")`.
+- **Calls an external service (OpenRouter itself, anything that needs an API key or the network)?** → `@Tag("functional")`, as [ADR-0003](docs/adr/0003-disabled-tests-to-tagged-taxonomy.md) defines it.
 - **Uses `BasePlatformTestCase`, `ProjectFixture`, or any `com.intellij.testFramework.*`?** → Name it `*SmokeTest` or `*PlatformTest` so `platformTest` picks it up. (Placement is by class-name suffix, not directory — package layout is up to you.)
 
 ### Why not @Disabled?
