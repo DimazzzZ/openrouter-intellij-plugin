@@ -182,6 +182,81 @@ class PresetEditorPlatformTest : BasePlatformTestCase() {
         assertEquals(PresetEditor.NOT_SET, editor.routingSummary.text)
     }
 
+    fun testChoosingASavedSchemaAndAVerbositySetsThemAndNotSetTakesThemOut() {
+        val editor = editor()
+
+        editor.output.selectedItem = "answer"
+        editor.verbosity.selectedItem = "High"
+
+        val config = editor.result().config()
+        val schemaName = config.getAsJsonObject("response_format").getAsJsonObject("json_schema")["name"].asString
+        assertEquals("answer", schemaName)
+        assertEquals("high", config["verbosity"].asString)
+
+        editor.output.selectedItem = PresetEditor.NOT_SET
+        editor.verbosity.selectedItem = PresetEditor.NOT_SET
+        assertEquals("{}", editor.result().config().toString())
+    }
+
+    fun testASchemaThePluginHasNotSavedIsStillShownAsTheOutput() {
+        val unsaved = """{"response_format":{"type":"json_schema","json_schema":{"name":"other","schema":{}}}}"""
+        val plain = """{"response_format":{"type":"json_object"}}"""
+
+        val editor = editor(PresetDraft.of(entry(unsaved)), isNew = false, taken = listOf("research"))
+
+        assertEquals("other", editor.output.selectedItem)
+        val listed = (0 until editor.output.itemCount).map { editor.output.getItemAt(it) }
+        assertEquals(listOf(PresetEditor.NOT_SET, PresetEditor.PLAIN_JSON, "answer", "other"), listed)
+        val plainEditor = editor(PresetDraft.of(entry(plain)), isNew = false, taken = listOf("research"))
+        assertEquals(PresetEditor.PLAIN_JSON, plainEditor.output.selectedItem)
+    }
+
+    fun testRoutingCancelledChangesNothingAndRoutingEmptiedIsTakenOut() {
+        val editor = editor(PresetDraft.of(entry("""{"provider":{"only":["azure"]}}""")), isNew = false)
+
+        routingAnswer = null
+        editor.editRoutingLink.doClick()
+        assertEquals("""{"only":["azure"]}""", editor.result().config().get("provider").toString())
+
+        routingAnswer = ProviderRoutingPreferences()
+        editor.editRoutingLink.doClick()
+        assertFalse(editor.result().config().has("provider"))
+    }
+
+    fun testAPromptOfOnlySpacesSetsNoPrompt() {
+        val editor = editor()
+
+        editor.systemPrompt.text = "Be brief."
+        assertEquals("Be brief.", editor.result().systemPrompt)
+        editor.systemPrompt.text = "   "
+        assertNull(editor.result().systemPrompt)
+    }
+
+    fun testFractionalNumbersAreAcceptedWhereTheyMayBe() {
+        val editor = editor()
+
+        editor.temperature.text = "warm"
+        assertEquals("Temperature must be a number", editor.problem())
+        editor.temperature.text = "0.5"
+        editor.topP.text = "0.9"
+        editor.maxTokens.text = "4.5"
+        assertEquals("Max tokens must be a whole number", editor.problem())
+        editor.maxTokens.text = ""
+
+        assertNull(editor.problem())
+        val config = editor.result().config()
+        assertEquals("0.5", config["temperature"].toString())
+        assertEquals("0.9", config["top_p"].toString())
+        assertFalse(config.has("max_tokens"))
+    }
+
+    fun testANumberSettingOfAnotherShapeShowsEmptyAndIsDroppedOnSave() {
+        val editor = editor(PresetDraft.of(entry("""{"temperature":{"min":0.1}}""")), isNew = false)
+
+        assertEquals("", editor.temperature.text)
+        assertFalse(editor.result().config().has("temperature"))
+    }
+
     /** The dialog is a fixed width: nothing may reach past it, or it would scroll sideways. */
     fun testEverySettingFitsTheDialogsWidth() {
         val editor = editor()

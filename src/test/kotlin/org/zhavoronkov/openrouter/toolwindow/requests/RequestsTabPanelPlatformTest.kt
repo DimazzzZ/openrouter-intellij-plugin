@@ -461,6 +461,88 @@ class RequestsTabPanelPlatformTest : BasePlatformTestCase() {
         assertEquals(ReplySummary.formatCost(0.0001), column(panel, RequestsColumn.COST)[panel.table.selectedRow])
     }
 
+    private fun click(panel: RequestsTabPanel, row: Int, column: RequestsColumn, clicks: Int) {
+        val table = panel.table
+        val cell = table.getCellRect(row, table.convertColumnIndexToView(column.ordinal), true)
+        table.dispatchEvent(
+            MouseEvent(table, MouseEvent.MOUSE_CLICKED, 0, 0, cell.x + 2, cell.y + 2, clicks, false)
+        )
+    }
+
+    fun testABurstOpensFromADoubleClickAnywhereOnItsRowButNotASingleOne() {
+        val panel = panel(shown = { burst })
+
+        click(panel, 1, RequestsColumn.MODEL, clicks = 1)
+        assertEquals("a single click off the arrow only selects", 2, panel.table.rowCount)
+        click(panel, 1, RequestsColumn.TIME, clicks = 2)
+        assertEquals("a double click on the arrow is not two toggles", 2, panel.table.rowCount)
+
+        click(panel, 1, RequestsColumn.MODEL, clicks = 2)
+        assertEquals(6, panel.table.rowCount)
+
+        panel.table.dispatchEvent(MouseEvent(panel.table, MouseEvent.MOUSE_CLICKED, 0, 0, 2, 10_000, 1, false))
+        assertEquals("a click below the last row changes nothing", 6, panel.table.rowCount)
+    }
+
+    fun testARequestNotInABurstHasNothingToOpenOrClose() {
+        val panel = panel(shown = { burst })
+        panel.table.setRowSelectionInterval(0, 0)
+
+        panel.toggle(0)
+        press(panel, "openBurst")
+        panel.toggle(99)
+
+        assertEquals(2, panel.table.rowCount)
+    }
+
+    fun testToggleOnARequestUnderABurstClosesTheBurst() {
+        val panel = panel(shown = { burst })
+        panel.toggle(1)
+
+        panel.toggle(3)
+
+        assertEquals(2, panel.table.rowCount)
+        assertEquals(1, panel.table.selectedRow)
+    }
+
+    fun testAFilterKeepsItsChoiceWhileTheChoiceIsStillListed() {
+        var current = records
+        val panel = panel(shown = { current })
+        panel.senderFilter.selectedItem = "Chat"
+
+        current = records + record(sender = "Cursor")
+        panel.reload()
+        assertEquals("Chat", panel.senderFilter.selectedItem)
+
+        current = records.filter { it.sender != "Chat" }
+        panel.reload()
+        assertEquals(RequestsTabPanel.ALL_SENDERS, panel.senderFilter.selectedItem)
+    }
+
+    fun testTheSelectionFollowsItsRequestAcrossAReload() {
+        var current = records
+        val panel = panel(shown = { current })
+        panel.table.setRowSelectionInterval(1, 1)
+        val selected = records[1]
+
+        current = listOf(record(sender = "Cursor").at(5_000)) + records
+        panel.reload()
+
+        assertEquals("Chat", column(panel, RequestsColumn.SENDER)[panel.table.selectedRow])
+        assertTrue("the same request: ${detailTexts(panel)}", selected.sender in detailTexts(panel).joinToString())
+    }
+
+    fun testAClosedBurstStaysSelectedAsANewerRequestJoinsIt() {
+        var current = burst
+        val panel = panel(shown = { current })
+        panel.table.setRowSelectionInterval(1, 1)
+
+        current = burst.take(1) + burst[1].at(100) + burst.drop(1)
+        panel.reload()
+
+        assertEquals("google/gemini-2.5-flash ×5", column(panel, RequestsColumn.MODEL)[panel.table.selectedRow])
+    }
+
     /** The warning cell of [row] as the table itself paints it. */
     private fun warningCell(panel: RequestsTabPanel, row: Int): BufferedImage {
         val table = panel.table

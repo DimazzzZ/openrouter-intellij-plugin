@@ -2,6 +2,8 @@ package org.zhavoronkov.openrouter.toolwindow.requests
 
 import com.intellij.notification.Notification
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.openapi.actionSystem.impl.SimpleDataContext
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import org.zhavoronkov.openrouter.models.FixPage
 import org.zhavoronkov.openrouter.requests.ReplyFacts
@@ -143,5 +145,29 @@ class RequestWarningBalloonsPlatformTest : BasePlatformTestCase() {
         balloons.onRecord(record(finishReason = "length"))
 
         assertEquals(listOf("Open Output Schemas", "Show"), raised.last().actions.map { it.templateText })
+    }
+
+    /** The light test project has no OpenRouter tool window to open, so Show only closes its balloon. */
+    fun testShowClosesTheBalloon() {
+        balloons.onRecord(record())
+        val balloon = raised.single()
+        val show = balloon.actions.single { it.templateText == "Show" }
+
+        val context = SimpleDataContext.builder()
+            .add(CommonDataKeys.PROJECT, project)
+            .add(Notification.KEY, balloon)
+            .build()
+
+        Notification.fire(balloon, show, context)
+
+        assertTrue(balloon.isExpired)
+    }
+
+    fun testABalloonDoesNotOutliveThePlugin() {
+        balloons.onRecord(record())
+
+        balloons.dispose()
+
+        assertTrue(raised.single().isExpired)
     }
 }

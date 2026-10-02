@@ -163,4 +163,35 @@ class OutputSchemasSettingsPanelPlatformTest : BasePlatformTestCase() {
             configurable.disposeUIResources()
         }
     }
+
+    fun testEditAndRemoveWithNothingSelectedDoNothing() {
+        manager.replaceAll(listOf(features))
+        page.createPanel()
+        page.table.clearSelection()
+
+        page.editSelected()
+        page.removeSelected()
+
+        assertEquals(listOf("features"), names())
+        assertTrue("the editor is not opened", editorCalls.isEmpty())
+    }
+
+    fun testCancellingAnEditKeepsTheSchemaAsItWas() {
+        manager.replaceAll(listOf(features))
+        page.createPanel()
+        page.table.setRowSelectionInterval(0, 0)
+        nextEdit = null
+
+        page.editSelected()
+
+        assertEquals(listOf(features), page.model.items)
+    }
+
+    fun testASchemaWhoseBodyIsNotValidIsListedAsInvalid() {
+        manager.replaceAll(listOf(summary.copy(schema = "{not json")))
+
+        page.createPanel()
+
+        assertEquals("invalid", cell(0, 2))
+    }
 }
