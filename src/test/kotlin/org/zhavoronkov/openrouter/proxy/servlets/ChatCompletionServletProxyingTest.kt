@@ -335,6 +335,30 @@ class ChatCompletionServletProxyingTest {
     @DisplayName("Recording")
     inner class Recording {
 
+        @Test
+        @DisplayName("a Requests log that throws at every step does not fail the request it describes")
+        fun logFailuresDoNotFailTheRequest() {
+            enqueueCompletion()
+            val client = OkHttpClient.Builder().build()
+            clients += client
+            val servlet = ChatCompletionServlet(
+                httpClient = client,
+                settingsServiceProvider = { settingsService },
+                openRouterApiUrl = { server.url("/api/v1/chat/completions").toString() },
+                multimodalValidatorProvider = { multimodalValidator },
+                requestRecorder = { error("log is full") },
+                providerLookup = { error("no lookup") },
+                keepBodies = { error("no settings") },
+                bodiesSaver = { _, _ -> error("no disk") }
+            )
+            val exchange = response()
+
+            servlet.service(request(chatBody()), exchange.resp)
+
+            verify(exchange.resp).status = HttpServletResponse.SC_OK
+            assertTrue(exchange.body.contains("hello"), "got: ${exchange.body}")
+        }
+
         /** With a server tool the reply's provider names OpenAI whatever served it. */
         @Test
         @DisplayName("a request with web search is recorded without the reply's provider, which is looked up")

@@ -709,6 +709,23 @@ open class OpenRouterService(
         }
 
     /**
+     * Every model OpenRouter serves, whatever it outputs: `output_modalities=all`.
+     *
+     * The plain [getModels] lists only models that output text, so a model that answers with an
+     * image, speech or a ranking is missing from it although OpenRouter serves it. Ask this one
+     * when "not in the list" has to mean "not served".
+     */
+    suspend fun getAllModels(): ApiResult<OpenRouterModelsResponse> =
+        fetchPublicEndpoint(
+            "${getModelsEndpoint()}?output_modalities=all",
+            "models of every output modality",
+            OpenRouterConstants.RESPONSE_PREVIEW_LENGTH,
+            "Error fetching models"
+        ) { responseBody ->
+            gson.fromJson(responseBody, OpenRouterModelsResponse::class.java)
+        }
+
+    /**
      * The models a region serves, asked WITHOUT switching to that region.
      *
      * Deliberately the global host with a `region=` parameter rather than the regional host: this

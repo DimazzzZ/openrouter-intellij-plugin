@@ -2,7 +2,6 @@ package org.zhavoronkov.openrouter.toolwindow.requests
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.JBSplitter
@@ -22,6 +21,7 @@ import org.zhavoronkov.openrouter.settings.RequestsSection
 import org.zhavoronkov.openrouter.toolwindow.composer.MiddleEllipsisComboRenderer
 import org.zhavoronkov.openrouter.toolwindow.requests.RequestDetails.Companion.hint
 import org.zhavoronkov.openrouter.toolwindow.requests.RequestDetails.Companion.links
+import org.zhavoronkov.openrouter.ui.Edt
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Dimension
@@ -73,7 +73,7 @@ class RequestsTabPanel(
     private val clearLog: () -> Unit = { RequestLogService.getInstance().clear() },
     private val confirmClear: (JComponent) -> Boolean = ::askToClear,
     private val background: (Runnable) -> Unit = { ApplicationManager.getApplication().executeOnPooledThread(it) },
-    private val edt: (Runnable) -> Unit = { ApplicationManager.getApplication().invokeLater(it, ModalityState.any()) },
+    private val edt: (Runnable) -> Unit = Edt::later,
     private val clock: () -> Instant = Instant::now,
     private val zone: () -> ZoneId = ZoneId::systemDefault,
     /** Whether "Group bursts" is on, and where turning it on or off is kept, across restarts. */

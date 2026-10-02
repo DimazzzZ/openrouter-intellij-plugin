@@ -118,9 +118,12 @@ class ChatCompletionServlet(
     private val readMissingPreset: (slug: String) -> Unit = { slug ->
         runBlocking { PresetCopyService.getInstance().copy.findAfterRead(slug, MISSING_PRESET_WAIT_MILLIS) }
     },
-    /** The loaded model catalogue - the selected Data Region's - or null while it has not loaded. */
+    /**
+     * The loaded model catalogue - the selected Data Region's, every output modality - or null
+     * while it has not loaded.
+     */
     private val catalogueProvider: () -> List<OpenRouterModelInfo>? = {
-        applicationServiceOrNull(FavoriteModelsService::class.java)?.getCachedModels()
+        applicationServiceOrNull(FavoriteModelsService::class.java)?.getCachedCatalogue()
     }
 ) : HttpServlet() {
 
@@ -260,10 +263,12 @@ class ChatCompletionServlet(
         val trace = RequestTrace(
             source = RequestSource.PROXY,
             sender = ConsumerNames.fromUserAgent(req.getHeader("User-Agent")),
-            record = ::recordSafely,
-            lookUpProvider = ::lookUpProviderSafely,
-            keepBodies = keepBodiesSafely(),
-            saveBodies = ::saveBodiesSafely
+            record = { unlessLogFails(Unit, "record the request") { requestRecorder(it) } },
+            lookUpProvider = { unlessLogFails(Unit, "look up the provider") { providerLookup(it) } },
+            keepBodies = unlessLogFails(false, "read whether to keep request bodies") { keepBodies() },
+            saveBodies = { id, bodies ->
+                unlessLogFails(Unit, "keep the request's bodies") { bodiesSaver(id, bodies) }
+            }
         )
         try {
             processRequest(req, resp, requestId, startNs, trace)
@@ -308,38 +313,14 @@ class ChatCompletionServlet(
     }
 
     /**
-     * A request log that cannot be written must not fail the request it describes - and in a test
-     * with no application, there is no log to write to.
+     * Runs [block], one of the Requests log's steps, and answers [fallback] if it throws: a log
+     * that cannot be written must not fail the request it describes.
      */
-    private fun recordSafely(record: RequestRecord) {
-        try {
-            requestRecorder(record)
-        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-            PluginLogger.Service.debug("Could not record the request: ${e.message}")
-        }
-    }
-
-    private fun keepBodiesSafely(): Boolean = try {
-        keepBodies()
+    private inline fun <T> unlessLogFails(fallback: T, what: String, block: () -> T): T = try {
+        block()
     } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-        PluginLogger.Service.debug("Could not read whether to keep request bodies: ${e.message}")
-        false
-    }
-
-    private fun saveBodiesSafely(id: String, bodies: RequestBodies) {
-        try {
-            bodiesSaver(id, bodies)
-        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-            PluginLogger.Service.debug("Could not keep the request's bodies: ${e.message}")
-        }
-    }
-
-    private fun lookUpProviderSafely(generationId: String) {
-        try {
-            providerLookup(generationId)
-        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-            PluginLogger.Service.debug("Could not look up the provider: ${e.message}")
-        }
+        PluginLogger.Service.debug("Could not $what: ${e.message}")
+        fallback
     }
 
     /**

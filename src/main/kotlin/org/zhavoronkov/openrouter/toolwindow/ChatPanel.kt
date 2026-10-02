@@ -5,8 +5,6 @@ import com.google.gson.JsonPrimitive
 import com.google.gson.JsonSyntaxException
 import com.google.gson.reflect.TypeToken
 import com.intellij.ide.util.PropertiesComponent
-import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
@@ -52,6 +50,7 @@ import org.zhavoronkov.openrouter.toolwindow.chat.MessageView
 import org.zhavoronkov.openrouter.toolwindow.chat.OutputModeContext
 import org.zhavoronkov.openrouter.toolwindow.chat.OutputModeGate
 import org.zhavoronkov.openrouter.toolwindow.chat.ReplySummary
+import org.zhavoronkov.openrouter.ui.Edt
 import org.zhavoronkov.openrouter.ui.ModelVariantChipRenderer
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 import org.zhavoronkov.openrouter.utils.PluginLogger
@@ -222,7 +221,7 @@ class ChatPanel(
         paramsPopup = ChatParamsPopup(reasoningComboBox, verbosityComboBox, routerParamComboBox, webSearchCheckBox)
         paramsPopup.onSaveAsPreset = ::saveAsPreset
         // A preset edited on the Presets page, or saved from here, reaches the controls
-        stopWatchingPresets = presetCopy.addListener { onEdt(::followPickedPreset) }
+        stopWatchingPresets = presetCopy.addListener { Edt.later(::followPickedPreset) }
         composer.onSettingsClick = { paramsPopup.show(composer.settingsComponent()) }
         // Any selection change on a send parameter can flip whether it is
         // "non-default", so the gear badge/tooltip has to be recomputed from
@@ -720,7 +719,7 @@ class ChatPanel(
         val saved = saver.choose(draft, taken) ?: return
         coroutineScope.launch {
             val error = PresetWriter.save(saved)
-            onEdt {
+            Edt.later {
                 if (error != null) conversationView.showError("Could not save the preset: $error")
             }
         }
@@ -739,8 +738,6 @@ class ChatPanel(
     private val presetCopy get() = PresetCopyService.getInstance().copy
 
     /** Runs [action] on the EDT, whatever dialog is open. */
-    private fun onEdt(action: () -> Unit) = ApplicationManager.getApplication().invokeLater(action, ModalityState.any())
-
     private fun presetConfig(slug: String) = presetCopy.snapshot()?.find(slug)?.config
 
     /** What the model picker holds now, or null while it holds nothing to send to. */
@@ -966,7 +963,7 @@ class ChatPanel(
             // stuck waiting for a reply that is never requested.
             PluginLogger.warn("Could not build the chat request: ${e.message}")
             trace.fail("Could not build the request: ${e.message}")
-            onEdt {
+            Edt.later {
                 conversationView.showError("Could not send: ${e.message}")
                 setLoading(false)
                 outputModeGate.update(outputModeGate.context)
@@ -1054,7 +1051,7 @@ class ChatPanel(
         coroutineScope.launch {
             val provider = providerLookup.providerOf(generationId) ?: return@launch
             RequestLogService.getInstance().fillProvider(generationId, provider)
-            onEdt {
+            Edt.later {
                 val filled = reply.copy(summary = reply.summary?.copy(provider = provider))
                 chat?.messages?.let { messages ->
                     val index = messages.indexOf(reply)

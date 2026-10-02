@@ -17,6 +17,7 @@ import org.zhavoronkov.openrouter.requests.RequestRecord
 import org.zhavoronkov.openrouter.requests.WarningAnnouncement
 import org.zhavoronkov.openrouter.requests.WarningBurst
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.ui.Edt
 
 /** Asks a project's tool window to open the Requests tab at one request. */
 fun interface RequestsNavigator {
@@ -54,7 +55,7 @@ class RequestWarningBalloons(
     },
     private val notify: (Notification) -> Unit = { Notifications.Bus.notify(it) },
     private val onScreen: (Notification) -> Boolean = { it.balloon?.isDisposed == false },
-    private val onEdt: (Runnable) -> Unit = { ApplicationManager.getApplication().invokeLater(it) }
+    private val onEdt: (Runnable) -> Unit = Edt::later
 ) : Disposable {
     private var current: Notification? = null
 
