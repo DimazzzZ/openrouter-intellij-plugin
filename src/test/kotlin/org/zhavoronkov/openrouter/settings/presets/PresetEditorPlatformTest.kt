@@ -221,6 +221,17 @@ class PresetEditorPlatformTest : BasePlatformTestCase() {
         assertEquals(JsonParser.parseString(unsaved), editor.result().config())
     }
 
+    /** Leaving the unsaved schema and choosing it again brings the preset's own schema back, as shown. */
+    fun testAnUnsavedSchemaChosenAgainAfterAnotherOutputComesBack() {
+        val unsaved = """{"response_format":{"type":"json_schema","json_schema":{"name":"other","schema":{}}}}"""
+        val editor = editor(PresetDraft.of(entry(unsaved)), isNew = false, taken = listOf("research"))
+
+        editor.output.selectedItem = PresetEditor.PLAIN_JSON
+        editor.output.selectedItem = "other"
+
+        assertEquals(JsonParser.parseString(unsaved), editor.result().config())
+    }
+
     /** A schema output without a name has nothing to list it by; it shows as not set and is kept as it came. */
     fun testASchemaOutputWithoutANameShowsAsNotSet() {
         val unnamed = """{"response_format":{"type":"json_schema","json_schema":{"schema":{}}}}"""

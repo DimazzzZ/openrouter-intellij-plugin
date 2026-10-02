@@ -50,8 +50,13 @@ class PresetEditor(
         if (draft.has(PresetSetting.WEB_SEARCH)) ALLOWED else NOT_SET
     )
 
-    private val outputChoices: List<String> = listOf(NOT_SET, PLAIN_JSON) + schemas.map { it.name } +
-        listOfNotNull(draft.outputSchemaName?.takeIf { name -> schemas.none { it.name.equals(name, true) } })
+    /** The preset's own schema when the plugin has not saved one of its name, kept to be chosen again. */
+    private val unsavedSchemaName: String? =
+        draft.outputSchemaName?.takeIf { name -> schemas.none { it.name.equals(name, true) } }
+    private val unsavedSchemaOutput = unsavedSchemaName?.let { draft[PresetSetting.OUTPUT]?.deepCopy() }
+
+    private val outputChoices: List<String> =
+        listOf(NOT_SET, PLAIN_JSON) + schemas.map { it.name } + listOfNotNull(unsavedSchemaName)
     internal val output = choice(
         outputChoices,
         when {
@@ -123,6 +128,7 @@ class PresetEditor(
             when (val chosen = output.selectedItem as? String) {
                 NOT_SET -> draft.remove(PresetSetting.OUTPUT)
                 PLAIN_JSON -> draft.setPlainJson()
+                unsavedSchemaName -> unsavedSchemaOutput?.let { draft[PresetSetting.OUTPUT] = it.deepCopy() }
                 else -> schemas.firstOrNull { it.name == chosen }?.let(draft::setSchema)
             }
             changed()
