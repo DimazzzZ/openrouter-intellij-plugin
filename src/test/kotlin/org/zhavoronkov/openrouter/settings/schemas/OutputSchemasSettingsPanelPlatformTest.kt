@@ -2,11 +2,13 @@ package org.zhavoronkov.openrouter.settings.schemas
 
 import com.intellij.openapi.util.JDOMUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import com.intellij.ui.ClickListener
 import com.intellij.util.xmlb.XmlSerializer
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
 import org.zhavoronkov.openrouter.models.OutputSchema
 import org.zhavoronkov.openrouter.services.settings.OutputSchemasManager
 import org.zhavoronkov.openrouter.settings.OutputSchemasConfigurable
+import java.awt.event.MouseEvent
 
 /**
  * The Output Schemas page, driven through its add, edit and delete actions and read back through
@@ -185,6 +187,29 @@ class OutputSchemasSettingsPanelPlatformTest : BasePlatformTestCase() {
         page.editSelected()
 
         assertEquals(listOf(features), page.model.items)
+    }
+
+    fun testADoubleClickOnASchemaEditsIt() {
+        manager.replaceAll(listOf(features, summary))
+        page.createPanel()
+        page.table.setSize(400, 200)
+        page.table.setRowSelectionInterval(1, 1)
+        nextEdit = summary.copy(strict = true)
+        val cell = page.table.getCellRect(1, 0, true)
+        // Only the double-click listeners, in the order AWT calls them: the table UI needs a real toolkit
+        val clickListeners = page.table.mouseListeners
+            .filter { it.javaClass.name.startsWith(ClickListener::class.java.name) }
+        fun event(id: Int) = MouseEvent(page.table, id, 0, 0, cell.x + 2, cell.y + 2, 1, false, MouseEvent.BUTTON1)
+
+        repeat(2) {
+            val press = event(MouseEvent.MOUSE_PRESSED)
+            clickListeners.forEach { it.mousePressed(press) }
+            val release = event(MouseEvent.MOUSE_RELEASED)
+            clickListeners.forEach { it.mouseReleased(release) }
+        }
+
+        assertEquals("the double-clicked schema is handed to the editor", summary, editorCalls.single().first)
+        assertEquals(listOf(features, summary.copy(strict = true)), page.model.items)
     }
 
     fun testASchemaWhoseBodyIsNotValidIsListedAsInvalid() {

@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.zhavoronkov.openrouter.models.DataRegion
 import org.zhavoronkov.openrouter.models.FixPage
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
@@ -130,5 +132,21 @@ class ConsumerRequestChecksTest {
     @DisplayName("a model listed without its declarations is not refused for a response format")
     fun declarationsUnknown() {
         assertNull(check(jsonObject, "silent/model"))
+    }
+
+    @ParameterizedTest(name = "[{index}] {0}")
+    @ValueSource(
+        strings = [
+            """{"response_format":{"type":7}}""",
+            """{"response_format":{"type":"json_schema"}}""",
+            """{"response_format":{"type":"json_schema","json_schema":"answer"}}""",
+            """{"response_format":{"type":"json_schema","json_schema":{}}}""",
+            """{"response_format":{"type":"json_schema","json_schema":{"name":7}}}""",
+            """{"response_format":{"type":"json_schema","json_schema":{"name":null}}}"""
+        ]
+    )
+    @DisplayName("a json_schema format that names no schema is not looked up among the saved ones")
+    fun formatNamingNoSchema(json: String) {
+        assertNull(check(json, "schema/only", catalogue = null))
     }
 }

@@ -1,12 +1,16 @@
 package org.zhavoronkov.openrouter.models
 
 import com.google.gson.Gson
+import com.google.gson.JsonParser
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.Arguments
+import org.junit.jupiter.params.provider.MethodSource
 
 /**
  * The response models read from OpenRouter's own spelling of each field. A misspelt
@@ -120,5 +124,86 @@ class OpenRouterModelsWireTest {
     @DisplayName("the key an auth code is exchanged for")
     fun exchangedKey() {
         assertEquals("sk-or-v1-x", parse<ExchangeAuthCodeResponse>("""{"key":"sk-or-v1-x"}""").key)
+    }
+
+    /**
+     * A value built in code is written in OpenRouter's spelling and reads back as itself: a test
+     * double or fixture built from these classes says on the wire what the server says.
+     */
+    @ParameterizedTest(name = "[{index}] {0}")
+    @MethodSource("builtResponses")
+    @DisplayName("a response built in code is written in OpenRouter's spelling and reads back equal")
+    fun roundTrip(label: String, value: Any, wireKeys: List<String>) {
+        val json = gson.toJson(value)
+        val keys = JsonParser.parseString(json).asJsonObject.keySet()
+
+        assertTrue(keys.containsAll(wireKeys), "$label wrote $keys, expected $wireKeys among them")
+        assertEquals(value, gson.fromJson(json, value.javaClass), label)
+    }
+
+    companion object {
+        @JvmStatic
+        fun builtResponses(): List<Arguments> = listOf(
+            Arguments.of(
+                "preset read",
+                GetPresetResponse(Preset(id = "p1", name = "Research", slug = "research")),
+                listOf("data")
+            ),
+            Arguments.of(
+                "created key",
+                CreateApiKeyResponse(
+                    data = CreatedApiKeyInfo(
+                        name = "n",
+                        label = "l",
+                        limit = 5.0,
+                        usage = 0.5,
+                        disabled = false,
+                        createdAt = "2026-01-01",
+                        updatedAt = null,
+                        hash = "h"
+                    ),
+                    key = "sk-or-v1-x"
+                ),
+                listOf("data", "key")
+            ),
+            Arguments.of(
+                "created key info",
+                CreatedApiKeyInfo("n", "l", null, 0.0, true, "2026-01-01", "2026-01-02", "h"),
+                listOf("created_at", "updated_at", "hash", "disabled")
+            ),
+            Arguments.of("deleted key", DeleteApiKeyResponse(deleted = true), listOf("deleted")),
+            Arguments.of(
+                "provider",
+                ProviderInfo("Azure", "azure", "p", "t", "s"),
+                listOf("privacy_policy_url", "terms_of_service_url", "status_page_url")
+            ),
+            Arguments.of("exchanged key", ExchangeAuthCodeResponse("sk-or-v1-x"), listOf("key")),
+            Arguments.of(
+                "analytics query",
+                AnalyticsQueryResponse(
+                    AnalyticsQueryPayload(
+                        data = listOf(mapOf("model" to "m", "requests" to 2.0)),
+                        metadata = AnalyticsMetadata(rowCount = 1, truncated = false)
+                    )
+                ),
+                listOf("data")
+            ),
+            Arguments.of(
+                "analytics metadata",
+                AnalyticsMetadata(rowCount = 3, truncated = true),
+                listOf("row_count", "truncated")
+            ),
+            Arguments.of(
+                "analytics meta",
+                AnalyticsMetaResponse(
+                    AnalyticsMeta(
+                        metrics = listOf(AnalyticsMetric("cost", "Cost", "currency")),
+                        dimensions = listOf(AnalyticsDimension("model", "Model")),
+                        granularities = listOf("day")
+                    )
+                ),
+                listOf("data")
+            )
+        )
     }
 }

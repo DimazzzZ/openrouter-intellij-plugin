@@ -151,4 +151,11 @@ class PairAvailabilityTest {
         taken.problem("json/only@preset/gone")
         assertEquals(listOf("gone"), lookedUp, "a slug the snapshot lacks is looked up")
     }
+
+    @Test
+    @DisplayName("a preset slug the copy does not list sets nothing known")
+    fun presetConfigOfUnknownSlug() {
+        assertNull(pairs.presetConfig("gone"))
+        assertEquals(setOf("reasoning"), pairs.presetConfig("PLAIN")?.keySet())
+    }
 }

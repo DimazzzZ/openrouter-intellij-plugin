@@ -237,6 +237,13 @@ class FavoriteModelsPageStateTest {
         }
 
         @Test
+        fun `a favorite the catalog lists as it is is available`() {
+            val s = state(favorites = listOf(GPT4O.id))
+
+            assertTrue(s.isAvailable(GPT4O.id))
+        }
+
+        @Test
         fun `a favorite missing from the catalog is a placeholder marked unavailable`() {
             val s = state(favorites = listOf("gone/model"))
             s.mode = Mode.FAVORITES_ONLY
@@ -398,6 +405,20 @@ class FavoriteModelsPageStateTest {
             assertFalse(s.exchange(1, 2))
 
             assertEquals(listOf("a/1", "a/2"), s.favorites)
+        }
+
+        @Test
+        fun `exchanging a row with itself or with no row is refused`() {
+            val s = state(favorites = listOf("a/1", "a/2")).apply { mode = Mode.FAVORITES_ONLY }
+            var notifications = 0
+            s.onChanged = { notifications++ }
+
+            assertFalse(s.exchange(1, 1))
+            assertFalse(s.exchange(0, -1))
+            assertFalse(s.exchange(2, 0))
+
+            assertEquals(listOf("a/1", "a/2"), s.favorites)
+            assertEquals(0, notifications)
         }
 
         @Test
@@ -571,6 +592,27 @@ class FavoriteModelsPageStateTest {
             assertEquals(EmptyState.NONE, state().emptyState())
             val withFavorites = state(favorites = listOf(GPT4O.id)).apply { mode = Mode.FAVORITES_ONLY }
             assertEquals(EmptyState.NONE, withFavorites.emptyState())
+        }
+
+        @Test
+        fun `a failed reload over a catalog already shown keeps the catalog on screen`() {
+            val s = state()
+
+            s.loadError = "Network down"
+
+            assertEquals(EmptyState.NONE, s.emptyState())
+            assertEquals(CATALOG.map { it.id }, visibleIds(s))
+        }
+
+        @Test
+        fun `choosing the mode already shown changes nothing`() {
+            val s = state(favorites = listOf(GPT4O.id))
+            var notifications = 0
+            s.onChanged = { notifications++ }
+
+            s.mode = Mode.CATALOG
+
+            assertEquals(0, notifications)
         }
 
         @Test

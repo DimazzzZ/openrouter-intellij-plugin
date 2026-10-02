@@ -1,5 +1,6 @@
 package org.zhavoronkov.openrouter.proxy.servlets
 
+import com.google.gson.JsonObject
 import com.google.gson.JsonSyntaxException
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -9,6 +10,8 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -22,6 +25,7 @@ import org.junit.jupiter.params.provider.ValueSource
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
+import org.zhavoronkov.openrouter.presets.PresetEntry
 import org.zhavoronkov.openrouter.presets.PresetSnapshot
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionRequest
 import org.zhavoronkov.openrouter.proxy.pairs.PairAvailability
@@ -83,9 +87,11 @@ class ChatCompletionServletFailureTest {
         runCatching { server.shutdown() }
     }
 
-    private fun servlet(client: OkHttpClient = OkHttpClient.Builder().build()): ChatCompletionServlet {
+    private fun servlet(
+        client: OkHttpClient = OkHttpClient.Builder().build(),
+        snapshot: PresetSnapshot = PresetSnapshot(0, emptyList())
+    ): ChatCompletionServlet {
         clients += client
-        val snapshot = PresetSnapshot(0, emptyList())
         return ChatCompletionServlet(
             httpClient = client,
             settingsServiceProvider = { settingsService },
@@ -97,7 +103,9 @@ class ChatCompletionServletFailureTest {
             bodiesSaver = { _, _ -> },
             catalogueProvider = { null },
             readMissingPreset = {},
-            pairsProvider = { PairAvailability(presets = { snapshot }, lookup = { null }, catalogue = { null }) }
+            pairsProvider = {
+                PairAvailability(presets = { snapshot }, lookup = { snapshot.find(it) }, catalogue = { null })
+            }
         )
     }
 
@@ -109,7 +117,10 @@ class ChatCompletionServletFailureTest {
         val body: String get() = sink.toString()
     }
 
-    private fun request(body: String): HttpServletRequest {
+    private fun request(
+        body: String,
+        authorization: String? = "Bearer sk-or-from-the-consumer"
+    ): HttpServletRequest {
         val req = mock(HttpServletRequest::class.java)
         `when`(req.reader).thenReturn(BufferedReader(StringReader(body)))
         `when`(req.remoteAddr).thenReturn("127.0.0.1")
@@ -118,7 +129,7 @@ class ChatCompletionServletFailureTest {
         `when`(req.method).thenReturn("POST")
         `when`(req.contentType).thenReturn("application/json")
         `when`(req.headerNames).thenReturn(Collections.enumeration(listOf("Authorization")))
-        `when`(req.getHeader("Authorization")).thenReturn("Bearer sk-or-from-the-consumer")
+        `when`(req.getHeader("Authorization")).thenReturn(authorization)
         return req
     }
 
@@ -129,8 +140,8 @@ class ChatCompletionServletFailureTest {
         return Exchange(resp, sink)
     }
 
-    private fun chatBody(stream: Boolean) =
-        """{"model":"openai/gpt-4o-mini","messages":[{"role":"user","content":"hi"}],"stream":$stream}"""
+    private fun chatBody(stream: Boolean, model: String = "openai/gpt-4o-mini") =
+        """{"model":"$model","messages":[{"role":"user","content":"hi"}],"stream":$stream}"""
 
     @Nested
     @DisplayName("A streaming call that throws")
@@ -284,7 +295,10 @@ class ChatCompletionServletFailureTest {
             strings = [
                 """{"error":{"message":{"detail":"nested"}}}""",
                 """{"error":"a bare string"}""",
-                """{"error":null}"""
+                """{"error":null}""",
+                """{"error":{"message":7}}""",
+                """{"error":{}}""",
+                """{"detail":"no error field"}"""
             ]
         )
         fun `a refusal whose error is the wrong shape is explained by its status`(body: String) {
@@ -329,5 +343,86 @@ class ChatCompletionServletFailureTest {
             Arguments.of(IllegalStateException("broken state"), "Internal error"),
             Arguments.of(IllegalArgumentException("bad argument"), "Invalid request")
         )
+    }
+
+    @Nested
+    @DisplayName("Requests that fail on the way in, and answers that are not the usual shape")
+    inner class Edges {
+
+        @Test
+        fun `a JSON error while checking the request answers 500 and is recorded as an invalid request`() {
+            `when`(
+                multimodalValidator.validate(
+                    org.mockito.ArgumentMatchers.any(OpenAIChatCompletionRequest::class.java)
+                        ?: OpenAIChatCompletionRequest(model = "", messages = emptyList()),
+                    org.mockito.ArgumentMatchers.anyString()
+                )
+            ).thenThrow(JsonSyntaxException("unreadable content part"))
+            val exchange = response()
+
+            servlet().service(request(chatBody(stream = false)), exchange.resp)
+
+            verify(exchange.resp).status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR
+            assertEquals("Invalid request: unreadable content part", recorded.single().error)
+            assertEquals(0, server.requestCount, "nothing is sent once the request cannot be checked")
+        }
+
+        @Test
+        fun `a redirect OpenRouter does not complete is told to the stream by its status`() {
+            server.enqueue(MockResponse().setResponseCode(302).setBody("moved"))
+            val exchange = response()
+
+            servlet().service(request(chatBody(stream = true)), exchange.resp)
+
+            assertTrue(exchange.body.contains("Request failed (HTTP 302)"), "got: ${exchange.body}")
+            assertTrue(exchange.body.contains("data: [DONE]"), "the stream is ended: ${exchange.body}")
+        }
+
+        @Test
+        fun `a pair's stream names the pair the Consumer asked for`() {
+            server.enqueue(
+                MockResponse().setResponseCode(200).setHeader("Content-Type", "text/event-stream").setBody(
+                    "data: {\"id\":\"c1\",\"object\":\"chat.completion.chunk\",\"created\":1," +
+                        "\"model\":\"openai/gpt-4o-mini\",\"choices\":[{\"index\":0," +
+                        "\"delta\":{\"content\":\"hi\"},\"finish_reason\":null}]}\n\ndata: [DONE]\n\n"
+                )
+            )
+            val snapshot = PresetSnapshot(0, listOf(PresetEntry("research", "Research", null, JsonObject())))
+            val exchange = response()
+
+            servlet(snapshot = snapshot).service(
+                request(chatBody(stream = true, model = "openai/gpt-4o-mini@preset/research")),
+                exchange.resp
+            )
+
+            assertTrue(
+                exchange.body.contains("\"model\":\"openai/gpt-4o-mini@preset/research\""),
+                "got: ${exchange.body}"
+            )
+            assertEquals(1, server.requestCount)
+        }
+
+        @Test
+        fun `an Authorization header listed without a value is served like any other request`() {
+            server.enqueue(
+                MockResponse().setResponseCode(200).setHeader("Content-Type", "application/json").setBody(
+                    """{"id":"c1","object":"chat.completion","created":1,"model":"openai/gpt-4o-mini",
+                       "choices":[{"index":0,"message":{"role":"assistant","content":"hello"},
+                       "finish_reason":"stop"}]}"""
+                )
+            )
+            val exchange = response()
+
+            servlet().service(request(chatBody(stream = false), authorization = null), exchange.resp)
+
+            assertTrue(exchange.body.contains("hello"), "got: ${exchange.body}")
+            assertNull(recorded.single().error, "recorded: ${recorded.single()}")
+        }
+
+        @Test
+        fun `the servlet the proxy server builds with no arguments needs nothing running to construct`() {
+            // Every service it needs is resolved on first use, so building it touches none
+            assertNotNull(ChatCompletionServlet())
+        }
     }
 }

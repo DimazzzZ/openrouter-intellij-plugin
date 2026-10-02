@@ -181,4 +181,43 @@ class PresetDraftShapesTest {
 
         if (problem == null) assertNull(found) else assertTrue(found.orEmpty().startsWith(problem), "got: $found")
     }
+
+    @Test
+    @DisplayName("a preset without an output names no schema, is not plain JSON, and has nothing stale")
+    fun noOutput() {
+        val draft = draftOf("""{"temperature":0.2}""")
+
+        assertNull(draft.outputSchemaName)
+        assertFalse(draft.plainJson)
+        assertNull(draft.staleSchema(listOf(schema)))
+    }
+
+    @Test
+    @DisplayName("a json_schema output whose schema has no name names nothing, and nothing is stale")
+    fun schemaWithoutName() {
+        val draft = draftOf("""{"response_format":{"type":"json_schema","json_schema":{"schema":{}}}}""")
+
+        assertNull(draft.outputSchemaName)
+        assertNull(draft.staleSchema(listOf(schema)))
+    }
+
+    @Test
+    @DisplayName("a preset without reasoning has no label, and setting one starts a reasoning block")
+    fun reasoningFromNothing() {
+        val draft = draftOf("{}")
+
+        assertNull(draft.reasoningLabel)
+        draft.reasoningLabel = "High"
+
+        assertEquals("""{"effort":"high"}""", draft[PresetSetting.REASONING].toString())
+        assertEquals("High", draft.reasoningLabel)
+    }
+
+    @Test
+    @DisplayName("web search with no output asked for loses nothing")
+    fun searchWithoutOutput() {
+        val draft = PresetDraft.empty("research").apply { add(PresetSetting.WEB_SEARCH) }
+
+        assertNull(draft.webSearchWarning)
+    }
 }

@@ -141,4 +141,13 @@ class ChatModelChoiceTest {
         assertNull(request.temperature)
         assertEquals(4096, request.maxTokens)
     }
+
+    @Test
+    @DisplayName("a pair whose preset is known but whose config is not neither routes nor searches")
+    fun presetWithoutConfig() {
+        val choice = ChatModelChoice("m@preset/unread", preset = PresetEntry("unread", "Unread", null, null))
+
+        assertFalse(choice.presetRouting)
+        assertFalse(choice.presetSearches)
+    }
 }

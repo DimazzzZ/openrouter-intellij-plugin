@@ -129,4 +129,11 @@ class ModelPricingFormatterTest {
             )
         )
     }
+
+    @Test
+    @DisplayName("no pricing at all formats both prices as a dash")
+    fun `no pricing formats as a dash`() {
+        assertEquals("—", ModelPricingFormatter.formatInputPrice(null))
+        assertEquals("—", ModelPricingFormatter.formatOutputPrice(null))
+    }
 }

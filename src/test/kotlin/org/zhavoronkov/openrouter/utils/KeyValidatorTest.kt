@@ -239,4 +239,10 @@ class KeyValidatorTest {
             assertEquals("Test warning", warning.message)
         }
     }
+
+    @Test
+    @DisplayName("the prefix alone is too short to be a key")
+    fun `the prefix alone is too short`() {
+        assertFalse(KeyValidator.looksLikeOpenRouterKey("sk-or-v1-"))
+    }
 }

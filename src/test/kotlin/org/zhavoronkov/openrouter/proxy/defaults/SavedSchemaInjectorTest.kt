@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.zhavoronkov.openrouter.models.OutputSchema
 
 @DisplayName("SavedSchemaInjector")
@@ -100,5 +102,23 @@ class SavedSchemaInjectorTest {
         val body = request("""{"response_format":{"type":"json_schema","json_schema":{"name":"features"}}}""")
 
         assertFalse(SavedSchemaInjector.inject(body, listOf(broken)))
+    }
+
+    @ParameterizedTest(name = "[{index}] {0}")
+    @ValueSource(
+        strings = [
+            """{"response_format":{"type":7,"json_schema":{"name":"features"}}}""",
+            """{"response_format":{"type":"json_schema","json_schema":"features"}}""",
+            """{"response_format":{"type":"json_schema","json_schema":{}}}""",
+            """{"response_format":{"type":"json_schema","json_schema":{"name":7}}}""",
+            """{"response_format":{"type":"json_schema","json_schema":{"name":["features"]}}}"""
+        ]
+    )
+    @DisplayName("a response format that does not name a schema as a string is left alone")
+    fun `a format not naming a schema is left alone`(json: String) {
+        val body = request(json)
+
+        assertFalse(SavedSchemaInjector.inject(body, listOf(features)))
+        assertEquals(request(json), body)
     }
 }

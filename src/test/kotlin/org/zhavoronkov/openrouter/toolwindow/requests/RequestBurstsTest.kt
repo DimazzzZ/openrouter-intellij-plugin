@@ -122,6 +122,18 @@ class RequestBurstsTest {
         }
 
         @Test
+        @DisplayName("a pause starts a new burst in a list read oldest first too")
+        fun pauseOldestFirst() {
+            val later = 200 + RequestBursts.GAP_MILLIS + 1
+            val records = listOf(0, 100, 200, later, later + 100, later + 200).map { record(it) }
+
+            assertEquals(
+                listOf("burst google/gemini-2.5-flash x3", "burst google/gemini-2.5-flash x3"),
+                shape(RequestBursts.rows(records, emptySet()))
+            )
+        }
+
+        @Test
         @DisplayName("requests that finish out of the order they started in still fold together")
         fun outOfOrder() {
             val records = listOf(record(100), record(1_800), record(0), record(900))
@@ -268,6 +280,8 @@ class RequestBurstsTest {
             val burst = RequestBurst(listOf(1L, 0L).map { record(it, promptTokens = null, completionTokens = 5) })
 
             assertEquals("? in · 10 out", RequestsView.details(burst, zone).toMap()["Tokens"])
+            val promptOnly = RequestBurst(listOf(1L, 0L).map { record(it, promptTokens = 7, completionTokens = null) })
+            assertEquals("14 in · ? out", RequestsView.details(promptOnly, zone).toMap()["Tokens"])
         }
 
         @Test

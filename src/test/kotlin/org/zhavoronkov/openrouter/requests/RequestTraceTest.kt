@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import org.zhavoronkov.openrouter.models.FixPage
 
 @DisplayName("RequestTrace")
 class RequestTraceTest {
@@ -198,7 +199,8 @@ class RequestTraceTest {
             """OpenRouter API error 500: {"error":"a bare string"}""",
             """OpenRouter API error 500: {"error":{"message":{"detail":1}}}""",
             """OpenRouter API error 500: {"error":{"code":500}}""",
-            """OpenRouter API error 500: {"detail":"no error field"}"""
+            """OpenRouter API error 500: {"detail":"no error field"}""",
+            """OpenRouter API error 500: {"error":{"message":null}}"""
         ]
     )
     @DisplayName("a failure whose body names no message is recorded as it was reported")
@@ -224,5 +226,43 @@ class RequestTraceTest {
         val kept = saved.getValue(recorded.single().bodiesId!!).reply!!
         assertTrue(kept.startsWith("""{"pad":"""), "the first reply is kept")
         assertFalse(kept.contains("gen-1"), "nothing is appended once the limit is passed")
+    }
+
+    @Test
+    @DisplayName("a refusal is recorded with the page that fixes it")
+    fun refusal() {
+        val trace = trace()
+
+        trace.refuse("No preset named 'gone'", FixPage.OUTPUT_SCHEMAS)
+        trace.finish()
+
+        assertEquals("No preset named 'gone'", recorded.single().error)
+        assertEquals(FixPage.OUTPUT_SCHEMAS, recorded.single().fixAt)
+    }
+
+    @Test
+    @DisplayName("a refusal after a failure keeps the failure, and names no page")
+    fun refusalAfterFailure() {
+        val trace = trace()
+
+        trace.fail("Network error: reset")
+        trace.refuse("refused", FixPage.OUTPUT_SCHEMAS)
+        trace.finish()
+
+        assertEquals("Network error: reset", recorded.single().error)
+        assertNull(recorded.single().fixAt)
+    }
+
+    @Test
+    @DisplayName("an untrusted reply with no generation id has nothing to look its provider up by")
+    fun untrustedWithoutGeneration() {
+        val trace = trace()
+        trace.sent(JsonParser.parseString("""{"model":"m","tools":[{"type":"openrouter:web_search"}]}""").asJsonObject)
+        trace.observe(JsonParser.parseString("""{"model":"m","provider":"OpenAI"}""").asJsonObject)
+
+        trace.finish()
+
+        assertNull(recorded.single().reply.provider)
+        assertEquals(emptyList<String>(), lookedUp)
     }
 }

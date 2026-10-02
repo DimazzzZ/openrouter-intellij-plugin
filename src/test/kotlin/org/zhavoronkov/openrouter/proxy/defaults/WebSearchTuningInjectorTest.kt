@@ -164,4 +164,16 @@ class WebSearchTuningInjectorTest {
 
         assertTrue(body.getAsJsonArray("tools")[0].asJsonObject.getAsJsonObject("parameters").has("mode"))
     }
+
+    @Test
+    @DisplayName("a plugin entry without an id is not the web plugin, while the web plugin beside it is tuned")
+    fun `a plugin entry without an id is left alone`() {
+        val body = request("""{"plugins":[{"max_results":2},{"id":"web"}]}""")
+
+        assertTrue(WebSearchTuningInjector.inject(body, tuned))
+
+        val plugins = body.getAsJsonArray("plugins")
+        assertEquals(request("""{"max_results":2}"""), plugins[0])
+        assertEquals("exa", plugins[1].asJsonObject["engine"].asString)
+    }
 }

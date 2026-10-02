@@ -31,6 +31,7 @@ class RequestsTabPanelPlatformTest : BasePlatformTestCase() {
 
     private val noon = Instant.parse("2026-09-29T12:00:00Z")
     private var cleared = false
+    private var confirmed = true
     private var groupBursts = true
     private var keepBodies = false
     private val kept = mutableMapOf<String, RequestBodies>()
@@ -60,7 +61,7 @@ class RequestsTabPanelPlatformTest : BasePlatformTestCase() {
         val panel = RequestsTabPanel(
             recent = shown,
             clearLog = { cleared = true },
-            confirmClear = { true },
+            confirmClear = { confirmed },
             background = background,
             edt = Runnable::run,
             clock = { noon },
@@ -296,6 +297,56 @@ class RequestsTabPanelPlatformTest : BasePlatformTestCase() {
         assertTrue(cleared)
     }
 
+    fun testClearCancelledKeepsTheLog() {
+        confirmed = false
+        val panel = panel()
+
+        UIUtil.findComponentsOfType(panel.component, ActionLink::class.java).single { it.text == "Clear" }.doClick()
+
+        assertFalse(cleared)
+        assertEquals(3, panel.table.rowCount)
+    }
+
+    /** A reply that finishes after its request was listed updates the row in place. */
+    fun testARequestUpdatedInTheLogIsShownUpdated() {
+        var current = records
+        val panel = panel(shown = { current })
+
+        current = listOf(records[0].copy(reply = ReplyFacts(finishReason = "stop", cost = 0.5))) + records.drop(1)
+        ApplicationManager.getApplication().messageBus.syncPublisher(RequestLogListener.TOPIC).updated()
+
+        assertEquals(ReplySummary.formatCost(0.5), column(panel, RequestsColumn.COST)[0])
+    }
+
+    /** A request filtered out of sight takes the selection with it, and the details say to pick one. */
+    fun testASelectedRequestFilteredOutOfSightLeavesNothingSelected() {
+        val panel = panel()
+        panel.table.setRowSelectionInterval(1, 1)
+
+        panel.senderFilter.selectedItem = "Junie"
+
+        assertEquals(-1, panel.table.selectedRow)
+        assertTrue(RequestsTabPanel.SELECT_TEXT in detailTexts(panel))
+    }
+
+    /** Bodies read after the tab was closed are not shown on it. */
+    fun testBodiesReadAfterTheTabClosedAreNotShown() {
+        kept["0f0e0d0c-0000-4000-8000-000000000002"] = RequestBodies(received = "{}", reply = "{}")
+        val withBodies = record().copy(bodiesId = "0f0e0d0c-0000-4000-8000-000000000002")
+        val pending = mutableListOf<Runnable>()
+        val panel = panel(shown = { listOf(withBodies) }, background = { pending += it })
+        pending.removeAt(0).run()
+        panel.table.setRowSelectionInterval(0, 0)
+
+        UIUtil.findComponentsOfType(panel.detailsPanel, ActionLink::class.java)
+            .single { it.text == RequestsTabPanel.SHOW_BODIES_TEXT }
+            .doClick()
+        Disposer.dispose(panel)
+        pending.single().run()
+
+        assertTrue(shownBodies.isEmpty())
+    }
+
     fun testTheWarningMarkIsPaintedOnlyOnARowThatWentWrong() {
         val panel = panel()
 
@@ -482,6 +533,36 @@ class RequestsTabPanelPlatformTest : BasePlatformTestCase() {
 
         panel.table.dispatchEvent(MouseEvent(panel.table, MouseEvent.MOUSE_CLICKED, 0, 0, 2, 10_000, 1, false))
         assertEquals("a click below the last row changes nothing", 6, panel.table.rowCount)
+    }
+
+    /** Past the last column, the row is still the row: a double click there opens the burst too. */
+    fun testADoubleClickPastTheLastColumnOpensABurst() {
+        val panel = panel(shown = { burst })
+        val table = panel.table
+        val y = table.getCellRect(1, 0, true).y + 2
+
+        table.dispatchEvent(MouseEvent(table, MouseEvent.MOUSE_CLICKED, 0, 0, table.width + 10, y, 2, false))
+
+        assertEquals(6, table.rowCount)
+    }
+
+    fun testRevealingARequestInAnOpenBurstKeepsItOpenAndSelectsTheRequest() {
+        val panel = panel(shown = { burst })
+        panel.toggle(1)
+
+        panel.reveal(burst[3])
+
+        assertEquals(6, panel.table.rowCount)
+        assertEquals(ReplySummary.formatCost(0.0001), column(panel, RequestsColumn.COST)[panel.table.selectedRow])
+    }
+
+    fun testRevealingARequestOutsideEveryBurstLeavesTheBurstsClosed() {
+        val panel = panel(shown = { burst })
+
+        panel.reveal(burst[0])
+
+        assertEquals(2, panel.table.rowCount)
+        assertEquals(0, panel.table.selectedRow)
     }
 
     fun testARequestNotInABurstHasNothingToOpenOrClose() {

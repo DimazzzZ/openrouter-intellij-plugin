@@ -4,6 +4,7 @@ import com.google.gson.JsonParser
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
@@ -71,5 +72,29 @@ class ResponseFormatsTest {
             "m does not support schema-constrained output",
             ResponseFormats.problem("m", listOf("response_format"), schema = true)
         )
+    }
+
+    @Test
+    @DisplayName("a response format object without a type asks for neither JSON nor a schema")
+    fun asksForNeitherWithoutType() {
+        assertNull(ResponseFormats.asksForSchema(fields("""{"response_format":{}}""")))
+    }
+
+    @Test
+    @DisplayName("a response format asks for a schema or plain JSON by its type")
+    fun asksForSchemaOrJson() {
+        assertEquals(true, ResponseFormats.asksForSchema(fields("""{"response_format":{"type":"json_schema"}}""")))
+        assertEquals(false, ResponseFormats.asksForSchema(fields("""{"response_format":{"type":"json_object"}}""")))
+    }
+
+    @Test
+    @DisplayName("a tools list holding the web search tool offers web search")
+    fun offersWebSearch() {
+        assertTrue(
+            ResponseFormats.offersWebSearch(
+                fields("""{"tools":[{"type":"function"},{"type":"openrouter:web_search"}]}""")
+            )
+        )
+        assertFalse(ResponseFormats.offersWebSearch(fields("""{"tools":[]}""")))
     }
 }

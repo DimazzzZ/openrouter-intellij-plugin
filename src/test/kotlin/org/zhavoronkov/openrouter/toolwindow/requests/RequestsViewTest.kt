@@ -235,4 +235,34 @@ class RequestsViewTest {
             assertEquals("Sep 28 12:00", RequestsView.time(record(at = noon.minusSeconds(86_400)), noon, zone))
         }
     }
+
+    @Nested
+    @DisplayName("Facts reported in part")
+    inner class PartialFacts {
+
+        @Test
+        @DisplayName("a request's cost cell is empty when no cost was reported")
+        fun cost() {
+            assertEquals("", RequestsView.cost(record(reply = ReplyFacts())))
+            assertEquals("$0.01", RequestsView.cost(record()))
+        }
+
+        @Test
+        @DisplayName("tokens one side of which was not reported read as a question mark")
+        fun halfTokens() {
+            val promptOnly = record(reply = ReplyFacts(promptTokens = 10))
+            val completionOnly = record(reply = ReplyFacts(completionTokens = 5))
+
+            assertEquals("10 in · ? out", RequestsView.details(promptOnly, zone).toMap()["Tokens"])
+            assertEquals("? in · 5 out", RequestsView.details(completionOnly, zone).toMap()["Tokens"])
+        }
+
+        @Test
+        @DisplayName("a blank answering model is left out of the details")
+        fun blankAnsweringModel() {
+            val labels = RequestsView.details(record(reply = ReplyFacts(answeringModel = "  ")), zone).map { it.first }
+
+            assertFalse("Answered by" in labels, "got: $labels")
+        }
+    }
 }

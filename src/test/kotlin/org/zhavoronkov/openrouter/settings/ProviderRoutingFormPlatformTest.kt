@@ -96,6 +96,11 @@ class ProviderRoutingFormPlatformTest : BasePlatformTestCase() {
         ProviderRoutingForm.move(list, -1)
         assertEquals("the top entry does not move further up", listOf("A", "B", "C"), list.items())
 
+        list.selectedIndex = 2
+        ProviderRoutingForm.move(list, +1)
+        assertEquals("the bottom entry does not move further down", listOf("A", "B", "C"), list.items())
+        assertEquals(2, list.selectedIndex)
+
         list.clearSelection()
         ProviderRoutingForm.move(list, +1)
         assertEquals("nothing selected, nothing moved", listOf("A", "B", "C"), list.items())
@@ -120,6 +125,10 @@ class ProviderRoutingFormPlatformTest : BasePlatformTestCase() {
 
         assertNull(form.value().sort)
         assertNull(form.value().dataCollection)
+    }
+
+    fun testThePickerWithNothingToOfferAsksNothing() {
+        assertNull(ProviderRoutingForm.chooseFromList("Select a provider to add:", "Add Provider", emptyList()))
     }
 
     /** The add buttons of the form's three lists, in the order the form lays them out. */

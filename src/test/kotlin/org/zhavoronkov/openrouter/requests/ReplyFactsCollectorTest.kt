@@ -137,7 +137,10 @@ class ReplyFactsCollectorTest {
             """{"choices":["stop",{"finish_reason":3}]}""",
             """{"usage":{"prompt_tokens":"12","completion_tokens":[1],"cost":"0.1",
                 "server_tool_use_details":{"web_search_requests":"2"}}}""",
-            """{"usage":{"server_tool_use_details":"2","server_tool_use":3}}"""
+            """{"usage":{"server_tool_use_details":"2","server_tool_use":3}}""",
+            """{"choices":[]}""",
+            """{"choices":["stop",7]}""",
+            """{"usage":{"cost":{"total":0.1},"prompt_tokens":{"n":1}}}"""
         ]
     )
     @DisplayName("fields of another type, or blank, add nothing to the facts so far")

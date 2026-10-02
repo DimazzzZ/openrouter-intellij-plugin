@@ -8,6 +8,7 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
+import org.junit.jupiter.params.provider.ValueSource
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 
 class PresetPairTest {
@@ -58,5 +59,13 @@ class PresetPairTest {
         assertEquals("x-ai", ModelProviderUtils.authorSlug(model))
         assertEquals(ModelProviderUtils.ModelVariant.FREE, ModelProviderUtils.parseModelId(model).variant)
         assertTrue(ModelProviderUtils.parseModelId(model).latest)
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = [" @preset/research", "   @preset/research"])
+    @DisplayName("a pair id whose model part is only space is no pair")
+    fun blankModel(id: String) {
+        assertNull(PresetPair.parse(id))
+        assertEquals(id, PresetPair.modelOf(id))
     }
 }

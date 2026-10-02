@@ -82,6 +82,15 @@ class OutputSchemaEditorPlatformTest : BasePlatformTestCase() {
         }
     }
 
+    fun testTheDialogOpensWithTheCaretInTheName() {
+        val dialog = OutputSchemaDialog(JPanel(), null, takenNames = emptyList())
+        try {
+            assertSame(dialog.editor.name, dialog.preferredFocusedComponent)
+        } finally {
+            dialog.close(0)
+        }
+    }
+
     /**
      * What the dialog says, and whether OK can be pressed, follow the fields on every keystroke, in
      * either field: a message about an empty name must not outlive the name being typed.

@@ -211,6 +211,38 @@ class PresetEditorPlatformTest : BasePlatformTestCase() {
         assertEquals(PresetEditor.PLAIN_JSON, plainEditor.output.selectedItem)
     }
 
+    /** Choosing again the schema the plugin has not saved keeps it as the preset's output. */
+    fun testChoosingAgainASchemaThePluginHasNotSavedKeepsIt() {
+        val unsaved = """{"response_format":{"type":"json_schema","json_schema":{"name":"other","schema":{}}}}"""
+        val editor = editor(PresetDraft.of(entry(unsaved)), isNew = false, taken = listOf("research"))
+
+        editor.output.selectedItem = "other"
+
+        assertEquals(JsonParser.parseString(unsaved), editor.result().config())
+    }
+
+    /** A schema output without a name has nothing to list it by; it shows as not set and is kept as it came. */
+    fun testASchemaOutputWithoutANameShowsAsNotSet() {
+        val unnamed = """{"response_format":{"type":"json_schema","json_schema":{"schema":{}}}}"""
+
+        val editor = editor(PresetDraft.of(entry(unnamed)), isNew = false, taken = listOf("research"))
+
+        assertEquals(PresetEditor.NOT_SET, editor.output.selectedItem)
+        assertEquals(JsonParser.parseString(unnamed), editor.result().config())
+    }
+
+    /** A `provider` that is not an object is routing nothing can read: the form opens on OpenRouter's defaults. */
+    fun testRoutingThatIsNotAnObjectOpensTheFormOnTheDefaults() {
+        val editor = editor(PresetDraft.of(entry("""{"provider":"azure"}""")), isNew = false)
+        routingAnswer = null
+
+        editor.editRoutingLink.doClick()
+
+        assertEquals(ProviderRoutingPreferences(), routed)
+        assertEquals("OpenRouter's default", editor.routingSummary.text)
+        assertTrue("it can still be cleared", editor.clearRoutingLink.isVisible)
+    }
+
     fun testRoutingCancelledChangesNothingAndRoutingEmptiedIsTakenOut() {
         val editor = editor(PresetDraft.of(entry("""{"provider":{"only":["azure"]}}""")), isNew = false)
 

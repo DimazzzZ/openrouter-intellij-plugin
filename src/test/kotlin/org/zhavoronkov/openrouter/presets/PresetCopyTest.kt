@@ -178,4 +178,64 @@ class PresetCopyTest {
         assertTrue(copy.refresh(), "the read succeeds although it cannot be saved")
         assertEquals("Research", copy.find("research")!!.name)
     }
+
+    @Test
+    @DisplayName("a slug the copy has is found at once, without asking for a read")
+    fun findAfterReadKnown() = runTest {
+        val copy = copy(this)
+        copy.refresh()
+        val afterFirstRead = lists
+        now += 60_000
+
+        assertEquals("Research", copy.findAfterRead("research", timeoutMillis = 5_000)?.name)
+        assertEquals(afterFirstRead, lists)
+    }
+
+    @Test
+    @DisplayName("waiting on a read of a copy never read, that cannot list, finds nothing")
+    fun findAfterReadNeverRead() = runTest {
+        listed = null
+        val copy = copy(this)
+        copy.refreshLater()
+
+        assertNull(copy.findAfterRead("research", timeoutMillis = 5_000))
+        assertNull(copy.snapshot())
+        assertEquals(1, lists, "the read asked for ran, and was waited for")
+    }
+
+    @Test
+    @DisplayName("a background read that has finished is not waited for again")
+    fun findAfterReadFinishedRead() = runTest {
+        val copy = copy(this)
+        copy.refreshLater()
+        testScheduler.advanceUntilIdle()
+        val afterFirstRead = lists
+
+        assertNull(copy.findAfterRead("fresh", timeoutMillis = 5_000))
+        assertEquals(afterFirstRead, lists, "right after a read no other is asked for")
+    }
+
+    @Test
+    @DisplayName("a background read asked for after the last one finished runs again")
+    fun refreshLaterAgain() {
+        val dispatcher = StandardTestDispatcher()
+        val copy = copy(CoroutineScope(dispatcher))
+
+        copy.refreshLater()
+        copy.refreshLater()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, lists, "a read already running is not started twice")
+
+        copy.refreshLater()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(2, lists)
+    }
+
+    @Test
+    @DisplayName("an empty file is read as no copy")
+    fun emptyFile() = runTest {
+        Files.writeString(file(), "")
+
+        assertNull(copy(this).snapshot())
+    }
 }

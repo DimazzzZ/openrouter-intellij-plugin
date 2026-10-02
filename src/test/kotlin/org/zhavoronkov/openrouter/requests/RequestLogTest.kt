@@ -226,4 +226,14 @@ class RequestLogTest {
 
         assertEquals(listOf("m2"), log.recent().map { it.requestedModel })
     }
+
+    @Test
+    @DisplayName("a line that is JSON null, or has no source, is skipped")
+    fun `null and sourceless lines are skipped`() {
+        RequestLog(file(), limit = { 10 }).apply { add(record(1)) }
+        val noSource = """{"startedAtMillis":2,"sender":"Junie","requestedModel":"m2","reply":{}}"""
+        Files.writeString(file(), Files.readString(file()) + "null\n$noSource\n")
+
+        assertEquals(listOf("m1"), RequestLog(file(), limit = { 10 }).recent().map { it.requestedModel })
+    }
 }

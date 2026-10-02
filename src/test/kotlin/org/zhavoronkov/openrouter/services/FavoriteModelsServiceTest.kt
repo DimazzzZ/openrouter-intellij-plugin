@@ -14,6 +14,7 @@ import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito
 import org.zhavoronkov.openrouter.constants.OpenRouterConstants
 import org.zhavoronkov.openrouter.models.ApiResult
+import org.zhavoronkov.openrouter.models.ModelArchitecture
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.models.OpenRouterModelsResponse
 import org.zhavoronkov.openrouter.services.settings.FavoriteModelsManager
@@ -405,5 +406,60 @@ class FavoriteModelsServiceTest {
             contextLength = 8192,
             perRequestLimits = null
         )
+    }
+
+    @Nested
+    @DisplayName("Pairs and output modalities")
+    inner class PairsAndModalities {
+
+        private fun cache(vararg models: OpenRouterModelInfo) = runBlocking {
+            val mockRouterService = Mockito.mock(OpenRouterService::class.java)
+            Mockito.`when`(mockRouterService.getAllModels())
+                .thenReturn(ApiResult.Success(OpenRouterModelsResponse(models.toList()), 200))
+            service = FavoriteModelsService(mockSettingsService, mockRouterService)
+            service.clearCache()
+            service.getAvailableModels()
+        }
+
+        @Test
+        @DisplayName("a favourite pair takes its model's info under the pair's own id")
+        fun `a pair takes its model's info`() {
+            cache(createTestModel("openai/gpt-4"))
+            favoriteModelsStorage.add("openai/gpt-4@preset/research")
+            favoriteModelsStorage.add("gone/model@preset/research")
+
+            val favorites = service.getFavoriteModels()
+
+            assertEquals("openai/gpt-4@preset/research", favorites[0].id)
+            assertEquals("Test model", favorites[0].description)
+            assertEquals("gone/model@preset/research", favorites[1].id)
+            assertEquals(null, favorites[1].description, "a pair whose model is not listed is minimal")
+        }
+
+        @Test
+        @DisplayName("favourites read before any catalogue is loaded are minimal entries")
+        fun `favorites without a catalogue are minimal`() {
+            favoriteModelsStorage.add("openai/gpt-4@preset/research")
+
+            val favorite = service.getFavoriteModels().single()
+
+            assertEquals("openai/gpt-4@preset/research", favorite.id)
+            assertEquals(null, favorite.description)
+        }
+
+        @Test
+        @DisplayName("the pickers list text-output models and those that say nothing of their output")
+        fun `only text output is listed`() {
+            val silent = createTestModel("silent/model")
+                .copy(architecture = ModelArchitecture(inputModalities = listOf("text")))
+            val text = createTestModel("text/model")
+                .copy(architecture = ModelArchitecture(outputModalities = listOf("image", "TEXT")))
+            val image = createTestModel("image/model")
+                .copy(architecture = ModelArchitecture(outputModalities = listOf("image")))
+
+            cache(silent, text, image)
+
+            assertEquals(listOf("silent/model", "text/model"), service.getCachedModels()?.map { it.id })
+        }
     }
 }

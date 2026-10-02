@@ -1,6 +1,7 @@
 package org.zhavoronkov.openrouter.models
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
@@ -116,5 +117,28 @@ class OutputSchemaTest {
     @DisplayName("a name of letters, digits, underscores and hyphens is accepted")
     fun `a name of letters digits underscores and hyphens is accepted`(name: String) {
         assertNull(OutputSchema.nameProblem(name, emptyList()))
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["""{"properties": 5}""", """{"properties": ["a"]}""", """{"properties": null}"""])
+    @DisplayName("properties that are not an object declare no fields")
+    fun `properties that are not an object declare no fields`(body: String) {
+        assertEquals(OutputSchema.BodyCheck.Valid(fields = 0), OutputSchema.validateBody(body))
+    }
+
+    @Test
+    @DisplayName("the body sent is the schema as a JSON object")
+    fun `the body sent is the schema as a JSON object`() {
+        val body = OutputSchema(name = "s", schema = """{"type": "object"}""").parsedBody()
+
+        assertNotNull(body)
+        assertEquals("object", body?.get("type")?.asString)
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["{", """{type: "object"}""", "{} {}", "[]", "42"])
+    @DisplayName("a schema that is not a JSON object, or not JSON at all, has no body to send")
+    fun `a schema that is not a JSON object has no body to send`(schema: String) {
+        assertNull(OutputSchema(name = "s", schema = schema).parsedBody())
     }
 }

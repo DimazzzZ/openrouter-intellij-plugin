@@ -3,6 +3,7 @@ package org.zhavoronkov.openrouter.settings.presets
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
@@ -62,5 +63,16 @@ class PresetRoutingTest {
         val routing = block("""{"only":["azure",{"x":1}],"allow_fallbacks":false,"max_price":{"prompt":1}}""")
 
         assertEquals("only azure, {\"x\":1} · allow fallbacks false · max price …", PresetRouting.summary(routing))
+    }
+
+    @Test
+    @DisplayName("a string sort the form clears is gone, and a block without a sort gets none")
+    fun mergeDropsAClearedStringSort() {
+        val cleared = PresetRouting.merged(block("""{"sort":"price","only":["azure"]}"""), ProviderRoutingPreferences())
+        val untouched = PresetRouting.merged(block("""{"max_price":{"prompt":1}}"""), ProviderRoutingPreferences())
+
+        assertFalse(cleared.has("sort"), "got: $cleared")
+        assertFalse(untouched.has("sort"), "got: $untouched")
+        assertEquals(block("""{"prompt":1}"""), untouched["max_price"])
     }
 }

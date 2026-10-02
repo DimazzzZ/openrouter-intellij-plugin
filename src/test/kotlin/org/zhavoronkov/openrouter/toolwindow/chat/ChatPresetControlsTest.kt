@@ -97,4 +97,12 @@ class ChatPresetControlsTest {
         assertTrue(ChatPresetControls.changed(before, null))
         assertFalse(ChatPresetControls.changed(null, null))
     }
+
+    @Test
+    @DisplayName("a preset's schema output without a name shows the Output mode as Off")
+    fun schemaWithoutName() {
+        val saved = preset("""{"response_format":{"type":"json_schema","json_schema":{"schema":{"type":"object"}}}}""")
+
+        assertEquals(OutputMode.Off, ChatPresetControls.of(saved, listOf(answer)).outputMode)
+    }
 }

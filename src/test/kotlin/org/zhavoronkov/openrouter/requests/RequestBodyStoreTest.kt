@@ -85,4 +85,50 @@ class RequestBodyStoreTest {
         assertEquals(RequestBodies.MAX_LENGTH + RequestBodies.CUT_MARKER.length, cut.length)
         assertFalse(RequestBodies.cut("short").endsWith(RequestBodies.CUT_MARKER))
     }
+
+    @Test
+    @DisplayName("bodies that cannot be written cost only those bodies")
+    fun unwritable() {
+        val blocked = dir.resolve("request-bodies")
+        Files.writeString(blocked, "a file where the store's directory should be")
+        val id = RequestBodyStore.newId()
+
+        store().save(id, bodies)
+
+        assertNull(store().load(id))
+    }
+
+    @Test
+    @DisplayName("a kept body that cannot be read, or is damaged, reads as none")
+    fun unreadable() {
+        val folder = dir.resolve("request-bodies")
+        val unreadable = RequestBodyStore.newId()
+        val damaged = RequestBodyStore.newId()
+        Files.createDirectories(folder.resolve("$unreadable.json"))
+        Files.writeString(folder.resolve("$damaged.json"), "{not json")
+
+        assertNull(store().load(unreadable))
+        assertNull(store().load(damaged))
+    }
+
+    @Test
+    @DisplayName("clearing a store never written does nothing")
+    fun clearNeverWritten() {
+        store().clear()
+
+        assertFalse(Files.exists(dir.resolve("request-bodies")))
+    }
+
+    @Test
+    @DisplayName("clearing stops at an entry it cannot delete, without failing")
+    fun clearUndeletable() {
+        val folder = dir.resolve("request-bodies")
+        val stuck = folder.resolve("stuck.json")
+        Files.createDirectories(stuck)
+        Files.writeString(stuck.resolve("inside"), "x")
+
+        store().clear()
+
+        assertTrue(Files.exists(stuck))
+    }
 }

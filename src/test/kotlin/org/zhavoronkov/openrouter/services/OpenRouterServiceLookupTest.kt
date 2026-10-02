@@ -264,13 +264,22 @@ class OpenRouterServiceLookupTest {
         assertEquals("Network error", (result as ApiResult.Error).message, name)
     }
 
-    /** A client whose every call fails with an [IOException] that has no message. */
-    private fun failingClient(): OkHttpClient =
-        OkHttpClient.Builder().addInterceptor(Interceptor { throw IOException() }).build()
+    /** A client whose every call fails with [failure] - by default an [IOException] that has no message. */
+    private fun failingClient(failure: IOException = IOException()): OkHttpClient =
+        OkHttpClient.Builder().addInterceptor(Interceptor { throw failure }).build()
 
     companion object {
         private fun case(name: String, call: suspend (OpenRouterService) -> ApiResult<*>) =
             org.junit.jupiter.params.provider.Arguments.of(name, call)
+
+        @JvmStatic
+        fun publicEndpoints() = listOf(
+            case("getModels") { it.getModels() },
+            case("getAllModels") { it.getAllModels() },
+            case("getModelsInRegion") { it.getModelsInRegion(DataRegion.EUROPE) },
+            case("getModelsCount") { it.getModelsCount() },
+            case("getProviders") { it.getProviders() }
+        )
 
         @JvmStatic
         fun messagelessFailures() = listOf(
@@ -296,5 +305,111 @@ class OpenRouterServiceLookupTest {
             case("getPreset") { it.getPreset("email") },
             case("createOrUpdatePreset") { it.createOrUpdatePreset("email", mapOf("model" to "x"), null) }
         )
+    }
+
+    @Nested
+    @DisplayName("Answers that are neither the usual value nor the usual error")
+    inner class UnusualAnswers {
+
+        @Test
+        fun `a key info refusal without an error message shows the body itself`() = runBlocking {
+            enqueue(403, """{"detail":"forbidden"}""")
+
+            val result = service().fetchKeyInfo("sk-or-other") as ApiResult.Error
+
+            assertEquals("""{"detail":"forbidden"}""", result.message)
+            assertEquals(403, result.statusCode)
+        }
+
+        @Test
+        fun `a key info transport failure keeps its message`() = runBlocking {
+            val result = service(failingClient(IOException("connection reset"))).fetchKeyInfo("sk-or-other")
+
+            assertEquals("connection reset", (result as ApiResult.Error).message)
+        }
+
+        @Test
+        fun `a preset version is null without any stored API key`() = runBlocking {
+            `when`(mockApiKeyManager.getStoredApiKey()).thenReturn(null)
+
+            assertNull(service().getPresetVersionJson("probe"))
+            assertEquals(0, mockWebServer.requestCount)
+        }
+
+        @Test
+        fun `a preset version is null for a body without data`() = runBlocking {
+            enqueue(200, """{"other":true}""")
+
+            assertNull(service().getPresetVersionJson("probe"))
+        }
+
+        @Test
+        fun `a refused auth code exchange shows OpenRouter's body`() = runBlocking {
+            enqueue(400, """{"error":"invalid code"}""")
+
+            val result = service().exchangeAuthCode("code", "verifier") as ApiResult.Error
+
+            assertEquals("""{"error":"invalid code"}""", result.message)
+            assertEquals(400, result.statusCode)
+        }
+
+        @Test
+        fun `a refused auth code exchange with an empty body names its status`() = runBlocking {
+            enqueue(400, "")
+
+            val result = service().exchangeAuthCode("code", "verifier") as ApiResult.Error
+
+            assertEquals("Failed to exchange auth code (HTTP 400)", result.message)
+        }
+    }
+
+    @Nested
+    @DisplayName("Public endpoints that fail")
+    inner class PublicEndpointFailures {
+
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("org.zhavoronkov.openrouter.services.OpenRouterServiceLookupTest#publicEndpoints")
+        fun `a refusal shows its body, or a fallback naming what was fetched`(
+            name: String,
+            call: suspend (OpenRouterService) -> ApiResult<*>
+        ) = runBlocking {
+            enqueue(503, "upstream down")
+            enqueue(503, "")
+            val service = service()
+
+            val withBody = call(service) as ApiResult.Error
+            val blank = call(service) as ApiResult.Error
+
+            assertEquals("upstream down", withBody.message, name)
+            assertEquals(503, withBody.statusCode, name)
+            assertTrue(blank.message.startsWith("Failed to fetch "), "$name: ${blank.message}")
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("org.zhavoronkov.openrouter.services.OpenRouterServiceLookupTest#publicEndpoints")
+        fun `a transport failure keeps its message, or reads as Network error without one`(
+            name: String,
+            call: suspend (OpenRouterService) -> ApiResult<*>
+        ) = runBlocking {
+            val withMessage = call(service(failingClient(IOException("connection reset")))) as ApiResult.Error
+            val without = call(service(failingClient())) as ApiResult.Error
+
+            assertEquals("connection reset", withMessage.message, name)
+            assertEquals("Network error", without.message, name)
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("org.zhavoronkov.openrouter.services.OpenRouterServiceLookupTest#publicEndpoints")
+        fun `a body that is not JSON is a parse error`(
+            name: String,
+            call: suspend (OpenRouterService) -> ApiResult<*>
+        ) = runBlocking {
+            enqueue(200, "{not json")
+
+            val result = call(service()) as ApiResult.Error
+
+            assertTrue(result.message.startsWith("Failed to parse "), "$name: ${result.message}")
+            assertEquals(200, result.statusCode, name)
+        }
     }
 }
