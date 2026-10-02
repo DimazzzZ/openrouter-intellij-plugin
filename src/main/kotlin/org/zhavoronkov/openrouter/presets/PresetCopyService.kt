@@ -11,6 +11,7 @@ import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.proxy.pairs.PairAvailability
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterService
+import org.zhavoronkov.openrouter.utils.ExcludeFromCoverage
 import java.nio.file.Path
 
 /**
@@ -30,21 +31,26 @@ class PresetCopyService {
         scope = scope
     ).also { it.refreshLater() }
 
+    @ExcludeFromCoverage("asks OpenRouter over the network; PresetCopy is tested with a list of its own")
     private suspend fun listPresets(): List<PresetListing>? =
         when (val result = OpenRouterService.getInstance().getPresets()) {
             is ApiResult.Success -> result.data.data.map { PresetListing(it.slug, it.name) }
             is ApiResult.Error -> null
         }
 
-    private suspend fun readVersion(slug: String): PresetVersion? {
-        val version = OpenRouterService.getInstance().getPresetVersionJson(slug) ?: return null
-        val config = version.get("config")?.takeIf { it.isJsonObject }?.asJsonObject ?: JsonObject()
-        val prompt = version.get("system_prompt")?.takeIf { it.isJsonPrimitive }?.asString
-        return PresetVersion(prompt, config)
-    }
+    @ExcludeFromCoverage("asks OpenRouter over the network; what it makes of the answer is versionOf")
+    private suspend fun readVersion(slug: String): PresetVersion? =
+        OpenRouterService.getInstance().getPresetVersionJson(slug)?.let(::versionOf)
 
     companion object {
         private const val FILE_NAME = "presets.json"
+
+        /** A preset's designated version as OpenRouter sent it: its prompt, and its config as sent. */
+        internal fun versionOf(version: JsonObject): PresetVersion {
+            val config = version.get("config")?.takeIf { it.isJsonObject }?.asJsonObject ?: JsonObject()
+            val prompt = version.get("system_prompt")?.takeIf { it.isJsonPrimitive }?.asString
+            return PresetVersion(prompt, config)
+        }
 
         fun getInstance(): PresetCopyService =
             ApplicationManager.getApplication().getService(PresetCopyService::class.java)

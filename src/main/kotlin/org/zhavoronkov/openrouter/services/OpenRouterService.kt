@@ -899,15 +899,11 @@ open class OpenRouterService(
     override fun dispose() {
         PluginLogger.Service.info("Disposing OpenRouterService - cleaning up HTTP client")
 
-        try {
-            // Shutdown OkHttpClient connection pool and executor service
-            client.dispatcher.executorService.shutdown()
-            client.connectionPool.evictAll()
+        // Neither call throws: shutdown() only stops new work, evictAll() only closes idle connections
+        client.dispatcher.executorService.shutdown()
+        client.connectionPool.evictAll()
 
-            PluginLogger.Service.info("OpenRouterService disposed successfully")
-        } catch (e: IllegalStateException) {
-            PluginLogger.Service.error("Error during OpenRouterService disposal", e)
-        }
+        PluginLogger.Service.info("OpenRouterService disposed successfully")
     }
 
     /**

@@ -18,6 +18,7 @@ import org.zhavoronkov.openrouter.services.settings.RouterDefaultsManager
 import org.zhavoronkov.openrouter.services.settings.SetupStateManager
 import org.zhavoronkov.openrouter.services.settings.UIPreferencesManager
 import org.zhavoronkov.openrouter.services.settings.WebSearchSettingsManager
+import org.zhavoronkov.openrouter.utils.ExcludeFromCoverage
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 import org.zhavoronkov.openrouter.utils.PasswordSafeKeyStorage
 import org.zhavoronkov.openrouter.utils.PluginLogger
@@ -35,27 +36,36 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
     private var settings = OpenRouterSettings()
 
     lateinit var apiKeyManager: ApiKeySettingsManager
+        @ExcludeFromCoverage(BYPASSED_SETTER)
         private set
     lateinit var proxyManager: ProxySettingsManager
+        @ExcludeFromCoverage(BYPASSED_SETTER)
         private set
     lateinit var uiPreferencesManager: UIPreferencesManager
+        @ExcludeFromCoverage(BYPASSED_SETTER)
         private set
     lateinit var setupStateManager: SetupStateManager
+        @ExcludeFromCoverage(BYPASSED_SETTER)
         private set
     lateinit var favoriteModelsManager: FavoriteModelsManager
+        @ExcludeFromCoverage(BYPASSED_SETTER)
         private set
     lateinit var presetsManager: PresetsManager
 
     lateinit var providerRoutingManager: ProviderRoutingManager
+        @ExcludeFromCoverage(BYPASSED_SETTER)
         private set
 
     lateinit var routerDefaultsManager: RouterDefaultsManager
+        @ExcludeFromCoverage(BYPASSED_SETTER)
         private set
 
     lateinit var webSearchManager: WebSearchSettingsManager
+        @ExcludeFromCoverage(BYPASSED_SETTER)
         private set
 
     lateinit var outputSchemasManager: OutputSchemasManager
+        @ExcludeFromCoverage(BYPASSED_SETTER)
         private set
 
     init {
@@ -83,6 +93,9 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
         }
 
         private const val PROFILE_MARKER = "@profile/"
+
+        /** The class writes these fields directly, so their generated private setters never run. */
+        private const val BYPASSED_SETTER = "a private setter the class bypasses, writing the field directly"
     }
 
     override fun getState(): OpenRouterSettings {
@@ -204,25 +217,29 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
      * This method forces immediate synchronous persistence to ensure the state
      * is saved before any subsequent operations that might check for it.
      */
-    private fun notifyStateChanged() {
-        try {
-            val application = ApplicationManager.getApplication()
-            if (application != null) {
-                PluginLogger.Service.info("notifyStateChanged: About to call saveSettings()")
-                // Force immediate state persistence
-                // This is synchronous to ensure the state is saved before returning
-                application.saveSettings()
-                PluginLogger.Service.info("Settings state persisted successfully")
-            } else {
-                PluginLogger.Service.info(
-                    "notifyStateChanged: Application is null (likely test environment), skipping saveSettings()"
-                )
-            }
+    private fun notifyStateChanged() = persistingQuietly {
+        val application = ApplicationManager.getApplication()
+        if (application != null) {
+            PluginLogger.Service.info("notifyStateChanged: About to call saveSettings()")
+            // Force immediate state persistence
+            // This is synchronous to ensure the state is saved before returning
+            application.saveSettings()
+            PluginLogger.Service.info("Settings state persisted successfully")
+            application.messageBus
+                .syncPublisher(org.zhavoronkov.openrouter.listeners.OpenRouterSettingsListener.TOPIC)
+                .onSettingsChanged()
+        } else {
+            PluginLogger.Service.info(
+                "notifyStateChanged: Application is null (likely test environment), skipping saveSettings()"
+            )
+        }
+    }
 
-            // Notify listeners about settings change
-            application?.messageBus?.syncPublisher(
-                org.zhavoronkov.openrouter.listeners.OpenRouterSettingsListener.TOPIC
-            )?.onSettingsChanged()
+    /** Runs [persist], logging rather than throwing when the platform fails to save. */
+    @ExcludeFromCoverage("only catches the platform's own save failing, which no test can make it do")
+    private fun persistingQuietly(persist: () -> Unit) {
+        try {
+            persist()
         } catch (e: IllegalStateException) {
             PluginLogger.Service.warn("Failed to persist settings state", e)
         } catch (e: IllegalArgumentException) {

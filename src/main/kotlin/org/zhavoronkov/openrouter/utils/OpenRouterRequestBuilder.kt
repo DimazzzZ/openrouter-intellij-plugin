@@ -2,7 +2,6 @@ package org.zhavoronkov.openrouter.utils
 
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
-import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
@@ -54,16 +53,9 @@ object OpenRouterRequestBuilder {
      */
     fun buildGetRequest(
         url: String,
-        authType: AuthType = AuthType.NONE,
+        authType: AuthType,
         authToken: String? = null
-    ): Request {
-        return buildRequest(
-            url = url,
-            method = HttpMethod.GET,
-            authType = authType,
-            authToken = authToken
-        )
-    }
+    ): Request = baseRequest(url, HttpMethod.GET, authType, authToken).build()
 
     /**
      * Build a POST request with JSON body and standard OpenRouter headers
@@ -71,44 +63,31 @@ object OpenRouterRequestBuilder {
     fun buildPostRequest(
         url: String,
         jsonBody: String,
-        authType: AuthType = AuthType.API_KEY,
+        authType: AuthType,
         authToken: String? = null
-    ): Request {
-        return buildRequest(
-            url = url,
-            method = HttpMethod.POST,
-            authType = authType,
-            authToken = authToken,
-            requestBody = jsonBody.toRequestBody(CONTENT_TYPE_JSON.toMediaType())
-        )
-    }
+    ): Request = baseRequest(url, HttpMethod.POST, authType, authToken)
+        .post(jsonBody.toRequestBody(CONTENT_TYPE_JSON.toMediaType()))
+        .build()
 
     /**
      * Build a DELETE request with standard OpenRouter headers
      */
     fun buildDeleteRequest(
         url: String,
-        authType: AuthType = AuthType.PROVISIONING_KEY,
-        authToken: String? = null
-    ): Request {
-        return buildRequest(
-            url = url,
-            method = HttpMethod.DELETE,
-            authType = authType,
-            authToken = authToken
-        )
-    }
+        authType: AuthType,
+        authToken: String?
+    ): Request = baseRequest(url, HttpMethod.DELETE, authType, authToken).delete().build()
 
     /**
-     * Core request builder that handles all HTTP methods and authentication types
+     * The headers every request carries, and its authentication; the caller sets the method and
+     * body. [method] only names the request in the log.
      */
-    private fun buildRequest(
+    private fun baseRequest(
         url: String,
         method: HttpMethod,
-        authType: AuthType = AuthType.NONE,
-        authToken: String? = null,
-        requestBody: RequestBody? = null
-    ): Request {
+        authType: AuthType,
+        authToken: String?
+    ): Request.Builder {
         val builder = Request.Builder()
             .url(url)
             .header("Content-Type", CONTENT_TYPE_JSON)
@@ -128,21 +107,7 @@ object OpenRouterRequestBuilder {
             PluginLogger.Service.debug("Request: $method $url, Auth: NONE")
         }
 
-        // Set HTTP method and body
-        when (method) {
-            HttpMethod.GET -> {
-                // GET requests don't have a body
-            }
-            HttpMethod.POST -> {
-                require(requestBody != null) { "POST requests require a request body" }
-                builder.post(requestBody)
-            }
-            HttpMethod.DELETE -> {
-                builder.delete()
-            }
-        }
-
-        return builder.build()
+        return builder
     }
 
     /**

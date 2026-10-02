@@ -10,6 +10,7 @@ import org.zhavoronkov.openrouter.utils.ErrorPatterns
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import org.zhavoronkov.openrouter.utils.asObjectOrNull
 import org.zhavoronkov.openrouter.utils.asStringOrNull
+import org.zhavoronkov.openrouter.utils.bodyText
 import java.io.BufferedReader
 import java.io.PrintWriter
 import java.util.UUID
@@ -410,7 +411,7 @@ class StreamingResponseHandler {
      */
     @Suppress("unused") // Public API method for error handling
     fun handleStreamingErrorResponse(context: StreamingErrorContext) {
-        val errorBody = context.response.body?.string() ?: "Unknown error"
+        val errorBody = context.response.bodyText()
         PluginLogger.Service.error(
             "[Chat-${context.requestId}] OpenRouter streaming request failed: " +
                 "status=${context.response.code}, body=$errorBody"

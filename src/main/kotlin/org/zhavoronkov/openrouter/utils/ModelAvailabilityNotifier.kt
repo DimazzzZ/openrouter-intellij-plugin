@@ -83,12 +83,14 @@ object ModelAvailabilityNotifier {
                 NotificationType.WARNING
             )
             .addAction(object : NotificationAction("View Available Models") {
+                @ExcludeFromCoverage("opens the system browser")
                 override fun actionPerformed(e: AnActionEvent, notification: com.intellij.notification.Notification) {
                     BrowserUtil.browse("https://openrouter.ai/models")
                     notification.expire()
                 }
             })
             .addAction(object : NotificationAction("Open Settings") {
+                @ExcludeFromCoverage("opens the modal Settings dialog")
                 override fun actionPerformed(e: AnActionEvent, notification: com.intellij.notification.Notification) {
                     ShowSettingsUtil.getInstance().showSettingsDialog(project, OpenRouterConfigurable::class.java)
                     notification.expire()
@@ -139,6 +141,7 @@ object ModelAvailabilityNotifier {
     /**
      * Get the current project, or null if no project is open
      */
+    @ExcludeFromCoverage("the default-project branch needs no project open, and a platform test always has one")
     private fun getCurrentProject(): Project? {
         val projectManager = ProjectManager.getInstance()
         val openProjects = projectManager.openProjects

@@ -11,6 +11,7 @@ import org.zhavoronkov.openrouter.proxy.translation.ResponseTranslator
 import org.zhavoronkov.openrouter.requests.RequestTrace
 import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import org.zhavoronkov.openrouter.utils.bodyText
 import java.io.IOException
 
 /**
@@ -96,7 +97,7 @@ class NonStreamingResponseHandler(
 
         return when {
             !response.isSuccessful -> {
-                val errorBody = response.body?.string() ?: "Unknown error"
+                val errorBody = response.bodyText()
                 PluginLogger.Service.error(
                     "[Chat-$requestId] OpenRouter returned error: ${response.code} - $errorBody"
                 )
@@ -104,35 +105,22 @@ class NonStreamingResponseHandler(
                 sendErrorResponse(resp, "OpenRouter API error: $errorBody", response.code)
                 null
             }
-            else -> parseOpenRouterResponseBody(response, resp, requestId, trace)
+            else -> parseOpenRouterResponseBody(response, requestId, trace)
         }
     }
 
     private fun parseOpenRouterResponseBody(
         response: okhttp3.Response,
-        resp: HttpServletResponse,
         requestId: String,
         trace: RequestTrace?
     ): ChatCompletionResponse? {
-        val responseBody = response.body?.string()
-        return if (responseBody == null) {
-            trace?.fail("No response body from OpenRouter")
-            PluginLogger.Service.error("[Chat-$requestId] OpenRouter returned null response body")
-            sendErrorResponse(
-                resp,
-                "Failed to get response from OpenRouter",
-                HttpServletResponse.SC_SERVICE_UNAVAILABLE
-            )
-            null
-        } else {
-            // Read from the body OpenRouter sent, not the translated one: translation keeps only
-            // what an OpenAI client expects, and the provider, cost and search count are not that.
-            val tree = gson.fromJson(responseBody, JsonObject::class.java)
-            tree?.let { trace?.observe(it) }
-            val openRouterResponse = gson.fromJson(tree, ChatCompletionResponse::class.java)
-            PluginLogger.Service.info("[Chat-$requestId] Received response from OpenRouter")
-            openRouterResponse
-        }
+        // Read from the body OpenRouter sent, not the translated one: translation keeps only
+        // what an OpenAI client expects, and the provider, cost and search count are not that.
+        val tree = gson.fromJson(response.bodyText(), JsonObject::class.java)
+        tree?.let { trace?.observe(it) }
+        val openRouterResponse = gson.fromJson(tree, ChatCompletionResponse::class.java)
+        PluginLogger.Service.info("[Chat-$requestId] Received response from OpenRouter")
+        return openRouterResponse
     }
 
     private fun translateResponse(

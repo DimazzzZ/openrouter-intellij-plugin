@@ -8,6 +8,7 @@ import org.zhavoronkov.openrouter.settings.FavoriteModelsConfigurable
 import org.zhavoronkov.openrouter.settings.OpenRouterConfigurable
 import org.zhavoronkov.openrouter.settings.OutputSchemasConfigurable
 import org.zhavoronkov.openrouter.settings.PresetsConfigurable
+import org.zhavoronkov.openrouter.utils.ExcludeFromCoverage
 
 /** Where each [FixPage] is in the Settings dialog: one page per refusal reason, opened by its balloon. */
 object FixPageSettings {
@@ -24,6 +25,7 @@ object FixPageSettings {
     fun actionText(page: FixPage): String = "Open ${page.title}"
 
     /** Opens the Settings dialog at [page]; with no [project] - the welcome screen - at the IDE level. */
+    @ExcludeFromCoverage("opens the modal Settings dialog")
     fun open(project: Project?, page: FixPage) {
         ShowSettingsUtil.getInstance().showSettingsDialog(project, configurable(page))
     }

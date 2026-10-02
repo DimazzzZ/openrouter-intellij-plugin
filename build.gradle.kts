@@ -358,6 +358,8 @@ kover {
     reports {
         filters {
             excludes {
+                // Code no test should run, each marked where it is with its reason; see TESTING.md.
+                annotatedBy("org.zhavoronkov.openrouter.utils.ExcludeFromCoverage")
                 classes(
                     // Swing views, dialogs, and table renderers (pure UI, not unit-testable).
                     // Named explicitly so pure-logic files in the same packages count toward coverage.

@@ -17,6 +17,7 @@ import org.zhavoronkov.openrouter.models.ApiKeysListResponse
 import org.zhavoronkov.openrouter.models.ApiResult
 import org.zhavoronkov.openrouter.models.CreditsData
 import org.zhavoronkov.openrouter.models.KeyData
+import org.zhavoronkov.openrouter.utils.ExcludeFromCoverage
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import org.zhavoronkov.openrouter.utils.applicationServiceOrNull
 import java.io.IOException
@@ -52,6 +53,12 @@ class OpenRouterStatsCache(
 ) : Disposable {
 
     companion object {
+        /** What [activity] reports spent on [today], in USD, or null when it reports nothing for it. */
+        internal fun todayUsage(activity: List<ActivityData>?, today: LocalDate): Double? {
+            val spent = activity.orEmpty().filter { it.date == today.toString() }.sumOf { it.usage ?: 0.0 }
+            return spent.takeIf { it > 0 }
+        }
+
         fun getInstance(): OpenRouterStatsCache {
             return ApplicationManager.getApplication().getService(OpenRouterStatsCache::class.java)
         }
@@ -365,12 +372,7 @@ class OpenRouterStatsCache(
         }
 
         // Also notify balance providers
-        @Suppress("TooGenericExceptionCaught") // Intentional: isolate provider failures
-        try {
-            BalanceProviderNotifier.getInstanceOrNull()?.notifyLoading()
-        } catch (e: Throwable) {
-            PluginLogger.Service.debug("Failed to notify balance providers of loading: ${e.message}")
-        }
+        toBalanceProviders("loading") { it.notifyLoading() }
     }
 
     private fun notifySuccess(credits: CreditsData, activity: List<ActivityData>?) {
@@ -394,42 +396,32 @@ class OpenRouterStatsCache(
      * The push happens on a background thread to avoid blocking the UI,
      * and exceptions from individual providers are isolated.
      */
-    @Suppress("TooGenericExceptionCaught") // Intentional: isolate provider failures from main plugin
-    private fun pushToBalanceProviders(credits: CreditsData, activity: List<ActivityData>?) {
-        try {
-            val notifier = BalanceProviderNotifier.getInstanceOrNull() ?: return
-
-            val balanceData = BalanceData(
-                totalCredits = credits.totalCredits,
-                totalUsage = credits.totalUsage,
-                remainingCredits = credits.totalCredits - credits.totalUsage,
-                timestamp = System.currentTimeMillis(),
-                todayUsage = calculateTodayUsage(activity)
+    private fun pushToBalanceProviders(credits: CreditsData, activity: List<ActivityData>?) =
+        toBalanceProviders("update") { notifier ->
+            notifier.notifyBalanceUpdated(
+                BalanceData(
+                    totalCredits = credits.totalCredits,
+                    totalUsage = credits.totalUsage,
+                    remainingCredits = credits.totalCredits - credits.totalUsage,
+                    timestamp = System.currentTimeMillis(),
+                    todayUsage = todayUsage(activity, LocalDate.now())
+                )
             )
-
-            notifier.notifyBalanceUpdated(balanceData)
-        } catch (e: Throwable) {
-            // Don't let balance provider failures affect the main plugin
-            PluginLogger.Service.debug("Failed to notify balance providers: ${e.message}")
         }
-    }
 
     /**
-     * Calculates today's usage from activity data.
-     *
-     * @param activity The activity data list, may be null
-     * @return Today's usage in USD, or null if not available
+     * Hands [notify] the balance providers' notifier, when there is one, and never lets a
+     * failure reach the cache. The notifier already isolates each provider and its own lookup,
+     * so this is a second guard behind it.
      */
-    private fun calculateTodayUsage(activity: List<ActivityData>?): Double? {
-        if (activity.isNullOrEmpty()) return null
-
-        val today = LocalDate.now().toString() // Format: YYYY-MM-DD
-
-        val todayUsage = activity
-            .filter { it.date == today }
-            .sumOf { it.usage ?: 0.0 }
-
-        return if (todayUsage > 0) todayUsage else null
+    @ExcludeFromCoverage("a second guard behind BalanceProviderNotifier's own, which nothing gets past")
+    @Suppress("TooGenericExceptionCaught") // Intentional: isolate provider failures from main plugin
+    private fun toBalanceProviders(what: String, notify: (BalanceProviderNotifier) -> Unit) {
+        try {
+            BalanceProviderNotifier.getInstanceOrNull()?.let(notify)
+        } catch (e: Throwable) {
+            PluginLogger.Service.debug("Failed to notify balance providers ($what): ${e.message}")
+        }
     }
 
     /**
@@ -477,12 +469,7 @@ class OpenRouterStatsCache(
         }
 
         // Also notify balance providers
-        @Suppress("TooGenericExceptionCaught") // Intentional: isolate provider failures
-        try {
-            BalanceProviderNotifier.getInstanceOrNull()?.notifyError(message)
-        } catch (e: Throwable) {
-            PluginLogger.Service.debug("Failed to notify balance providers of error: ${e.message}")
-        }
+        toBalanceProviders("error") { it.notifyError(message) }
     }
 
     override fun dispose() {

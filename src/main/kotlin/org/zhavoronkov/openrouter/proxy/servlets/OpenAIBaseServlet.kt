@@ -50,7 +50,7 @@ abstract class OpenAIBaseServlet : HttpServlet() {
     /**
      * Sets standard CORS headers for OpenAI API compatibility
      */
-    protected fun setCORSHeaders(resp: HttpServletResponse, allowedMethods: String = "GET, OPTIONS") {
+    protected fun setCORSHeaders(resp: HttpServletResponse, allowedMethods: String) {
         resp.setHeader("Access-Control-Allow-Origin", "*")
         resp.setHeader("Access-Control-Allow-Methods", allowedMethods)
         resp.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")

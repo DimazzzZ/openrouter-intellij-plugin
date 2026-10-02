@@ -403,4 +403,28 @@ class OpenRouterStatsCacheTest {
             // If we get here without exceptions, thread safety is maintained
         }
     }
+
+    @Nested
+    @DisplayName("Today's usage handed to the balance providers")
+    inner class TodayUsage {
+
+        private val today = java.time.LocalDate.parse("2026-10-02")
+
+        private fun day(date: String?, usage: Double?) =
+            ActivityData(date, "m", null, null, null, usage, null, 1, null, null, null)
+
+        @Test
+        fun `only today's usage is summed, a missing amount counting as none`() {
+            val activity = listOf(day("2026-10-02", 1.5), day("2026-10-02", null), day("2026-10-01", 9.0))
+
+            assertEquals(1.5, OpenRouterStatsCache.todayUsage(activity, today))
+        }
+
+        @Test
+        fun `no activity, none today, or nothing spent today is no usage`() {
+            assertNull(OpenRouterStatsCache.todayUsage(null, today))
+            assertNull(OpenRouterStatsCache.todayUsage(listOf(day("2026-10-01", 2.0)), today))
+            assertNull(OpenRouterStatsCache.todayUsage(listOf(day("2026-10-02", 0.0), day(null, 3.0)), today))
+        }
+    }
 }

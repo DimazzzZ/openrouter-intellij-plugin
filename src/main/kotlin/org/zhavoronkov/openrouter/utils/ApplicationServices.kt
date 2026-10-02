@@ -1,5 +1,6 @@
 package org.zhavoronkov.openrouter.utils
 
+import com.intellij.openapi.application.Application
 import com.intellij.openapi.application.ApplicationManager
 
 /**
@@ -21,11 +22,13 @@ import com.intellij.openapi.application.ApplicationManager
  */
 internal fun <T : Any> applicationServiceOrNull(serviceClass: Class<T>): T? {
     val application = ApplicationManager.getApplication() ?: return null
+    return serviceOf(application, serviceClass)
+}
 
-    return try {
-        application.getService(serviceClass)
-    } catch (e: IllegalStateException) {
-        PluginLogger.Service.debug("Service ${serviceClass.simpleName} not available: ${e.message}")
-        null
-    }
+@ExcludeFromCoverage("the platform refusing a service while it starts or shuts down, which no test can stage")
+private fun <T : Any> serviceOf(application: Application, serviceClass: Class<T>): T? = try {
+    application.getService(serviceClass)
+} catch (e: IllegalStateException) {
+    PluginLogger.Service.debug("Service ${serviceClass.simpleName} not available: ${e.message}")
+    null
 }

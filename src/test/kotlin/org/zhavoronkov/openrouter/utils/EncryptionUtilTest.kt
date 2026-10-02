@@ -336,4 +336,24 @@ class EncryptionUtilTest {
             assertEquals(textWithTabs, decrypted, "Tabs should be preserved")
         }
     }
+
+    @Nested
+    @DisplayName("Recognising encrypted text")
+    inner class Recognising {
+
+        @Test
+        @DisplayName("Base64 longer than any API key reads as encrypted, though it looks like a key")
+        fun longKeyShapedText() {
+            assertTrue(EncryptionUtil.isEncrypted("a".repeat(104)))
+            assertFalse(EncryptionUtil.isEncrypted("sk-or-v1-abc"), "a key of key length is not")
+        }
+
+        @Test
+        @DisplayName("Text this key did not encrypt is given back as it is")
+        fun notEncryptedWithThisKey() {
+            val notOurs = java.util.Base64.getEncoder().encodeToString(ByteArray(16) { it.toByte() })
+
+            assertEquals(notOurs, EncryptionUtil.decrypt(notOurs))
+        }
+    }
 }

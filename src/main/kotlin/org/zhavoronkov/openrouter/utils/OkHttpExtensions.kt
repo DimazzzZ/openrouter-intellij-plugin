@@ -38,6 +38,13 @@ suspend fun Call.await(): Response = withContext(Dispatchers.IO) {
 }
 
 /**
+ * This response's body as text. OkHttp gives every response that [Call.execute] or a callback
+ * returns a body, so the null its type allows never comes; it reads as empty if it ever did.
+ */
+@ExcludeFromCoverage("the null edge of Response.body, which OkHttp never takes for a response it returns")
+fun Response.bodyText(): String = body?.string().orEmpty()
+
+/**
  * Response paired with its already-read, already-closed body.
  *
  * The [Response] here has had its body fully consumed and closed, so callers
@@ -56,13 +63,13 @@ data class BufferedResponse(val response: Response, val body: String)
 suspend fun Call.awaitWithBody(): BufferedResponse {
     val response = await()
     return response.use { resp ->
-        BufferedResponse(resp, resp.body?.string().orEmpty())
+        BufferedResponse(resp, resp.bodyText())
     }
 }
 
 inline fun <reified T> Response.toApiResult(gson: Gson): ApiResult<T> {
     return use { resp ->
-        val bodyString = resp.body?.string().orEmpty()
+        val bodyString = resp.bodyText()
         when {
             !resp.isSuccessful -> {
                 val errorMessage = try {

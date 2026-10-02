@@ -64,6 +64,24 @@ The Coverage badge in the README is the Kover report, lines and branches, after 
 ./gradlew koverXmlReport && ./scripts/coverage-badge.py
 ```
 
+## 🙈 Code no test should run
+
+Every line that stays out of the coverage numbers on purpose is marked where it is, with its reason, so nobody has to rediscover why it is red. There are two ways, and nothing is left red without one of them:
+
+- **`@ExcludeFromCoverage("reason")`** (`utils/ExcludeFromCoverage.kt`) on a function, constructor, accessor or class. Kover leaves it out through `annotatedBy` in `build.gradle.kts`, together with the lambdas and anonymous classes inside it.
+- **A class name in the `excludes { classes(...) }` list** in `build.gradle.kts`, with a comment, for a whole class of platform wiring: a dialog, a factory, a Swing view a platform test does not build.
+
+What earns the annotation, and nothing else does:
+
+- It opens a modal dialog (`showAndGet`, `Messages.show*`, `ShowSettingsUtil`) or the system browser.
+- It reaches OpenRouter over the network, or waits on it.
+- It guards against a failure the platform or the JVM never produces in a test - the credential store or JCE refusing, the platform refusing a service mid-startup - and does nothing but log.
+- It is a branch the code itself rules out but the compiler still emits, such as the private setter of a `lateinit var` the class writes directly, or `Response.body` being null for a response OkHttp returned.
+
+Annotate the smallest function that holds such code. When it sits inside a function that is otherwise tested, move just that part into a small function of its own and annotate that - a `catch` that only logs, a network call, a dialog. Do not annotate to get past a branch that a test could take: write the test. A branch that cannot happen because of how the code is written is removed instead - an `else` after an exhaustive check, a `catch` for an exception nothing inside throws, a `?.` on a value that is never null.
+
+Kover cannot leave out a single branch inside a function, so a few edges that no input can take remain in the report as missed. Those are the gap between the badge and 100%.
+
 ## 🚧 Platform-bound coverage exclusions
 
 Several application services are annotated `@Service(Service.Level.APP)` and reach

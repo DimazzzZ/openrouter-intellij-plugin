@@ -110,23 +110,6 @@ class StatsDataLoader(
     ) {
         PluginLogger.Service.debug("EDT callback executing")
         when {
-            apiKeysResult is ApiResult.Success && creditsResult is ApiResult.Success -> {
-                PluginLogger.Service.debug("Both API keys and credits succeeded")
-                val activityData = if (activityResult is ApiResult.Success) {
-                    activityResult.data
-                } else {
-                    null
-                }
-                onResult(
-                    LoadResult.Success(
-                        StatsData(
-                            apiKeysResponse = apiKeysResult.data,
-                            creditsResponse = creditsResult.data,
-                            activityResponse = activityData
-                        )
-                    )
-                )
-            }
             apiKeysResult is ApiResult.Error -> {
                 PluginLogger.Service.error("Failed to load API keys: ${apiKeysResult.message}")
                 onResult(LoadResult.Error("Failed to load API keys: ${apiKeysResult.message}"))
@@ -135,9 +118,18 @@ class StatsDataLoader(
                 PluginLogger.Service.error("Failed to load credits: ${creditsResult.message}")
                 onResult(LoadResult.Error("Failed to load credits: ${creditsResult.message}"))
             }
+            // Neither is an Error, and an ApiResult is a Success or an Error: both succeeded
             else -> {
-                PluginLogger.Service.error("Unknown error loading stats data")
-                onResult(LoadResult.Error(ERROR_MESSAGE))
+                PluginLogger.Service.debug("Both API keys and credits succeeded")
+                onResult(
+                    LoadResult.Success(
+                        StatsData(
+                            apiKeysResponse = (apiKeysResult as ApiResult.Success).data,
+                            creditsResponse = (creditsResult as ApiResult.Success).data,
+                            activityResponse = (activityResult as? ApiResult.Success)?.data
+                        )
+                    )
+                )
             }
         }
     }
