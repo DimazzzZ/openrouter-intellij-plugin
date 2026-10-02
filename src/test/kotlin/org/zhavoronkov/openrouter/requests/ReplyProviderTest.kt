@@ -100,4 +100,31 @@ class ReplyProviderTest {
         assertNull(lookup.providerOf("gen-1"))
         assertEquals(2, asked)
     }
+
+    @ParameterizedTest
+    @ValueSource(
+        strings = [
+            """{"model":"m","tools":"openrouter:web_search"}""",
+            """{"model":"m","tools":["openrouter:web_search",{"type":7},{"function":{}}]}""",
+            """{"model":7,"plugins":"web"}""",
+            """{"model":"m","plugins":["web",{"id":["web"]}]}"""
+        ]
+    )
+    @DisplayName("tools and plugins of another shape offer no server tool or legacy search")
+    fun misshapenToolsAndPlugins(json: String) {
+        assertTrue(trusted(json), json)
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["""{"model":"m","preset":7}""", """{"model":"m","preset":{"slug":"plain"}}"""])
+    @DisplayName("a preset field that is not a string names nothing to look up, and is not believed")
+    fun presetFieldNotAString(json: String) {
+        assertFalse(trustedWithPresets(json), json)
+    }
+
+    @Test
+    @DisplayName("the :online variant is legacy search")
+    fun onlineVariant() {
+        assertFalse(trusted("""{"model":"openai/gpt-4o:online"}"""))
+    }
 }

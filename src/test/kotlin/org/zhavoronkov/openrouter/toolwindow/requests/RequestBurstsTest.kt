@@ -2,6 +2,7 @@ package org.zhavoronkov.openrouter.toolwindow.requests
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -237,6 +238,56 @@ class RequestBurstsTest {
                 ),
                 RequestsView.details(burst, ZoneOffset.UTC)
             )
+        }
+    }
+
+    @Nested
+    @DisplayName("a burst that reports less")
+    inner class Sparse {
+
+        private val zone = ZoneOffset.UTC
+
+        @Test
+        @DisplayName("with no cost, tokens or warnings it shows none of them")
+        fun nothingReported() {
+            val burst = RequestBurst(
+                listOf(2L, 1L, 0L).map { record(it, cost = null, promptTokens = null, completionTokens = null) }
+            )
+            val header = RequestsRow.Header(burst, expanded = false)
+            val now = Instant.ofEpochMilli(start)
+
+            assertEquals("", RequestsView.text(header, RequestsColumn.COST, now, zone))
+            assertEquals("", RequestsView.text(header, RequestsColumn.WARNING, now, zone))
+            val labels = RequestsView.details(burst, zone).map { it.first }
+            assertEquals(listOf("Requests", "Time", "Sent by", "Requested"), labels)
+        }
+
+        @Test
+        @DisplayName("tokens one side of which no request reported read as a question mark")
+        fun halfTokens() {
+            val burst = RequestBurst(listOf(1L, 0L).map { record(it, promptTokens = null, completionTokens = 5) })
+
+            assertEquals("? in · 10 out", RequestsView.details(burst, zone).toMap()["Tokens"])
+        }
+
+        @Test
+        @DisplayName("a burst that runs past midnight gives the end its date")
+        fun pastMidnight() {
+            val day = 24 * 60 * 60 * 1000L
+            val burst = RequestBurst(listOf(record(day), record(0)))
+
+            assertEquals("2026-10-01 19:29:59 – 2026-10-02 19:29:59", RequestsView.details(burst, zone).toMap()["Time"])
+        }
+
+        @Test
+        @DisplayName("a request listed under its burst is indented in the time column only")
+        fun member() {
+            val record = record(0)
+            val row = RequestsRow.Member(record, RequestBurst(listOf(record)))
+            val now = Instant.ofEpochMilli(start)
+
+            assertTrue(RequestsView.text(row, RequestsColumn.TIME, now, zone).startsWith(" "))
+            assertEquals("ktor-client", RequestsView.text(row, RequestsColumn.SENDER, now, zone))
         }
     }
 }

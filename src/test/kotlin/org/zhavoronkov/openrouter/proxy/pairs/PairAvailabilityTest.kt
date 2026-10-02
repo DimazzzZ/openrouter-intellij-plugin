@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
+import org.zhavoronkov.openrouter.models.PresetPair
 import org.zhavoronkov.openrouter.models.ResponseFormats
 import org.zhavoronkov.openrouter.presets.PresetEntry
 import org.zhavoronkov.openrouter.presets.PresetSnapshot
@@ -121,5 +122,33 @@ class PairAvailabilityTest {
     @DisplayName("a model id that is not a pair has no problem")
     fun notAPair() {
         assertNull(pairs.problem("json/only"))
+    }
+
+    @Test
+    @DisplayName("before the presets are read nothing is known of a pair, and nothing warned")
+    fun presetsNotRead() {
+        snapshot = null
+
+        assertNull(pairs.warning("schema/only@preset/search-schema"))
+        assertNull(pairs.preset(PresetPair("m", "plain")))
+        assertNull(pairs.presetConfig("plain"))
+        assertNull(pairs.warning("json/only"), "not a pair")
+    }
+
+    @Test
+    @DisplayName("a preset whose config was not read, or that is gone, warns of nothing")
+    fun noConfigToWarnOf() {
+        assertNull(pairs.warning("schema/only@preset/unreadable"))
+        assertNull(pairs.warning("schema/only@preset/gone"))
+    }
+
+    @Test
+    @DisplayName("a snapshot answers from the presets it was taken with, and looks up a slug they lack")
+    fun snapshotLooksUpTheRest() {
+        val taken = pairs.snapshot()
+
+        assertEquals("plain", taken.preset(PresetPair("m", "plain"))?.slug)
+        taken.problem("json/only@preset/gone")
+        assertEquals(listOf("gone"), lookedUp, "a slug the snapshot lacks is looked up")
     }
 }

@@ -27,4 +27,25 @@ class RequestBodiesDialogTest {
         assertEquals("Network error: timeout", RequestBodiesDialog.indented("Network error: timeout"))
         assertEquals("42", RequestBodiesDialog.indented("42"))
     }
+
+    @Test
+    @DisplayName("a request with every body lists all four, the failure as it was reported")
+    fun everyBody() {
+        val tabs = RequestBodiesDialog.tabs(
+            RequestBodies(received = "[1,2]", sent = "{}", reply = "plain", failure = """{"error":"boom"}""")
+        )
+
+        assertEquals(listOf("Received", "Sent to OpenRouter", "Reply", "Failure"), tabs.map { it.first })
+        assertEquals("[\n  1,\n  2\n]", tabs[0].second)
+        assertEquals("plain", tabs[2].second)
+        assertEquals("""{"error":"boom"}""", tabs[3].second)
+        assertEquals(emptyList<Pair<String, String>>(), RequestBodiesDialog.tabs(RequestBodies()))
+    }
+
+    @Test
+    @DisplayName("empty text and a JSON null are shown as they are")
+    fun emptyText() {
+        assertEquals("", RequestBodiesDialog.indented(""))
+        assertEquals("null", RequestBodiesDialog.indented("null"))
+    }
 }

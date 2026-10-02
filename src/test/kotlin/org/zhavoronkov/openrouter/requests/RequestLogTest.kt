@@ -193,4 +193,37 @@ class RequestLogTest {
         val reloaded = RequestLog(file(), limit = { 10 })
         assertEquals(id, reloaded.recent().single().bodiesId)
     }
+
+    @Test
+    @DisplayName("blank lines and lines without a reply or sender are skipped")
+    fun `incomplete lines are skipped`() {
+        RequestLog(file(), limit = { 10 }).apply { add(record(1)) }
+        val noReply = """{"startedAtMillis":2,"source":"PROXY","sender":"Junie","requestedModel":"m2"}"""
+        val noModel = """{"startedAtMillis":3,"source":"PROXY","sender":"Junie","reply":{}}"""
+        Files.writeString(file(), Files.readString(file()) + "\n   \n$noReply\n$noModel\n")
+
+        assertEquals(listOf("m1"), RequestLog(file(), limit = { 10 }).recent().map { it.requestedModel })
+    }
+
+    @Test
+    @DisplayName("a log whose file cannot be read starts empty")
+    fun `an unreadable file starts empty`() {
+        Files.createDirectories(file())
+
+        assertEquals(emptyList<RequestRecord>(), RequestLog(file(), limit = { 10 }).recent())
+    }
+
+    @Test
+    @DisplayName("a log that cannot be written still keeps its records for the session")
+    fun `an unwritable log still keeps records`() {
+        val blocked = dir.resolve("not-a-directory")
+        Files.writeString(blocked, "a file where the log's directory should be")
+        val log = RequestLog(blocked.resolve("requests.jsonl"), limit = { 10 })
+
+        log.add(record(1))
+        log.clear()
+        log.add(record(2))
+
+        assertEquals(listOf("m2"), log.recent().map { it.requestedModel })
+    }
 }

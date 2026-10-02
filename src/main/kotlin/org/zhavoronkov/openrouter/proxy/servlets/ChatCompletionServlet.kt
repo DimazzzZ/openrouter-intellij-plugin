@@ -36,6 +36,8 @@ import org.zhavoronkov.openrouter.utils.ModelSuggestions
 import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import org.zhavoronkov.openrouter.utils.applicationServiceOrNull
+import org.zhavoronkov.openrouter.utils.asObjectOrNull
+import org.zhavoronkov.openrouter.utils.asStringOrNull
 import java.io.IOException
 import java.io.PrintWriter
 import java.util.concurrent.TimeUnit
@@ -675,9 +677,9 @@ class ChatCompletionServlet(
     private fun createUserFriendlyErrorMessage(errorBody: String, statusCode: Int): String {
         // First, try to extract the message from JSON error body
         val extractedMessage = try {
-            val errorJson = gson.fromJson(errorBody, JsonObject::class.java)
-            val errorObj = errorJson.getAsJsonObject("error")
-            errorObj?.get("message")?.asString
+            // Null for an empty or blank body, and for an `error` or `message` of another shape
+            gson.fromJson(errorBody, JsonObject::class.java)
+                ?.get("error")?.asObjectOrNull()?.get("message")?.asStringOrNull()
         } catch (e: JsonSyntaxException) {
             PluginLogger.Service.warn("Failed to parse error response", e)
             null
@@ -954,9 +956,10 @@ class ChatCompletionServlet(
             // outbound passthrough. Then deserialize the same JsonObject into the typed
             // model for validation/logging/multimodal checks.
             // A body that is not a JSON object - `null`, an array, a bare string or number -
-            // makes Gson throw rather than answer null, so the catch below is the one guard
-            // this needs. An elvis here would be a branch nothing can take.
+            // makes Gson throw, but an empty or blank one makes it answer null instead. Both
+            // end in the catch below, as the same 400.
             val rawJson = gson.fromJson(requestBody, JsonObject::class.java)
+                ?: throw JsonSyntaxException("Request body is empty")
             val openAIRequest = gson.fromJson(rawJson, OpenAIChatCompletionRequest::class.java)
 
             if (openAIRequest.messages.isEmpty()) {

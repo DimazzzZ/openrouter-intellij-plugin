@@ -8,6 +8,8 @@ import okhttp3.Response
 import org.zhavoronkov.openrouter.requests.RequestTrace
 import org.zhavoronkov.openrouter.utils.ErrorPatterns
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import org.zhavoronkov.openrouter.utils.asObjectOrNull
+import org.zhavoronkov.openrouter.utils.asStringOrNull
 import java.io.BufferedReader
 import java.io.PrintWriter
 import java.util.UUID
@@ -208,8 +210,11 @@ class StreamingResponseHandler {
 
             // Check if this is an error response
             if (json.has("error")) {
-                val errorObj = json.getAsJsonObject("error")
-                val message = errorObj?.get("message")?.asString ?: "Unknown error from model"
+                // Usually {"message": ...}, but a provider may send the message as the error itself
+                val error = json.get("error")
+                val message = error.asStringOrNull()
+                    ?: error.asObjectOrNull()?.get("message")?.asStringOrNull()
+                    ?: "Unknown error from model"
                 return ChunkValidationResult.Error(message)
             }
 
@@ -319,8 +324,8 @@ class StreamingResponseHandler {
     private fun extractErrorFromContent(content: String): String? {
         // Try to parse as JSON error
         return try {
-            val json = gson.fromJson(content, JsonObject::class.java)
-            json.getAsJsonObject("error")?.get("message")?.asString
+            gson.fromJson(content, JsonObject::class.java)
+                ?.get("error")?.asObjectOrNull()?.get("message")?.asStringOrNull()
         } catch (e: JsonSyntaxException) {
             PluginLogger.Service.debug("Content is not JSON, checking for error patterns: ${e.message}")
             // Not JSON - check for common error patterns using ErrorPatterns
@@ -426,9 +431,9 @@ class StreamingResponseHandler {
 
     private fun createUserFriendlyErrorMessage(errorBody: String, statusCode: Int): String {
         return try {
-            val errorJson = gson.fromJson(errorBody, JsonObject::class.java)
-            val errorObj = errorJson.getAsJsonObject("error")
-            val message = errorObj?.get("message")?.asString ?: errorBody
+            val message = gson.fromJson(errorBody, JsonObject::class.java)
+                ?.get("error")?.asObjectOrNull()?.get("message")?.asStringOrNull()
+                ?: errorBody
 
             when (statusCode) {
                 HTTP_UNAUTHORIZED -> "Authentication failed: $message"

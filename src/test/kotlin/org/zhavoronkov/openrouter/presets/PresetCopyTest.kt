@@ -153,4 +153,29 @@ class PresetCopyTest {
 
         assertNull(copy(this).snapshot())
     }
+
+    @Test
+    @DisplayName("a file with no preset list, or entries without a slug or name, keeps only what it can")
+    fun incompleteFile() = runTest {
+        Files.writeString(file(), """{"readAtMillis":1}""")
+        assertNull(copy(this).snapshot())
+
+        Files.writeString(
+            file(),
+            """{"readAtMillis":1,"presets":[{"slug":"research","name":"Research"},{"name":"No slug"},{"slug":"x"}]}"""
+        )
+        assertEquals(listOf("research"), copy(this).snapshot()!!.presets.map { it.slug })
+    }
+
+    @Test
+    @DisplayName("a copy whose file cannot be read, or written, still serves the session")
+    fun unusableFile() = runTest {
+        Files.createDirectories(file())
+        val copy = copy(this)
+        assertNull(copy.snapshot())
+        assertNull(copy.find("research"), "nothing to find before the first read")
+
+        assertTrue(copy.refresh(), "the read succeeds although it cannot be saved")
+        assertEquals("Research", copy.find("research")!!.name)
+    }
 }

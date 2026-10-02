@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import org.zhavoronkov.openrouter.models.ActivityResponse
 import org.zhavoronkov.openrouter.models.ApiKeysListResponse
@@ -70,17 +71,18 @@ class StatsDataLoader(
         scope.launch {
             try {
                 PluginLogger.Service.debug("Launching async API calls")
-                // Fetch API keys, credits, and activity concurrently
-                val apiKeysDeferred = async { routerService.getApiKeysList() }
-                val creditsDeferred = async { routerService.getCredits() }
-                val activityDeferred = async { routerService.getActivity() }
-
-                PluginLogger.Service.debug("Waiting for API results")
-                val apiKeysResult = apiKeysDeferred.await()
+                // Fetch API keys, credits, and activity concurrently, inside coroutineScope: a
+                // child that throws then fails the scope, which rethrows here for the catches
+                // below, instead of failing the launched job and reaching the uncaught handler.
+                val (apiKeysResult, creditsResult, activityResult) = coroutineScope {
+                    val apiKeysDeferred = async { routerService.getApiKeysList() }
+                    val creditsDeferred = async { routerService.getCredits() }
+                    val activityDeferred = async { routerService.getActivity() }
+                    PluginLogger.Service.debug("Waiting for API results")
+                    Triple(apiKeysDeferred.await(), creditsDeferred.await(), activityDeferred.await())
+                }
                 PluginLogger.Service.debug("API keys result: ${apiKeysResult::class.simpleName}")
-                val creditsResult = creditsDeferred.await()
                 PluginLogger.Service.debug("Credits result: ${creditsResult::class.simpleName}")
-                val activityResult = activityDeferred.await()
                 PluginLogger.Service.debug("Activity result: ${activityResult::class.simpleName}")
 
                 PluginLogger.Service.debug("Invoking UI update on EDT")

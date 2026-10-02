@@ -110,4 +110,58 @@ class WebSearchTuningInjectorTest {
         assertFalse(WebSearchTuningInjector.inject(body, WebSearchSettings()))
         assertEquals(request(json), body)
     }
+
+    @Test
+    @DisplayName("a tool whose parameters are not an object is given the tuning in their place")
+    fun `parameters that are not an object are replaced`() {
+        val body = request("""{"tools":[{"type":"openrouter:web_search","parameters":"none"}]}""")
+
+        assertTrue(WebSearchTuningInjector.inject(body, tuned))
+
+        val parameters = body.getAsJsonArray("tools")[0].asJsonObject.getAsJsonObject("parameters")
+        assertEquals("exa", parameters["engine"].asString)
+    }
+
+    @Test
+    @DisplayName("tools and plugins of another shape are left alone")
+    fun `tools and plugins of another shape are left alone`() {
+        val body = request("""{"tools":"web","plugins":["web",{"id":7},{"id":"other"}]}""")
+        val before = body.deepCopy()
+
+        assertFalse(WebSearchTuningInjector.inject(body, tuned))
+        assertEquals(before, body)
+    }
+
+    @Test
+    @DisplayName("a search that already sets every key is not changed")
+    fun `a search that already sets every key is not changed`() {
+        val body = request(
+            """{"tools":[{"type":"openrouter:web_search","parameters":
+                {"engine":"exa","max_results":3,"allowed_domains":[],"mode":"fast"}}]}"""
+        )
+
+        assertFalse(WebSearchTuningInjector.inject(body, tuned))
+    }
+
+    @Test
+    @DisplayName("with no saved engine, a Consumer that names one keeps it, and gets no mode meant for another")
+    fun `a Consumer engine with no saved engine gets no mode`() {
+        val body = request("""{"tools":[{"type":"openrouter:web_search","parameters":{"engine":"native"}}]}""")
+
+        WebSearchTuningInjector.inject(body, tuned.copy(engine = null))
+
+        val parameters = body.getAsJsonArray("tools")[0].asJsonObject.getAsJsonObject("parameters")
+        assertEquals("native", parameters["engine"].asString)
+        assertFalse(parameters.has("mode"))
+    }
+
+    @Test
+    @DisplayName("an engine that is not a string is not taken to differ from the saved one")
+    fun `an engine that is not a string does not differ`() {
+        val body = request("""{"tools":[{"type":"openrouter:web_search","parameters":{"engine":7}}]}""")
+
+        WebSearchTuningInjector.inject(body, tuned)
+
+        assertTrue(body.getAsJsonArray("tools")[0].asJsonObject.getAsJsonObject("parameters").has("mode"))
+    }
 }

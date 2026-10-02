@@ -2,9 +2,13 @@ package org.zhavoronkov.openrouter.requests
 
 import com.google.gson.JsonParser
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 
 @DisplayName("RequestTrace")
 class RequestTraceTest {
@@ -185,5 +189,40 @@ class RequestTraceTest {
 
         assertNull(recorded.single().bodiesId)
         assertEquals(emptyMap<String, RequestBodies>(), saved)
+    }
+
+    @ParameterizedTest(name = "[{index}] {0}")
+    @ValueSource(
+        strings = [
+            """OpenRouter API error 500: {not json""",
+            """OpenRouter API error 500: {"error":"a bare string"}""",
+            """OpenRouter API error 500: {"error":{"message":{"detail":1}}}""",
+            """OpenRouter API error 500: {"error":{"code":500}}""",
+            """OpenRouter API error 500: {"detail":"no error field"}"""
+        ]
+    )
+    @DisplayName("a failure whose body names no message is recorded as it was reported")
+    fun failureWithoutMessage(message: String) {
+        val trace = trace()
+
+        trace.fail(message)
+        trace.finish()
+
+        assertEquals(message, recorded.single().error)
+    }
+
+    @Test
+    @DisplayName("a reply past the kept length stops growing; what came before it is kept")
+    fun replyCut() {
+        val trace = keepingTrace()
+        val long = JsonParser.parseString("""{"pad":"${"x".repeat(RequestBodies.MAX_LENGTH)}"}""").asJsonObject
+
+        trace.observe(long)
+        trace.observe(reply)
+        trace.finish()
+
+        val kept = saved.getValue(recorded.single().bodiesId!!).reply!!
+        assertTrue(kept.startsWith("""{"pad":"""), "the first reply is kept")
+        assertFalse(kept.contains("gen-1"), "nothing is appended once the limit is passed")
     }
 }

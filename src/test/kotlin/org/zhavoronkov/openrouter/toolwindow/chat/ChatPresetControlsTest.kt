@@ -70,6 +70,24 @@ class ChatPresetControlsTest {
     }
 
     @Test
+    @DisplayName("plain JSON and a listed verbosity are kept; a schema not saved and an unlisted effort are not")
+    fun draftKeepsOnlyWhatItCanWrite() {
+        val plain = ChatPresetControls.draftOf(
+            ChatRequestOptions(verbosity = "High", outputMode = OutputMode.PlainJson),
+            listOf(answer)
+        )
+        val unsaved = ChatPresetControls.draftOf(
+            ChatRequestOptions(reasoning = "Extreme", verbosity = "Loud", outputMode = OutputMode.Schema("gone")),
+            listOf(answer)
+        )
+
+        assertEquals(listOf(PresetSetting.OUTPUT, PresetSetting.VERBOSITY), plain.settings)
+        assertTrue(plain.plainJson)
+        assertEquals("High", plain.verbosityLabel)
+        assertTrue(unsaved.settings.isEmpty(), "got: ${unsaved.settings}")
+    }
+
+    @Test
     @DisplayName("a preset edited since it was applied counts as changed")
     fun changed() {
         val before = preset("""{"temperature":0.2}""")
