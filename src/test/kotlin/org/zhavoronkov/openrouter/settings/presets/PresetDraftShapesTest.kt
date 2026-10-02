@@ -85,7 +85,8 @@ class PresetDraftShapesTest {
             """{"response_format":"json_schema"}""",
             """{"response_format":{"type":"json_schema","json_schema":"answer"}}""",
             """{"response_format":{"type":"json_schema","json_schema":{"name":7}}}""",
-            """{"response_format":{"type":7}}"""
+            """{"response_format":{"type":7}}""",
+            """{"response_format":{}}"""
         ]
     )
     @DisplayName("an output of another shape names no schema and is not plain JSON")
@@ -126,7 +127,12 @@ class PresetDraftShapesTest {
 
     @ParameterizedTest(name = "[{index}] {0}")
     @ValueSource(
-        strings = ["""{"reasoning":"high"}""", """{"reasoning":{"effort":"extreme"}}""", """{"reasoning":{"effort":3}}"""]
+        strings = [
+            """{"reasoning":"high"}""",
+            """{"reasoning":{"effort":"extreme"}}""",
+            """{"reasoning":{"effort":3}}""",
+            """{"reasoning":{"max_tokens":1024}}"""
+        ]
     )
     @DisplayName("a reasoning block of another shape has no label, and says only that reasoning is set")
     fun unlabelledReasoning(config: String) {

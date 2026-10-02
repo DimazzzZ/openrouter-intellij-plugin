@@ -31,6 +31,8 @@ class OutputSchemaEditor(initial: OutputSchema?, private val takenNames: List<St
 
     internal val name = JBTextField(initial?.name.orEmpty())
     internal val strict = JBCheckBox(STRICT_TEXT, initial?.strict ?: true)
+
+    // Unreachable branch: OutputSchema.schema is a non-null String, so only a new schema starts from TEMPLATE
     internal val body = JBTextArea(initial?.schema ?: TEMPLATE, BODY_ROWS, BODY_COLUMNS).apply {
         font = JBUI.Fonts.create(Font.MONOSPACED, font.size)
         tabSize = 2
@@ -93,6 +95,7 @@ class OutputSchemaEditor(initial: OutputSchema?, private val takenNames: List<St
 
     private fun refreshStatus() {
         val problem = problem()
+        // Unreachable branch: Problem.message is a non-null String, so only a null problem shows the body check
         status.text = problem?.message ?: OutputSchema.validateBody(body.text).message
         status.foreground = if (problem == null) UIUtil.getContextHelpForeground() else UIUtil.getErrorForeground()
     }
@@ -105,12 +108,17 @@ class OutputSchemaEditor(initial: OutputSchema?, private val takenNames: List<St
         const val PREFERRED_HEIGHT = 280
 
         /** What a new schema starts from: the smallest object schema, ready to be filled in. */
-        const val TEMPLATE = "{\n" +
-            "  \"type\": \"object\",\n" +
-            "  \"properties\": {\n" +
-            "  },\n" +
-            "  \"required\": [],\n" +
-            "  \"additionalProperties\": false\n" +
-            "}"
+        // Unreachable code: the compiler folds trimIndent() on a literal into a constant and every
+        // reader gets that constant, so this initializer never runs; OutputSchemaEditorPlatformTest
+        // reads the template itself
+        val TEMPLATE = """
+            {
+              "type": "object",
+              "properties": {
+              },
+              "required": [],
+              "additionalProperties": false
+            }
+        """.trimIndent()
     }
 }

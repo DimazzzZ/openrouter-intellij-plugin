@@ -6,6 +6,7 @@ import com.google.gson.JsonPrimitive
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
+import okhttp3.ResponseBody.Companion.toResponseBody
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.AfterEach
@@ -200,6 +201,8 @@ class OpenRouterServiceLookupTest {
             strings = [
                 """{"data":{"slug":"probe"}}""",
                 """{"data":{"designated_version":"v1"}}""",
+                """{"other":true}""",
+                """{"data":"a string, not an object"}""",
                 """["not","an","object"]""",
                 """{"data":{"""
             ]
@@ -232,6 +235,31 @@ class OpenRouterServiceLookupTest {
                 val expected = region.queryValue?.let { "/api/v1/models?region=$it" } ?: "/api/v1/models"
                 assertEquals(expected, mockWebServer.takeRequest().path)
             }
+    }
+
+    @Test
+    @DisplayName("without a base URL override, a region's models are asked of the global host")
+    fun modelsInRegionAskTheGlobalHost() = runBlocking {
+        var asked: String? = null
+        val answering = OkHttpClient.Builder().addInterceptor(
+            Interceptor { chain ->
+                asked = chain.request().url.toString()
+                okhttp3.Response.Builder()
+                    .request(chain.request())
+                    .protocol(okhttp3.Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body("""{"data":[]}""".toResponseBody())
+                    .build()
+            }
+        ).build()
+        clients += answering
+        val service = OpenRouterService(gson = Gson(), client = answering, settingsService = mockSettingsService)
+            .also { services += it }
+
+        service.getModelsInRegion(DataRegion.EUROPE)
+
+        assertEquals("${DataRegion.GLOBAL.baseUrl}/models?region=eu", asked)
     }
 
     @Test

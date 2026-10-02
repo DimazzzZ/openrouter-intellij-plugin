@@ -10,6 +10,11 @@ import org.zhavoronkov.openrouter.models.AuthScope
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
 import org.zhavoronkov.openrouter.utils.EncryptionUtil
 import org.zhavoronkov.openrouter.utils.PasswordSafeKeyStorage
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+import java.util.Base64
+import javax.crypto.Cipher
+import javax.crypto.spec.SecretKeySpec
 
 /**
  * Branch-focused tests for [ApiKeySettingsManager].
@@ -39,6 +44,19 @@ class ApiKeySettingsManagerBranchTest {
         settings: OpenRouterSettings,
         onChange: () -> Unit = {}
     ) = ApiKeySettingsManager(settings, onChange)
+
+    /**
+     * A legacy value that decrypts to an empty key: AES with the key [EncryptionUtil] derives from
+     * the user name, applied to nothing. [EncryptionUtil.encrypt] leaves blank text as it is, so
+     * the cipher is used directly.
+     */
+    private fun encryptedEmptyKey(): String {
+        val keyString = "${System.getProperty("user.name", "default")}_openrouter_key"
+        val digest = MessageDigest.getInstance("SHA-256").digest(keyString.toByteArray(StandardCharsets.UTF_8))
+        val cipher = Cipher.getInstance("AES")
+        cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(digest.sliceArray(0 until 16), "AES"))
+        return Base64.getEncoder().encodeToString(cipher.doFinal(ByteArray(0)))
+    }
 
     @Nested
     @DisplayName("getApiKey legacy migration")
@@ -91,6 +109,22 @@ class ApiKeySettingsManagerBranchTest {
         }
 
         @Test
+        @DisplayName("a legacy key that decrypts to nothing is not migrated")
+        fun `legacy key decrypting to nothing is not migrated`() {
+            val legacy = encryptedEmptyKey()
+            assertThat(EncryptionUtil.isEncrypted(legacy)).isTrue()
+            val settings = OpenRouterSettings(apiKey = legacy)
+            var changes = 0
+
+            val result = manager(settings) { changes++ }.getApiKey()
+
+            assertThat(result).isEmpty()
+            assertThat(settings.apiKey).isEqualTo(legacy)
+            assertThat(PasswordSafeKeyStorage.getApiKey()).isNullOrEmpty()
+            assertThat(changes).isZero()
+        }
+
+        @Test
         @DisplayName("returns empty and does not migrate when nothing is stored")
         fun `returns empty when no key anywhere`() {
             val settings = OpenRouterSettings(apiKey = "")
@@ -132,6 +166,21 @@ class ApiKeySettingsManagerBranchTest {
             assertThat(settings.provisioningKey).isEmpty()
             assertThat(PasswordSafeKeyStorage.getProvisioningKey()).isEqualTo(legacyPlain)
             assertThat(changes).isEqualTo(1)
+        }
+
+        @Test
+        @DisplayName("a legacy provisioning key that decrypts to nothing is not migrated")
+        fun `legacy provisioning key decrypting to nothing is not migrated`() {
+            val legacy = encryptedEmptyKey()
+            val settings = OpenRouterSettings(provisioningKey = legacy)
+            var changes = 0
+
+            val result = manager(settings) { changes++ }.getProvisioningKey()
+
+            assertThat(result).isEmpty()
+            assertThat(settings.provisioningKey).isEqualTo(legacy)
+            assertThat(PasswordSafeKeyStorage.getProvisioningKey()).isNullOrEmpty()
+            assertThat(changes).isZero()
         }
 
         @Test

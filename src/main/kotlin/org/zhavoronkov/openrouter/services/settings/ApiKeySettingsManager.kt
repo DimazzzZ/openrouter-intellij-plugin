@@ -7,18 +7,16 @@ import org.zhavoronkov.openrouter.utils.KeyValidator
 import org.zhavoronkov.openrouter.utils.PasswordSafeKeyStorage
 import org.zhavoronkov.openrouter.utils.PluginLogger
 
-/**
- * Safely log a message, ignoring exceptions if logger is not available (e.g., in tests).
- */
+/** Logs [message] at debug level, ignoring a logger that is not available (e.g., in tests). */
+private inline fun logSafely(message: () -> String) = ignoringLoggerFailure { PluginLogger.Service.debug(message()) }
+
+/** Logs [message] at info level, ignoring a logger that is not available (e.g., in tests). */
+private inline fun logInfoSafely(message: () -> String) = ignoringLoggerFailure { PluginLogger.Service.info(message()) }
+
 @Suppress("TooGenericExceptionCaught", "SwallowedException")
-private inline fun logSafely(level: String = "debug", message: () -> String) {
+private inline fun ignoringLoggerFailure(log: () -> Unit) {
     try {
-        // Only "info" and the default are asked for; adding a level here without a caller
-        // just creates a branch no test can reach.
-        when (level) {
-            "info" -> PluginLogger.Service.info(message())
-            else -> PluginLogger.Service.debug(message())
-        }
+        log()
     } catch (_: Exception) {
         // Intentionally swallowed - logging errors are ignored in test environments
     }
@@ -72,7 +70,7 @@ class ApiKeySettingsManager(
             }
 
             if (decrypted.isNotBlank()) {
-                logSafely("info") {
+                logInfoSafely {
                     "getApiKey: Found legacy API key, migrating to PasswordSafe (length: ${decrypted.length})"
                 }
                 // Migrate to PasswordSafe
@@ -94,7 +92,7 @@ class ApiKeySettingsManager(
      * @param apiKey The API key to store
      */
     fun setApiKey(apiKey: String) {
-        logSafely("info") { "setApiKey called: apiKey.length=${apiKey.length}, apiKey.isEmpty=${apiKey.isEmpty()}" }
+        logInfoSafely { "setApiKey called: apiKey.length=${apiKey.length}, apiKey.isEmpty=${apiKey.isEmpty()}" }
 
         // Store in PasswordSafe
         PasswordSafeKeyStorage.setApiKey(apiKey)
@@ -109,7 +107,7 @@ class ApiKeySettingsManager(
 
         // Verify storage
         val retrieved = getApiKey()
-        logSafely("info") {
+        logInfoSafely {
             "setApiKey: verification after storage - retrieved.length=${retrieved.length}, " +
                 "matches=${retrieved == apiKey}"
         }
@@ -171,7 +169,7 @@ class ApiKeySettingsManager(
             }
 
             if (decrypted.isNotBlank()) {
-                logSafely("info") {
+                logInfoSafely {
                     "getProvisioningKey: Found legacy key, migrating to PasswordSafe (length: ${decrypted.length})"
                 }
                 // Migrate to PasswordSafe
@@ -193,7 +191,7 @@ class ApiKeySettingsManager(
      * @param provisioningKey The provisioning key to store
      */
     fun setProvisioningKey(provisioningKey: String) {
-        logSafely("info") {
+        logInfoSafely {
             "setProvisioningKey called: length=${provisioningKey.length}, isEmpty=${provisioningKey.isEmpty()}"
         }
 
@@ -210,7 +208,7 @@ class ApiKeySettingsManager(
 
         // Verify storage
         val retrieved = getProvisioningKey()
-        logSafely("info") {
+        logInfoSafely {
             "setProvisioningKey: verification after storage - retrieved.length=${retrieved.length}, " +
                 "matches=${retrieved == provisioningKey}"
         }
@@ -276,6 +274,6 @@ class ApiKeySettingsManager(
         settings.apiKey = ""
         settings.provisioningKey = ""
         onStateChanged()
-        logSafely("info") { "Cleared all API keys" }
+        logInfoSafely { "Cleared all API keys" }
     }
 }

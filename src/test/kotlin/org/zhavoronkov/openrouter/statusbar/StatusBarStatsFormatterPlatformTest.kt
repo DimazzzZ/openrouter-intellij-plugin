@@ -35,6 +35,22 @@ class StatusBarStatsFormatterPlatformTest : BasePlatformTestCase() {
         assertTrue("the balance lasts 7.5 / 1.0 days: $html", html.contains("~7 days"))
     }
 
+    fun testTodaysSpendIsWhatWasUsedSinceTheSnapshotBeforeMidnight() {
+        history.clearSnapshots()
+        val beforeMidnight = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).minusHours(1).toInstant()
+        history.state.snapshots.add(
+            CreditUsageHistoryService.CreditSnapshot(timestampUtc = beforeMidnight.toEpochMilli(), totalUsed = 2.0)
+        )
+
+        val html = StatusBarStatsFormatter.calculateActivityRowsWithHistory(
+            emptyList(),
+            creditsData = CreditsData(totalCredits = 10.0, totalUsage = 2.5),
+            remainingCredits = 7.5
+        )
+
+        assertTrue("today is 2.5 - 2.0 used since midnight: $html", html.contains("\$0.500"))
+    }
+
     fun testWithoutCreditsTheHistoryIsNotAsked() {
         val html = StatusBarStatsFormatter.calculateActivityRowsWithHistory(
             emptyList(),

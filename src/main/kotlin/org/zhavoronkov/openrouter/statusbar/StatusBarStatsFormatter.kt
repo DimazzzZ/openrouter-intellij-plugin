@@ -217,6 +217,7 @@ object StatusBarStatsFormatter {
         val todayText = "$${String.format(Locale.US, "%.3f", todayCost)}"
         val yesterdayText = "$${String.format(Locale.US, "%.3f", yesterdayCost)}"
         val lastWeekText = "$${String.format(Locale.US, "%.3f", lastWeekCost)}"
+        // Unreachable branch: the let block returns a non-null String, so only a null daysRemaining reaches "N/A"
         val daysText = daysRemaining?.let { "~$it days" } ?: "N/A"
 
         return """

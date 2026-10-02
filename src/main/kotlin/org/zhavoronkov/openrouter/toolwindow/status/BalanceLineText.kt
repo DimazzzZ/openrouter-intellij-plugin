@@ -28,6 +28,7 @@ object BalanceLineText {
     /** @param remaining account credits left, or null when unknown - see [BalanceBlock]'s own
      *   "unknown, not zero" rule. */
     fun remaining(remaining: Double?): String =
+        // Unreachable branch: the let block returns a non-null String, so only a null remaining reaches NO_VALUE
         remaining?.let { "$${formatAmount(it)} remaining" } ?: "$NO_VALUE remaining"
 
     /** @param total the balance's denominator; zero or absent is "unknown", never a real zero
@@ -37,6 +38,7 @@ object BalanceLineText {
 
     /** @param perDay the recent burn rate, or null when it cannot be computed. */
     fun burnRate(perDay: Double?): String =
+        // Unreachable branch: the let block returns a non-null String, so only a null perDay reaches NO_VALUE
         perDay?.let { "$${formatAmount(it)}/day burn rate" } ?: "$NO_VALUE/day burn rate"
 
     /**

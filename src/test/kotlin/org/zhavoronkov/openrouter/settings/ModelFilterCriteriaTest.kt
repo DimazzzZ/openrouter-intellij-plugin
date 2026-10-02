@@ -256,6 +256,14 @@ class ModelFilterCriteriaTest {
         }
 
         @Test
+        @DisplayName("a model whose id does not match is found by its name")
+        fun `a model is found by its name alone`() {
+            val renamed = model("x/model-7", name = "Claude Sonnet", description = "Fast coder")
+
+            assertTrue(ModelFilterCriteria(searchText = "sonnet").matches(renamed))
+        }
+
+        @Test
         @DisplayName("input is any filter or any search text, and none is described as no filters")
         fun `input is filters or search text`() {
             assertFalse(ModelFilterCriteria().hasAnyInput())

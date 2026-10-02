@@ -118,7 +118,8 @@ object MarkdownRenderer {
         fontSizePx?.let { styleBuilder.append("font-size: ${it}px; ") }
         colorHex?.let { styleBuilder.append("color: $it; ") }
         val styleAttr = styleBuilder.toString().trim()
-        val bodyStyle = if (styleAttr.isNotEmpty()) " style='$styleAttr'" else ""
+        // Never empty: the margin and padding are always there
+        val bodyStyle = " style='$styleAttr'"
 
         return buildString {
             append("<html><body$bodyStyle>")

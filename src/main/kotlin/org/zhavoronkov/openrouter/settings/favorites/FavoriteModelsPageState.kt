@@ -107,6 +107,7 @@ class FavoriteModelsPageState(
     }
 
     fun applyPreset(name: String): PresetApplyResult {
+        // Unreachable branch: Preset.modelIds is a non-null List, so only an unknown preset name returns early
         val presetIds = ModelPresets.getPreset(name)?.modelIds ?: return PresetApplyResult(0, 0, 0)
         val catalogIds = catalog.mapTo(HashSet()) { it.id }
         var added = 0
@@ -178,6 +179,7 @@ class FavoriteModelsPageState(
     fun resolve(id: String): OpenRouterModelInfo {
         catalog.firstOrNull { it.id == id }?.let { return it }
         val found = ModelProviderUtils.catalogueEntry(PresetPair.modelOf(id), catalog)
+        // Unreachable branch: copy never returns null, so only a model missing from the catalog gets the placeholder
         return found?.copy(id = id, name = id) ?: OpenRouterModelInfo(id = id, name = id, created = 0L)
     }
 

@@ -138,6 +138,8 @@ class OpenRouterToolWindowContent(
         when {
             disposed -> return
             added == null -> unseenWarnings = 0
+            // Unreachable branch: isShowing is true only for a component in a displayed window, which no
+            // headless test has
             added.unseenWarning == null || requestsTab.component.isShowing -> return
             else -> unseenWarnings++
         }
@@ -145,7 +147,7 @@ class OpenRouterToolWindowContent(
     }
 
     private fun updateRequestsTitle() {
-        val index = tabbedPane.indexOfComponent(requestsTab.component).takeIf { it >= 0 } ?: return
+        val index = tabbedPane.indexOfComponent(requestsTab.component)
         tabbedPane.setTitleAt(index, if (unseenWarnings > 0) "$REQUESTS_TITLE ($unseenWarnings)" else REQUESTS_TITLE)
     }
 

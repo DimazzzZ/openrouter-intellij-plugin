@@ -12,6 +12,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import org.zhavoronkov.openrouter.utils.applicationServiceOrNull
@@ -94,6 +95,8 @@ class CreditUsageHistoryService(
      */
     @Synchronized
     fun startSnapshotTimer() {
+        // Unreachable branch: with a timer, isActive is a plain Boolean, so the comparison never
+        // sees the null that `?.` could produce - that only comes from no timer at all
         if (timer?.isActive == true) {
             PluginLogger.Service.debug("CreditUsageHistoryService: Timer already running")
             return
@@ -104,8 +107,9 @@ class CreditUsageHistoryService(
 
         timer = scope.launch {
             takeSnapshotIfNeeded()
-            // A cancelled timer stops inside delay(), which throws; nothing else ends the loop
-            while (true) {
+            // Unreachable branch: isActive never reads false here - a cancelled timer stops inside
+            // delay(), which throws CancellationException before the loop asks again
+            while (isActive) {
                 delay(SNAPSHOT_INTERVAL_MINUTES * MILLIS_PER_MINUTE)
                 takeSnapshotIfNeeded()
             }

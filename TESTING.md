@@ -80,7 +80,11 @@ What earns the annotation, and nothing else does:
 
 Annotate the smallest function that holds such code. When it sits inside a function that is otherwise tested, move just that part into a small function of its own and annotate that - a `catch` that only logs, a network call, a dialog. Do not annotate to get past a branch that a test could take: write the test. A branch that cannot happen because of how the code is written is removed instead - an `else` after an exhaustive check, a `catch` for an exception nothing inside throws, a `?.` on a value that is never null.
 
-Kover cannot leave out a single branch inside a function, so a few edges that no input can take remain in the report as missed. Those are the gap between the badge and 100%.
+Kover cannot leave out a single branch inside a function, nor a single line. A branch no input can take, or a line the compiler emits that never runs, is marked where it is with an `// Unreachable branch: <why>` comment - `// Unreachable code: <why>` for a line with no branch - on its line or in the comment block right above it. It is used only when that is certain, the reason says what makes it so, and the code is not rewritten into a less idiomatic form to make the branch go away: `a?.b == true`, `x?.let { } ?: y`, `while (isActive)` and a `trimIndent()` raw string stay as they are and carry the comment. `scripts/coverage-unexplained.py` reads the Kover report and fails on any missed branch or line without one, and CI runs it after the tests, so missed code is always either a test still to write or a reason written down. Those marked lines are the gap between the badge and 100%:
+
+```bash
+./gradlew koverXmlReport && ./scripts/coverage-unexplained.py
+```
 
 ## 🚧 Platform-bound coverage exclusions
 

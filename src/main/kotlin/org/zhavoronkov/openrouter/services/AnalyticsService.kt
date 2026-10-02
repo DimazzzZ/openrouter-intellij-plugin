@@ -38,7 +38,12 @@ import java.util.concurrent.TimeUnit
 class AnalyticsService internal constructor(
     private val baseUrlOverride: String?,
     private val provisioningKeyProvider: () -> String,
-    private val baseUrlProvider: () -> String = { OpenRouterSettingsService.getInstance().getApiBaseUrl() }
+    private val baseUrlProvider: () -> String = { OpenRouterSettingsService.getInstance().getApiBaseUrl() },
+    private val client: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(OpenRouterConstants.CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(OpenRouterConstants.READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .writeTimeout(OpenRouterConstants.WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .build()
 ) {
 
     constructor() : this(
@@ -47,11 +52,6 @@ class AnalyticsService internal constructor(
     )
 
     private val gson = Gson()
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(OpenRouterConstants.CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .readTimeout(OpenRouterConstants.READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .writeTimeout(OpenRouterConstants.WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .build()
 
     // ConcurrentHashMap, not a synchronized block: query() reads it, .onSuccess writes
     // it and invalidate() clears it, all on Dispatchers.IO, and the Status tab is

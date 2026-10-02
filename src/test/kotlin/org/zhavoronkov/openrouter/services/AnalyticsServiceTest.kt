@@ -337,4 +337,20 @@ class AnalyticsServiceTest {
         assertEquals("/region/api/v1/analytics/query", server.takeRequest().path)
         assertEquals("/region/api/v1/analytics/meta", server.takeRequest().path)
     }
+
+    @Test
+    @DisplayName("a transport failure with no message of its own reads as a network error, for both calls")
+    fun `a messageless transport failure reads as a network error`() = runBlocking {
+        val failing = okhttp3.OkHttpClient.Builder()
+            .addInterceptor(okhttp3.Interceptor { throw java.io.IOException() })
+            .build()
+        val service = AnalyticsService(
+            baseUrlOverride = server.url("/api/v1").toString(),
+            provisioningKeyProvider = { "k" },
+            client = failing
+        )
+
+        assertEquals("Network error", (service.query(request()) as ApiResult.Error).message)
+        assertEquals("Network error", (service.meta() as ApiResult.Error).message)
+    }
 }

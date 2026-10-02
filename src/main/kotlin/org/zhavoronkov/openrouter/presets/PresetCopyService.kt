@@ -12,6 +12,7 @@ import org.zhavoronkov.openrouter.proxy.pairs.PairAvailability
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.utils.ExcludeFromCoverage
+import org.zhavoronkov.openrouter.utils.asObjectOrNull
 import java.nio.file.Path
 
 /**
@@ -47,7 +48,7 @@ class PresetCopyService {
 
         /** A preset's designated version as OpenRouter sent it: its prompt, and its config as sent. */
         internal fun versionOf(version: JsonObject): PresetVersion {
-            val config = version.get("config")?.takeIf { it.isJsonObject }?.asJsonObject ?: JsonObject()
+            val config = version.get("config")?.asObjectOrNull() ?: JsonObject()
             val prompt = version.get("system_prompt")?.takeIf { it.isJsonPrimitive }?.asString
             return PresetVersion(prompt, config)
         }

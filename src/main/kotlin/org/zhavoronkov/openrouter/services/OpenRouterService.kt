@@ -37,6 +37,7 @@ import org.zhavoronkov.openrouter.models.QuotaInfo
 import org.zhavoronkov.openrouter.utils.KeyValidator
 import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import org.zhavoronkov.openrouter.utils.asObjectOrNull
 import org.zhavoronkov.openrouter.utils.await
 import org.zhavoronkov.openrouter.utils.awaitWithBody
 import org.zhavoronkov.openrouter.utils.toApiResult
@@ -186,14 +187,12 @@ open class OpenRouterService(
                 )
                 val (response, body) = client.newCall(request).awaitWithBody()
                 if (!response.isSuccessful) return@withContext null
-                JsonParser.parseString(body).takeIf { it.isJsonObject }?.asJsonObject
-                    ?.getAsJsonObject("data")?.get("provider_name")
+                JsonParser.parseString(body).asObjectOrNull()
+                    ?.get("data")?.asObjectOrNull()?.get("provider_name")
                     ?.takeIf { it.isJsonPrimitive }?.asString
             } catch (e: IOException) {
                 null
             } catch (e: JsonParseException) {
-                null
-            } catch (e: ClassCastException) {
                 null
             }
         }
@@ -783,12 +782,12 @@ open class OpenRouterService(
     /**
      * Generic method to fetch data from public endpoints
      */
-    private suspend inline fun <reified T> fetchPublicEndpoint(
+    private suspend fun <T> fetchPublicEndpoint(
         url: String,
         name: String,
         previewLength: Int,
         errorContext: String,
-        crossinline parseResponse: (String) -> T
+        parseResponse: (String) -> T
     ): ApiResult<T> =
         withContext(Dispatchers.IO) {
             try {
@@ -957,13 +956,11 @@ open class OpenRouterService(
                 )
                 val (response, body) = client.newCall(request).awaitWithBody()
                 if (!response.isSuccessful) return@withContext null
-                JsonParser.parseString(body).takeIf { it.isJsonObject }?.asJsonObject
-                    ?.getAsJsonObject("data")?.getAsJsonObject("designated_version")
+                JsonParser.parseString(body).asObjectOrNull()
+                    ?.get("data")?.asObjectOrNull()?.get("designated_version")?.asObjectOrNull()
             } catch (e: IOException) {
                 null
             } catch (e: JsonParseException) {
-                null
-            } catch (e: ClassCastException) {
                 null
             }
         }

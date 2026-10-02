@@ -238,4 +238,18 @@ class PresetCopyTest {
 
         assertNull(copy(this).snapshot())
     }
+
+    @Test
+    @DisplayName("a file named without a directory is saved where the IDE runs, with no directory to create")
+    fun fileWithoutDirectory() = runTest {
+        val bare = Path.of("presets-copy-test-${System.nanoTime()}.json")
+        try {
+            val copy = PresetCopy(file = bare, list = { listed }, read = { versions[it] }, scope = this)
+
+            assertTrue(copy.refresh())
+            assertTrue(Files.exists(bare))
+        } finally {
+            Files.deleteIfExists(bare)
+        }
+    }
 }

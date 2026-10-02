@@ -19,6 +19,7 @@ import org.zhavoronkov.openrouter.models.RequestChoices
 import org.zhavoronkov.openrouter.toolwindow.chat.CHAT_WARNING_FOREGROUND
 import org.zhavoronkov.openrouter.utils.ExcludeFromCoverage
 import org.zhavoronkov.openrouter.utils.PLAIN_DOCUMENT
+import org.zhavoronkov.openrouter.utils.asObjectOrNull
 import java.awt.BorderLayout
 import javax.swing.DefaultComboBoxModel
 import javax.swing.JComponent
@@ -55,6 +56,8 @@ class PresetEditor(
     /** The preset's own schema when the plugin has not saved one of its name, kept to be chosen again. */
     private val unsavedSchemaName: String? =
         draft.outputSchemaName?.takeIf { name -> schemas.none { it.name.equals(name, true) } }
+
+    // Unreachable branch: unsavedSchemaName is read from the OUTPUT value, so that value is never null in the let block
     private val unsavedSchemaOutput = unsavedSchemaName?.let { draft[PresetSetting.OUTPUT]?.deepCopy() }
 
     private val outputChoices: List<String> =
@@ -127,20 +130,25 @@ class PresetEditor(
             changed()
         }
         output.addActionListener {
+            // Unreachable branch: every item of the combo is a String and nothing clears its selection
             when (val chosen = output.selectedItem as? String) {
                 NOT_SET -> draft.remove(PresetSetting.OUTPUT)
                 PLAIN_JSON -> draft.setPlainJson()
+                // Unreachable branch: unsavedSchemaOutput is null only if unsavedSchemaName is; chosen is never null
                 unsavedSchemaName -> unsavedSchemaOutput?.let { draft[PresetSetting.OUTPUT] = it.deepCopy() }
+                // Unreachable branch: the else arm only sees a name listed from schemas, so it is always found
                 else -> schemas.firstOrNull { it.name == chosen }?.let(draft::setSchema)
             }
             changed()
         }
         reasoning.addActionListener {
+            // Unreachable branch: every item of the combo is a String and nothing clears its selection
             val chosen = reasoning.selectedItem as? String
             if (chosen == NOT_SET) draft.remove(PresetSetting.REASONING) else draft.reasoningLabel = chosen
             changed()
         }
         verbosity.addActionListener {
+            // Unreachable branch: every item of the combo is a String and nothing clears its selection
             val chosen = verbosity.selectedItem as? String
             if (chosen == NOT_SET) draft.remove(PresetSetting.VERBOSITY) else draft.verbosityLabel = chosen
             changed()
@@ -193,9 +201,10 @@ class PresetEditor(
     }
 
     private fun routingBlock(): JsonObject =
-        draft[PresetSetting.PROVIDER_ROUTING]?.takeIf { it.isJsonObject }?.asJsonObject ?: JsonObject()
+        draft[PresetSetting.PROVIDER_ROUTING]?.asObjectOrNull() ?: JsonObject()
 
     private fun copyStaleSchema() {
+        // Unreachable branch: updateSchema is visible only while staleSchema is non-null, and every change re-checks it
         draft.staleSchema(schemas)?.let(draft::setSchema)
         changed()
     }

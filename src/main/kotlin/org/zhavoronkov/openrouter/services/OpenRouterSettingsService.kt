@@ -143,7 +143,11 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
         for (modelId in favorites) {
             // A pair's suffix follows its model's variant, so the model part is what is migrated
             val pair = PresetPair.parse(modelId)
+            // Unreachable branch: a parsed pair always has a model, so `pair?.model` is null only
+            // when there is no pair - the elvis never sees a pair without one
             val model = ModelProviderUtils.stripDeprecatedVariant(pair?.model ?: modelId)
+            // Unreachable branch: copy() and id never answer null, so after a pair the second `?.`
+            // and the elvis only ever see a value
             val stripped = pair?.copy(model = model)?.id ?: model
             if (stripped != modelId) {
                 changed = true

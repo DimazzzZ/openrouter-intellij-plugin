@@ -96,17 +96,19 @@ class OutputSchemasSettingsPanel(
     }
 
     private companion object {
-        @JvmField
+        // Unreachable code: the three getters below are never called - the class reads these
+        // fields of its own private companion directly - so each declaration line keeps one
+        // instruction no test can run
         val NAME_COLUMN = object : ColumnInfo<OutputSchema, String>("Name") {
             override fun valueOf(item: OutputSchema): String = item.name
         }
 
-        @JvmField
+        // Unreachable code: see NAME_COLUMN
         val STRICT_COLUMN = object : ColumnInfo<OutputSchema, String>("Strict") {
             override fun valueOf(item: OutputSchema): String = if (item.strict) "Yes" else "No"
         }
 
-        @JvmField
+        // Unreachable code: see NAME_COLUMN
         val FIELDS_COLUMN = object : ColumnInfo<OutputSchema, String>("Fields") {
             override fun valueOf(item: OutputSchema): String =
                 when (val check = OutputSchema.validateBody(item.schema)) {

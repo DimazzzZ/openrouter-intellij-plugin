@@ -6,6 +6,7 @@ import com.google.gson.JsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -326,6 +327,21 @@ class ChatExchangeTest {
         assertFalse(summary.facts.contains("web"))
     }
 
+    @ParameterizedTest(name = "[{index}] {0}")
+    @ValueSource(
+        strings = [
+            """{"model": "m"}""",
+            """{"model": "m", "usage": {"cost": 0.01}}""",
+            """{"model": "m", "usage": {"server_tool_use_details": {}}}"""
+        ]
+    )
+    @DisplayName("a reply that leaves out the usage, its tool use or the search count reports no searches")
+    fun `a reply without a search count reports no searches`(json: String) {
+        val summary = ChatExchange.summarizeReply(sent("m", ChatRequestOptions(webSearch = true)), response(json))
+
+        assertEquals(0, summary.webSearches)
+    }
+
     // --- Output Mode ----------------------------------------------------------
 
     @Test
@@ -464,6 +480,18 @@ class ChatExchangeTest {
         val jsonSchema = Gson().toJsonTree(request).asJsonObject["response_format"].asJsonObject["json_schema"]
         assertEquals(JsonPrimitive(false), jsonSchema.asJsonObject["strict"])
         assertEquals(JsonPrimitive("summary"), jsonSchema.asJsonObject["name"])
+    }
+
+    @Test
+    @DisplayName("a schema that is not saved is refused rather than dropped from the request")
+    fun `a schema that is not saved is refused rather than dropped from the request`() {
+        val options = ChatRequestOptions(outputMode = OutputMode.Schema("missing"))
+
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            ChatExchange.buildRequest("openai/gpt-5.2", messages, options, schemas = saved)
+        }
+
+        assertEquals("No saved Output Schema named missing", error.message)
     }
 
     /**

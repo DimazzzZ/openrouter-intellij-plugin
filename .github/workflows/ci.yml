@@ -48,6 +48,11 @@ jobs:
       - name: Test
         run: ./gradlew test koverVerify koverXmlReport --build-cache
 
+      # Every branch or line the tests miss is either a test still to write or marked in the code
+      # as one no input can take; see TESTING.md, "Code no test should run".
+      - name: Unexplained missed code
+        run: python3 scripts/coverage-unexplained.py
+
       # Detekt gates the build (ignoreFailures was removed), so this failing
       # fails the job. `detekt` emits the SARIF report itself now.
       #
