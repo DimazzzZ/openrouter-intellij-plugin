@@ -1,6 +1,9 @@
 package org.zhavoronkov.openrouter.ui
 
+import com.intellij.openapi.progress.util.ProgressBarUtil
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -67,18 +70,46 @@ class OpenRouterStatsPopupModelSpendTest {
     }
 
     @Nested
+    @DisplayName("Credits Bar Colour")
+    inner class UsageStatusTests {
+
+        private val warning = OpenRouterStatsPopup.WARNING_PERCENTAGE
+        private val critical = OpenRouterStatsPopup.CRITICAL_PERCENTAGE
+
+        private fun status(percentage: Int) = OpenRouterStatsPopup.usageStatus(percentage)
+
+        @Test
+        fun `the bar keeps the default colour below the warning share`() {
+            assertNull(status(0))
+            assertNull(status(warning - 1))
+        }
+
+        @Test
+        fun `the bar warns from the warning share`() {
+            assertEquals(ProgressBarUtil.WARNING_VALUE, status(warning))
+            assertEquals(ProgressBarUtil.WARNING_VALUE, status(critical - 1))
+        }
+
+        @Test
+        fun `the bar turns red from the critical share, overspent included`() {
+            assertEquals(ProgressBarUtil.FAILED_VALUE, status(critical))
+            assertEquals(ProgressBarUtil.FAILED_VALUE, status(120))
+        }
+    }
+
+    @Nested
     @DisplayName("HTML List Building")
     inner class HtmlListBuildingTests {
 
         @Test
         fun `should format models with spend correctly`() {
             val modelsWithSpend = listOf(
-                OpenRouterStatsPopupTestHelper.ModelWithSpend(
+                OpenRouterStatsPopup.ModelWithSpend(
                     "openai/gpt-4",
                     0.0015,
                     "2024-01-02"
                 ),
-                OpenRouterStatsPopupTestHelper.ModelWithSpend(
+                OpenRouterStatsPopup.ModelWithSpend(
                     "anthropic/claude-3",
                     0.003,
                     "2024-01-01"
@@ -100,18 +131,15 @@ class OpenRouterStatsPopupModelSpendTest {
         }
 
         @Test
-        fun `should limit displayed models to 5`() {
+        fun `should list every model, however many`() {
             val modelsWithSpend = (1..7).map { i ->
-                OpenRouterStatsPopupTestHelper.ModelWithSpend(
-                    "model/$i",
-                    0.001 * i,
-                    "2024-01-0$i"
-                )
+                OpenRouterStatsPopup.ModelWithSpend("model/$i", 0.001 * i, "2024-01-0$i")
             }
 
             val html = buildModelsWithSpendHtmlList(modelsWithSpend)
 
-            assertTrue(html.contains("+2 more"))
+            (1..7).forEach { assertTrue(html.contains("model/$it —"), "model/$it should be listed") }
+            assertFalse(html.contains("more"))
         }
     }
 
@@ -157,42 +185,17 @@ class OpenRouterStatsPopupModelSpendTest {
             )
     }
 
-    private fun buildModelsWithSpendHtmlList(
-        modelsWithSpend: List<OpenRouterStatsPopupTestHelper.ModelWithSpend>
-    ): String {
-        return OpenRouterStatsPopupTestHelper.buildModelsWithSpendHtmlList(modelsWithSpend)
-    }
+    private fun buildModelsWithSpendHtmlList(modelsWithSpend: List<OpenRouterStatsPopup.ModelWithSpend>): String =
+        OpenRouterStatsPopup.buildModelsWithSpendHtmlList(modelsWithSpend)
 }
 
 /**
  * Helper object that mirrors the private logic from OpenRouterStatsPopup for testing
  */
 object OpenRouterStatsPopupTestHelper {
-    private const val ACTIVITY_DISPLAY_LIMIT = 5
-    private const val NO_RECENT_MODELS_HTML = "<html>Recent Models:<br/>• None</html>"
-
     data class ModelWithSpend(
         val modelId: String,
         val totalSpend: Double,
         val lastDate: String
     )
-
-    fun buildModelsWithSpendHtmlList(modelsWithSpend: List<ModelWithSpend>): String {
-        return when {
-            modelsWithSpend.isEmpty() -> NO_RECENT_MODELS_HTML
-            else -> {
-                val displayModels = modelsWithSpend.take(ACTIVITY_DISPLAY_LIMIT)
-                val bullets = displayModels.joinToString("<br/>") { model ->
-                    val spendFormatted = String.format(java.util.Locale.US, "%.4f", model.totalSpend)
-                    "• ${model.modelId} — $$spendFormatted"
-                }
-                val moreText = if (modelsWithSpend.size > ACTIVITY_DISPLAY_LIMIT) {
-                    "<br/>• +${modelsWithSpend.size - ACTIVITY_DISPLAY_LIMIT} more"
-                } else {
-                    ""
-                }
-                "<html>Recent Models:<br/>$bullets$moreText</html>"
-            }
-        }
-    }
 }
