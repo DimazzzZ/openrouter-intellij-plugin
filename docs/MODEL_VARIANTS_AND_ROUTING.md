@@ -49,7 +49,7 @@ Settings → Tools → OpenRouter → Favorite Models is a single catalog table 
 - The toolbar holds the filters as drop-downs — Provider, Context, Capabilities (multi-select), Variant (Any, Base only, plus one entry per suffix found in the catalog, and Other) — plus Presets, Refresh, and Move Up / Move Down.
 - **Favorites only** (the star toggle) shows the favorites in stored order with sorting and filters disabled; Move Up / Move Down and drag-and-drop reorder rows there. That order is what AI Assistant lists.
 
-![Favorite Models filter toolbar and Presets](images/presets.png)
+![Favorite Models filter toolbar](images/favorite-models.png)
 
 Favorites are stored as a flat, ordered list of model ids. [`FavoriteModelsManager.getGroups()`](../src/main/kotlin/org/zhavoronkov/openrouter/services/settings/FavoriteModelsManager.kt) can still derive a base-model → variants view on demand; the flat list remains authoritative for downstream consumers.
 

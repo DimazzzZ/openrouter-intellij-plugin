@@ -30,7 +30,9 @@ An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.
 |---------|-------------|
 | **💬 Chat Tool Window** | Multi-chat sessions in IDE sidebar with persistent history and token tracking |
 | **🤖 AI Assistant Proxy** | Local OpenAI-compatible proxy connecting AI Assistant to 400+ models |
-| **🎯 Custom Presets** | Built-in and custom OpenRouter presets for quick model selection |
+| **📋 Requests Tab** | Every request from the chat and from tools using the proxy, with model, provider, tokens and cost |
+| **🧭 Routers** | OpenRouter's routers (`openrouter/auto`, `fusion`, `pareto-code`, …) with per-router defaults |
+| **🎯 Presets** | Your OpenRouter presets, edited in the IDE and paired with a model for tools that can only pick a model |
 | **📊 Usage Analytics** | Real-time cost tracking, quota monitoring, and spending estimates |
 | **⭐ Favorite Models** | Quick access with filtering by provider, capabilities, and context length |
 | **🔐 Secure Storage** | OS-native credential storage (Keychain, Credential Manager, libsecret) |
@@ -106,20 +108,66 @@ Access via `View` → `Tool Windows` → `OpenRouter`:
 - **Persistent History** - Chats saved locally and restored on restart
 - **Token Tracking** - Real-time estimation for input and cumulative counts
 - **Keyboard Shortcuts** - `Enter` to send, `Cmd/Ctrl+Enter` for newline
+- **Reply Summary** - Under every reply: the model that answered (or the one a router chose), the provider and the cost
 
-### Custom Presets
+<p align="center">
+  <img src="docs/images/sidebar-chat.png" alt="Chat tab in the OpenRouter tool window" width="720" />
+</p>
+
+### Requests Tab
+
+Every request the plugin sends to OpenRouter, from the chat and from tools using the proxy, newest first: who sent it, the model asked for and the one that answered, the provider, tokens, cost, stop reason and duration. Filter by sender or model, fold bursts from one tool into one row, and open a request's own log on openrouter.ai. Keeping each request's prompt and reply is opt-in.
+
+<p align="center">
+  <img src="docs/images/sidebar-requests.png" alt="Requests tab with a burst of AI Assistant requests expanded and one request's details" width="720" />
+</p>
+
+### Routers
+
+OpenRouter's routers (`openrouter/auto`, `openrouter/fusion`, `openrouter/pareto-code`, `openrouter/fusion-flash`, `openrouter/free`) appear in every tool's model list and in the chat's model picker. `Settings` → `Tools` → `OpenRouter` → `Router Defaults` sets each router's parameter once; the proxy applies it unless a tool sends its own.
+
+<p align="center">
+  <img src="docs/images/router-defaults.png" alt="Router Defaults settings page" width="720" />
+</p>
+
+### Presets
 
 Manage presets in `Settings` → `Tools` → `OpenRouter` → `Presets`:
 
-- **Built-in Presets** - `openrouter/auto` (best model for task) and `openrouter/free` (free models only)
-- **Custom Presets** - Add your own presets created at [OpenRouter Presets](https://openrouter.ai/settings/presets)
-- **Chat Integration** - Presets appear at the top of model selector with `@preset/` prefix
+- **Your OpenRouter Presets** - Read from your [OpenRouter account](https://openrouter.ai/settings/presets), created and edited in a dialog that lists every setting a preset can have
+- **Models Paired With Presets** - "Add with Preset" in Favorite Models serves `<model>@preset/<slug>` as its own model, so a tool that can only pick a model gets the preset's settings
+- **Chat Integration** - Picking a pair fills the chat's send parameters from its preset, and "Save as Preset…" saves them back
+
+<p align="center">
+  <img src="docs/images/presets.png" alt="Presets settings page" width="720" />
+</p>
+
+<p align="center">
+  <img src="docs/images/presets-modal.png" alt="Preset editing dialog" width="360" />
+</p>
+
+### Web Search
+
+`Settings` → `Tools` → `OpenRouter` → `Web Search` sets the engine, the number of results, allowed and excluded domains and the mode once, for every chat message sent with web search on and every tool request that asks for a search.
+
+<p align="center">
+  <img src="docs/images/web-search.png" alt="Web Search settings page" width="720" />
+</p>
 
 ### Usage Monitoring
 
 - **Status Bar Widget** - Real-time usage display with color-coded connection status
 - **Statistics Popup** - Detailed analytics with days remaining estimate
 - **Cost Tracking** - Accurate "Today" statistics with local tracking
+- **Status Tab** - Your account balance, a spend trend and spend by model or by API key over 24 hours, 7 or 30 days
+
+<p align="center">
+  <img src="docs/images/sidebar-status.png" alt="Status tab with balance, spend trend and spend by model" width="720" />
+</p>
+
+<p align="center">
+  <img src="docs/images/quota-modal.png" alt="View Quota Usage dialog" width="480" />
+</p>
 
 ### Extension API (for Plugin Developers)
 
