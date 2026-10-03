@@ -31,7 +31,7 @@ class WhatsNewNotificationActivity : ProjectActivity {
         // plugin version, update this constant too, or the "What's New" notification
         // will not fire for the new release. (Follow-up: derive from
         // `PluginManagerCore.getPlugin(PluginId.getId(...))?.version`.)
-        private const val CURRENT_VERSION = "0.6.0"
+        private const val CURRENT_VERSION = "0.7.0"
         private const val CHANGELOG_URL =
             "https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/CHANGELOG.md"
     }
@@ -73,21 +73,26 @@ class WhatsNewNotificationActivity : ProjectActivity {
             .createNotification(
                 "OpenRouter Plugin Updated to v$CURRENT_VERSION",
                 """
-                <b>🎛️ Presets CRUD via OpenRouter API:</b><br/>
-                • <b>List, Create & Update</b> - Manage presets over the API, no hand-typed slugs<br/>
-                • <b>Verbatim Config</b> - Server-side <code>tools</code> array preserved as-is<br/>
+                <b>📋 Requests Tab:</b><br/>
+                • <b>Every Request</b> - From the chat and from tools using the proxy, with cost and provider<br/>
+                • <b>Warnings</b> - A failed or cut-off request is announced in a balloon<br/>
                 <br/>
-                <b>⭐ Favorite Models Page Redesign:</b><br/>
-                • <b>Single Table</b> - Checkbox favorites, reorder, filters and column sorting<br/>
+                <b>🧭 Routers Hub:</b><br/>
+                • <b>First-Class Routers</b> - <code>openrouter/auto</code>, <code>fusion</code>, <code>pareto-code</code> and more in every tool's model list<br/>
+                • <b>Router Defaults</b> - Set each router's parameter once; replies say where they were routed<br/>
                 <br/>
-                <b>🏷️ Model Variants:</b><br/>
-                • <b>Suffix Chips</b> - <code>:free</code>, <code>:nitro</code>, <code>:exacto</code>, <code>:floor</code>, <code>:batch</code> parsed and badged<br/>
+                <b>🧩 Models Paired With Presets:</b><br/>
+                • <b>&lt;model&gt;@preset/&lt;slug&gt;</b> - A preset's settings for tools that can only pick a model<br/>
                 <br/>
-                <b>🎛️ Provider Routing:</b><br/>
-                • <b>Global Defaults</b> - Injected without overwriting client routing<br/>
+                <b>📊 Status Tab Redesign:</b><br/>
+                • <b>Real Balance</b> - Spend trend, days left and spend by model; works with an ordinary API key<br/>
                 <br/>
-                <b>🔧 Streaming Tool Calls:</b><br/>
-                • <b>Agent Mode</b> - Streaming tool calls reassembled correctly
+                <b>🚦 Clear Errors for Tools Using the Proxy</b><br/>
+                <br/>
+                <b>🔎 Web Search &amp; Structured Output:</b><br/>
+                • <b>In the Chat</b> - Per-message web search, JSON or a saved schema<br/>
+                <br/>
+                <b>💬 Chat Redesign &amp; 🌍 In-Region Routing</b>
                 """.trimIndent(),
                 NotificationType.INFORMATION
             )
