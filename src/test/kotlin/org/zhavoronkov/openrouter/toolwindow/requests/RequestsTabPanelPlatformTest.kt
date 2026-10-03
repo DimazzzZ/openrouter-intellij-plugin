@@ -241,6 +241,23 @@ class RequestsTabPanelPlatformTest : BasePlatformTestCase() {
         assertColumnsFit(panel)
     }
 
+    /** Columns can be dragged into another order, and a narrow tab brings dropped ones back in it. */
+    fun testAColumnDraggedElsewhereStaysThereWhenTheTabNarrowsAndWidens() {
+        val panel = panel()
+        assertTrue("columns can be dragged", panel.table.tableHeader.reorderingAllowed)
+
+        panel.table.columnModel.moveColumn(3, 3) // a drag step that has not crossed a column yet
+        panel.table.columnModel.moveColumn(3, 0)
+        assertEquals(listOf("Cost", "Time", "Sender", "Requested", ""), visibleTitles(panel))
+
+        resize(panel, 180)
+        assertEquals(listOf("Requested", ""), visibleTitles(panel))
+        resize(panel, 700)
+
+        assertEquals(listOf("Cost", "Time", "Sender", "Requested", ""), visibleTitles(panel))
+        assertColumnsFit(panel)
+    }
+
     /** A column dragged wider keeps its width over a resize and a refill; the requested id gives way. */
     fun testADraggedColumnKeepsItsWidth() {
         val panel = panel()

@@ -113,6 +113,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The Region Selector Stretched Across the Dialog** - the data-region combo was set to fill the settings page's width, which is a lot of dialog for two words
 
 ### Improvements
+- **Columns can be moved in every table** - The Requests tab and the setup wizard's model table kept their columns in a fixed order; now every table in the plugin takes a dragged column header. On the Requests tab, a column dropped to fit a narrow tool window comes back where you put it
 - **Declarative Plugin Config Serialization** - New `PluginConfig { id, params }` model with a class-level `@JsonAdapter` serializer flattens params next to `id` (the shape OpenRouter expects) even under a bare `Gson()`
 - **Router Defaults Injection Invariant** - `RouterPluginsInjector` injects the saved default only when a request omits `plugins` and targets a known router; client-sent `plugins` blocks are left verbatim
 - **Presets No Longer Double-List Routers** - `openrouter/auto` and `openrouter/free` are no longer listed as built-in presets (they are routers now); the empty Built-in Presets group was dropped

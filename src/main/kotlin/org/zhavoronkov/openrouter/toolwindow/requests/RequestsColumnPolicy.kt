@@ -46,4 +46,17 @@ object RequestsColumnPolicy {
         }
         return shown
     }
+
+    /**
+     * [order] with the [shown] columns in the order the table now shows them, after the user
+     * dragged one: each slot a shown column held takes the next shown column, and a column dropped
+     * for width keeps its slot, so a wider tab brings it back where it was.
+     *
+     * @param order every column, in the order the user arranged them.
+     * @param shown the columns on screen, left to right; each one is in [order].
+     */
+    fun reordered(order: List<RequestsColumn>, shown: List<RequestsColumn>): List<RequestsColumn> {
+        val next = shown.iterator()
+        return order.map { if (it in shown) next.next() else it }
+    }
 }

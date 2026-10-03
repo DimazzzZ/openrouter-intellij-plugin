@@ -909,7 +909,6 @@ class SetupWizardDialog(@Suppress("unused") private val project: Project?) : Dia
         modelsTable.setShowGrid(false)
         modelsTable.intercellSpacing = Dimension(0, 0)
         modelsTable.rowHeight = TABLE_ROW_HEIGHT
-        modelsTable.tableHeader.reorderingAllowed = false
         modelsTable.autoCreateRowSorter = true // Enable sorting
 
         // Column widths
