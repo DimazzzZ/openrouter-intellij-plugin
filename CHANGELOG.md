@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-03
+
 ### New Features
 
 #### 📋 Requests Tab
@@ -64,7 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
-- **No deprecated platform API on 2026 IDEs** - JetBrains Marketplace reported two deprecated API usages against every 2026 IDE, both in the Model variants help icon. They are gone, and so are three more that 2026.3 adds, two of them scheduled for removal, while 2025.3 stays supported
+- **No deprecated platform API on 2026 IDEs** - JetBrains Marketplace reported two deprecated API usages against every 2026 IDE, both in the Model variants help icon. They are gone, and so are three more that 2026.3 adds, two of them scheduled for removal, while 2025.3 stays supported. The Provider Routing page's provider choosers no longer use the deprecated `Messages.showChooseDialog`
 - **The proxy answers a misshapen body instead of failing** - An empty request body, a refusal from OpenRouter with an empty body or an error of another shape, and an error chunk of another shape in a stream made the proxy throw, so a tool got a bare HTTP 500 or a stream cut off with no explanation. Each is now answered: a 400 for the request, a readable explanation for the rest
 - **A content part with an odd type no longer breaks a proxied request** - A message part whose `type` was null or an object made the proxy fail with a bare HTTP 500 before checking the request; such a part now counts as no media. A tool call delta with a null id or type is kept, with a generated id and the function type, instead of being dropped
 - **A failed stats request no longer raises an IDE error** - When reading the account's stats failed, the error also reached the IDE's error handler, although the stats popup had already shown the failure
@@ -140,15 +142,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Build & Tooling
 - **Sandbox Locale Pinned to en_US** - Silences an Elevation `MissingResourceException` on en_RU dev hosts
 - **Gradle Hardened for External Cache** - Disabled vfs-watch and the instrumentation agent to stop native file-locking failures on an external Gradle cache volume
+- **A live Coverage badge** - On every push to `main`, CI turns the Kover report into a shields.io endpoint file on a single-commit `badges` branch, and the README badge reads lines and branches from it instead of a number typed by hand
+- **Every missed line explains itself** - `@ExcludeFromCoverage(reason)` leaves out code no test should run (a modal dialog, the browser, the network), and a `// Unreachable branch:` or `// Unreachable code:` comment marks what Kover cannot exclude one by one. `scripts/coverage-unexplained.py` runs in CI after the tests and fails on any missed line or branch that has neither a test nor such a comment
+- **Release re-runs are safe** - Dispatching the Release workflow again for a version that is already out updates the GitHub release and overwrites its zip instead of failing on the upload, and skips the Marketplace publish when the version is already listed there (it still publishes if the Marketplace API cannot be reached). The publish guard no longer demands a `PRIVATE_KEY_PASSWORD` secret the unencrypted signing key never needed
+- **Unused code removed** - `StatsUtils`, `StatsFormatter`, `OpenRouterStatsUtils`, `StreamingResponseHandler.handleStreamingErrorResponse`, `ApiResult.onError` and `PresetsManager.BUILT_IN_PRESETS` were called only from their own tests, or not at all
 
 ### Testing
 - **Routers Hub Suites** - New `RouterCatalogTest`, `RouterRequestBuilderTest`, `PluginConfigTest`, `RouterDefaultsManagerTest`, and `RouterPluginsInjectorTest`; full `./gradlew test` is green
 - **Chat Layout Made Testable** - The chat's layout decisions were moved out of Swing into pure modules with no platform imports, so they run in the fast headless task instead of needing a running IDE: `ComposerLayoutPolicy` (what collapses first as the panel narrows), `MiddleEllipsis` (how a model name is shortened), `ChatParamsState` (whether the gear badge is lit), and `MessageSegmenter` (where a message's segment boundaries fall). The old behaviour rotted precisely because resize was only ever checked by eye
 - **Chat Platform Suites** - New `*PlatformTest` coverage for the list renderer and its gestures, the composer's layout and gear button, the params popup's form and anchor, message layout and wide-content scrolling, plus a shared assertion that no descendant is clipped by its container's bottom edge — the check that caught a real clipping bug after two shipped instances of the same width-then-height mistake
 - **De-Flaked `platformTest`** - An unstubbed mock surfaced an NPE through an unawaited coroutine and attached it to whichever test happened to be running. Pre-existing and reproducible on the base branch; a gate that fails at random certifies nothing
+- **Coverage from 74.9% to 99.9% of lines** - Branch coverage went from 65.4% to 98.1% over two rounds, and the tests that got it there turned up the bugs listed under Bug Fixes
+- **Tests that never ran now run** - Three `OpenRouterService` test files carried the `functional` tag and so were skipped by every normal build, although all they need is a local `MockWebServer`; one of them had gone stale behind it. Four more were silently dropped by JUnit 5 because `fun x() = runBlocking { … }` gave them a non-`Unit` return type
+- **`ChatCompletionServlet` tested for real** - Its dependencies moved into the constructor, so the servlet itself is tested instead of a 528-line hand-written simulator of it
+- **Fallbacks outside a running IDE reach their fallback** - `catch (IllegalStateException)` around a service lookup did not cover the NPE raised when there is no application, so the promised fallback could never run; `applicationServiceOrNull()` replaces ten such call sites
+- **No more failures between midnight and 2 AM** - Tests built dates in the local zone while the formatter buckets in UTC
 
 ### Documentation
 - Defined **Router**, **RouterCatalog**, and **PluginConfig** terms in [`docs/agents/domain.md`](docs/agents/domain.md)
+- [`docs/adr/0006-openrouter-specific-integration-layer.md`](docs/adr/0006-openrouter-specific-integration-layer.md) (#81) - the plugin goes deep on OpenRouter rather than wide across providers, serves the tools that use its proxy first, and has no agent loop of its own. The README gains a Scope section saying the same, the Marketplace description leads with what OpenRouter offers beyond OpenAI compatibility, and [`docs/agents/domain.md`](docs/agents/domain.md) defines **Consumer**, **Host** and **Curation**
+- [`docs/AI_ASSISTANT_SETUP.md`](docs/AI_ASSISTANT_SETUP.md) - how to use the proxy from tools outside the IDE, as the best-effort promise it is: the port can move, the IDE has to be running, and the proxy authenticates nothing
+- [`docs/RELEASING.md`](docs/RELEASING.md) - how to cut a release, and what a re-run of the Release workflow does and does not do
+- [`docs/PRIVACY_POLICY.md`](docs/PRIVACY_POLICY.md) - says what the Requests tab keeps, that prompt and reply bodies are kept only when turned on, and that credit usage snapshots are kept for 48 hours; it no longer lists generation tracking data, which was never stored
+- [`TESTING.md`](TESTING.md) - the Coverage badge and the rules for code no test should run; a `MockWebServer` on loopback is a unit test, as ADR-0003 says
+- [`DEVELOPMENT.md`](DEVELOPMENT.md) - the threading and caching rules, the OpenRouter behaviour the plugin works around, and the `TODO(platform …)` workarounds to revisit when `pluginSinceBuild` is raised
+- The README logo links to [`NOTICE`](NOTICE), which credits the OpenRouter brand assets
 
 ### Changed
 

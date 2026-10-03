@@ -73,6 +73,63 @@
 
     <!-- Change notes for this version -->
     <change-notes><![CDATA[
+        <h3>🎉 Version 0.7.0 - Requests Tab, Routers Hub, Models With Presets, Status Tab Redesign, Web Search &amp; Structured Output (2026-10-03)</h3>
+        <p><strong>📋 Requests Tab:</strong></p>
+        <ul>
+            <li><strong>Every Request in One List</strong> - Requests from the chat and from tools using the proxy, with sender, model, provider, tokens, cost, stop reason and a link to the request's own OpenRouter log</li>
+            <li><strong>Warnings</strong> - An error or a reply cut off at the token limit or by a content filter is marked and announced in a balloon; bursts from one tool fold into one row</li>
+            <li><strong>Prompt and Reply, Opt-In</strong> - Off by default; when on, bodies are kept as plain text and deleted with their request</li>
+        </ul>
+        <p><strong>🧭 Routers Hub:</strong></p>
+        <ul>
+            <li><strong>First-Class Routers</strong> - <code>openrouter/auto</code>, <code>fusion</code>, <code>pareto-code</code>, <code>fusion-flash</code> and <code>free</code> are treated as routers, not presets, and the proxy lists every one of them in <code>/v1/models</code>, so AI Assistant and other tools can pick them</li>
+            <li><strong>Router Defaults</strong> - A settings page sets each router's parameter once; the proxy applies it unless a tool sends its own</li>
+            <li><strong>In the Chat</strong> - A Routers group in the model picker with an editable router parameter, and a "Routed to" note under each routed reply</li>
+        </ul>
+        <p><strong>🧩 Models Paired With Presets:</strong></p>
+        <ul>
+            <li><strong>Add with Preset</strong> - Pairs a favourite with one of your presets as <code>&lt;model&gt;@preset/&lt;slug&gt;</code>, served as its own model in <code>/v1/models</code></li>
+            <li><strong>The Preset Wins</strong> - The proxy drops a tool's fields that the preset sets; a pair that cannot work is hidden, marked and refused</li>
+            <li><strong>Presets Edited in the IDE</strong> - A dialog lists every setting a preset can have; the chat can save its controls as a preset</li>
+        </ul>
+        <p><strong>📊 Status Tab Redesign:</strong></p>
+        <ul>
+            <li><strong>Real Account Balance</strong> - Read from your account credits, the same figures the status bar shows, instead of a sum of key limits</li>
+            <li><strong>Spend at a Glance</strong> - A spend sparkline, burn rate, days-left estimate and spend by model over 24 hours, 7 or 30 days</li>
+            <li><strong>Works With an Ordinary API Key</strong> - Shows that key's own spend and cap instead of an error; account-wide figures need a Management Key</li>
+        </ul>
+        <p><strong>🚦 Clear Errors for Tools Using the Proxy:</strong></p>
+        <ul>
+            <li><strong>Refused Before It Is Sent</strong> - A request that cannot work gets an error naming the problem and the settings page that fixes it</li>
+        </ul>
+        <p><strong>🔎 Web Search and Structured Output:</strong></p>
+        <ul>
+            <li><strong>In the Chat</strong> - Per-message web search, and an Output mode of plain JSON or a saved Output Schema</li>
+            <li><strong>Reply Summary</strong> - Under every reply: the model, the provider, the cost and the web searches, with a warning when it did not stop normally</li>
+            <li><strong>New Settings Pages</strong> - Web Search (engine, results, domains, mode) and Output Schemas (named JSON Schemas, validated as typed)</li>
+        </ul>
+        <p><strong>💬 Chat Redesign:</strong></p>
+        <ul>
+            <li><strong>Readable Conversations</strong> - Message bubbles, long replies no longer clipped, and the model that answered kept on every reply</li>
+            <li><strong>Compact Composer</strong> - Send parameters in a gear popup, and a layout that collapses predictably in a narrow tool window</li>
+        </ul>
+        <p><strong>🌍 In-Region Routing:</strong></p>
+        <ul>
+            <li><strong>Data Region</strong> - Pin every request to <code>eu.openrouter.ai</code> or <code>us.openrouter.ai</code>, offered only where your keys allow it, with the favourites a region cannot serve counted before you switch</li>
+        </ul>
+        <p><strong>🧰 Smaller Improvements:</strong></p>
+        <ul>
+            <li><strong>Tables</strong> - Columns can be moved in every table; View Quota Usage lists every recent model and colours the credits bar</li>
+        </ul>
+        <p><strong>🔧 Fixes:</strong></p>
+        <ul>
+            <li><strong>Clean on 2025.3 to 2026.3</strong> - No deprecated platform API reported on 2026 IDEs</li>
+            <li><strong>No Freezes</strong> - Credential reads and writes, and opening Settings from the Status tab, no longer block the UI</li>
+            <li><strong>Proxy Robustness</strong> - Misshapen request and error bodies are answered instead of failing with a bare HTTP 500</li>
+        </ul>
+        <p><strong>⚖️ License:</strong> The plugin is now distributed under the Apache License, Version 2.0 instead of MIT.</p>
+        <p><a href="https://github.com/DimazzzZ/openrouter-intellij-plugin/blob/main/CHANGELOG.md">Full Changelog</a></p>
+        <hr/>
         <h3>🎉 Version 0.6.0 - Presets CRUD, Favorites Redesign, Variants & Provider Routing (2026-09-15)</h3>
         <p><strong>🎛️ Presets CRUD via OpenRouter API:</strong></p>
         <ul>

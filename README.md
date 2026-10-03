@@ -5,21 +5,24 @@
 # OpenRouter IntelliJ Plugin
 
 [![JetBrains Plugin](https://img.shields.io/badge/JetBrains-Plugin-orange.svg)](https://plugins.jetbrains.com/plugin/28520)
-[![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
+[![Version](https://img.shields.io/badge/version-0.7.0-blue.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/releases)
 [![CI](https://github.com/DimazzzZ/openrouter-intellij-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/DimazzzZ/openrouter-intellij-plugin/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FDimazzzZ%2Fopenrouter-intellij-plugin%2Fbadges%2Fcoverage.json)](TESTING.md)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 An IntelliJ IDEA plugin for integrating with [OpenRouter.ai](https://openrouter.ai), providing access to 400+ AI models with usage monitoring, quota tracking, and seamless JetBrains AI Assistant integration.
 
-## What's New in v0.6.0
+## What's New in v0.7.0
 
-- **🎛️ Presets CRUD via OpenRouter API** - Settings → Presets now lists, creates, and updates your OpenRouter presets over the API (no more hand-typed slugs); server-side `tools` config is preserved verbatim
-- **⭐ Favorite Models Page Redesign** - One catalog table with a favorite checkbox, favorites-only reorder mode (drag/Alt+↑↓), provider/context/variant/capability filters, and column sorting
-- **🏷️ Model Variants** - Model-ID suffixes (`:free`, `:nitro`, `:exacto`, `:floor`, `:batch`) parse into structured values with colored chips and a catalog-driven variant filter
-- **🎛️ Provider Routing** - New settings sub-page for global routing defaults, injected into outbound requests without ever overwriting client-supplied `provider`/`models[]`
-- **🔧 Streaming Tool-Call Support** - Streaming `delta.tool_calls` are reassembled correctly, unblocking AI Assistant Agent Mode
-- **🎨 Brand Refresh** - All plugin icons redrawn to the current OpenRouter brand glyph (theme-aware, HiDPI)
+- **📋 Requests Tab** - Every request the plugin sends to OpenRouter, from the chat and from tools using the proxy, in one list: who sent it, the model and provider that answered, tokens, cost and stop reason, with a balloon when one goes wrong. Keeping prompts and replies is opt-in
+- **🧭 Routers Hub** - OpenRouter's routers (`openrouter/auto`, `fusion`, `pareto-code`, `fusion-flash` and `free`) are first-class: AI Assistant and every other tool using the proxy see them in their model list, a Router Defaults page sets each router's parameter once, the chat has a router picker, and a routed reply says which model it was routed to
+- **🧩 Models Paired With Presets** - "Add with Preset" serves `<model>@preset/<slug>` as its own model, so tools that can only pick a model id (AI Assistant first among them) get a preset's web search, output format and routing
+- **📊 Status Tab Redesign** - The real account balance, shared with the status bar, a spend trend with a days-left estimate and spend by model; with an ordinary API key it shows that key's own spend and cap instead of an error
+- **🚦 Clear Errors for Tools Using the Proxy** - A request that cannot work is refused up front with an error naming the settings page that fixes it
+- **🔎 Web Search and Structured Output in the Chat** - Per-message web search, plain JSON or a saved Output Schema, with new Web Search and Output Schemas settings pages; under every reply, the model, provider, cost and searches that produced it
+- **💬 Chat Redesign** - Message bubbles, send parameters in a gear popup, and a composer that survives a narrow tool window without clipping long replies
+- **🌍 In-Region Routing** - Pin every request to OpenRouter's EU or US endpoint, offered only where your keys allow it
+- **⚖️ Apache-2.0** - The plugin is relicensed from MIT to Apache-2.0
 
 ## Key Features
 
