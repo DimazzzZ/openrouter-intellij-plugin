@@ -26,6 +26,7 @@ import java.awt.Point
 import javax.swing.DefaultComboBoxModel
 import javax.swing.JCheckBox
 import javax.swing.JComponent
+import javax.swing.JList
 
 /**
  * The send parameters (reasoning, verbosity, router param, web search), in a popup form.
@@ -131,17 +132,32 @@ class ChatParamsPopup(
 
     init {
         webSearch.text = WEB_SEARCH_TEXT
-        outputMode.renderer = SimpleListCellRenderer.create { label, mode, index ->
-            val choice = mode?.let(::choiceFor)
-            label.text = mode?.label.orEmpty()
-            if (choice != null && !choice.supported) {
-                label.foreground = UIUtil.getLabelDisabledForeground()
-                // In the list it is an entry that cannot be picked; closed, it is the kept selection
-                // that is blocking the send, and says so.
-                label.icon = if (index == -1) AllIcons.General.Warning else null
-                label.toolTipText = choice.unsupportedReason
-            } else if (choice?.warning != null) {
-                label.toolTipText = choice.warning
+        // A subclass rather than SimpleListCellRenderer.create: the factories are deprecated for
+        // removal from 2026.3, the class and customize() are not. The platform's replacement,
+        // listCellRenderer {}, cannot be used yet - its LcrRow is @ApiStatus.Experimental in every
+        // supported version, and the verifier fails the build on experimental API.
+        // TODO(platform): when LcrRow is no longer experimental in the minimum platform, move to
+        //  listCellRenderer<OutputMode?> { icon(...); text(label) { foreground = ... }; toolTipText = ... }
+        //  (both the class and the factories may be gone by then).
+        outputMode.renderer = object : SimpleListCellRenderer<OutputMode?>() {
+            override fun customize(
+                list: JList<out OutputMode?>,
+                mode: OutputMode?,
+                index: Int,
+                selected: Boolean,
+                hasFocus: Boolean
+            ) {
+                val choice = mode?.let(::choiceFor)
+                text = mode?.label.orEmpty()
+                if (choice != null && !choice.supported) {
+                    foreground = UIUtil.getLabelDisabledForeground()
+                    // In the list it is an entry that cannot be picked; closed, it is the kept selection
+                    // that is blocking the send, and says so.
+                    icon = if (index == -1) AllIcons.General.Warning else null
+                    toolTipText = choice.unsupportedReason
+                } else if (choice?.warning != null) {
+                    toolTipText = choice.warning
+                }
             }
         }
         outputMode.addActionListener {

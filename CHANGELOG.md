@@ -64,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- **No deprecated platform API on 2026 IDEs** - JetBrains Marketplace reported two deprecated API usages against every 2026 IDE, both in the Model variants help icon. They are gone, and so are three more that 2026.3 adds, two of them scheduled for removal, while 2025.3 stays supported
 - **The proxy answers a misshapen body instead of failing** - An empty request body, a refusal from OpenRouter with an empty body or an error of another shape, and an error chunk of another shape in a stream made the proxy throw, so a tool got a bare HTTP 500 or a stream cut off with no explanation. Each is now answered: a 400 for the request, a readable explanation for the rest
 - **A content part with an odd type no longer breaks a proxied request** - A message part whose `type` was null or an object made the proxy fail with a bare HTTP 500 before checking the request; such a part now counts as no media. A tool call delta with a null id or type is kept, with a generated id and the function type, instead of being dropped
 - **A failed stats request no longer raises an IDE error** - When reading the account's stats failed, the error also reached the IDE's error handler, although the stats popup had already shown the failure

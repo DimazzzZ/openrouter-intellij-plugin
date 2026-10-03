@@ -3,6 +3,8 @@ package org.zhavoronkov.openrouter.settings.favorites
 import com.intellij.ide.HelpTooltip
 import com.intellij.ui.ContextHelpLabel
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils.ModelVariant
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
 
 /**
  * The "?" icon next to the page comment explaining what the variant chips mean.
@@ -38,24 +40,37 @@ object VariantLegend {
     }
 
     /**
-     * setTitle(Supplier) is the non-deprecated overload available on the 2025.3 compile
-     * target. setDescription(String), by contrast, is the ONLY description setter in
-     * 2025.3 — every overload is deprecated in 2026.2 and the replacement
-     * setDescription(HtmlChunk) is not reachable from 2025.3. There is no method that
-     * sets the description AND exists in both versions, so the @Suppress below is
-     * unavoidable while platformVersion stays on 2025.x; it silences the verifier for
-     * this single call only.
+     * Built by [ContextHelpLabel.create], the one way to give a [HelpTooltip] a
+     * title and a description that is deprecated in no supported platform: 2025.3
+     * has only the String setters, 2026.1 deprecates them, and their HtmlChunk
+     * replacements do not exist in 2025.3. The factory pins the popup to
+     * [HelpTooltip.Alignment.HELP_BUTTON], and the tooltip it builds is reachable
+     * only once the label is shown and has installed it, so the alignment is moved
+     * to [ALIGNMENT] when the pointer enters. That still precedes the popup: the
+     * tooltip shows it after a delay and reads the alignment only then.
      *
-     * TODO(platform 2026.x): when platformVersion moves to 2026.x, drop the @Suppress
-     * and replace `.setDescription(describe())` with
-     * `.setDescription(HtmlChunk.raw(describe()))` (import com.intellij.util.ui.HtmlChunk).
+     * This is a compatibility workaround for as long as 2025.3 is supported.
+     *
+     * TODO(platform 2026.1): once pluginSinceBuild is 261 or later, build the
+     * tooltip directly and drop the mouse listener:
+     * ```
+     * ContextHelpLabel.createFromTooltip(
+     *     HelpTooltip()
+     *         .setPlainTextTitle(TITLE)
+     *         .setDescription(HtmlChunk.raw(describe()))
+     *         .setNeverHideOnTimeout(true)
+     *         .setLocation(ALIGNMENT)
+     * )
+     * ```
+     * (import com.intellij.openapi.util.text.HtmlChunk). Keep
+     * testVariantHelpTooltipOpensBelowTheIconOncePointedAt, minus its "before
+     * pointed at" half.
      */
-    @Suppress("DEPRECATION")
-    fun createLabel(): ContextHelpLabel = ContextHelpLabel.createFromTooltip(
-        HelpTooltip()
-            .setTitle { TITLE }
-            .setDescription(describe())
-            .setNeverHideOnTimeout(true)
-            .setLocation(ALIGNMENT)
-    )
+    fun createLabel(): ContextHelpLabel = ContextHelpLabel.create(TITLE, describe()).also { label ->
+        label.addMouseListener(object : MouseAdapter() {
+            override fun mouseEntered(e: MouseEvent) {
+                HelpTooltip.getTooltipFor(label)?.setLocation(ALIGNMENT)
+            }
+        })
+    }
 }

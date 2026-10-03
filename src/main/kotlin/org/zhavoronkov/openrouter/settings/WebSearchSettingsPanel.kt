@@ -2,11 +2,11 @@ package org.zhavoronkov.openrouter.settings
 
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.ui.JBIntSpinner
-import com.intellij.ui.SimpleListCellRenderer
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.TopGap
 import com.intellij.ui.dsl.builder.panel
+import com.intellij.ui.dsl.listCellRenderer.textListCellRenderer
 import org.zhavoronkov.openrouter.models.WebSearchEngine
 import org.zhavoronkov.openrouter.models.WebSearchSettings
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
@@ -47,11 +47,11 @@ class WebSearchSettingsPanel(
     internal val modeComment = JLabel()
 
     init {
-        engine.renderer = SimpleListCellRenderer.create("") {
+        engine.renderer = textListCellRenderer<String?> { name ->
             // Unreachable branch: displayName is a non-null String, so only a name no engine has renders as AUTOMATIC
-            WebSearchEngine.fromApiName(it)?.displayName ?: AUTOMATIC
+            name?.let { WebSearchEngine.fromApiName(it)?.displayName ?: AUTOMATIC }
         }
-        mode.renderer = SimpleListCellRenderer.create("") { if (it == UNSET) DEFAULT else it }
+        mode.renderer = textListCellRenderer<String?> { if (it == UNSET) DEFAULT else it }
         engine.addActionListener { refreshModes() }
         refreshModes()
     }
