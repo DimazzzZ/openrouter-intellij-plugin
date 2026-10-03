@@ -2,7 +2,14 @@ package org.zhavoronkov.openrouter.toolwindow.requests
 
 import com.intellij.notification.Notification
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.openapi.actionSystem.impl.SimpleDataContext
+import com.intellij.openapi.ui.popup.Balloon
+import com.intellij.openapi.wm.RegisterToolWindowTask
+import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.`when`
 import org.zhavoronkov.openrouter.models.FixPage
 import org.zhavoronkov.openrouter.requests.ReplyFacts
 import org.zhavoronkov.openrouter.requests.RequestRecord
@@ -19,13 +26,15 @@ class RequestWarningBalloonsPlatformTest : BasePlatformTestCase() {
     private var enabled = true
     private var balloonStillShown = false
     private val raised = mutableListOf<Notification>()
+    private val openedPages = mutableListOf<FixPage>()
 
     private val balloons = RequestWarningBalloons(
         burst = WarningBurst(clock = { now }, windowMillis = 60_000),
         enabled = { enabled },
         notify = { raised += it },
         onScreen = { balloonStillShown },
-        onEdt = Runnable::run
+        onEdt = Runnable::run,
+        openFixPage = { _, page -> openedPages += page }
     )
 
     private fun record(
@@ -119,6 +128,20 @@ class RequestWarningBalloonsPlatformTest : BasePlatformTestCase() {
         assertEquals(listOf("Open Presets", "Show"), raised.single().actions.map { it.templateText })
     }
 
+    fun testOpeningTheFixPageClosesTheBalloon() {
+        balloons.onRecord(record(error = "OpenRouter plugin: refused").copy(fixAt = FixPage.PRESETS))
+        val balloon = raised.single()
+        val context = SimpleDataContext.builder()
+            .add(CommonDataKeys.PROJECT, project)
+            .add(Notification.KEY, balloon)
+            .build()
+
+        Notification.fire(balloon, balloon.actions.first(), context)
+
+        assertEquals(listOf(FixPage.PRESETS), openedPages)
+        assertTrue(balloon.isExpired)
+    }
+
     fun testAWarningThePluginDidNotRaiseOffersOnlyShow() {
         balloons.onRecord(record(error = "Provider overloaded"))
 
@@ -143,5 +166,130 @@ class RequestWarningBalloonsPlatformTest : BasePlatformTestCase() {
         balloons.onRecord(record(finishReason = "length"))
 
         assertEquals(listOf("Open Output Schemas", "Show"), raised.last().actions.map { it.templateText })
+    }
+
+    /** The light test project has no OpenRouter tool window to open, so Show only closes its balloon. */
+    fun testShowClosesTheBalloon() {
+        balloons.onRecord(record())
+        val balloon = raised.single()
+        val show = balloon.actions.single { it.templateText == "Show" }
+
+        val context = SimpleDataContext.builder()
+            .add(CommonDataKeys.PROJECT, project)
+            .add(Notification.KEY, balloon)
+            .build()
+
+        Notification.fire(balloon, show, context)
+
+        assertTrue(balloon.isExpired)
+    }
+
+    private fun context(withProject: Boolean, balloon: Notification) = SimpleDataContext.builder()
+        .apply { if (withProject) add(CommonDataKeys.PROJECT, project) }
+        .add(Notification.KEY, balloon)
+        .build()
+
+    /** Show opens the OpenRouter tool window and asks it for the request the balloon is about. */
+    fun testShowOpensTheRequestsTabAtTheRequest() {
+        val revealed = mutableListOf<RequestRecord>()
+        project.messageBus.connect(testRootDisposable)
+            .subscribe(RequestsNavigator.TOPIC, RequestsNavigator { revealed += it })
+        val windows = ToolWindowManager.getInstance(project)
+        windows.registerToolWindow(RegisterToolWindowTask(id = "OpenRouter"))
+        try {
+            val cutOff = record()
+            balloons.onRecord(cutOff)
+            val balloon = raised.single()
+
+            Notification.fire(balloon, balloon.actions.single { it.templateText == "Show" }, context(true, balloon))
+
+            assertEquals(listOf(cutOff), revealed)
+            assertTrue(balloon.isExpired)
+        } finally {
+            windows.unregisterToolWindow("OpenRouter")
+        }
+    }
+
+    /** From the welcome screen there is no project to open the tab in; Show only closes the balloon. */
+    fun testShowWithoutAProjectOnlyClosesTheBalloon() {
+        balloons.onRecord(record())
+        val balloon = raised.single()
+
+        Notification.fire(balloon, balloon.actions.single { it.templateText == "Show" }, context(false, balloon))
+
+        assertTrue(balloon.isExpired)
+    }
+
+    /** The platform's own check: a notification whose balloon never showed is gone, so a fold only logs. */
+    fun testANotificationWhoseBalloonNeverShowedCountsAsGone() {
+        val platformChecked = RequestWarningBalloons(
+            burst = WarningBurst(clock = { now }, windowMillis = 60_000),
+            enabled = { true },
+            notify = { raised += it },
+            onEdt = Runnable::run
+        )
+        platformChecked.onRecord(record())
+        now = 10_000
+        platformChecked.onRecord(record())
+
+        assertEquals(
+            listOf(RequestWarningBalloons.GROUP_ID, RequestWarningBalloons.LOG_ONLY_GROUP_ID),
+            raised.map { it.groupId }
+        )
+    }
+
+    /** The platform's own check again: a balloon that showed counts until it is closed. */
+    fun testABalloonThatShowedCountsUntilItIsClosed() {
+        val balloon = mock(Balloon::class.java)
+        val platformChecked = RequestWarningBalloons(
+            burst = WarningBurst(clock = { now }, windowMillis = 60_000),
+            enabled = { true },
+            notify = {
+                it.setBalloon(balloon)
+                raised += it
+            },
+            onEdt = Runnable::run
+        )
+        platformChecked.onRecord(record())
+        now = 10_000
+        platformChecked.onRecord(record())
+        `when`(balloon.isDisposed).thenReturn(true)
+        now = 20_000
+        platformChecked.onRecord(record())
+
+        assertEquals(
+            listOf(
+                RequestWarningBalloons.GROUP_ID,
+                RequestWarningBalloons.GROUP_ID,
+                RequestWarningBalloons.LOG_ONLY_GROUP_ID
+            ),
+            raised.map { it.groupId }
+        )
+    }
+
+    /** Once the plugin let go of its balloon, a warning folding into the burst has nothing to replace. */
+    fun testAFoldAfterThePluginLetGoOfItsBalloonOnlyLogs() {
+        balloons.onRecord(record())
+        balloons.dispose()
+        balloonStillShown = true
+        now = 10_000
+
+        balloons.onRecord(record())
+
+        assertEquals(RequestWarningBalloons.LOG_ONLY_GROUP_ID, raised.last().groupId)
+    }
+
+    fun testLettingGoWithNoBalloonRaisedIsHarmless() {
+        balloons.dispose()
+
+        assertTrue(raised.isEmpty())
+    }
+
+    fun testABalloonDoesNotOutliveThePlugin() {
+        balloons.onRecord(record())
+
+        balloons.dispose()
+
+        assertTrue(raised.single().isExpired)
     }
 }

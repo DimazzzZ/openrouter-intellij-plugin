@@ -1,5 +1,7 @@
 package org.zhavoronkov.openrouter.proxy.translation
 
+import com.google.gson.Gson
+import com.google.gson.JsonArray
 import com.google.gson.JsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -12,6 +14,8 @@ import org.zhavoronkov.openrouter.models.ChatMessage
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatChoice
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatCompletionResponse
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatMessage
+import org.zhavoronkov.openrouter.proxy.models.OpenAIChatToolCall
+import org.zhavoronkov.openrouter.proxy.models.OpenAIChatToolCallFunction
 
 @DisplayName("ResponseTranslator Branch Tests")
 class ResponseTranslatorBranchTest {
@@ -101,5 +105,43 @@ class ResponseTranslatorBranchTest {
             message = OpenAIChatMessage(role = "", content = JsonPrimitive("hi"))
         )
         assertFalse(ResponseTranslator.validateTranslatedResponse(validResponse(choices = listOf(choice))))
+    }
+
+    /** Gson leaves a field the reply omits null, whatever the Kotlin type says. */
+    @Test
+    @DisplayName("a message read from a reply without a role or content gets the assistant's and an empty one")
+    fun messageFieldsMissingFromTheReply() {
+        val response = Gson().fromJson(
+            """{"id":"gen-3","choices":[{"message":{"content":"hi"}},{"message":{"role":"tool"}}]}""",
+            ChatCompletionResponse::class.java
+        )
+
+        val choices = ResponseTranslator.translateChatCompletionResponse(response, "gpt-4o").choices
+
+        assertEquals("assistant", choices[0].message.role)
+        assertEquals("hi", choices[0].message.content.asString)
+        assertEquals("tool", choices[1].message.role)
+        assertEquals("", choices[1].message.content.asString)
+    }
+
+    @Test
+    @DisplayName("validate accepts a choice whose content is not text only when it carries tool calls")
+    fun validateNonTextContent() {
+        val toolCall = OpenAIChatToolCall(
+            id = "call-1",
+            type = "function",
+            function = OpenAIChatToolCallFunction(name = "read_file", arguments = "{}")
+        )
+        val withCalls = OpenAIChatChoice(
+            index = 0,
+            message = OpenAIChatMessage(role = "assistant", content = JsonArray(), toolCalls = listOf(toolCall))
+        )
+        val without = OpenAIChatChoice(
+            index = 0,
+            message = OpenAIChatMessage(role = "assistant", content = JsonArray())
+        )
+
+        assertTrue(ResponseTranslator.validateTranslatedResponse(validResponse(choices = listOf(withCalls))))
+        assertFalse(ResponseTranslator.validateTranslatedResponse(validResponse(choices = listOf(without))))
     }
 }

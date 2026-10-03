@@ -6,6 +6,8 @@ import com.google.gson.JsonParser
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.zhavoronkov.openrouter.models.ChatChoice
 import org.zhavoronkov.openrouter.models.ChatCompletionResponse
 import org.zhavoronkov.openrouter.models.ChatUsage
@@ -125,5 +127,40 @@ class ReplyFactsCollectorTest {
             ReplyFacts("gen-3", "openai/gpt-5.2", "OpenAI", 5, 7, 0.002, "length", 1),
             collector.facts()
         )
+    }
+
+    @ParameterizedTest(name = "[{index}] {0}")
+    @ValueSource(
+        strings = [
+            """{"id":7,"model":"  ","provider":{"name":"OpenAI"}}""",
+            """{"choices":"stop","usage":"none"}""",
+            """{"choices":["stop",{"finish_reason":3}]}""",
+            """{"usage":{"prompt_tokens":"12","completion_tokens":[1],"cost":"0.1",
+                "server_tool_use_details":{"web_search_requests":"2"}}}""",
+            """{"usage":{"server_tool_use_details":"2","server_tool_use":3}}""",
+            """{"choices":[]}""",
+            """{"choices":["stop",7]}""",
+            """{"usage":{"cost":{"total":0.1},"prompt_tokens":{"n":1}}}"""
+        ]
+    )
+    @DisplayName("fields of another type, or blank, add nothing to the facts so far")
+    fun `fields of another type add nothing`(text: String) {
+        val collector = ReplyFactsCollector()
+        collector.observe(json("""{"id":"gen-1","choices":[{"finish_reason":"stop"}],"usage":{"prompt_tokens":3}}"""))
+        val before = collector.facts()
+
+        collector.observe(json(text))
+
+        assertEquals(before, collector.facts())
+    }
+
+    @Test
+    @DisplayName("the older server_tool_use name is still read")
+    fun `the older server tool use name is still read`() {
+        val collector = ReplyFactsCollector()
+
+        collector.observe(json("""{"usage":{"server_tool_use":{"web_search_requests":4}}}"""))
+
+        assertEquals(4, collector.facts().webSearches)
     }
 }

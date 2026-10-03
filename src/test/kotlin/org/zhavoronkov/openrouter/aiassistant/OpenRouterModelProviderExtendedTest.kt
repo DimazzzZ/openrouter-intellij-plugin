@@ -325,6 +325,13 @@ class OpenRouterModelProviderExtendedTest {
         }
 
         @Test
+        fun `derives a name from an unknown id, keeping the gap an empty part leaves`() {
+            val p = provider(favoriteModels = listOf(blankModel("acme/new--model")))
+
+            assertEquals("New  Model", p.getAvailableModels().single().name)
+        }
+
+        @Test
         fun `derives curated descriptions for known model ids when description is null`() {
             val ids = listOf(
                 "openai/gpt-4o",

@@ -34,6 +34,7 @@ object ConsumerNames {
         val sent = userAgent?.trim().orEmpty()
         if (sent.isEmpty()) return UNKNOWN
         val lower = sent.lowercase()
+        // Unreachable branch: every KNOWN name is a non-null literal, so the elvis falls back only when none matched
         return KNOWN.firstOrNull { (fragment, _) -> fragment in lower }?.second
             ?: sent.take(MAX_LENGTH)
     }

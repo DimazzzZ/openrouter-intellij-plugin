@@ -95,6 +95,23 @@ class ModelsServletTest {
     }
 
     @Test
+    fun `doGet serves a favorite pair as it is when no settings can judge it`() {
+        // Outside a running IDE the default pair check has no settings to ask
+        val servlet = ModelsServlet(
+            mock(OpenRouterService::class.java),
+            favoriteModelsProvider = { listOf("openai/gpt-4o@preset/research") },
+            presetsProvider = { emptyList() }
+        )
+        val (req, writer) = createDoGetRequest()
+        val resp = mock(HttpServletResponse::class.java)
+        `when`(resp.writer).thenReturn(PrintWriter(writer))
+
+        servlet.doGet(req, resp)
+
+        assertTrue(writer.toString().contains("openai/gpt-4o@preset/research"), "got: $writer")
+    }
+
+    @Test
     fun `doGet keeps a favorite whose variant resolves to a served base model`() {
         val result = executeServlet(
             favorites = listOf("openai/gpt-4o:nitro"),

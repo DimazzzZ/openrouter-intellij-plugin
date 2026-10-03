@@ -1,6 +1,7 @@
 package org.zhavoronkov.openrouter.utils
 
 import java.nio.charset.StandardCharsets
+import java.security.GeneralSecurityException
 import java.security.MessageDigest
 import java.util.Base64
 import javax.crypto.Cipher
@@ -30,24 +31,21 @@ object EncryptionUtil {
     fun encrypt(plainText: String): String {
         if (plainText.isBlank()) return plainText
 
-        return try {
+        return plainTextIfEncryptionFails(plainText) {
             val cipher = Cipher.getInstance(TRANSFORMATION)
             cipher.init(Cipher.ENCRYPT_MODE, getKey())
             val encryptedBytes = cipher.doFinal(plainText.toByteArray(StandardCharsets.UTF_8))
             Base64.getEncoder().encodeToString(encryptedBytes)
-        } catch (e: javax.crypto.BadPaddingException) {
-            PluginLogger.Service.warn("Bad padding during encryption, returning plain text", e)
-            plainText
-        } catch (e: javax.crypto.IllegalBlockSizeException) {
-            PluginLogger.Service.warn("Illegal block size during encryption, returning plain text", e)
-            plainText
-        } catch (e: java.security.InvalidKeyException) {
-            PluginLogger.Service.warn("Invalid key during encryption, returning plain text", e)
-            plainText
-        } catch (e: java.security.NoSuchAlgorithmException) {
-            PluginLogger.Service.error("Encryption algorithm not available, returning plain text", e)
-            plainText
         }
+    }
+
+    /** [encrypt]ed, or [plainText] itself when the JVM's cipher refuses. */
+    @ExcludeFromCoverage("JCE refusing AES with a 128-bit key it was handed, which no supported JVM does")
+    private fun plainTextIfEncryptionFails(plainText: String, encrypt: () -> String): String = try {
+        encrypt()
+    } catch (e: GeneralSecurityException) {
+        PluginLogger.Service.error("Encryption failed, returning plain text", e)
+        plainText
     }
 
     /**
@@ -62,14 +60,9 @@ object EncryptionUtil {
             val encryptedBytes = Base64.getDecoder().decode(encryptedText)
             val decryptedBytes = cipher.doFinal(encryptedBytes)
             String(decryptedBytes, StandardCharsets.UTF_8)
-        } catch (e: javax.crypto.BadPaddingException) {
-            PluginLogger.Service.debug("Bad padding during decryption, assuming plain text", e)
-            encryptedText
-        } catch (e: javax.crypto.IllegalBlockSizeException) {
-            PluginLogger.Service.debug("Illegal block size during decryption, assuming plain text", e)
-            encryptedText
-        } catch (e: java.security.InvalidKeyException) {
-            PluginLogger.Service.warn("Invalid key during decryption, assuming plain text", e)
+        } catch (e: GeneralSecurityException) {
+            // Bad padding or block size: text this key did not encrypt, which is a key stored in clear
+            PluginLogger.Service.debug("Not decryptable with this key, assuming plain text", e)
             encryptedText
         } catch (e: IllegalArgumentException) {
             PluginLogger.Service.debug("Invalid Base64 format, assuming plain text", e)

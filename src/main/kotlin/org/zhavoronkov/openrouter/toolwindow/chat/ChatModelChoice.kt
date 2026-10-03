@@ -23,6 +23,7 @@ data class ChatModelChoice(
      * Whether the preset sets routing, counted as the proxy counts it, which replaces every
      * routing default, the router's parameter included.
      */
+    // Unreachable branch: JsonObject.keySet never returns null; only a null preset or config skips setsRouting
     val presetRouting: Boolean get() = preset?.config?.keySet()?.let(PresetFields::setsRouting) == true
 
     /** Whether the preset offers web search: the switch sends no tool, so it cannot take it away. */

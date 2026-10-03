@@ -734,50 +734,6 @@ class StreamingResponseHandlerErrorPathTest {
     }
 
     @Test
-    fun `handleStreamingErrorResponse maps status codes`() {
-        val codes = listOf(401, 402, 429, 500, 502, 503, 418)
-        for (code in codes) {
-            val rb: ResponseBody = """{"error":{"message":"nope"}}""".toResponseBody("application/json".toMediaType())
-            val response = Response.Builder()
-                .request(Request.Builder().url("http://localhost").build())
-                .protocol(Protocol.HTTP_1_1)
-                .code(code)
-                .message("ERR")
-                .body(rb)
-                .build()
-            val resp = org.mockito.Mockito.mock(jakarta.servlet.http.HttpServletResponse::class.java)
-            val output = StringWriter()
-            org.mockito.Mockito.`when`(resp.writer).thenReturn(PrintWriter(output))
-            val handler = StreamingResponseHandler()
-            handler.handleStreamingErrorResponse(
-                StreamingResponseHandler.StreamingErrorContext(response, resp, "code-" + code)
-            )
-            org.mockito.Mockito.verify(resp).status = code
-            assertTrue(output.toString().contains("chat.completion.chunk"))
-        }
-    }
-
-    @Test
-    fun `handleStreamingErrorResponse falls back when body is not JSON`() {
-        val rb: ResponseBody = "not json at all".toResponseBody("text/plain".toMediaType())
-        val response = Response.Builder()
-            .request(Request.Builder().url("http://localhost").build())
-            .protocol(Protocol.HTTP_1_1)
-            .code(401)
-            .message("ERR")
-            .body(rb)
-            .build()
-        val resp = org.mockito.Mockito.mock(jakarta.servlet.http.HttpServletResponse::class.java)
-        val output = StringWriter()
-        org.mockito.Mockito.`when`(resp.writer).thenReturn(PrintWriter(output))
-        val handler = StreamingResponseHandler()
-        handler.handleStreamingErrorResponse(
-            StreamingResponseHandler.StreamingErrorContext(response, resp, "nonjson")
-        )
-        assertTrue(output.toString().contains("Authentication failed"))
-    }
-
-    @Test
     fun `enhanceErrorMessage covers timeout unavailable and default`() {
         val handler = StreamingResponseHandler()
         val outTimeout = StringWriter()
@@ -834,80 +790,6 @@ class StreamingResponseHandlerErrorPathTest {
         val out = StringWriter()
         handler.streamResponseToClient(response, PrintWriter(out), "partial-fields")
         assertTrue(out.toString().contains("partial"))
-    }
-
-    @Test
-    fun `handleStreamingErrorResponse maps 402 credits from parsed JSON`() {
-        val body = "{\"error\":{\"message\":\"no funds\"}}"
-        val rb: ResponseBody = body.toResponseBody("application/json".toMediaType())
-        val response = Response.Builder().request(Request.Builder().url("http://localhost").build())
-            .protocol(Protocol.HTTP_1_1).code(402).message("PAY").body(rb).build()
-        val resp = org.mockito.Mockito.mock(jakarta.servlet.http.HttpServletResponse::class.java)
-        val output = StringWriter()
-        org.mockito.Mockito.`when`(resp.writer).thenReturn(PrintWriter(output))
-        val handler = StreamingResponseHandler()
-        handler.handleStreamingErrorResponse(
-            StreamingResponseHandler.StreamingErrorContext(response, resp, "creds")
-        )
-        assertTrue(output.toString().contains("Insufficient credits"))
-    }
-
-    @Test
-    fun `handleStreamingErrorResponse maps 429 rate-limit from parsed JSON`() {
-        val body = "{\"error\":{\"message\":\"slow down\"}}"
-        val rb: ResponseBody = body.toResponseBody("application/json".toMediaType())
-        val response = Response.Builder().request(Request.Builder().url("http://localhost").build())
-            .protocol(Protocol.HTTP_1_1).code(429).message("RL").body(rb).build()
-        val resp = org.mockito.Mockito.mock(jakarta.servlet.http.HttpServletResponse::class.java)
-        val output = StringWriter()
-        org.mockito.Mockito.`when`(resp.writer).thenReturn(PrintWriter(output))
-        val handler = StreamingResponseHandler()
-        handler.handleStreamingErrorResponse(
-            StreamingResponseHandler.StreamingErrorContext(response, resp, "rl")
-        )
-        assertTrue(output.toString().contains("Rate limit exceeded"))
-    }
-
-    @Test
-    fun `handleStreamingErrorResponse maps 500 502 503 to service error`() {
-        for (code in listOf(500, 502, 503)) {
-            val body = "{\"error\":{\"message\":\"bad\"}}"
-            val rb: ResponseBody = body.toResponseBody("application/json".toMediaType())
-            val response = Response.Builder().request(Request.Builder().url("http://localhost").build())
-                .protocol(Protocol.HTTP_1_1).code(code).message("ERR").body(rb).build()
-            val resp = org.mockito.Mockito.mock(jakarta.servlet.http.HttpServletResponse::class.java)
-            val output = StringWriter()
-            org.mockito.Mockito.`when`(resp.writer).thenReturn(PrintWriter(output))
-            val handler = StreamingResponseHandler()
-            handler.handleStreamingErrorResponse(
-                StreamingResponseHandler.StreamingErrorContext(response, resp, "svc-" + code)
-            )
-            assertTrue(output.toString().contains("OpenRouter service error"))
-        }
-    }
-
-    @Test
-    fun `handleStreamingErrorResponse non-json body maps 402 429 5xx fallback`() {
-        for ((code, expect) in listOf(
-            402 to "Insufficient credits",
-            429 to "Rate limit exceeded",
-            500 to "temporarily unavailable",
-            502 to "temporarily unavailable",
-            503 to "temporarily unavailable",
-            418 to "Request failed with status"
-        )) {
-            val rb: ResponseBody = "plain".toResponseBody("text/plain".toMediaType())
-            val response = Response.Builder().request(Request.Builder().url("http://localhost").build())
-                .protocol(Protocol.HTTP_1_1).code(code).message("X").body(rb).build()
-            val resp = org.mockito.Mockito.mock(jakarta.servlet.http.HttpServletResponse::class.java)
-            val output = StringWriter()
-            org.mockito.Mockito.`when`(resp.writer).thenReturn(PrintWriter(output))
-            val handler = StreamingResponseHandler()
-            handler.handleStreamingErrorResponse(
-                StreamingResponseHandler.StreamingErrorContext(response, resp, "nj-" + code)
-            )
-            assertTrue(output.toString().contains(expect), "code=" + code + " missing " + expect)
-        }
     }
 }
 

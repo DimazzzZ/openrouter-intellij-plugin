@@ -110,6 +110,7 @@ data class BalanceData(
      * @return Formatted string like "$1.23" or "N/A" if unavailable
      */
     fun formattedTodayUsage(): String {
+        // Unreachable branch: String.format never returns null, so only a null todayUsage says "N/A"
         return todayUsage?.let { String.format(java.util.Locale.US, "$%.2f", it) } ?: "N/A"
     }
 

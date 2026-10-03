@@ -8,6 +8,7 @@ import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -39,7 +40,12 @@ import java.time.format.DateTimeFormatter
     storages = [Storage("openrouter-credit-history.xml")]
 )
 @Suppress("TooManyFunctions")
-class CreditUsageHistoryService : PersistentStateComponent<CreditUsageHistoryService.State>, Disposable {
+class CreditUsageHistoryService(
+    /** Where the snapshot timer runs; a test passes one on virtual time. */
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
+    /** The stats cache the snapshots read, or null while it is not available. */
+    private val statsCache: () -> OpenRouterStatsCache? = { applicationServiceOrNull(OpenRouterStatsCache::class.java) }
+) : PersistentStateComponent<CreditUsageHistoryService.State>, Disposable {
 
     companion object {
         private const val SNAPSHOT_INTERVAL_MINUTES = 5L
@@ -70,10 +76,10 @@ class CreditUsageHistoryService : PersistentStateComponent<CreditUsageHistorySer
     )
 
     private var state = State()
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
+    /** The running snapshot timer, or null while it is stopped. */
     @Volatile
-    private var isRunning = false
+    private var timer: Job? = null
 
     override fun getState(): State = state
 
@@ -87,18 +93,22 @@ class CreditUsageHistoryService : PersistentStateComponent<CreditUsageHistorySer
      * Start the background snapshot timer.
      * Should be called after plugin initialization.
      */
+    @Synchronized
     fun startSnapshotTimer() {
-        if (isRunning) {
+        // Unreachable branch: with a timer, isActive is a plain Boolean, so the comparison never
+        // sees the null that `?.` could produce - that only comes from no timer at all
+        if (timer?.isActive == true) {
             PluginLogger.Service.debug("CreditUsageHistoryService: Timer already running")
             return
         }
-        isRunning = true
         PluginLogger.Service.info(
             "CreditUsageHistoryService: Starting snapshot timer (${SNAPSHOT_INTERVAL_MINUTES}min interval)"
         )
 
-        scope.launch {
+        timer = scope.launch {
             takeSnapshotIfNeeded()
+            // Unreachable branch: isActive never reads false here - a cancelled timer stops inside
+            // delay(), which throws CancellationException before the loop asks again
             while (isActive) {
                 delay(SNAPSHOT_INTERVAL_MINUTES * MILLIS_PER_MINUTE)
                 takeSnapshotIfNeeded()
@@ -107,10 +117,13 @@ class CreditUsageHistoryService : PersistentStateComponent<CreditUsageHistorySer
     }
 
     /**
-     * Stop the background timer.
+     * Stop the background timer: the loop is cancelled, not only marked stopped, so a later
+     * [startSnapshotTimer] runs one timer rather than two.
      */
+    @Synchronized
     fun stopSnapshotTimer() {
-        isRunning = false
+        timer?.cancel()
+        timer = null
         PluginLogger.Service.info("CreditUsageHistoryService: Stopped snapshot timer")
     }
 
@@ -119,7 +132,7 @@ class CreditUsageHistoryService : PersistentStateComponent<CreditUsageHistorySer
      */
     private suspend fun takeSnapshotIfNeeded() {
         try {
-            val statsCache = getStatsCacheSafely() ?: return
+            val statsCache = statsCache() ?: return
             val credits = statsCache.getCachedCredits()
 
             if (credits == null) {
@@ -307,9 +320,6 @@ class CreditUsageHistoryService : PersistentStateComponent<CreditUsageHistorySer
         state.snapshots.clear()
         PluginLogger.Service.info("CreditUsageHistoryService: Cleared all snapshots")
     }
-
-    private fun getStatsCacheSafely(): OpenRouterStatsCache? =
-        applicationServiceOrNull(OpenRouterStatsCache::class.java)
 
     private fun formatTimestamp(timestamp: Long): String {
         return LocalDateTime.ofInstant(

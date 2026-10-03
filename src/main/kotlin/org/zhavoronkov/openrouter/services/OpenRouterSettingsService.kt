@@ -18,6 +18,7 @@ import org.zhavoronkov.openrouter.services.settings.RouterDefaultsManager
 import org.zhavoronkov.openrouter.services.settings.SetupStateManager
 import org.zhavoronkov.openrouter.services.settings.UIPreferencesManager
 import org.zhavoronkov.openrouter.services.settings.WebSearchSettingsManager
+import org.zhavoronkov.openrouter.utils.ExcludeFromCoverage
 import org.zhavoronkov.openrouter.utils.ModelProviderUtils
 import org.zhavoronkov.openrouter.utils.PasswordSafeKeyStorage
 import org.zhavoronkov.openrouter.utils.PluginLogger
@@ -34,32 +35,31 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
 
     private var settings = OpenRouterSettings()
 
-    lateinit var apiKeyManager: ApiKeySettingsManager
+    var apiKeyManager: ApiKeySettingsManager = ApiKeySettingsManager(settings) { notifyStateChanged() }
         private set
-    lateinit var proxyManager: ProxySettingsManager
+    var proxyManager: ProxySettingsManager = ProxySettingsManager(settings) { notifyStateChanged() }
         private set
-    lateinit var uiPreferencesManager: UIPreferencesManager
+    var uiPreferencesManager: UIPreferencesManager = UIPreferencesManager(settings) { notifyStateChanged() }
         private set
-    lateinit var setupStateManager: SetupStateManager
+    var setupStateManager: SetupStateManager = SetupStateManager(settings) { notifyStateChanged() }
         private set
-    lateinit var favoriteModelsManager: FavoriteModelsManager
+    var favoriteModelsManager: FavoriteModelsManager = FavoriteModelsManager(settings) { notifyStateChanged() }
         private set
-    lateinit var presetsManager: PresetsManager
+    var presetsManager: PresetsManager = PresetsManager(settings) { notifyStateChanged() }
 
-    lateinit var providerRoutingManager: ProviderRoutingManager
-        private set
-
-    lateinit var routerDefaultsManager: RouterDefaultsManager
+    var providerRoutingManager: ProviderRoutingManager = ProviderRoutingManager(settings) { notifyStateChanged() }
         private set
 
-    lateinit var webSearchManager: WebSearchSettingsManager
+    var routerDefaultsManager: RouterDefaultsManager = RouterDefaultsManager(settings) { notifyStateChanged() }
         private set
 
-    lateinit var outputSchemasManager: OutputSchemasManager
+    var webSearchManager: WebSearchSettingsManager = WebSearchSettingsManager(settings) { notifyStateChanged() }
+        private set
+
+    var outputSchemasManager: OutputSchemasManager = OutputSchemasManager(settings) { notifyStateChanged() }
         private set
 
     init {
-        initializeManagers()
         // Warm the key cache in the background, before the first widget asks on the EDT
         PasswordSafeKeyStorage.preloadKeys()
     }
@@ -143,7 +143,11 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
         for (modelId in favorites) {
             // A pair's suffix follows its model's variant, so the model part is what is migrated
             val pair = PresetPair.parse(modelId)
+            // Unreachable branch: a parsed pair always has a model, so `pair?.model` is null only
+            // when there is no pair - the elvis never sees a pair without one
             val model = ModelProviderUtils.stripDeprecatedVariant(pair?.model ?: modelId)
+            // Unreachable branch: copy() and id never answer null, so after a pair the second `?.`
+            // and the elvis only ever see a value
             val stripped = pair?.copy(model = model)?.id ?: model
             if (stripped != modelId) {
                 changed = true
@@ -204,25 +208,29 @@ class OpenRouterSettingsService : PersistentStateComponent<OpenRouterSettings>, 
      * This method forces immediate synchronous persistence to ensure the state
      * is saved before any subsequent operations that might check for it.
      */
-    private fun notifyStateChanged() {
-        try {
-            val application = ApplicationManager.getApplication()
-            if (application != null) {
-                PluginLogger.Service.info("notifyStateChanged: About to call saveSettings()")
-                // Force immediate state persistence
-                // This is synchronous to ensure the state is saved before returning
-                application.saveSettings()
-                PluginLogger.Service.info("Settings state persisted successfully")
-            } else {
-                PluginLogger.Service.info(
-                    "notifyStateChanged: Application is null (likely test environment), skipping saveSettings()"
-                )
-            }
+    private fun notifyStateChanged() = persistingQuietly {
+        val application = ApplicationManager.getApplication()
+        if (application != null) {
+            PluginLogger.Service.info("notifyStateChanged: About to call saveSettings()")
+            // Force immediate state persistence
+            // This is synchronous to ensure the state is saved before returning
+            application.saveSettings()
+            PluginLogger.Service.info("Settings state persisted successfully")
+            application.messageBus
+                .syncPublisher(org.zhavoronkov.openrouter.listeners.OpenRouterSettingsListener.TOPIC)
+                .onSettingsChanged()
+        } else {
+            PluginLogger.Service.info(
+                "notifyStateChanged: Application is null (likely test environment), skipping saveSettings()"
+            )
+        }
+    }
 
-            // Notify listeners about settings change
-            application?.messageBus?.syncPublisher(
-                org.zhavoronkov.openrouter.listeners.OpenRouterSettingsListener.TOPIC
-            )?.onSettingsChanged()
+    /** Runs [persist], logging rather than throwing when the platform fails to save. */
+    @ExcludeFromCoverage("only catches the platform's own save failing, which no test can make it do")
+    private fun persistingQuietly(persist: () -> Unit) {
+        try {
+            persist()
         } catch (e: IllegalStateException) {
             PluginLogger.Service.warn("Failed to persist settings state", e)
         } catch (e: IllegalArgumentException) {

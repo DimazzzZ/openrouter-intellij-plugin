@@ -320,4 +320,37 @@ class AnalyticsServiceTest {
 
         assertTrue(result is ApiResult.Error, "expected a reported error, got: $result")
     }
+
+    @Test
+    @DisplayName("without an override, queries and meta go to the selected region's base URL")
+    fun `without an override the region base URL is used`() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"data":{"data":[],"metadata":null}}"""))
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"data":{"granularities":["day"]}}"""))
+        val service = AnalyticsService(
+            baseUrlOverride = null,
+            provisioningKeyProvider = { "k" },
+            baseUrlProvider = { server.url("/region/api/v1").toString() }
+        )
+
+        assertTrue(service.query(request()) is ApiResult.Success)
+        assertTrue(service.meta() is ApiResult.Success)
+        assertEquals("/region/api/v1/analytics/query", server.takeRequest().path)
+        assertEquals("/region/api/v1/analytics/meta", server.takeRequest().path)
+    }
+
+    @Test
+    @DisplayName("a transport failure with no message of its own reads as a network error, for both calls")
+    fun `a messageless transport failure reads as a network error`() = runBlocking {
+        val failing = okhttp3.OkHttpClient.Builder()
+            .addInterceptor(okhttp3.Interceptor { throw java.io.IOException() })
+            .build()
+        val service = AnalyticsService(
+            baseUrlOverride = server.url("/api/v1").toString(),
+            provisioningKeyProvider = { "k" },
+            client = failing
+        )
+
+        assertEquals("Network error", (service.query(request()) as ApiResult.Error).message)
+        assertEquals("Network error", (service.meta() as ApiResult.Error).message)
+    }
 }

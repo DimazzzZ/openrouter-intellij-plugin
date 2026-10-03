@@ -12,6 +12,9 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.Mockito.mock
+import org.zhavoronkov.openrouter.requests.RequestRecord
+import org.zhavoronkov.openrouter.requests.RequestSource
+import org.zhavoronkov.openrouter.requests.RequestTrace
 import org.zhavoronkov.openrouter.testing.OkHttpLeakSafeExtension
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -224,5 +227,43 @@ class NonStreamingResponseHandlerTest {
 
         // Malformed JSON triggers the JsonSyntaxException catch -> 500
         org.mockito.Mockito.verify(response).setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR)
+    }
+
+    private fun tracedRun(body: String, recorded: MutableList<RequestRecord>): HttpServletResponse {
+        server.enqueue(MockResponse().setResponseCode(200).setBody(body))
+        val response = mock(HttpServletResponse::class.java)
+        org.mockito.Mockito.`when`(response.writer).thenReturn(PrintWriter(StringWriter()))
+        val trace = RequestTrace(source = RequestSource.PROXY, sender = "Junie", record = { recorded += it })
+
+        handler.handleNonStreamingRequest(
+            resp = response,
+            requestBody = "{}",
+            apiKey = "sk-test",
+            originalModel = "openai/gpt-4",
+            requestId = "req-traced",
+            startNs = System.nanoTime(),
+            trace = trace
+        )
+        trace.finish()
+        return response
+    }
+
+    @Test
+    fun `a reply with an empty body is recorded as ending without a reply`() {
+        val recorded = mutableListOf<RequestRecord>()
+
+        tracedRun("", recorded)
+
+        assertEquals(RequestTrace.NO_REPLY, recorded.single().error)
+    }
+
+    @Test
+    fun `a reply that translates to no valid answer answers 500 and is recorded as an invalid format`() {
+        val recorded = mutableListOf<RequestRecord>()
+
+        val response = tracedRun("{}", recorded)
+
+        org.mockito.Mockito.verify(response).setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR)
+        assertEquals("Invalid response format", recorded.single().error)
     }
 }

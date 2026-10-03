@@ -31,7 +31,7 @@ object PresetRouting {
         val shown = block.deepCopy()
         if (shown.get("sort")?.let { it.isJsonPrimitive && it.asJsonPrimitive.isString } != true) shown.remove("sort")
         return try {
-            gson.fromJson(shown, ProviderRoutingPreferences::class.java) ?: ProviderRoutingPreferences()
+            gson.fromJson(shown, ProviderRoutingPreferences::class.java)
         } catch (e: JsonParseException) {
             ProviderRoutingPreferences()
         }

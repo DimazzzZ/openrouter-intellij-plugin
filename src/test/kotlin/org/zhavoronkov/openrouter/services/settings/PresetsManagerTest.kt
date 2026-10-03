@@ -29,14 +29,6 @@ class PresetsManagerTest {
     inner class BuiltInPresetsTests {
 
         @Test
-        fun `built-in presets is empty because routers are not presets`() {
-            // openrouter/auto and openrouter/free are routers, not @preset/
-            // server presets. They live in RouterCatalog and are configured
-            // under Router Defaults, so BUILT_IN_PRESETS no longer lists them.
-            assertTrue(PresetsManager.BUILT_IN_PRESETS.isEmpty())
-        }
-
-        @Test
         fun `preset prefix is correct`() {
             assertEquals("@preset/", PresetsManager.PRESET_PREFIX)
         }

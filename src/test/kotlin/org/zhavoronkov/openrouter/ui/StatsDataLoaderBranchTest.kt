@@ -1,12 +1,16 @@
 package org.zhavoronkov.openrouter.ui
 
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.MethodSource
 import org.mockito.Mockito.mock
 import org.mockito.kotlin.whenever
 import org.zhavoronkov.openrouter.models.ActivityData
@@ -18,6 +22,7 @@ import org.zhavoronkov.openrouter.models.CreditsData
 import org.zhavoronkov.openrouter.models.CreditsResponse
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import java.io.IOException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -200,5 +205,47 @@ class StatsDataLoaderBranchTest {
             val result = runLoad(settings, router)
             assertTrue(result is StatsDataLoader.LoadResult.Error)
         }
+    }
+
+    /**
+     * [OpenRouterService] turns its own failures into [ApiResult.Error], so a throw reaches the
+     * loader only from a client that breaks that contract; the loader still answers, once.
+     */
+    @Nested
+    @DisplayName("A client that throws instead of answering")
+    inner class ThrowingClient {
+
+        private fun throwingRouter(failure: Throwable): OpenRouterService =
+            mock(OpenRouterService::class.java).also { m ->
+                runBlocking {
+                    whenever(m.getApiKeysList()).thenAnswer { throw failure }
+                    whenever(m.getCredits()).thenReturn(okCredits())
+                    whenever(m.getActivity()).thenReturn(okActivity())
+                }
+            }
+
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("org.zhavoronkov.openrouter.ui.StatsDataLoaderBranchTest#failures")
+        fun `a throw is answered with the generic error`(failure: Throwable) {
+            val settings = settingsMock(configured = true, provisioningKey = "pk")
+
+            val result = runLoad(settings, throwingRouter(failure))
+
+            assertEquals(StatsDataLoader.LoadResult.Error("Failed to load data"), result)
+        }
+    }
+
+    companion object {
+        /** A real timeout: its constructor is internal to kotlinx.coroutines, so one is caught instead. */
+        private fun timeout(): Throwable = runBlocking {
+            runCatching { withTimeout(1) { delay(1_000) } }.exceptionOrNull()!!
+        }
+
+        @JvmStatic
+        fun failures(): List<Throwable> = listOf(
+            IOException("connection reset"),
+            IllegalStateException("broken state"),
+            timeout()
+        )
     }
 }

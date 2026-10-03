@@ -3,6 +3,8 @@ package org.zhavoronkov.openrouter.settings.schemas
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.ValidationInfo
 import org.zhavoronkov.openrouter.models.OutputSchema
+import org.zhavoronkov.openrouter.utils.ExcludeFromCoverage
+import org.zhavoronkov.openrouter.utils.MODAL_DIALOG
 import java.awt.Component
 import javax.swing.JComponent
 
@@ -42,6 +44,7 @@ class OutputSchemaDialog(
 
     companion object {
         /** Shows the dialog and returns the schema it describes, or null when it was cancelled. */
+        @ExcludeFromCoverage(MODAL_DIALOG)
         fun edit(parent: Component, initial: OutputSchema?, takenNames: List<String>): OutputSchema? {
             val dialog = OutputSchemaDialog(parent, initial, takenNames)
             return if (dialog.showAndGet()) dialog.editor.result() else null

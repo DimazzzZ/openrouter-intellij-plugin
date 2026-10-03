@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
 import org.zhavoronkov.openrouter.models.ModelArchitecture
 import org.zhavoronkov.openrouter.models.OpenRouterModelInfo
 import org.zhavoronkov.openrouter.settings.favorites.VariantFilter
@@ -229,6 +231,46 @@ class ModelFilterCriteriaTest {
             assertFalse(criteria.matches(wrongProvider))
             assertFalse(criteria.matches(noVision))
             assertFalse(criteria.matches(wrongSearch))
+        }
+    }
+
+    @Nested
+    @DisplayName("search text and input")
+    inner class SearchAndInput {
+
+        private val claude = model("anthropic/claude-sonnet-4.5", name = "Claude Sonnet", description = "Fast coder")
+        private val silent = model("x/plain", name = "Plain")
+
+        @ParameterizedTest(name = "[{index}] {0}")
+        @CsvSource("sonnet, true", "claude-sonnet, true", "CODER, true", "gemini, false")
+        @DisplayName("search matches the id, the name or the description")
+        fun `search matches id name or description`(text: String, expected: Boolean) {
+            assertEquals(expected, ModelFilterCriteria(searchText = text).matches(claude))
+        }
+
+        @Test
+        @DisplayName("a model without a description matches only by id or name")
+        fun `a model without description matches by id or name`() {
+            assertTrue(ModelFilterCriteria(searchText = "plain").matches(silent))
+            assertFalse(ModelFilterCriteria(searchText = "coder").matches(silent))
+        }
+
+        @Test
+        @DisplayName("a model whose id does not match is found by its name")
+        fun `a model is found by its name alone`() {
+            val renamed = model("x/model-7", name = "Claude Sonnet", description = "Fast coder")
+
+            assertTrue(ModelFilterCriteria(searchText = "sonnet").matches(renamed))
+        }
+
+        @Test
+        @DisplayName("input is any filter or any search text, and none is described as no filters")
+        fun `input is filters or search text`() {
+            assertFalse(ModelFilterCriteria().hasAnyInput())
+            assertFalse(ModelFilterCriteria(searchText = "   ").hasAnyInput())
+            assertTrue(ModelFilterCriteria(searchText = "gpt").hasAnyInput())
+            assertTrue(ModelFilterCriteria(provider = "OpenAI").hasAnyInput())
+            assertEquals("No filters", ModelFilterCriteria(searchText = "gpt").describe())
         }
     }
 }

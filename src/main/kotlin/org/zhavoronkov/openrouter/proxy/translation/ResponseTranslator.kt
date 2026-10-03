@@ -207,25 +207,17 @@ object ResponseTranslator {
     /**
      * Validates that the translated response is valid OpenAI format
      */
-    fun validateTranslatedResponse(response: OpenAIChatCompletionResponse): Boolean {
-        return try {
-            response.id.isNotBlank() &&
-                response.model.isNotBlank() &&
-                response.choices.isNotEmpty() &&
-                response.choices.all { choice ->
-                    val hasContent = choice.message.content.isJsonPrimitive &&
-                        choice.message.content.asString.isNotBlank()
-                    val hasToolCalls = !choice.message.toolCalls.isNullOrEmpty()
-                    choice.message.role.isNotBlank() && (hasContent || hasToolCalls)
-                }
-        } catch (e: IllegalStateException) {
-            PluginLogger.Service.error("Response validation failed: invalid state", e)
-            false
-        } catch (e: IllegalArgumentException) {
-            PluginLogger.Service.error("Response validation failed: invalid argument", e)
-            false
-        }
-    }
+    fun validateTranslatedResponse(response: OpenAIChatCompletionResponse): Boolean =
+        response.id.isNotBlank() &&
+            response.model.isNotBlank() &&
+            response.choices.isNotEmpty() &&
+            response.choices.all { choice ->
+                // asString is asked only of a primitive, so nothing here throws
+                val hasContent = choice.message.content.isJsonPrimitive &&
+                    choice.message.content.asString.isNotBlank()
+                val hasToolCalls = !choice.message.toolCalls.isNullOrEmpty()
+                choice.message.role.isNotBlank() && (hasContent || hasToolCalls)
+            }
 
     /**
      * Creates a simple health check response

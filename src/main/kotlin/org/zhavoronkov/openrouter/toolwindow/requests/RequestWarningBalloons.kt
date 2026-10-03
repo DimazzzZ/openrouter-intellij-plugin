@@ -57,7 +57,9 @@ class RequestWarningBalloons(
     },
     private val notify: (Notification) -> Unit = { Notifications.Bus.notify(it) },
     private val onScreen: (Notification) -> Boolean = { it.balloon?.isDisposed == false },
-    private val onEdt: (Runnable) -> Unit = Edt::later
+    private val onEdt: (Runnable) -> Unit = Edt::later,
+    /** Opens the settings page that fixes a refusal. */
+    private val openFixPage: (Project?, FixPage) -> Unit = FixPageSettings::open
 ) : Disposable {
     private var current: Notification? = null
 
@@ -95,7 +97,7 @@ class RequestWarningBalloons(
         burstFix?.let { page ->
             balloon.addAction(
                 NotificationAction.create(FixPageSettings.actionText(page)) { event, notification ->
-                    FixPageSettings.open(event.project, page)
+                    openFixPage(event.project, page)
                     notification.expire()
                 }
             )

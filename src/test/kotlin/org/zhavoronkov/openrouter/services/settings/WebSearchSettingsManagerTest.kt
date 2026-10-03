@@ -4,6 +4,8 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.MethodSource
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
 import org.zhavoronkov.openrouter.models.WebSearchEngine
 import org.zhavoronkov.openrouter.models.WebSearchSettings
@@ -95,5 +97,36 @@ class WebSearchSettingsManagerTest {
 
         settings.webSearchMaxResults = 1_000
         assertEquals(WebSearchSettings.MAX_MAX_RESULTS, manager.current().maxResults)
+    }
+
+    @ParameterizedTest(name = "[{index}] {0}")
+    @MethodSource("org.zhavoronkov.openrouter.services.settings.WebSearchSettingsManagerTest#singleChanges")
+    @DisplayName("a change to any one field is stored and notifies")
+    fun `a change to any one field notifies`(changed: WebSearchSettings) {
+        manager.replace(tuned)
+
+        manager.replace(changed)
+
+        assertEquals(changed, manager.current())
+        assertEquals(2, notifications)
+    }
+
+    companion object {
+        private val base = WebSearchSettings(
+            engine = WebSearchEngine.EXA,
+            maxResults = 8,
+            includeDomains = listOf("docs.gradle.org", "*.jetbrains.com"),
+            excludeDomains = listOf("pinterest.com"),
+            mode = "deep"
+        )
+
+        @JvmStatic
+        fun singleChanges(): List<WebSearchSettings> = listOf(
+            base.copy(engine = WebSearchEngine.PARALLEL, mode = null),
+            base.copy(maxResults = 3),
+            base.copy(includeDomains = listOf("docs.gradle.org")),
+            base.copy(excludeDomains = emptyList()),
+            base.copy(mode = "fast")
+        )
     }
 }

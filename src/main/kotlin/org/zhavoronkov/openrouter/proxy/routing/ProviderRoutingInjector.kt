@@ -28,7 +28,7 @@ object ProviderRoutingInjector {
         rawJson: JsonObject,
         routing: ProviderRoutingManager,
         gson: Gson,
-        requestId: String = ""
+        requestId: String
     ): Boolean {
         if (!routing.enabled) return false
 

@@ -50,6 +50,7 @@ object ActivityAggregator {
 
         return rows
             .filter { it.model != null && withinPeriod(it.date, earliest, today) }
+            // Unreachable branch: the filter above dropped every row whose model is null, so orEmpty never falls back
             .groupBy { it.model.orEmpty() }
             .map { (model, group) ->
                 ModelSpend(

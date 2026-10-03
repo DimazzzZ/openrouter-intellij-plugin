@@ -9,6 +9,7 @@ import com.intellij.util.ui.JBUI
 import org.zhavoronkov.openrouter.models.OutputSchema
 import org.zhavoronkov.openrouter.models.ProviderRoutingPreferences
 import org.zhavoronkov.openrouter.settings.ProviderRoutingForm
+import org.zhavoronkov.openrouter.utils.ExcludeFromCoverage
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Dimension
@@ -44,6 +45,7 @@ class PresetDialog(
 
     /** Fixed width, so a long summary or prompt wraps or truncates rather than scrolling sideways. */
     override fun createCenterPanel(): JComponent = object : JPanel(BorderLayout()) {
+        @ExcludeFromCoverage("asked only by the layout of a dialog on screen, which no test shows")
         override fun getPreferredSize(): Dimension = Dimension(JBUI.scale(WIDTH), super.getPreferredSize().height)
     }.apply { add(editor.component, BorderLayout.CENTER) }
 
@@ -51,6 +53,7 @@ class PresetDialog(
 
     public override fun doValidate(): ValidationInfo? = editor.problem()?.let { ValidationInfo(it) }
 
+    @ExcludeFromCoverage("shows a modal dialog")
     private fun editRouting(current: ProviderRoutingPreferences): ProviderRoutingPreferences? {
         val dialog = RoutingDialog(contentPanel, current)
         return if (dialog.showAndGet()) dialog.form.value() else null
@@ -86,6 +89,7 @@ class PresetDialog(
         const val ROUTING_HEIGHT = 560
 
         /** Shows the dialog and returns the preset it describes, or null when it was cancelled. */
+        @ExcludeFromCoverage("shows a modal dialog")
         fun edit(
             parent: Component,
             draft: PresetDraft,

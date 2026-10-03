@@ -5,6 +5,7 @@ import com.google.gson.JsonObject
 import org.zhavoronkov.openrouter.models.PresetPair
 import org.zhavoronkov.openrouter.services.settings.RouterDefaultsManager
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import org.zhavoronkov.openrouter.utils.asStringOrNull
 
 /**
  * Applies the plugin's persisted per-router default parameter to an outbound
@@ -40,7 +41,7 @@ object RouterPluginsInjector {
         }
 
         // A pair names its router in front of the preset
-        val sent = rawJson.get(MODEL_KEY)?.takeIf { it.isJsonPrimitive }?.asString ?: return false
+        val sent = rawJson.get(MODEL_KEY)?.asStringOrNull() ?: return false
         val model = PresetPair.modelOf(sent)
         if (!RouterCatalog.isRouter(model)) return false
 

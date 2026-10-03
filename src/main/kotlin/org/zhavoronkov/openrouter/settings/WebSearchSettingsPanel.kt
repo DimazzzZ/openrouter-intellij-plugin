@@ -48,6 +48,7 @@ class WebSearchSettingsPanel(
 
     init {
         engine.renderer = SimpleListCellRenderer.create("") {
+            // Unreachable branch: displayName is a non-null String, so only a name no engine has renders as AUTOMATIC
             WebSearchEngine.fromApiName(it)?.displayName ?: AUTOMATIC
         }
         mode.renderer = SimpleListCellRenderer.create("") { if (it == UNSET) DEFAULT else it }
@@ -97,6 +98,7 @@ class WebSearchSettingsPanel(
 
     override fun reset() {
         val stored = manager.current()
+        // Unreachable branch: apiName is a non-null String, so only a stored engine of null selects UNSET
         engine.selectedItem = stored.engine?.apiName ?: UNSET
         refreshModes()
         mode.selectedItem = stored.mode ?: UNSET

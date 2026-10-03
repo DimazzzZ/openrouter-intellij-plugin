@@ -20,7 +20,6 @@ import org.zhavoronkov.openrouter.listeners.OpenRouterStatsListener
 import org.zhavoronkov.openrouter.models.ActivityData
 import org.zhavoronkov.openrouter.models.ConnectionStatus
 import org.zhavoronkov.openrouter.models.CreditsData
-import org.zhavoronkov.openrouter.services.OpenRouterGenerationTrackingService
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.services.OpenRouterStatsCache
@@ -463,16 +462,12 @@ class OpenRouterStatusBarWidget(project: Project) : EditorBasedWidget(project), 
         activityList: List<ActivityData>? = null,
         creditsData: CreditsData? = null
     ): String {
-        // Get tracking service for real-time "Today" data
-        val trackingService = applicationServiceOrNull(OpenRouterGenerationTrackingService::class.java)
-
         val isRegular = settingsService.apiKeyManager.authScope == org.zhavoronkov.openrouter.models.AuthScope.REGULAR
         return StatusBarStatsFormatter.formatStatusTooltipFromCredits(
             connectionStatus.displayName,
             used,
             total,
             activityList,
-            trackingService,
             creditsData,
             authLabel = if (isRegular) "Regular Key" else "Management Key"
         )

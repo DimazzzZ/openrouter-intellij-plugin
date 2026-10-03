@@ -105,15 +105,10 @@ object PasswordSafeKeyStorage {
         }
     }
 
-    @Suppress("TooGenericExceptionCaught")
+    /** Each load catches the store failing itself and still marks its key as loaded. */
     private fun loadBothKeys() {
-        try {
-            loadApiKeyFromPasswordSafe()
-            loadProvisioningKeyFromPasswordSafe()
-        } catch (_: Exception) {
-            apiKeyCacheInitialized.set(true)
-            provisioningKeyCacheInitialized.set(true)
-        }
+        loadApiKeyFromPasswordSafe()
+        loadProvisioningKeyFromPasswordSafe()
         if (edtAnsweredCold.getAndSet(false)) announceKeysLoaded()
     }
 
@@ -123,7 +118,8 @@ object PasswordSafeKeyStorage {
      */
     @Suppress("TooGenericExceptionCaught")
     private fun announceKeysLoaded() {
-        val application = ApplicationManager.getApplication() ?: return
+        // Only a reader on the EDT asks to be told, so there is an application
+        val application = ApplicationManager.getApplication()
         application.invokeLater {
             try {
                 application.messageBus.syncPublisher(OpenRouterSettingsListener.TOPIC).onSettingsChanged()

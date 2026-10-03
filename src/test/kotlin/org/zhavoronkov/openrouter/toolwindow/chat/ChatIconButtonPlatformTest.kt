@@ -100,6 +100,48 @@ class ChatIconButtonPlatformTest : BasePlatformTestCase() {
         assertEquals("releasing must drop the pressed background", 0, differingPixels(hovered, render(button)))
     }
 
+    /** Dragging out while pressed drops the pressed background with the hover: nothing is left lit. */
+    fun testLeavingWhilePressedLeavesNothingLit() {
+        val button = button()
+        val idle = render(button)
+        button.mouse(MouseEvent.MOUSE_ENTERED)
+        button.mouse(MouseEvent.MOUSE_PRESSED)
+
+        button.mouse(MouseEvent.MOUSE_EXITED)
+
+        assertEquals("leaving must drop the pressed background", 0, differingPixels(idle, render(button)))
+    }
+
+    fun testPassingOverWithoutPressingLeavesNothingLit() {
+        val button = button()
+        val idle = render(button)
+
+        button.mouse(MouseEvent.MOUSE_ENTERED)
+        button.mouse(MouseEvent.MOUSE_EXITED)
+
+        assertEquals(0, differingPixels(idle, render(button)))
+    }
+
+    /** Unpainted, the button draws nothing at all, not even under the pointer; painted again, it does. */
+    fun testAnUnpaintedButtonDrawsNothingUntilPaintedAgain() {
+        val button = button()
+        val blank = BufferedImage(button.width, button.height, BufferedImage.TYPE_INT_RGB)
+        val g = blank.createGraphics()
+        g.color = Color.WHITE
+        g.fillRect(0, 0, blank.width, blank.height)
+        g.dispose()
+        button.mouse(MouseEvent.MOUSE_ENTERED)
+        val painted = render(button)
+        assertTrue("a hovered button draws its background", differingPixels(blank, painted) > 0)
+
+        button.isPainted = false
+        button.isPainted = false
+        assertEquals("an unpainted button draws nothing", 0, differingPixels(blank, render(button)))
+
+        button.isPainted = true
+        assertEquals("painted again, it draws as before", 0, differingPixels(painted, render(button)))
+    }
+
     /**
      * The colours are the toolbar's own, not ones chosen here: matching it in the default theme
      * while drifting in every other one is the failure this rules out.

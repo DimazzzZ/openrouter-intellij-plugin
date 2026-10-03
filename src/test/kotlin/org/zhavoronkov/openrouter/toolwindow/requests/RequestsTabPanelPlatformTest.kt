@@ -16,6 +16,7 @@ import org.zhavoronkov.openrouter.toolwindow.chat.ReplySummary
 import java.awt.Color
 import java.awt.Component
 import java.awt.event.ActionEvent
+import java.awt.event.HierarchyEvent
 import java.awt.event.MouseEvent
 import java.awt.image.BufferedImage
 import java.time.Instant
@@ -31,10 +32,13 @@ class RequestsTabPanelPlatformTest : BasePlatformTestCase() {
 
     private val noon = Instant.parse("2026-09-29T12:00:00Z")
     private var cleared = false
+    private var confirmed = true
     private var groupBursts = true
     private var keepBodies = false
     private val kept = mutableMapOf<String, RequestBodies>()
     private val shownBodies = mutableListOf<RequestBodies>()
+    private var bodiesGone = 0
+    private var onScreen = false
 
     private fun record(
         sender: String = "Junie",
@@ -60,7 +64,7 @@ class RequestsTabPanelPlatformTest : BasePlatformTestCase() {
         val panel = RequestsTabPanel(
             recent = shown,
             clearLog = { cleared = true },
-            confirmClear = { true },
+            confirmClear = { confirmed },
             background = background,
             edt = Runnable::run,
             clock = { noon },
@@ -70,7 +74,9 @@ class RequestsTabPanelPlatformTest : BasePlatformTestCase() {
             keepBodiesSetting = { keepBodies },
             saveKeepBodies = { keepBodies = it },
             loadBodies = { kept[it] },
-            showBodies = { _, bodies -> shownBodies += bodies }
+            showBodies = { _, bodies -> shownBodies += bodies },
+            sayBodiesGone = { bodiesGone++ },
+            isShowing = { onScreen }
         )
         Disposer.register(testRootDisposable, panel)
         resize(panel, 700)
@@ -99,6 +105,30 @@ class RequestsTabPanelPlatformTest : BasePlatformTestCase() {
 
     private fun links(panel: RequestsTabPanel): List<String> =
         UIUtil.findComponentsOfType(panel.detailsPanel, ActionLink::class.java).map { it.text }
+
+    private fun showingChanged(panel: RequestsTabPanel) {
+        val event = HierarchyEvent(
+            panel.component,
+            HierarchyEvent.HIERARCHY_CHANGED,
+            panel.component,
+            null,
+            HierarchyEvent.SHOWING_CHANGED.toLong()
+        )
+        panel.component.hierarchyListeners.forEach { it.hierarchyChanged(event) }
+    }
+
+    /** Shown again, the tab reads the settings it shows afresh; hidden, it leaves them as they were. */
+    fun testShowingTheTabRereadsWhetherBodiesAreKept() {
+        val panel = panel()
+        keepBodies = true
+
+        showingChanged(panel)
+        assertFalse("hidden, the tab is not refreshed", panel.keepBodies.isSelected)
+
+        onScreen = true
+        showingChanged(panel)
+        assertTrue("shown, it reads the setting again", panel.keepBodies.isSelected)
+    }
 
     fun testRowsAreListedNewestFirstWithTheirFacts() {
         val panel = panel()
@@ -296,6 +326,56 @@ class RequestsTabPanelPlatformTest : BasePlatformTestCase() {
         assertTrue(cleared)
     }
 
+    fun testClearCancelledKeepsTheLog() {
+        confirmed = false
+        val panel = panel()
+
+        UIUtil.findComponentsOfType(panel.component, ActionLink::class.java).single { it.text == "Clear" }.doClick()
+
+        assertFalse(cleared)
+        assertEquals(3, panel.table.rowCount)
+    }
+
+    /** A reply that finishes after its request was listed updates the row in place. */
+    fun testARequestUpdatedInTheLogIsShownUpdated() {
+        var current = records
+        val panel = panel(shown = { current })
+
+        current = listOf(records[0].copy(reply = ReplyFacts(finishReason = "stop", cost = 0.5))) + records.drop(1)
+        ApplicationManager.getApplication().messageBus.syncPublisher(RequestLogListener.TOPIC).updated()
+
+        assertEquals(ReplySummary.formatCost(0.5), column(panel, RequestsColumn.COST)[0])
+    }
+
+    /** A request filtered out of sight takes the selection with it, and the details say to pick one. */
+    fun testASelectedRequestFilteredOutOfSightLeavesNothingSelected() {
+        val panel = panel()
+        panel.table.setRowSelectionInterval(1, 1)
+
+        panel.senderFilter.selectedItem = "Junie"
+
+        assertEquals(-1, panel.table.selectedRow)
+        assertTrue(RequestsTabPanel.SELECT_TEXT in detailTexts(panel))
+    }
+
+    /** Bodies read after the tab was closed are not shown on it. */
+    fun testBodiesReadAfterTheTabClosedAreNotShown() {
+        kept["0f0e0d0c-0000-4000-8000-000000000002"] = RequestBodies(received = "{}", reply = "{}")
+        val withBodies = record().copy(bodiesId = "0f0e0d0c-0000-4000-8000-000000000002")
+        val pending = mutableListOf<Runnable>()
+        val panel = panel(shown = { listOf(withBodies) }, background = { pending += it })
+        pending.removeAt(0).run()
+        panel.table.setRowSelectionInterval(0, 0)
+
+        UIUtil.findComponentsOfType(panel.detailsPanel, ActionLink::class.java)
+            .single { it.text == RequestsTabPanel.SHOW_BODIES_TEXT }
+            .doClick()
+        Disposer.dispose(panel)
+        pending.single().run()
+
+        assertTrue(shownBodies.isEmpty())
+    }
+
     fun testTheWarningMarkIsPaintedOnlyOnARowThatWentWrong() {
         val panel = panel()
 
@@ -318,6 +398,20 @@ class RequestsTabPanelPlatformTest : BasePlatformTestCase() {
             .doClick()
 
         assertEquals(listOf(bodies), shownBodies)
+    }
+
+    /** Bodies dropped past the log's limit, or cleared, since the request was listed are said to be gone. */
+    fun testBodiesGoneSinceTheRequestWasListedAreSaidToBeGone() {
+        val withBodies = record(model = "kept/model").copy(bodiesId = "0f0e0d0c-0000-4000-8000-000000000002")
+        val panel = panel(shown = { listOf(withBodies) })
+        panel.table.setRowSelectionInterval(0, 0)
+
+        UIUtil.findComponentsOfType(panel.detailsPanel, ActionLink::class.java)
+            .single { it.text == RequestsTabPanel.SHOW_BODIES_TEXT }
+            .doClick()
+
+        assertEquals(1, bodiesGone)
+        assertTrue(shownBodies.isEmpty())
     }
 
     /** The tab's switch is the settings page's: it shows what is stored, and turning it on stores that. */
@@ -459,6 +553,130 @@ class RequestsTabPanelPlatformTest : BasePlatformTestCase() {
 
         assertEquals(6, panel.table.rowCount)
         assertEquals(ReplySummary.formatCost(0.0001), column(panel, RequestsColumn.COST)[panel.table.selectedRow])
+    }
+
+    private fun click(panel: RequestsTabPanel, row: Int, column: RequestsColumn, clicks: Int) {
+        val table = panel.table
+        val cell = table.getCellRect(row, table.convertColumnIndexToView(column.ordinal), true)
+        table.dispatchEvent(
+            MouseEvent(table, MouseEvent.MOUSE_CLICKED, 0, 0, cell.x + 2, cell.y + 2, clicks, false)
+        )
+    }
+
+    fun testABurstOpensFromADoubleClickAnywhereOnItsRowButNotASingleOne() {
+        val panel = panel(shown = { burst })
+
+        click(panel, 1, RequestsColumn.MODEL, clicks = 1)
+        assertEquals("a single click off the arrow only selects", 2, panel.table.rowCount)
+        click(panel, 1, RequestsColumn.TIME, clicks = 2)
+        assertEquals("a double click on the arrow is not two toggles", 2, panel.table.rowCount)
+
+        click(panel, 1, RequestsColumn.MODEL, clicks = 2)
+        assertEquals(6, panel.table.rowCount)
+
+        panel.table.dispatchEvent(MouseEvent(panel.table, MouseEvent.MOUSE_CLICKED, 0, 0, 2, 10_000, 1, false))
+        assertEquals("a click below the last row changes nothing", 6, panel.table.rowCount)
+    }
+
+    /** Past the last column, the row is still the row: a double click there opens the burst too. */
+    fun testADoubleClickPastTheLastColumnOpensABurst() {
+        val panel = panel(shown = { burst })
+        val table = panel.table
+        val y = table.getCellRect(1, 0, true).y + 2
+
+        table.dispatchEvent(MouseEvent(table, MouseEvent.MOUSE_CLICKED, 0, 0, table.width + 10, y, 2, false))
+
+        assertEquals(6, table.rowCount)
+    }
+
+    fun testRevealingARequestInAnOpenBurstKeepsItOpenAndSelectsTheRequest() {
+        val panel = panel(shown = { burst })
+        panel.toggle(1)
+
+        panel.reveal(burst[3])
+
+        assertEquals(6, panel.table.rowCount)
+        assertEquals(ReplySummary.formatCost(0.0001), column(panel, RequestsColumn.COST)[panel.table.selectedRow])
+    }
+
+    fun testRevealingARequestOutsideEveryBurstLeavesTheBurstsClosed() {
+        val panel = panel(shown = { burst })
+
+        panel.reveal(burst[0])
+
+        assertEquals(2, panel.table.rowCount)
+        assertEquals(0, panel.table.selectedRow)
+    }
+
+    fun testARequestNotInABurstHasNothingToOpenOrClose() {
+        val panel = panel(shown = { burst })
+        panel.table.setRowSelectionInterval(0, 0)
+
+        panel.toggle(0)
+        press(panel, "openBurst")
+        panel.toggle(99)
+
+        assertEquals(2, panel.table.rowCount)
+    }
+
+    fun testToggleOnARequestUnderABurstClosesTheBurst() {
+        val panel = panel(shown = { burst })
+        panel.toggle(1)
+
+        panel.toggle(3)
+
+        assertEquals(2, panel.table.rowCount)
+        assertEquals(1, panel.table.selectedRow)
+    }
+
+    fun testAFilterKeepsItsChoiceWhileTheChoiceIsStillListed() {
+        var current = records
+        val panel = panel(shown = { current })
+        panel.senderFilter.selectedItem = "Chat"
+
+        current = records + record(sender = "Cursor")
+        panel.reload()
+        assertEquals("Chat", panel.senderFilter.selectedItem)
+
+        current = records.filter { it.sender != "Chat" }
+        panel.reload()
+        assertEquals(RequestsTabPanel.ALL_SENDERS, panel.senderFilter.selectedItem)
+    }
+
+    fun testTheSelectionFollowsItsRequestAcrossAReload() {
+        var current = records
+        val panel = panel(shown = { current })
+        panel.table.setRowSelectionInterval(1, 1)
+        val selected = records[1]
+
+        current = listOf(record(sender = "Cursor").at(5_000)) + records
+        panel.reload()
+
+        assertEquals("Chat", column(panel, RequestsColumn.SENDER)[panel.table.selectedRow])
+        assertTrue("the same request: ${detailTexts(panel)}", selected.sender in detailTexts(panel).joinToString())
+    }
+
+    fun testAClosedBurstStaysSelectedAsANewerRequestJoinsIt() {
+        var current = burst
+        val panel = panel(shown = { current })
+        panel.table.setRowSelectionInterval(1, 1)
+
+        current = burst.take(1) + burst[1].at(100) + burst.drop(1)
+        panel.reload()
+
+        assertEquals("google/gemini-2.5-flash ×5", column(panel, RequestsColumn.MODEL)[panel.table.selectedRow])
+    }
+
+    fun testMovingOrSelectingAColumnChangesNoWidth() {
+        val panel = panel()
+        val before = (0 until panel.table.columnCount).map { panel.table.columnModel.getColumn(it).preferredWidth }
+
+        panel.table.columnModel.moveColumn(0, 1)
+        panel.table.columnModel.moveColumn(1, 0)
+        panel.table.columnModel.selectionModel.setSelectionInterval(0, 0)
+
+        val after = (0 until panel.table.columnCount).map { panel.table.columnModel.getColumn(it).preferredWidth }
+        assertEquals(before, after)
     }
 
     /** The warning cell of [row] as the table itself paints it. */

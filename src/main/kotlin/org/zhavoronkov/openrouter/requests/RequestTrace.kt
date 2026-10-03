@@ -4,6 +4,7 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.gson.JsonSyntaxException
 import org.zhavoronkov.openrouter.models.FixPage
+import org.zhavoronkov.openrouter.utils.asObjectOrNull
 
 /**
  * Follows one request from the moment it arrives to the moment its reply is done, and hands the
@@ -143,12 +144,12 @@ class RequestTrace(
             val bodyStart = text.indexOf('{')
             if (bodyStart < 0) return text
             val message = try {
-                JsonParser.parseString(text.substring(bodyStart)).takeIf { it.isJsonObject }
-                    ?.asJsonObject?.getAsJsonObject("error")?.get("message")
+                JsonParser.parseString(text.substring(bodyStart)).asObjectOrNull()
+                    // Unreachable branch: the text starts at a '{', so it parses to an object or throws
+                    // JsonSyntaxException - asObjectOrNull above never answers null
+                    ?.get("error")?.asObjectOrNull()?.get("message")
                     ?.takeIf { it.isJsonPrimitive }?.asString
             } catch (e: JsonSyntaxException) {
-                null
-            } catch (e: ClassCastException) {
                 null
             } ?: return text
             return text.substring(0, bodyStart) + message

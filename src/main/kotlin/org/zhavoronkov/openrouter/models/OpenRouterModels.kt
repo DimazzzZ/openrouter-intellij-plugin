@@ -267,22 +267,6 @@ data class ModelPricing(
 )
 
 /**
- * Generation tracking data.
- *
- * Properties are mutable (`var`) with default values for IntelliJ XML serialization.
- * See: https://jb.gg/ij-psoc
- */
-data class GenerationTrackingInfo(
-    var generationId: String = "",
-    var model: String = "",
-    var timestamp: Long = 0L,
-    var promptTokens: Int? = null,
-    var completionTokens: Int? = null,
-    var totalTokens: Int? = null,
-    var totalCost: Double? = null
-)
-
-/**
  * Activity analytics data models for /api/v1/activity endpoint
  */
 data class ActivityResponse(
@@ -551,8 +535,6 @@ data class OpenRouterSettings(
     var autoRefresh: Boolean = true,
     var refreshInterval: Int = 300, // seconds
     var showCosts: Boolean = true,
-    var trackGenerations: Boolean = true,
-    var maxTrackedGenerations: Int = 100,
     var favoriteModels: MutableList<String> = getDefaultFavoriteModels(),
     var customPresets: MutableList<String> = mutableListOf(), // User-configured preset slugs (e.g., "email-copywriter")
     var lastSeenVersion: String = "", // Track last seen version for "What's New" notifications

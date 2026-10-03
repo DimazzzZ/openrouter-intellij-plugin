@@ -9,6 +9,8 @@ import com.intellij.ui.components.JBTabbedPane
 import com.intellij.ui.components.JBTextArea
 import com.intellij.util.ui.JBUI
 import org.zhavoronkov.openrouter.requests.RequestBodies
+import org.zhavoronkov.openrouter.utils.ExcludeFromCoverage
+import org.zhavoronkov.openrouter.utils.MODAL_DIALOG
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.Font
@@ -55,6 +57,7 @@ class RequestBodiesDialog(parent: Component, private val bodies: RequestBodies) 
         }
 
         /** Opens the dialog on [bodies] over [parent]. */
+        @ExcludeFromCoverage(MODAL_DIALOG)
         fun show(parent: Component, bodies: RequestBodies) {
             RequestBodiesDialog(parent, bodies).show()
         }
@@ -71,6 +74,7 @@ class RequestBodiesDialog(parent: Component, private val bodies: RequestBodies) 
 
         /** [text] indented when it is one JSON value, as it is otherwise - a cut body, plain text. */
         fun indented(text: String): String = try {
+            // Unreachable branch: Gson.toJson never returns null
             JsonParser.parseString(text).takeIf { it.isJsonObject || it.isJsonArray }?.let(pretty::toJson) ?: text
         } catch (e: JsonSyntaxException) {
             text

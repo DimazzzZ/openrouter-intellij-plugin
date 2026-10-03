@@ -47,4 +47,45 @@ class WebSearchSettingsTest {
     fun `an empty domain list is no list at all`(typed: String?) {
         assertEquals(emptyList<String>(), WebSearchSettings.parseDomains(typed))
     }
+
+    // --- Plugin parameters ---------------------------------------------------
+
+    @Test
+    @DisplayName("the legacy web plugin spells both domain lists its own way, and every other key as the tool does")
+    fun `the legacy plugin renames both domain keys`() {
+        val settings = WebSearchSettings(
+            engine = WebSearchEngine.EXA,
+            maxResults = 3,
+            includeDomains = listOf("docs.gradle.org"),
+            excludeDomains = listOf("example.com"),
+            mode = "deep"
+        )
+
+        assertEquals(
+            mapOf(
+                "engine" to "exa",
+                "max_results" to 3,
+                "allowed_domains" to listOf("docs.gradle.org"),
+                "excluded_domains" to listOf("example.com"),
+                "mode" to "deep"
+            ),
+            settings.toolParameters()
+        )
+        assertEquals(
+            mapOf(
+                "engine" to "exa",
+                "max_results" to 3,
+                "include_domains" to listOf("docs.gradle.org"),
+                "exclude_domains" to listOf("example.com"),
+                "mode" to "deep"
+            ),
+            settings.legacyPluginParams()
+        )
+    }
+
+    @Test
+    @DisplayName("an untouched configuration sends no parameters to either spelling")
+    fun `an untouched configuration sends no parameters`() {
+        assertEquals(emptyMap<String, Any>(), WebSearchSettings().legacyPluginParams())
+    }
 }

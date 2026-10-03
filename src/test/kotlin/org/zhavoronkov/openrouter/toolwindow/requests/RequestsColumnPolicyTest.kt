@@ -34,4 +34,19 @@ class RequestsColumnPolicyTest {
     fun neverDropped() {
         assertEquals(listOf(MODEL, WARNING), visible(10))
     }
+
+    @Test
+    @DisplayName("a column whose width is not known takes no room")
+    fun unknownWidth() {
+        val partial = mapOf(TIME to 70, COST to 60)
+
+        assertEquals(
+            listOf(TIME, SENDER, MODEL, COST, WARNING),
+            RequestsColumnPolicy.visible(250, modelMinWidth = 120, widths = partial)
+        )
+        assertEquals(
+            listOf(SENDER, MODEL, COST, WARNING),
+            RequestsColumnPolicy.visible(249, modelMinWidth = 120, widths = partial)
+        )
+    }
 }

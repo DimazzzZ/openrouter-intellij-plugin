@@ -11,6 +11,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.zhavoronkov.openrouter.services.OpenRouterService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
+import org.zhavoronkov.openrouter.utils.ExcludeFromCoverage
 import java.nio.file.Path
 import java.util.concurrent.Executor
 
@@ -74,11 +75,14 @@ class RequestLogService {
     fun recent(): List<RequestRecord> = log.recent()
 
     private val lookups = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val providerLookup = GenerationProviderLookup(fetch = { id ->
+    private val providerLookup = GenerationProviderLookup(fetch = ::fetchGenerationProvider)
+
+    @ExcludeFromCoverage("asks OpenRouter over the network; GenerationProviderLookup is tested with its own fetch")
+    private suspend fun fetchGenerationProvider(id: String): String? =
         OpenRouterService.getInstance().getGenerationProvider(id)
-    })
 
     /** Looks up, in the background, the provider of [generationId]'s record, and fills it in. */
+    @ExcludeFromCoverage("waits up to half a minute on OpenRouter's generation record, over the network")
     fun fillProviderLater(generationId: String) {
         lookups.launch { providerLookup.providerOf(generationId)?.let { fillProvider(generationId, it) } }
     }
@@ -89,7 +93,7 @@ class RequestLogService {
      */
     fun fillProvider(generationId: String, provider: String) = writer.execute {
         if (log.fillProvider(generationId, provider)) {
-            ApplicationManager.getApplication()?.messageBus?.syncPublisher(RequestLogListener.TOPIC)?.updated()
+            ApplicationManager.getApplication().messageBus.syncPublisher(RequestLogListener.TOPIC).updated()
         }
     }
 
@@ -102,7 +106,8 @@ class RequestLogService {
     }
 
     private fun publish(added: RequestRecord?) {
-        ApplicationManager.getApplication()?.messageBus?.syncPublisher(RequestLogListener.TOPIC)?.changed(added)
+        // An application service: there is always an application while it exists
+        ApplicationManager.getApplication().messageBus.syncPublisher(RequestLogListener.TOPIC).changed(added)
     }
 
     companion object {

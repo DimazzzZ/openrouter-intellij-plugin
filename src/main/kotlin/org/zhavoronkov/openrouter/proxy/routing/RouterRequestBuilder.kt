@@ -26,6 +26,8 @@ object RouterRequestBuilder {
     fun buildPlugins(modelSlug: String, rawValue: String?): List<PluginConfig>? {
         val def = RouterCatalog.find(modelSlug) ?: return null
         val param = def.param ?: return null
+        // Unreachable branch: RouterDefinition requires pluginId and param to be null together, and a null param
+        // returned above
         val pluginId = def.pluginId ?: return null
 
         val coerced = coerce(param, rawValue) ?: return null
@@ -57,6 +59,7 @@ object RouterRequestBuilder {
      * value the user already picked (dropping the plugin from the request).
      */
     fun paramControlUpdate(shownParamKey: String?, selectedModel: String): ParamControlUpdate {
+        // Unreachable branch: RouterParam.key is non-null, so the elvis sees null only with no router or no param
         val paramKey = RouterCatalog.find(selectedModel)?.param?.key
             ?: return ParamControlUpdate(visible = false, rebuild = false, paramKey = null)
         val rebuild = shownParamKey != paramKey

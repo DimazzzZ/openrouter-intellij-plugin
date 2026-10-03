@@ -6,12 +6,12 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.zhavoronkov.openrouter.models.ActivityData
+import org.zhavoronkov.openrouter.models.CreditsData
 import java.time.LocalDate
 import java.time.ZoneId
 
 @DisplayName("StatusBarStatsFormatter Branch Tests")
 class StatusBarStatsFormatterBranchTest {
-
     private fun activity(date: String?, usage: Double?) = ActivityData(
         date = date, model = "m", modelPermaslug = null, endpointId = null, providerName = null,
         usage = usage, byokUsageInference = null, requests = 1,
@@ -170,5 +170,19 @@ class StatusBarStatsFormatterBranchTest {
 
         // remaining = 12 - 2 = 10, yesterday spend = 2.0 -> ~5 days
         assertTrue(tooltip.contains("~5 days"), "Expected a days-remaining estimate, got: $tooltip")
+    }
+
+    @Test
+    @DisplayName("without the history service, today's cost is what the activity says")
+    fun todayFromActivityWithoutHistory() {
+        val today = LocalDate.now(ZoneId.of("UTC")).toString()
+
+        val rows = StatusBarStatsFormatter.calculateActivityRowsWithHistory(
+            activityList = listOf(activity(today, 0.5)),
+            creditsData = CreditsData(totalCredits = 10.0, totalUsage = 3.0),
+            remainingCredits = 7.0
+        )
+
+        assertTrue(rows.contains("\$0.500"), "got: $rows")
     }
 }

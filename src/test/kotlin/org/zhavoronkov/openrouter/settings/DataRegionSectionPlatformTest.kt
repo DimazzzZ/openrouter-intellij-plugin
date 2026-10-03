@@ -112,4 +112,38 @@ class DataRegionSectionPlatformTest : BasePlatformTestCase() {
 
         assertEquals(listOf(DataRegion.GLOBAL, DataRegion.EUROPE), items(section))
     }
+
+    fun testTheUserChoosingARegionIsReported() {
+        val section = DataRegionSection()
+        section.setAvailableRegions(listOf(DataRegion.GLOBAL, DataRegion.EUROPE))
+        val chosen = mutableListOf<DataRegion>()
+        section.onRegionChosen = { chosen += it }
+
+        section.comboBox.selectedItem = DataRegion.EUROPE
+
+        assertEquals(listOf(DataRegion.EUROPE), chosen)
+    }
+
+    fun testNothingSelectedReadsAsGlobal() {
+        val section = DataRegionSection()
+
+        section.comboBox.selectedItem = null
+
+        assertEquals(DataRegion.GLOBAL, section.getRegion())
+    }
+
+    fun testARegionMissingFavoritesSaysHowManyAndGlobalOrNoneMissingSaysNothingMore() {
+        val section = DataRegionSection()
+        section.setAvailableRegions(listOf(DataRegion.GLOBAL, DataRegion.EUROPE))
+        val base = section.comment.text
+
+        section.setFavoritesImpact(DataRegion.EUROPE, unavailableCount = 2, favoriteCount = 5)
+        assertTrue(section.comment.text, section.comment.text.startsWith(base))
+        assertTrue(section.comment.text, section.comment.text.contains("2 of your 5 favorite models"))
+
+        section.setFavoritesImpact(DataRegion.EUROPE, unavailableCount = 0, favoriteCount = 5)
+        assertEquals(base, section.comment.text)
+        section.setFavoritesImpact(DataRegion.GLOBAL, unavailableCount = 2, favoriteCount = 5)
+        assertEquals(base, section.comment.text)
+    }
 }

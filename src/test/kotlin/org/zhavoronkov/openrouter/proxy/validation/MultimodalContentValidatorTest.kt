@@ -4,6 +4,7 @@ package org.zhavoronkov.openrouter.proxy.validation
 
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import com.google.gson.JsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -12,6 +13,8 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
 import org.zhavoronkov.openrouter.models.ModelArchitecture
@@ -157,6 +160,21 @@ class MultimodalContentValidatorTest {
             val result = validator.validate(request, "req-1")
 
             assertTrue(result is MultimodalContentValidator.ValidationResult.Valid)
+        }
+
+        @ParameterizedTest(name = "[{index}] {0}")
+        @ValueSource(
+            strings = ["""[{"type":null,"text":"hi"}]""", """[{"type":{},"text":"hi"}]""", """[{"type":["text"]}]"""]
+        )
+        @DisplayName("a content part whose type is not a string is no media, not a failure")
+        fun testPartWithTypeOfAnotherShape(parts: String) {
+            val validator = MultimodalContentValidator(createMockFavoriteService())
+            val request = OpenAIChatCompletionRequest(
+                model = "openai/gpt-4",
+                messages = listOf(OpenAIChatMessage(role = "user", content = JsonParser.parseString(parts)))
+            )
+
+            assertTrue(validator.validate(request, "req-1") is MultimodalContentValidator.ValidationResult.Valid)
         }
 
         @Test

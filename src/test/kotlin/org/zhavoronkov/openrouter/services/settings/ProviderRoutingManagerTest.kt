@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
+import org.zhavoronkov.openrouter.models.ProviderRoutingPreferences
 
 class ProviderRoutingManagerTest {
 
@@ -112,5 +113,32 @@ class ProviderRoutingManagerTest {
         // Verify the underlying settings object was mutated (XML persistence source of truth)
         assertTrue(settings.providerRoutingEnabled)
         assertEquals("latency", settings.providerSort)
+    }
+
+    @Test
+    fun `update with nothing set goes back to OpenRouter's defaults`() {
+        manager.update(
+            ProviderRoutingPreferences(
+                order = listOf("azure"),
+                allowFallbacks = false,
+                sort = "price",
+                requireParameters = true,
+                dataCollection = "deny",
+                quantizations = listOf("fp8"),
+                only = listOf("azure"),
+                ignore = listOf("together")
+            )
+        )
+
+        manager.update(ProviderRoutingPreferences())
+
+        assertEquals(emptyList<String>(), manager.order)
+        assertTrue(manager.allowFallbacks)
+        assertEquals("", manager.sort)
+        assertFalse(manager.requireParameters)
+        assertEquals("", manager.dataCollection)
+        assertEquals(emptyList<String>(), manager.quantizations)
+        assertEquals(emptyList<String>(), manager.only)
+        assertEquals(emptyList<String>(), manager.ignore)
     }
 }

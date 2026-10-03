@@ -65,13 +65,7 @@ class ApiKeyTableModel : AbstractTableModel() {
         }
     }
 
-    private fun formatUsage(usage: Double?): String {
-        return if (usage != null) {
-            "$%.4f".format(usage)
-        } else {
-            "N/A"
-        }
-    }
+    private fun formatUsage(usage: Double): String = "$%.4f".format(usage)
 
     private fun formatLimit(limit: Double?): String {
         return if (limit != null) {

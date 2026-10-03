@@ -134,6 +134,7 @@ class PresetDraft private constructor(
         set(label) {
             val effort = RequestChoices.reasoningEffort(label) ?: return
             // Keeps what else the reasoning block says - a token budget, say
+            // Unreachable branch: deepCopy never returns null, so only a missing or non-object block starts a new one
             val block = values[PresetSetting.REASONING]?.asObjectOrNull()?.deepCopy() ?: JsonObject()
             block.addProperty("effort", effort)
             values[PresetSetting.REASONING] = block
@@ -153,6 +154,7 @@ class PresetDraft private constructor(
         get() = settings.joinToString(", ") { setting ->
             when {
                 setting == PresetSetting.OUTPUT && plainJson -> "JSON output"
+                // Unreachable branch: the let block returns a non-null String; only a null name says "output format"
                 setting == PresetSetting.OUTPUT -> outputSchemaName?.let { "schema $it" } ?: "output format"
                 setting == PresetSetting.REASONING -> "reasoning ${reasoningLabel ?: "set"}".lowercase()
                 else -> setting.title.lowercase()
@@ -163,6 +165,7 @@ class PresetDraft private constructor(
     val webSearchWarning: String?
         get() {
             val schema = if (has(PresetSetting.OUTPUT)) !plainJson else null
+            // Unreachable branch: both WebSearchEffect values and null have an arm, so the added else never runs
             return when (ResponseFormats.webSearchEffect(has(PresetSetting.WEB_SEARCH), schema)) {
                 ResponseFormats.WebSearchEffect.DROPS_JSON -> ResponseFormats.WEB_SEARCH_DROPS_JSON
                 ResponseFormats.WebSearchEffect.MAY_DROP_SCHEMA -> ResponseFormats.WEB_SEARCH_SCHEMA_WARNING
@@ -174,6 +177,7 @@ class PresetDraft private constructor(
     fun problem(isNew: Boolean, takenSlugs: List<String>): String? = when {
         !SLUG.matches(slug) -> "A slug is lower-case letters, digits and hyphens"
         isNew && takenSlugs.any { it.equals(slug, ignoreCase = true) } -> "A preset named '$slug' already exists"
+        // Unreachable branch: has(MODEL) means values holds a MODEL entry, and values holds no nulls
         has(PresetSetting.MODEL) && values[PresetSetting.MODEL]?.asStringOrNull().isNullOrBlank() ->
             "Enter a model, or remove the Model setting"
         else -> null

@@ -184,6 +184,43 @@ class OpenRouterStatsCacheRefreshTest {
             assertNull(cache.getLastError(), "nothing went wrong, so nothing should be reported as an error")
             assertEquals("Management Key required", cache.getUnavailableReason())
         }
+
+        @Test
+        @DisplayName("a key OpenRouter will not describe leaves the key's info unknown")
+        fun currentKeyRefused() {
+            keyInfoResponse = MockResponse().setResponseCode(401).setBody("""{"error":{"message":"User not found."}}""")
+            val cache = cache()
+
+            runBlocking { cache.refreshCurrentKey()?.join() }
+
+            assertNull(cache.getCurrentKeyInfo())
+        }
+
+        @Test
+        @DisplayName("with no key at all, the key's info is not asked for")
+        fun noKeyToDescribe() {
+            `when`(settingsService.getApiKey()).thenReturn("")
+            `when`(settingsService.getProvisioningKey()).thenReturn("")
+
+            assertNull(cache().refreshCurrentKey())
+            assertEquals(0, server.requestCount)
+        }
+
+        @Test
+        @DisplayName("without its services the cache asks for nothing, and is not left loading")
+        fun servicesMissing() {
+            val bare = OpenRouterStatsCache(scope = scope).also { caches += it }
+            assertNull(bare.refreshCurrentKey())
+            assertNull(bare.refresh())
+
+            val noApi = OpenRouterStatsCache(settingsServiceOverride = settingsService, scope = scope)
+                .also { caches += it }
+            assertNull(noApi.refreshCurrentKey())
+            runBlocking { noApi.refresh()?.join() }
+            assertFalse(noApi.isLoading())
+            assertFalse(noApi.hasCachedData())
+            assertEquals(0, server.requestCount)
+        }
     }
 
     @Nested

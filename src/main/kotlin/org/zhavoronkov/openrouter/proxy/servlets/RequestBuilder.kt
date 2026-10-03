@@ -49,6 +49,7 @@ class RequestBuilder(
  * endpoint. Nothing is lost by that - a region is a user setting, and there is no user.
  */
 internal fun defaultChatCompletionsUrl(): String {
+    // Unreachable branch: getApiBaseUrl returns a non-null String, so the elvis sees null only with no settings
     val baseUrl = applicationServiceOrNull(OpenRouterSettingsService::class.java)?.getApiBaseUrl()
         ?: DataRegion.GLOBAL.baseUrl
     return "$baseUrl/chat/completions"

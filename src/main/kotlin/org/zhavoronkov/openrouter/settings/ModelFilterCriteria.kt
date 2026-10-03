@@ -50,6 +50,7 @@ data class ModelFilterCriteria(
     fun activeFilterCount(): Int = activeParts().size
 
     fun describe(): String =
+        // Unreachable branch: joinToString never returns null, so only an empty list of parts reaches "No filters"
         activeParts().takeIf { it.isNotEmpty() }?.joinToString(" | ") ?: "No filters"
 
     private fun activeParts(): List<String> = buildList {

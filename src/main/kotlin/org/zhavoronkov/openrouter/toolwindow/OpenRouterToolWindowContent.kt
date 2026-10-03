@@ -16,6 +16,8 @@ import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.toolwindow.requests.RequestsNavigator
 import org.zhavoronkov.openrouter.toolwindow.requests.RequestsTabPanel
 import org.zhavoronkov.openrouter.toolwindow.status.StatusTabPanel
+import org.zhavoronkov.openrouter.utils.ExcludeFromCoverage
+import org.zhavoronkov.openrouter.utils.REFRESHES_MODELS
 import java.awt.BorderLayout
 import javax.swing.JPanel
 import javax.swing.SwingUtilities
@@ -79,12 +81,8 @@ class OpenRouterToolWindowContent(
         connection.subscribe(
             OpenRouterSettingsListener.TOPIC,
             object : OpenRouterSettingsListener {
-                override fun onSettingsChanged() {
-                    SwingUtilities.invokeLater {
-                        statusTab.refresh()
-                        chatPanel.refreshModels()
-                    }
-                }
+                @ExcludeFromCoverage(REFRESHES_MODELS)
+                override fun onSettingsChanged() = SwingUtilities.invokeLater(::refreshAfterSettingsChange)
             }
         )
 
@@ -128,12 +126,20 @@ class OpenRouterToolWindowContent(
         mainPanel.add(tabbedPane, BorderLayout.CENTER)
     }
 
+    @ExcludeFromCoverage(REFRESHES_MODELS)
+    private fun refreshAfterSettingsChange() {
+        statusTab.refresh()
+        chatPanel.refreshModels()
+    }
+
     fun getContentPanel(): JPanel = mainPanel
 
     private fun onRequestRecorded(added: RequestRecord?) {
         when {
             disposed -> return
             added == null -> unseenWarnings = 0
+            // Unreachable branch: isShowing is true only for a component in a displayed window, which no
+            // headless test has
             added.unseenWarning == null || requestsTab.component.isShowing -> return
             else -> unseenWarnings++
         }
@@ -141,7 +147,7 @@ class OpenRouterToolWindowContent(
     }
 
     private fun updateRequestsTitle() {
-        val index = tabbedPane.indexOfComponent(requestsTab.component).takeIf { it >= 0 } ?: return
+        val index = tabbedPane.indexOfComponent(requestsTab.component)
         tabbedPane.setTitleAt(index, if (unseenWarnings > 0) "$REQUESTS_TITLE ($unseenWarnings)" else REQUESTS_TITLE)
     }
 

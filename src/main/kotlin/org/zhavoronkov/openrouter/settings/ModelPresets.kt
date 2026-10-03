@@ -159,6 +159,7 @@ object ModelPresets {
      * Get model IDs for a preset
      */
     fun getModelIds(presetName: String): List<String> {
+        // Unreachable branch: Preset.modelIds is a non-null List, so only an unknown preset name reaches emptyList()
         return getPreset(presetName)?.modelIds ?: emptyList()
     }
 }

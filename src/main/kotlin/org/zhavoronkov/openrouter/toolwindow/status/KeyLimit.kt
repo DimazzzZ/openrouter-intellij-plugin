@@ -36,6 +36,7 @@ object KeyLimit {
 
         return Reading(
             used = capped.sumOf { it.usage },
+            // Unreachable branch: isCapped kept only keys whose limit is non-null, so checkNotNull never throws
             limit = capped.sumOf { checkNotNull(it.limit) { "isCapped guarantees a non-null limit" } }
         )
     }

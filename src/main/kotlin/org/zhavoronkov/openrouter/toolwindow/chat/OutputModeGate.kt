@@ -37,6 +37,7 @@ class OutputModeGate(private val popup: ChatParamsPopup, private val composer: C
     /** The Model or the saved schemas changed: re-mark the popup and re-decide Send. */
     fun update(context: OutputModeContext?) {
         modelContext = context
+        // Unreachable branch: outputModes returns a non-null List, so only a null context falls back to Off
         val choices = this.context?.let(ChatExchange::outputModes) ?: listOf(OutputModeChoice(OutputMode.Off, null))
         popup.setOutputModes(choices)
         refresh()

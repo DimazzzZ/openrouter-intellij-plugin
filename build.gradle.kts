@@ -358,6 +358,8 @@ kover {
     reports {
         filters {
             excludes {
+                // Code no test should run, each marked where it is with its reason; see TESTING.md.
+                annotatedBy("org.zhavoronkov.openrouter.utils.ExcludeFromCoverage")
                 classes(
                     // Swing views, dialogs, and table renderers (pure UI, not unit-testable).
                     // Named explicitly so pure-logic files in the same packages count toward coverage.
@@ -404,8 +406,6 @@ kover {
                     // Swing table column/toolbar wiring in the favorites subpackage.
                     "org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsTableColumns",
                     "org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsTableColumns\$*",
-                    "org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsToolbarActions",
-                    "org.zhavoronkov.openrouter.settings.favorites.FavoriteModelsToolbarActions\$*",
                     // Startup activities and actions are IntelliJ lifecycle/command wiring.
                     "org.zhavoronkov.openrouter.startup.*",
                     "org.zhavoronkov.openrouter.startup.*\$*",
@@ -579,6 +579,8 @@ kover {
                     // `...openrouter.actions.*`. Listed by their own names on purpose - they live in
                     // FavoriteModelsToolbarActions.kt, but no class of that name exists, so a
                     // filename-shaped pattern would silently match nothing.
+                    "org.zhavoronkov.openrouter.settings.favorites.AddWithPresetAction",
+                    "org.zhavoronkov.openrouter.settings.favorites.AddWithPresetAction\$*",
                     "org.zhavoronkov.openrouter.settings.favorites.CapabilitiesFilterAction",
                     "org.zhavoronkov.openrouter.settings.favorites.CapabilitiesFilterAction\$*",
                     "org.zhavoronkov.openrouter.settings.favorites.ChoiceFilterAction",
@@ -603,6 +605,17 @@ kover {
                     // the startup activities already excluded above.
                     "org.zhavoronkov.openrouter.listeners.PluginLifecycleListener",
                     "org.zhavoronkov.openrouter.listeners.PluginLifecycleListener\$*",
+                    // Tool window and status bar factories: each builds its component and hands it to
+                    // the platform. What they build is covered through the components themselves.
+                    "org.zhavoronkov.openrouter.toolwindow.OpenRouterToolWindowFactory",
+                    "org.zhavoronkov.openrouter.toolwindow.OpenRouterToolWindowFactory\$*",
+                    "org.zhavoronkov.openrouter.statusbar.OpenRouterStatusBarWidgetFactory",
+                    "org.zhavoronkov.openrouter.statusbar.OpenRouterStatusBarWidgetFactory\$*",
+                    // Saves a preset through the application's OpenRouterService and PresetCopyService
+                    // singletons, with no seam to stand in for either; PresetDraft.config(), what it
+                    // sends, is covered on its own.
+                    "org.zhavoronkov.openrouter.settings.presets.PresetWriter",
+                    "org.zhavoronkov.openrouter.settings.presets.PresetWriter\$*",
                     // Extension-point fan-out to other plugins: resolves the EP area and forwards to
                     // whatever is registered. Nothing registers under the fast :test task, so the
                     // loop body is unreachable there.

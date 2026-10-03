@@ -2,6 +2,8 @@ package org.zhavoronkov.openrouter.toolwindow.requests
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -37,6 +39,14 @@ class RequestBurstsTest {
             completionTokens = completionTokens
         )
     )
+
+    @Test
+    @DisplayName("a burst of no requests cannot be made")
+    fun `a burst of no requests cannot be made`() {
+        val failure = assertThrows(IllegalArgumentException::class.java) { RequestBurst(emptyList()) }
+
+        assertEquals("A burst has at least one request", failure.message)
+    }
 
     /** The rows' kinds and requested ids, as the table would list them. */
     private fun shape(rows: List<RequestsRow>): List<String> = rows.map {
@@ -113,6 +123,18 @@ class RequestBurstsTest {
             // The later burst's first request starts just past the gap after the earlier one's last
             val later = 200 + RequestBursts.GAP_MILLIS + 1
             val records = listOf(later + 200, later + 100, later, 200, 100, 0).map { record(it) }
+
+            assertEquals(
+                listOf("burst google/gemini-2.5-flash x3", "burst google/gemini-2.5-flash x3"),
+                shape(RequestBursts.rows(records, emptySet()))
+            )
+        }
+
+        @Test
+        @DisplayName("a pause starts a new burst in a list read oldest first too")
+        fun pauseOldestFirst() {
+            val later = 200 + RequestBursts.GAP_MILLIS + 1
+            val records = listOf(0, 100, 200, later, later + 100, later + 200).map { record(it) }
 
             assertEquals(
                 listOf("burst google/gemini-2.5-flash x3", "burst google/gemini-2.5-flash x3"),
@@ -237,6 +259,58 @@ class RequestBurstsTest {
                 ),
                 RequestsView.details(burst, ZoneOffset.UTC)
             )
+        }
+    }
+
+    @Nested
+    @DisplayName("a burst that reports less")
+    inner class Sparse {
+
+        private val zone = ZoneOffset.UTC
+
+        @Test
+        @DisplayName("with no cost, tokens or warnings it shows none of them")
+        fun nothingReported() {
+            val burst = RequestBurst(
+                listOf(2L, 1L, 0L).map { record(it, cost = null, promptTokens = null, completionTokens = null) }
+            )
+            val header = RequestsRow.Header(burst, expanded = false)
+            val now = Instant.ofEpochMilli(start)
+
+            assertEquals("", RequestsView.text(header, RequestsColumn.COST, now, zone))
+            assertEquals("", RequestsView.text(header, RequestsColumn.WARNING, now, zone))
+            val labels = RequestsView.details(burst, zone).map { it.first }
+            assertEquals(listOf("Requests", "Time", "Sent by", "Requested"), labels)
+        }
+
+        @Test
+        @DisplayName("tokens one side of which no request reported read as a question mark")
+        fun halfTokens() {
+            val burst = RequestBurst(listOf(1L, 0L).map { record(it, promptTokens = null, completionTokens = 5) })
+
+            assertEquals("? in · 10 out", RequestsView.details(burst, zone).toMap()["Tokens"])
+            val promptOnly = RequestBurst(listOf(1L, 0L).map { record(it, promptTokens = 7, completionTokens = null) })
+            assertEquals("14 in · ? out", RequestsView.details(promptOnly, zone).toMap()["Tokens"])
+        }
+
+        @Test
+        @DisplayName("a burst that runs past midnight gives the end its date")
+        fun pastMidnight() {
+            val day = 24 * 60 * 60 * 1000L
+            val burst = RequestBurst(listOf(record(day), record(0)))
+
+            assertEquals("2026-10-01 19:29:59 – 2026-10-02 19:29:59", RequestsView.details(burst, zone).toMap()["Time"])
+        }
+
+        @Test
+        @DisplayName("a request listed under its burst is indented in the time column only")
+        fun member() {
+            val record = record(0)
+            val row = RequestsRow.Member(record, RequestBurst(listOf(record)))
+            val now = Instant.ofEpochMilli(start)
+
+            assertTrue(RequestsView.text(row, RequestsColumn.TIME, now, zone).startsWith(" "))
+            assertEquals("ktor-client", RequestsView.text(row, RequestsColumn.SENDER, now, zone))
         }
     }
 }

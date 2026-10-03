@@ -51,6 +51,7 @@ object SetupWizardLogger {
      * Log PKCE flow events
      */
     fun logPkceEvent(event: String, details: String? = null) {
+        // Unreachable branch: the let block returns a non-null String, so only null details reach the empty suffix
         val message = "PKCE: $event${details?.let { " - $it" } ?: ""}"
         if (SetupWizardConfig.DEBUG_LOGGING_ENABLED) {
             PluginLogger.Service.debug(message)
@@ -63,6 +64,7 @@ object SetupWizardLogger {
      * Log validation events
      */
     fun logValidationEvent(event: String, details: String? = null) {
+        // Unreachable branch: the let block returns a non-null String, so only null details reach the empty suffix
         val message = "Validation: $event${details?.let { " - $it" } ?: ""}"
         PluginLogger.Service.info(message)
     }
@@ -71,6 +73,7 @@ object SetupWizardLogger {
      * Log model loading events
      */
     fun logModelLoadingEvent(event: String, details: String? = null) {
+        // Unreachable branch: the let block returns a non-null String, so only null details reach the empty suffix
         val message = "Models: $event${details?.let { " - $it" } ?: ""}"
         PluginLogger.Service.info(message)
     }

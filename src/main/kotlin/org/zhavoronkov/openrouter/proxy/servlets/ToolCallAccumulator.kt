@@ -3,6 +3,7 @@ package org.zhavoronkov.openrouter.proxy.servlets
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatToolCall
 import org.zhavoronkov.openrouter.proxy.models.OpenAIChatToolCallFunction
 import org.zhavoronkov.openrouter.utils.PluginLogger
+import org.zhavoronkov.openrouter.utils.asStringOrNull
 import java.util.UUID
 
 /**
@@ -73,8 +74,9 @@ class ToolCallAccumulator {
 
             // Get or create partial tool call for this index
             val partial = accumulatedCalls.getOrPut(index) {
-                val id = deltaObj.get("id")?.asString ?: "tool-${UUID.randomUUID().toString().take(8)}"
-                val type = deltaObj.get("type")?.asString ?: "function"
+                // A null or missing id or type gets the default; asString would throw on a JSON null
+                val id = deltaObj.get("id")?.asStringOrNull() ?: "tool-${UUID.randomUUID().toString().take(8)}"
+                val type = deltaObj.get("type")?.asStringOrNull() ?: "function"
                 PartialToolCall(id = id, type = type)
             }
 

@@ -30,12 +30,16 @@ import org.zhavoronkov.openrouter.requests.RequestTrace
 import org.zhavoronkov.openrouter.services.FavoriteModelsService
 import org.zhavoronkov.openrouter.services.OpenRouterSettingsService
 import org.zhavoronkov.openrouter.utils.ErrorPatterns
+import org.zhavoronkov.openrouter.utils.ExcludeFromCoverage
 import org.zhavoronkov.openrouter.utils.KeyValidator
 import org.zhavoronkov.openrouter.utils.ModelAvailabilityNotifier
 import org.zhavoronkov.openrouter.utils.ModelSuggestions
 import org.zhavoronkov.openrouter.utils.OpenRouterRequestBuilder
 import org.zhavoronkov.openrouter.utils.PluginLogger
 import org.zhavoronkov.openrouter.utils.applicationServiceOrNull
+import org.zhavoronkov.openrouter.utils.asObjectOrNull
+import org.zhavoronkov.openrouter.utils.asStringOrNull
+import org.zhavoronkov.openrouter.utils.bodyText
 import java.io.IOException
 import java.io.PrintWriter
 import java.util.concurrent.TimeUnit
@@ -54,7 +58,7 @@ data class StreamingErrorContext(
     val apiKey: String,
     val jsonBody: String,
     val request: Request,
-    val trace: RequestTrace? = null
+    val trace: RequestTrace
 )
 
 /**
@@ -71,7 +75,7 @@ data class StreamingErrorContext(
 data class ParsedChatRequest(
     val typedRequest: OpenAIChatCompletionRequest,
     val rawJson: JsonObject,
-    val trace: RequestTrace? = null,
+    val trace: RequestTrace,
     val requestedModel: String = typedRequest.model,
     val presetFields: Set<String>? = emptySet()
 )
@@ -99,9 +103,7 @@ class ChatCompletionServlet(
     /** Records one Requests entry; the log is resolved on each call, not at construction. */
     private val requestRecorder: (RequestRecord) -> Unit = { RequestLogService.getInstance().record(it) },
     /** Finds, later, the provider of a generation whose reply could not say which one served it. */
-    private val providerLookup: (generationId: String) -> Unit = {
-        RequestLogService.getInstance().fillProviderLater(it)
-    },
+    private val providerLookup: (generationId: String) -> Unit = ::lookUpProviderLater,
     /** Whether a request arriving now keeps its bodies; read once per request, as it arrives. */
     private val keepBodies: () -> Boolean = {
         applicationServiceOrNull(RequestLogService::class.java)?.keepsBodies == true
@@ -115,9 +117,7 @@ class ChatCompletionServlet(
      * Waits, briefly, for the read a pair's missing preset asks for, so that one made on
      * OpenRouter since the last read is sent rather than refused. Called on a request thread.
      */
-    private val readMissingPreset: (slug: String) -> Unit = { slug ->
-        runBlocking { PresetCopyService.getInstance().copy.findAfterRead(slug, MISSING_PRESET_WAIT_MILLIS) }
-    },
+    private val readMissingPreset: (slug: String) -> Unit = ::readMissingPresetFromOpenRouter,
     /**
      * The loaded model catalogue - the selected Data Region's, every output modality - or null
      * while it has not loaded.
@@ -128,6 +128,15 @@ class ChatCompletionServlet(
 ) : HttpServlet() {
 
     companion object {
+
+        @ExcludeFromCoverage("asks OpenRouter's generation record over the network, for up to half a minute")
+        private fun lookUpProviderLater(generationId: String) =
+            RequestLogService.getInstance().fillProviderLater(generationId)
+
+        @ExcludeFromCoverage("reads the presets from OpenRouter over the network, waiting up to five seconds")
+        private fun readMissingPresetFromOpenRouter(slug: String) {
+            runBlocking { PresetCopyService.getInstance().copy.findAfterRead(slug, MISSING_PRESET_WAIT_MILLIS) }
+        }
 
         private fun defaultHttpClient(): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
@@ -282,6 +291,7 @@ class ChatCompletionServlet(
             trace.fail("Internal error: ${e.message}")
             handleException(e, resp, requestId)
         } catch (e: JsonSyntaxException) {
+            // A collaborator checking the request, the content validator say, may fail on its JSON
             trace.fail("Invalid request: ${e.message}")
             handleException(e, resp, requestId)
         } finally {
@@ -341,7 +351,7 @@ class ChatCompletionServlet(
 
         val apiKey = validateAndGetApiKey(resp, requestId)
             ?: return trace.fail("API key not configured")
-        val body = parseRequestBody(requestBody, resp, requestId)?.copy(trace = trace)
+        val body = parseRequestBody(requestBody, resp, requestId, trace)
             ?: return trace.fail("Invalid request body")
         trace.requestedModel(body.typedRequest.model)
         // Before validation, so every later step - validation, the defaults, logging - sees the
@@ -398,6 +408,7 @@ class ChatCompletionServlet(
         }
         return parsed.copy(
             typedRequest = parsed.typedRequest.copy(model = pair.model),
+            // Unreachable branch: JsonObject.keySet never returns null
             presetFields = config?.keySet()?.toSet()
         )
     }
@@ -457,16 +468,12 @@ class ChatCompletionServlet(
                 val errMsg = "Invalid request: ${e.message}"
                 sendErrorResponse(resp, errMsg, HttpServletResponse.SC_BAD_REQUEST)
             }
-            is RuntimeException -> {
+            // What else doPost hands here: an IllegalStateException or a JsonSyntaxException
+            else -> {
                 val msg = "[Chat-$requestId] Runtime error during chat completion: ${e.message}"
                 PluginLogger.Service.error(msg, e)
                 val errMsg = "Internal server error: ${e.message}"
                 sendErrorResponse(resp, errMsg, HttpServletResponse.SC_INTERNAL_SERVER_ERROR)
-            }
-            else -> {
-                val msg = "[Chat-$requestId] Unexpected error: ${e.message}"
-                PluginLogger.Service.error(msg, e)
-                sendErrorResponse(resp, "Internal server error", HttpServletResponse.SC_INTERNAL_SERVER_ERROR)
             }
         }
     }
@@ -498,16 +505,16 @@ class ChatCompletionServlet(
             val request = buildOpenRouterRequest(jsonBody, apiKey)
             executeStreamingRequest(request, writer, requestId, apiKey, jsonBody, parsed)
         } catch (e: IOException) {
-            parsed.trace?.fail("Network error: ${e.message}")
+            parsed.trace.fail("Network error: ${e.message}")
             handleStreamingError(e, writer, requestId)
         } catch (e: JsonSyntaxException) {
-            parsed.trace?.fail("Invalid response: ${e.message}")
+            parsed.trace.fail("Invalid response: ${e.message}")
             handleStreamingError(e, writer, requestId)
         } catch (e: IllegalStateException) {
-            parsed.trace?.fail("Internal error: ${e.message}")
+            parsed.trace.fail("Internal error: ${e.message}")
             handleStreamingError(e, writer, requestId)
         } catch (e: IllegalArgumentException) {
-            parsed.trace?.fail("Invalid request: ${e.message}")
+            parsed.trace.fail("Invalid request: ${e.message}")
             handleStreamingError(e, writer, requestId)
         }
     }
@@ -535,7 +542,7 @@ class ChatCompletionServlet(
         // Apply configured defaults only when not already present in the request
         ConfiguredDefaults.apply(parsed.rawJson, ::configuredDefaults, gson, requestId, parsed.presetFields)
         // Asked only of a request that names a preset
-        parsed.trace?.sent(parsed.rawJson) { slug -> pairsProvider().presetConfig(slug) }
+        parsed.trace.sent(parsed.rawJson) { slug -> pairsProvider().presetConfig(slug) }
 
         val jsonBody = gson.toJson(parsed.rawJson)
         val bodyPreview = jsonBody.take(STREAMING_TIMEOUT_MS.toInt())
@@ -604,7 +611,7 @@ class ChatCompletionServlet(
      * Sends error as OpenAI-compatible streaming chunk so AI Assistant can display it properly
      */
     private fun handleStreamingErrorResponse(context: StreamingErrorContext) {
-        val errorBody = context.response.body?.string() ?: "Unknown error"
+        val errorBody = context.response.bodyText()
 
         // Log each piece of information separately to avoid IntelliJ logger truncation
         val keyDisplay = KeyValidator.maskApiKey(context.apiKey)
@@ -631,7 +638,7 @@ class ChatCompletionServlet(
 
         // Create user-friendly error message
         val userFriendlyMessage = createUserFriendlyErrorMessage(errorBody, context.response.code)
-        context.trace?.fail(userFriendlyMessage)
+        context.trace.fail(userFriendlyMessage)
 
         // Send error as OpenAI-compatible streaming chunk
         // This ensures AI Assistant can parse and display the error properly
@@ -675,9 +682,9 @@ class ChatCompletionServlet(
     private fun createUserFriendlyErrorMessage(errorBody: String, statusCode: Int): String {
         // First, try to extract the message from JSON error body
         val extractedMessage = try {
-            val errorJson = gson.fromJson(errorBody, JsonObject::class.java)
-            val errorObj = errorJson.getAsJsonObject("error")
-            errorObj?.get("message")?.asString
+            // Null for an empty or blank body, and for an `error` or `message` of another shape
+            gson.fromJson(errorBody, JsonObject::class.java)
+                ?.get("error")?.asObjectOrNull()?.get("message")?.asStringOrNull()
         } catch (e: JsonSyntaxException) {
             PluginLogger.Service.warn("Failed to parse error response", e)
             null
@@ -736,6 +743,7 @@ class ChatCompletionServlet(
         if (ErrorPatterns.isFreeTierEnded(errorBody)) {
             // Extract model name from error message
             val modelNameRegex = """migrate to the paid slug[:\s]+([^\s"]+)""".toRegex(RegexOption.IGNORE_CASE)
+            // Unreachable branch: MatchResult.groupValues is never null
             val paidSlug = modelNameRegex.find(errorBody)?.groupValues?.get(1)
 
             // Show notification about the model change
@@ -773,6 +781,7 @@ class ChatCompletionServlet(
 
         // Generic "No endpoints found for <model>" error - this IS a true model unavailability issue
         val modelNameRegex = """No endpoints found for ([^.]+)""".toRegex()
+        // Unreachable branch: groupValues is never null, and its one group takes part in every match
         val modelName = modelNameRegex.find(errorBody)?.groupValues?.get(1) ?: "the requested model"
         ModelAvailabilityNotifier.notifyModelUnavailable(modelName, errorBody)
         return createModelUnavailableMessage(modelName)
@@ -947,16 +956,18 @@ class ChatCompletionServlet(
     private fun parseRequestBody(
         requestBody: String,
         resp: HttpServletResponse,
-        requestId: String
+        requestId: String,
+        trace: RequestTrace
     ): ParsedChatRequest? {
         return try {
             // Parse into JsonObject first so we can preserve all fields verbatim for
             // outbound passthrough. Then deserialize the same JsonObject into the typed
             // model for validation/logging/multimodal checks.
             // A body that is not a JSON object - `null`, an array, a bare string or number -
-            // makes Gson throw rather than answer null, so the catch below is the one guard
-            // this needs. An elvis here would be a branch nothing can take.
+            // makes Gson throw, but an empty or blank one makes it answer null instead. Both
+            // end in the catch below, as the same 400.
             val rawJson = gson.fromJson(requestBody, JsonObject::class.java)
+                ?: throw JsonSyntaxException("Request body is empty")
             val openAIRequest = gson.fromJson(rawJson, OpenAIChatCompletionRequest::class.java)
 
             if (openAIRequest.messages.isEmpty()) {
@@ -973,7 +984,7 @@ class ChatCompletionServlet(
             PluginLogger.Service.info(
                 "[Chat-$requestId] Processing request for model: $model with $msgCount messages, stream=$streamStr"
             )
-            ParsedChatRequest(typedRequest = openAIRequest, rawJson = rawJson)
+            ParsedChatRequest(typedRequest = openAIRequest, rawJson = rawJson, trace = trace)
         } catch (e: JsonSyntaxException) {
             PluginLogger.Service.error("[Chat-$requestId] Failed to parse request JSON: ${e.message}", e)
             sendErrorResponse(resp, "Invalid JSON format", HttpServletResponse.SC_BAD_REQUEST)

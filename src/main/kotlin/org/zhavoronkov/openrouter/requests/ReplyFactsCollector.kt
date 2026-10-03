@@ -2,6 +2,8 @@ package org.zhavoronkov.openrouter.requests
 
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
+import org.zhavoronkov.openrouter.utils.asObjectOrNull
+import org.zhavoronkov.openrouter.utils.asStringOrNull
 
 /**
  * Gathers [ReplyFacts] from an OpenAI chat-completions response - a whole body, or each chunk of
@@ -38,12 +40,13 @@ class ReplyFactsCollector {
 
     private fun firstFinishReason(json: JsonObject): String? =
         json.get("choices")?.takeIf { it.isJsonArray }?.asJsonArray
-            ?.firstOrNull { it.isJsonObject }?.asJsonObject?.stringOrNull("finish_reason")
+            // Unreachable branch: asJsonArray never returns null for an element isJsonArray accepted
+            ?.firstNotNullOfOrNull { it.asObjectOrNull() }?.stringOrNull("finish_reason")
 
     private fun JsonObject.objectOrNull(key: String): JsonObject? = get(key)?.takeIf { it.isJsonObject }?.asJsonObject
 
     private fun JsonObject.stringOrNull(key: String): String? =
-        get(key)?.primitiveOrNull()?.takeIf { it.isString }?.asString?.takeIf { it.isNotBlank() }
+        get(key)?.asStringOrNull()?.takeIf { it.isNotBlank() }
 
     private fun JsonObject.intOrNull(key: String): Int? =
         get(key)?.primitiveOrNull()?.takeIf { it.isNumber }?.asInt

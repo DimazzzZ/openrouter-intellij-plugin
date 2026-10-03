@@ -142,6 +142,28 @@ class OpenRouterToolWindowContentPlatformTest : BasePlatformTestCase() {
         }
     }
 
+    fun testTheContentPanelHoldsTheTabs() {
+        val content = OpenRouterToolWindowContent(project)
+        try {
+            assertSame(content.getTabbedPaneForTest(), content.getContentPanel().getComponent(0))
+        } finally {
+            Disposer.dispose(content)
+        }
+    }
+
+    /** A warning still on its way to the EDT when the tool window closes must not touch the closed tabs. */
+    fun testAWarningArrivingAfterTheToolWindowClosedIsNotCounted() {
+        val content = OpenRouterToolWindowContent(project)
+        val tabs = content.getTabbedPaneForTest()
+        val cutOff = RequestRecord(0, 1, RequestSource.PROXY, "Junie", "m", ReplyFacts(finishReason = "length"))
+
+        ApplicationManager.getApplication().messageBus.syncPublisher(RequestLogListener.TOPIC).changed(cutOff)
+        Disposer.dispose(content)
+        PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+
+        assertEquals("Requests", tabs.getTitleAt(1))
+    }
+
     fun testRevealingARequestOpensTheRequestsTab() {
         val content = OpenRouterToolWindowContent(project)
         try {
