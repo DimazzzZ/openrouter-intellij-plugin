@@ -98,6 +98,8 @@ Ultimate build because JetBrains unified the IDEA distribution at 2025.3 — no 
 artifact exists for build 253 or later. Run `verify local` by hand to see deprecations
 that newer IDEs introduce; those findings are informational and gate nothing.
 
+Where an API that is fine in the minimum platform is deprecated in a newer one and its replacement does not exist in the minimum platform yet, the code uses a third API that is clean in every supported version, and the place carries a `TODO(platform …)` comment saying what to switch to once the minimum moves. When `pluginSinceBuild` is raised, search for `TODO(platform` and resolve the ones the new minimum allows.
+
 Do **not** pass `--no-daemon` — it re-forks the JVM on every command and adds
 ~30s of cold start. The Gradle daemon (enabled in `gradle.properties`) plus
 configuration cache is what makes warm builds sub-second.

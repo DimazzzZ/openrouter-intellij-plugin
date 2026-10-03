@@ -1,10 +1,12 @@
 package org.zhavoronkov.openrouter.ui
 
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.progress.util.ProgressBarUtil
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
+import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.ui.JBUI
 import org.zhavoronkov.openrouter.icons.OpenRouterIcons
 import org.zhavoronkov.openrouter.listeners.OpenRouterStatsListener
@@ -17,6 +19,7 @@ import org.zhavoronkov.openrouter.services.OpenRouterStatsCache
 import org.zhavoronkov.openrouter.settings.OpenRouterConfigurable
 import org.zhavoronkov.openrouter.utils.applicationServiceOrNull
 import java.awt.BorderLayout
+import java.awt.Component
 import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.Font
@@ -29,6 +32,7 @@ import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.JProgressBar
 import javax.swing.JSeparator
+import javax.swing.ScrollPaneConstants
 
 /**
  * Dialog that displays OpenRouter usage statistics and information.
@@ -123,7 +127,6 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         // Timing constants
         private const val DIALOG_SHOW_DELAY_MS = 100
         private const val ACTIVITY_DAYS_WEEK = 7
-        private const val ACTIVITY_DISPLAY_LIMIT = 5
 
         // Percentage constants
         private const val PERCENTAGE_MULTIPLIER = 100
@@ -136,6 +139,35 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
 
         // Date string length for date-only format (YYYY-MM-DD)
         private const val DATE_ONLY_LENGTH = 10
+
+        /** From this share of the credits used, the bar turns the theme's warning colour. */
+        internal const val WARNING_PERCENTAGE = 75
+
+        /** From this share, the theme's error colour: the credits are about to run out. */
+        internal const val CRITICAL_PERCENTAGE = 90
+
+        /**
+         * The progress bar status for [percentage] of the credits used, which the platform's
+         * progress bar paints in the theme's colours; null keeps the default colour.
+         */
+        internal fun usageStatus(percentage: Int): String? = when {
+            percentage >= CRITICAL_PERCENTAGE -> ProgressBarUtil.FAILED_VALUE
+            percentage >= WARNING_PERCENTAGE -> ProgressBarUtil.WARNING_VALUE
+            else -> null
+        }
+
+        /**
+         * The Recent Models section: every model, newest first. It sits in a scroll pane that
+         * takes the dialog's spare height, so a long list scrolls rather than being cut short.
+         */
+        internal fun buildModelsWithSpendHtmlList(modelsWithSpend: List<ModelWithSpend>): String {
+            if (modelsWithSpend.isEmpty()) return NO_RECENT_MODELS_HTML
+            val bullets = modelsWithSpend.joinToString("<br/>") { model ->
+                val spendFormatted = String.format(Locale.US, "%.4f", model.totalSpend)
+                "• ${model.modelId} — $$spendFormatted"
+            }
+            return "<html>Recent Models:<br/>$bullets</html>"
+        }
     }
 
     private lateinit var tierLabel: JBLabel
@@ -194,10 +226,17 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
     /**
      * Sets progress bar to a specific state
      */
-    private fun setProgressBarState(value: Int = 0, text: String, indeterminate: Boolean = false) {
+    private fun setProgressBarState(
+        value: Int = 0,
+        text: String,
+        indeterminate: Boolean = false,
+        status: String? = null
+    ) {
         progressBar.value = value
         progressBar.string = text
         progressBar.isIndeterminate = indeterminate
+        progressBar.putClientProperty(ProgressBarUtil.STATUS_KEY, status)
+        progressBar.repaint()
     }
 
     fun showDialog() {
@@ -320,7 +359,17 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         statsPanel.add(Box.createVerticalStrut(2))
         statsPanel.add(activityWeekLabel)
         statsPanel.add(Box.createVerticalStrut(ACTIVITY_SECTION_SPACING))
-        statsPanel.add(activityModelsLabel)
+        statsPanel.add(
+            JBScrollPane(activityModelsLabel).apply {
+                border = JBUI.Borders.empty()
+                horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
+                verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED
+                isOpaque = false
+                viewport.isOpaque = false
+                // BoxLayout lines children up by alignmentX, and the labels above are left-aligned
+                alignmentX = Component.LEFT_ALIGNMENT
+            }
+        )
         statsPanel.add(Box.createVerticalStrut(LABEL_SPACING))
 
         return statsPanel
@@ -446,7 +495,8 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
             val percentage = ((usedCredits / totalCredits) * PERCENTAGE_MULTIPLIER).toInt()
             setProgressBarState(
                 percentage,
-                "$percentage% used ($${formatCurrency(usedCredits)}/$${formatCurrency(totalCredits)})"
+                "$percentage% used ($${formatCurrency(usedCredits)}/$${formatCurrency(totalCredits)})",
+                status = usageStatus(percentage)
             )
         } else {
             setProgressBarState(text = "No credits available")
@@ -512,25 +562,6 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         return "$requests requests, $${formatCurrency(usage, CURRENCY_DECIMAL_PLACES)} spent"
     }
 
-    private fun buildModelsWithSpendHtmlList(modelsWithSpend: List<ModelWithSpend>): String {
-        return when {
-            modelsWithSpend.isEmpty() -> NO_RECENT_MODELS_HTML
-            else -> {
-                val displayModels = modelsWithSpend.take(ACTIVITY_DISPLAY_LIMIT)
-                val bullets = displayModels.joinToString("<br/>") { model ->
-                    val spendFormatted = String.format(Locale.US, "%.4f", model.totalSpend)
-                    "• ${model.modelId} — $$spendFormatted"
-                }
-                val moreText = if (modelsWithSpend.size > ACTIVITY_DISPLAY_LIMIT) {
-                    "<br/>• +${modelsWithSpend.size - ACTIVITY_DISPLAY_LIMIT} more"
-                } else {
-                    ""
-                }
-                "<html>Recent Models:<br/>$bullets$moreText</html>"
-            }
-        }
-    }
-
     private fun calculateActivityStats(activities: List<ActivityData>): Pair<Long, Double> {
         val requests = activities.sumOf { (it.requests ?: 0).toLong() }
         val usage = activities.sumOf { it.usage ?: 0.0 }
@@ -571,7 +602,7 @@ class OpenRouterStatsPopup(private val project: Project) : DialogWrapper(project
         }
     }
 
-    private data class ModelWithSpend(val modelId: String, val totalSpend: Double, val lastDate: String)
+    internal data class ModelWithSpend(val modelId: String, val totalSpend: Double, val lastDate: String)
 
     private fun extractRecentModelsWithSpend(activities: List<ActivityData>): List<ModelWithSpend> {
         return activities

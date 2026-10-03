@@ -1,13 +1,17 @@
 package org.zhavoronkov.openrouter.settings
 
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import com.intellij.ui.SimpleColoredComponent
+import com.intellij.util.ui.UIUtil
 import com.intellij.util.xmlb.XmlSerializer
 import org.zhavoronkov.openrouter.models.OpenRouterSettings
 import org.zhavoronkov.openrouter.models.WebSearchEngine
 import org.zhavoronkov.openrouter.models.WebSearchSettings
 import org.zhavoronkov.openrouter.services.settings.WebSearchSettingsManager
 import java.awt.Container
+import javax.swing.JComponent
 import javax.swing.JLabel
+import javax.swing.JList
 
 /**
  * The Web Search settings page, driven the way a user drives it and read back through the
@@ -45,6 +49,18 @@ class WebSearchSettingsPanelPlatformTest : BasePlatformTestCase() {
         listOf("Engine:", "Results:", "Include domains:", "Exclude domains:", "Mode:").forEach {
             assertTrue("expected a '$it' row, got $texts", texts.contains(it))
         }
+    }
+
+    fun testEngineNamesRenderAsTheirDisplayNamesAndNoSelectionAsBlank() {
+        val engine = WebSearchEngine.entries.first()
+        assertEquals("A known engine renders as its display name", engine.displayName, renderedEngine(engine.apiName))
+        assertEquals("No selection renders blank", "", renderedEngine(null))
+    }
+
+    /** The engine choice [name] as the drop-down draws it. */
+    private fun renderedEngine(name: String?): String {
+        val cell = page.engine.renderer.getListCellRendererComponent(JList(), name, -1, false, false) as JComponent
+        return UIUtil.findComponentOfType(cell, SimpleColoredComponent::class.java)!!.getCharSequence(false).toString()
     }
 
     fun testAnUntouchedPageStoresNothingAndSendsTheBareEntry() {

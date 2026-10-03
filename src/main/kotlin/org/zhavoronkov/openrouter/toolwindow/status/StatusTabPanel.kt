@@ -201,7 +201,9 @@ class StatusTabPanel(
      * - a plain `statusTab.dispose()` method call runs only [dispose]'s body and never asks the
      * Disposer to walk this connection, so the subscription would otherwise survive forever.
      */
-    private val statsConnection = ApplicationManager.getApplication().messageBus.connect(this)
+    /** The shared-cache subscription's lifetime, a Disposer child of `this` that can say it ended. */
+    private val statsLifetime = Disposer.newCheckedDisposable(this)
+    private val statsConnection = ApplicationManager.getApplication().messageBus.connect(statsLifetime)
 
     init {
         statusPanel = createStatusPanel()
@@ -900,13 +902,14 @@ class StatusTabPanel(
     /**
      * True once the shared-cache subscription has actually been torn down.
      *
-     * [statsConnection] is a Disposer child of `this`, so `Disposer.dispose(this)` disposes it
-     * automatically; a bare `this.dispose()` method call does not, because it only runs this
-     * class's own [dispose] body without invoking the Disposer. This accessor lets a test tell
+     * [statsConnection] lives in [statsLifetime], a Disposer child of `this`, so
+     * `Disposer.dispose(this)` disposes it automatically; a bare `this.dispose()` method call
+     * does not, because it only runs this class's own [dispose] body without invoking the
+     * Disposer. This accessor lets a test tell
      * the two apart, the way [org.zhavoronkov.openrouter.statusbar.OpenRouterStatusBarWidget]'s
      * `isRefreshAlarmDisposedForTest()` proves its own Disposer-parented resource is torn down.
      */
-    internal fun isStatsConnectionDisposedForTest(): Boolean = Disposer.isDisposed(statsConnection)
+    internal fun isStatsConnectionDisposedForTest(): Boolean = statsLifetime.isDisposed
 }
 
 /**

@@ -1,5 +1,6 @@
 package org.zhavoronkov.openrouter.settings
 
+import com.intellij.ide.HelpTooltip
 import com.intellij.openapi.util.Disposer
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.ui.ContextHelpLabel
@@ -20,9 +21,11 @@ import java.awt.Container
 import java.awt.Dimension
 import java.awt.Point
 import java.awt.event.KeyEvent
+import java.awt.event.MouseEvent
 import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JLabel
+import javax.swing.JPanel
 import javax.swing.JScrollPane
 
 /**
@@ -194,6 +197,35 @@ class FavoriteModelsSettingsPanelPlatformTest : BasePlatformTestCase() {
             shortTip.y >= icon.height
         )
     }
+
+    fun testVariantHelpTooltipOpensBelowTheIconOncePointedAt() {
+        val icon = VariantLegend.createLabel()
+        // The listener VariantLegend adds; the tooltip's own comes later, from addNotify
+        val placeBelow = icon.mouseListeners.single()
+        val entered = MouseEvent(icon, MouseEvent.MOUSE_ENTERED, 0L, 0, 1, 1, 0, false)
+
+        // Not shown yet: no tooltip is installed, and pointing at the label is harmless
+        placeBelow.mouseEntered(entered)
+        assertNull("No tooltip before the label is shown", HelpTooltip.getTooltipFor(icon))
+
+        val page = JPanel().apply { add(icon) }
+        page.addNotify()
+        try {
+            val tooltip = HelpTooltip.getTooltipFor(icon)!!
+            assertEquals(
+                "The factory's alignment until pointed at",
+                HelpTooltip.Alignment.HELP_BUTTON,
+                alignmentOf(tooltip)
+            )
+            placeBelow.mouseEntered(entered)
+            assertEquals("Pointed at, the tooltip opens below the icon", VariantLegend.ALIGNMENT, alignmentOf(tooltip))
+        } finally {
+            page.removeNotify()
+        }
+    }
+
+    private fun alignmentOf(tooltip: HelpTooltip): Any? =
+        HelpTooltip::class.java.getDeclaredField("alignment").apply { isAccessible = true }.get(tooltip)
 
     fun testPageShowsTheVariantHelpIcon() {
         val root = createPanel()

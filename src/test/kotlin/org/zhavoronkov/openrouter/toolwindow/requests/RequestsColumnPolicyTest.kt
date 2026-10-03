@@ -49,4 +49,26 @@ class RequestsColumnPolicyTest {
             RequestsColumnPolicy.visible(249, modelMinWidth = 120, widths = partial)
         )
     }
+
+    @Test
+    @DisplayName("a dragged column takes its new place among the shown ones")
+    fun reorderedShown() {
+        val order = listOf(TIME, SENDER, MODEL, COST, WARNING)
+
+        assertEquals(
+            listOf(COST, TIME, SENDER, MODEL, WARNING),
+            RequestsColumnPolicy.reordered(order, listOf(COST, TIME, SENDER, MODEL, WARNING))
+        )
+    }
+
+    @Test
+    @DisplayName("a column dropped for width keeps its slot while the shown ones move")
+    fun reorderedAroundHidden() {
+        val order = listOf(TIME, SENDER, MODEL, COST, WARNING)
+
+        assertEquals(
+            listOf(TIME, SENDER, WARNING, MODEL, COST),
+            RequestsColumnPolicy.reordered(order, listOf(WARNING, MODEL, COST))
+        )
+    }
 }

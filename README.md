@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="src/main/resources/META-INF/pluginIcon.svg" alt="OpenRouter logo" width="96" height="96" />
+  <a href="NOTICE"><img src="src/main/resources/META-INF/pluginIcon.svg" alt="OpenRouter logo" width="96" height="96" /></a>
 </p>
 
 # OpenRouter IntelliJ Plugin

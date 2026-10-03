@@ -126,6 +126,9 @@ class RequestsTabPanel(
     private val columns: Map<RequestsColumn, TableColumn>
     private var visibleColumns: List<RequestsColumn> = RequestsColumn.entries
 
+    /** Every column, in the order the user dragged them to; [visibleColumns] follows it. */
+    private var columnOrder: List<RequestsColumn> = RequestsColumn.entries
+
     internal val senderFilter = filterCombo()
     internal val modelFilter = filterCombo()
     internal val warningsOnly = JBCheckBox("Warnings only")
@@ -213,7 +216,6 @@ class RequestsTabPanel(
 
     private fun configureTable() {
         table.setShowGrid(false)
-        table.tableHeader.reorderingAllowed = false
         table.autoResizeMode = JTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS
         table.selectionModel.selectionMode = ListSelectionModel.SINGLE_SELECTION
         table.selectionModel.addListSelectionListener { if (!it.valueIsAdjusting && !filling) showDetails() }
@@ -231,7 +233,16 @@ class RequestsTabPanel(
 
             override fun columnAdded(e: TableColumnModelEvent) = Unit
             override fun columnRemoved(e: TableColumnModelEvent) = Unit
-            override fun columnMoved(e: TableColumnModelEvent) = Unit
+            override fun columnMoved(e: TableColumnModelEvent) {
+                // A drag reports every step, and a step that has not crossed a column yet as well
+                if (e.fromIndex == e.toIndex) return
+                // Each column's model index is its RequestsColumn's ordinal, as [columns] was built
+                val shown = (0 until table.columnCount).map {
+                    RequestsColumn.entries[table.columnModel.getColumn(it).modelIndex]
+                }
+                columnOrder = RequestsColumnPolicy.reordered(columnOrder, shown)
+                visibleColumns = shown
+            }
             override fun columnSelectionChanged(e: ListSelectionEvent) = Unit
         })
         configureBurstToggles()
@@ -445,7 +456,8 @@ class RequestsTabPanel(
         val widths = cellWidths + draggedWidths
         val available = tableScroll.viewport.width.takeIf { it > 0 } ?: tableScroll.width
         val modelMin = JBUI.scale(RequestsColumnPolicy.MODEL_MIN_WIDTH)
-        val visible = RequestsColumnPolicy.visible(available, modelMin, widths)
+        val fitting = RequestsColumnPolicy.visible(available, modelMin, widths)
+        val visible = columnOrder.filter { it in fitting }
         if (visible != visibleColumns) {
             visibleColumns.forEach { table.removeColumn(columns.getValue(it)) }
             visible.forEach { table.addColumn(columns.getValue(it)) }
